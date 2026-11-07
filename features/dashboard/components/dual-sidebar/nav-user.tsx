@@ -24,6 +24,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { emailWithBreak } from "@/features/dashboard/lib/emailWithBreak";
 
 export function NavUser({
   user,
@@ -51,7 +52,7 @@ export function NavUser({
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="font-medium break-words">{user.name}</span>
-                <span className="text-xs break-all">{user.email}</span>
+                <span className="text-xs [overflow-wrap:anywhere]">{emailWithBreak(user.email)}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -70,7 +71,7 @@ export function NavUser({
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="font-medium break-words">{user.name}</span>
-                  <span className="text-xs break-all">{user.email}</span>
+                  <span className="text-xs [overflow-wrap:anywhere]">{emailWithBreak(user.email)}</span>
                 </div>
               </div>
             </DropdownMenuLabel>

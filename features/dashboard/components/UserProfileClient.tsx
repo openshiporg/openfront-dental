@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { signOut } from "@/features/dashboard/actions/auth";
+import { emailWithBreak } from "@/features/dashboard/lib/emailWithBreak";
 
 interface User {
   id: string;
@@ -71,7 +72,7 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
                 <span className="font-semibold break-words">
                   {user.name || "User"}
                 </span>
-                <span className="text-xs break-all">{user.email}</span>
+                <span className="text-xs [overflow-wrap:anywhere]">{emailWithBreak(user.email)}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
             </SidebarMenuButton>
@@ -99,8 +100,8 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
                   <span className="font-semibold break-words">
                     {user.name || "User"}
                   </span>
-                  <span className="text-xs text-muted-foreground break-all">
-                    {user.email}
+                  <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
+                    {emailWithBreak(user.email)}
                   </span>
                 </div>
                 <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
