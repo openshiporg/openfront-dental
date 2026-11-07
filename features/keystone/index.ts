@@ -2,18 +2,14 @@ import { createAuth } from "@keystone-6/auth";
 import { config } from "@keystone-6/core";
 import "dotenv/config";
 import { models } from "./models";
-import { statelessSessions } from "@keystone-6/core/session";
 import { extendGraphqlSchema } from "./mutations";
 import { sendPasswordResetEmail } from "./lib/mail";
 import { withMcpBearerSessions } from "./mcp-oauth/session";
+import { isSignedIn, NEVER_DEFAULT, permissionNames, type Session } from "./access";
+import { dentalSessions } from "./lib/session";
+import { addDatabaseConstraints } from "./prismaConstraints";
 
 const databaseURL = process.env.DATABASE_URL || "file:./keystone.db";
-
-const sessionConfig = {
-  maxAge: 60 * 60 * 24 * 360, // How long they stay signed in?
-  secret:
-    process.env.SESSION_SECRET || "this secret should only be used in testing",
-};
 
 const {
   S3_BUCKET_NAME: bucketName = "keystone-test",
@@ -32,14 +28,9 @@ const { withAuth } = createAuth({
     itemData: {
       role: {
         create: {
-          name: "Admin",
-          canCreateTodos: true,
-          canManageAllTodos: true,
-          canSeeOtherPeople: true,
-          canEditOtherPeople: true,
-          canManagePeople: true,
-          canManageRoles: true,
-          canAccessDashboard: true,
+          name: "Practice Owner",
+          // Every permission except break-glass, which is never granted by default.
+          ...Object.fromEntries(permissionNames.filter((name) => !NEVER_DEFAULT.includes(name)).map((name) => [name, true])),
         },
       },
     },
@@ -53,16 +44,22 @@ const { withAuth } = createAuth({
   sessionData: `
     name
     email
+    kind
+    accessExpiresAt
+    mfaEnrolled
+    assignments {
+      startsOn
+      endsOn
+      location { id }
+      role {
+        id
+        ${permissionNames.join("\n        ")}
+      }
+    }
     role {
       id
       name
-      canCreateTodos
-      canManageAllTodos
-      canSeeOtherPeople
-      canEditOtherPeople
-      canManagePeople
-      canManageRoles
-      canAccessDashboard
+      ${permissionNames.join("\n      ")}
     }
   `,
 });
@@ -72,6 +69,7 @@ export default withAuth(
     db: {
       provider: "postgresql",
       url: databaseURL,
+      extendPrismaSchema: addDatabaseConstraints,
     },
     lists: models,
     storage: {
@@ -88,10 +86,12 @@ export default withAuth(
       },
     },
     ui: {
-      isAccessAllowed: ({ session }) => session?.data.role?.canAccessDashboard ?? false,
+      isAccessAllowed: ({ session }) =>
+        isSignedIn({ session: session as Session | undefined }) && (session as Session | undefined)?.data.role?.canAccessDashboard === true,
     },
+    // Staff cookies: 12 h ceiling, second-factor pending state, authVersion revocation (lib/session).
     // MCP OAuth bearer tokens resolve to the approving user; everything else is unchanged.
-    session: withMcpBearerSessions(statelessSessions(sessionConfig)),
+    session: withMcpBearerSessions(dentalSessions()),
     graphql: {
       extendGraphqlSchema,
     },

@@ -7,6 +7,10 @@ import { removeAuthToken } from '@/features/dashboard/lib/cookies';
 import { revalidatePath } from 'next/cache';
 import { PUBLIC_REQUEST_ERROR, safeErrorSummary, sanitizeDashboardRedirect } from '../lib/security';
 import { passwordResetEmailAvailable, RESET_EMAIL_UNAVAILABLE } from '../lib/authFlow';
+import { secretGraphql } from '@/features/platform/lib/secretGraphql';
+
+/** Matches the server's session ceiling (features/keystone/lib/session.ts). */
+const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 
 // Legacy storefront callers may pass a password in previous state; never return it.
 type AuthState = { message: string | null; formData: { email: string; password?: string } };
@@ -23,8 +27,10 @@ export async function signIn(prevState: AuthState, formData: FormData) {
   const password = String(formData.get('password') || '');
   const from = sanitizeDashboardRedirect(formData.get('from'));
 
+  let next = from;
   try {
-    const response = await keystoneClient(`
+    // Carries a password: the secret client never logs variables.
+    const response = await secretGraphql<any>(`
       mutation($email: String!, $password: String!) {
         authenticate: authenticateUserWithPassword(email: $email, password: $password) {
           ... on UserAuthenticationWithPasswordSuccess { sessionToken }
@@ -33,25 +39,35 @@ export async function signIn(prevState: AuthState, formData: FormData) {
       }
     `, { email, password });
 
-    if (!response.success || response.data?.authenticate?.message || !response.data?.authenticate?.sessionToken) {
+    if (!response.success) {
+      const limited = response.errors?.some((e: any) => e?.code === 'RATE_LIMITED');
+      return { message: limited ? response.error : SIGN_IN_ERROR, formData: { email } };
+    }
+    const token = response.data?.authenticate?.sessionToken;
+    if (response.data?.authenticate?.message || !token) {
       return { message: SIGN_IN_ERROR, formData: { email } };
     }
 
     const cookieStore = await cookies();
-    cookieStore.set('keystonejs-session', response.data.authenticate.sessionToken, {
+    cookieStore.set('keystonejs-session', token, {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
       httpOnly: true,
-      maxAge: 60 * 60 * 24 * 30,
+      maxAge: SESSION_MAX_AGE_SECONDS,
     });
+    // An enrolled second factor: the cookie is only a pending challenge until verifyMfa.
+    const status = await secretGraphql<any>('query { mfaStatus }', {}, token);
+    if (status.success && status.data?.mfaStatus?.challengeRequired) {
+      next = `/dashboard/signin/mfa?from=${encodeURIComponent(from)}`;
+    }
   } catch (error) {
     console.error('Sign-in failed:', safeErrorSummary(error));
     return { message: SIGN_IN_ERROR, formData: { email } };
   }
 
   // Next.js redirects throw; keep this outside the catch.
-  redirect(from);
+  redirect(next);
 }
 
 export async function signUp(prevState: AuthState, formData: FormData) {
@@ -156,11 +172,15 @@ export async function getAuthenticatedUser() {
           id
           email
           name
+          onboardingStatus
           role {
             canAccessDashboard
+            canManageOnboarding
           }
         }
       }
+      usersCount
+      practiceSettings { displayName }
     }
   `;
 

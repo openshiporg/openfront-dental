@@ -1,53 +1,49 @@
+import { randomUUID } from 'node:crypto'
 import { keystoneContext } from '../../features/keystone/context'
-import { useMcpScopeGuard } from '../../features/keystone/mcp-oauth/guard'
-import { createYoga } from "graphql-yoga";
+import { useMcpScopeGuard as mcpScopeGuardPlugin } from '../../features/keystone/mcp-oauth/guard'
+import { phiReadAuditPlugin } from '../../features/keystone/security/phiReadAudit'
+import { authRateLimitPlugin } from '../../features/keystone/security/rateLimit'
+import { createYoga } from 'graphql-yoga'
 // @ts-ignore
-import processRequest from "graphql-upload/processRequest.js";
+import processRequest from 'graphql-upload/processRequest.js'
 import { type NextApiRequest, type NextApiResponse } from 'next'
 
 export const config = {
   api: {
     bodyParser: false,
   },
-};
+}
+
+const PURPOSES = new Set(['treatment', 'payment', 'operations', 'patient_request', 'break_glass'])
+
+const yoga = createYoga({
+  graphqlEndpoint: '/api/graphql',
+  schema: keystoneContext.graphql.schema,
+  context: async ({ req, res }: { req: any; res: any }) => {
+    const context: any = await keystoneContext.withRequest(req, res)
+    // HIPAA purpose of use for the PHI read audit; staff screens send it, the default is operations.
+    const purpose = String(req.headers['x-openfront-purpose'] || '')
+    context.openfrontPurpose = PURPOSES.has(purpose) ? purpose : 'operations'
+    context.openfrontCorrelationReference = String(req.headers['x-request-id'] || randomUUID()).slice(0, 100)
+    return context
+  },
+  multipart: false,
+  graphiql: process.env.NODE_ENV !== 'production',
+  maskedErrors: process.env.NODE_ENV === 'production',
+  plugins: [
+    // Sign-in, MFA, reset and first-user mutations are counted per client and per account.
+    authRateLimitPlugin({ prisma: () => keystoneContext.prisma as any, secret: () => process.env.SESSION_SECRET || 'local-development-session-secret-change-me-now' }),
+    // MCP OAuth scopes only narrow: read-only tokens can't mutate, no token can manage credentials.
+    mcpScopeGuardPlugin(),
+    // Every selection of a tiered field writes a PhiReadAudit row; a failed write withholds the data.
+    phiReadAuditPlugin({ schema: keystoneContext.graphql.schema, prisma: () => keystoneContext.prisma, secret: () => process.env.SESSION_SECRET || 'local-development-session-secret-change-me-now' }),
+  ],
+})
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const contentType = req.headers["content-type"];
-  if (contentType?.startsWith("multipart/form-data")) {
-    req.body = await processRequest(req, res);
+  const contentType = req.headers['content-type']
+  if (contentType?.startsWith('multipart/form-data')) {
+    req.body = await processRequest(req, res)
   }
-
-  return createYoga({
-    renderGraphiQL: () => {
-      return `
-        <!DOCTYPE html>
-        <html lang="en">
-          <body style="margin: 0; overflow-x: hidden; overflow-y: hidden">
-          <div id="sandbox" style="height:100vh; width:100vw;"></div>
-          <script src="https://embeddable-sandbox.cdn.apollographql.com/_latest/embeddable-sandbox.umd.production.min.js"></script>
-          <script>
-          new window.EmbeddedSandbox({
-            target: "#sandbox",
-            // Pass through your server href if you are embedding on an endpoint.
-            // Otherwise, you can pass whatever endpoint you want Sandbox to start up with here.
-            initialEndpoint: window.location.href,
-            hideCookieToggle: false,
-            initialState: {
-              includeCookies: true
-            }
-          });
-          // advanced options: https://www.apollographql.com/docs/studio/explorer/sandbox#embedding-sandbox
-          </script>
-          </body>
-        </html>`;
-    },
-    graphqlEndpoint: "/api/graphql",
-    schema: keystoneContext.graphql.schema,
-    context: ({ req, res }: { req: any; res: any }) => {
-      return keystoneContext.withRequest(req, res);
-    },
-    multipart: false,
-    // MCP OAuth scopes only narrow: read-only tokens can't mutate, no token can manage credentials.
-    plugins: [useMcpScopeGuard()],
-  })(req, res);
+  return yoga(req, res)
 }

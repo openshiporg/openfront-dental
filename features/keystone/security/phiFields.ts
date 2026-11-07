@@ -1,0 +1,94 @@
+import type { Permission, Session } from '../access'
+import { hasPermission } from '../access'
+
+/*
+ * PHI tiers per field (SCHEMA G9, DOMAIN §7.1). One map drives three things:
+ *   1. field-level read access: a field in tier T is readable only with the tier's permission;
+ *   2. the GraphQL read-audit plugin: any selected field in this map writes a PhiReadAudit row;
+ *   3. the log redaction filter: these field names are masked in anything logged.
+ * phiFields.test.ts checks every entry against the live schema, so a renamed field can't silently
+ * drop out of the audit.
+ */
+
+export const PHI_TIERS = ['dem', 'clin', 'sens', 'ins', 'fin'] as const
+export type PhiTier = (typeof PHI_TIERS)[number]
+
+/** The permission a reader needs for each tier. */
+export const TIER_PERMISSION: Record<PhiTier, Permission> = {
+  dem: 'canReadDemographics',
+  clin: 'canReadClinical',
+  sens: 'canReadSensitive',
+  ins: 'canReadInsurance',
+  fin: 'canReadLedger',
+}
+
+/** Higher tiers include the right to read lower ones where clinical work needs it. */
+const IMPLIES: Partial<Record<Permission, Permission[]>> = {
+  canReadDemographics: ['canReadClinical', 'canReadInsurance', 'canReadLedger', 'canManagePatients'],
+  canReadClinical: ['canReadSensitive'],
+}
+
+export function canReadTier(session: Session | null | undefined, tier: PhiTier) {
+  const permission = TIER_PERMISSION[tier]
+  if (hasPermission(session, permission)) return true
+  return (IMPLIES[permission] ?? []).some(other => hasPermission(session, other))
+}
+
+/** Field config fragment: `text({ ...phi('dem'), validation: … })`. Machine principals pass through sudo contexts. */
+export const phi = (tier: PhiTier) => ({ access: { read: ({ session }: { session?: Session | null }) => canReadTier(session, tier) } })
+
+/** Merges tier read access into a field config that already declares access for create/update. */
+export function withTier<T extends { access?: Record<string, unknown> }>(tier: PhiTier, config: T): T {
+  return { ...config, access: { ...(config.access ?? {}), ...phi(tier).access } }
+}
+
+/**
+ * List key → field → tier. Lists and fields are added here in the same change that adds them to
+ * the schema; the test fails otherwise.
+ */
+export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
+  // Snapshots and payloads can carry any tier; they are read under the strictest relevant tier.
+  AuditEvent: { before: 'clin', after: 'clin', reason: 'clin' },
+  OutboxEvent: { payload: 'clin' },
+  ApprovalRequest: { payload: 'fin' },
+  Proposal: { payload: 'clin', validation: 'clin', execution: 'clin', realised: 'clin' },
+  Document: { title: 'clin' },
+  BreakGlassEvent: { reason: 'clin' },
+}
+
+/** Every PHI field name, for log redaction (field names only, never values). */
+export const PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap(fields => Object.keys(fields)))
+
+/** Additional identifiers masked in logs wherever they appear, whatever the list. */
+export const ALWAYS_REDACT = new Set([
+  'firstName', 'lastName', 'middleName', 'preferredName', 'dateOfBirth', 'dob', 'email', 'phone', 'address', 'ssn', 'ssnLast4', 'memberId',
+  'subscriberId', 'groupNumber', 'body', 'text', 'note', 'notes', 'answers', 'responses', 'password', 'token', 'secret', 'mfaCode', 'recoveryCode', 'otp', 'cardNumber', 'insuranceCardImage',
+])
+
+type FieldFn = (args: any) => any
+
+/**
+ * Wraps every tiered field so its read access also requires the tier permission. Applied once to
+ * the whole model map, so a list can't forget it. Existing read rules still apply (both must pass).
+ */
+export function applyPhiTiers<T extends Record<string, any>>(models: T): T {
+  for (const [listKey, list] of Object.entries(models)) {
+    const tiers = PHI_FIELDS[listKey]
+    if (!tiers) continue
+    for (const [fieldKey, tier] of Object.entries(tiers)) {
+      const original = list.fields?.[fieldKey] as FieldFn | undefined
+      if (typeof original !== 'function') throw new Error(`PHI_FIELDS names ${listKey}.${fieldKey}, which does not exist.`)
+      list.fields[fieldKey] = (args: any) => {
+        const field = original(args)
+        const access = field.access
+        const baseRead = typeof access === 'function' ? access : access?.read
+        const read = async (input: any) => canReadTier(input.session, tier) && (baseRead ? await baseRead(input) : true)
+        return {
+          ...field,
+          access: typeof access === 'function' ? { read, create: access, update: access } : { ...(access ?? {}), read },
+        }
+      }
+    }
+  }
+  return models
+}
