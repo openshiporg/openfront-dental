@@ -46,6 +46,16 @@ export const quantity = (value: string | null | undefined) => decimalText(value,
 
 export const bps = (value: number | null | undefined) => (value === null || value === undefined ? '—' : `${value} bps`)
 
+/** "Eastern Time" for America/New_York: screens never show the raw zone name. */
+export function zoneLabel(tz: string) {
+  try {
+    const part = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'longGeneric' }).formatToParts(new Date()).find((p) => p.type === 'timeZoneName');
+    return part?.value ?? tz;
+  } catch {
+    return tz;
+  }
+}
+
 const yearIn = (d: Date, tz: string) => new Intl.DateTimeFormat('en-US', { timeZone: tz, year: 'numeric' }).format(d)
 
 /**
@@ -119,7 +129,7 @@ const WORDS: Record<string, string> = {
   // messaging and consent
   appointment_reminders: 'appointment reminders', payment_reminders: 'payment reminders', billing_statements: 'billing statements', marketing: 'marketing', recall: 'recall',
   replied_confirm: 'replied to confirm', replied_cancel: 'replied to cancel', replied_other: 'replied', queued: 'queued', sent: 'sent', delivered: 'delivered', failed: 'failed', suppressed: 'suppressed',
-  granted: 'granted', revoked: 'withdrawn', quiet_hours: 'quiet hours', no_consent: 'no consent', opted_out: 'opted out', synthetic: 'sample data',
+  granted: 'granted', revoked: 'withdrawn', quiet_hours: 'quiet hours', no_consent: 'no consent', opted_out: 'opted out', synthetic: 'fictional record',
   // staff and licences
   dental_licence: 'dental licence', hygiene_licence: 'hygiene licence', da_radiography: 'radiography permit', sedation_permit: 'sedation permit', state_controlled_substance: 'state controlled-substance registration',
   full_time: 'full-time', part_time: 'part-time', invited: 'invited', disabled: 'disabled', suspended: 'suspended',
@@ -144,7 +154,7 @@ export const options = (values: readonly string[]) => values.map((value) => ({ v
 const NOUNS: Record<string, string> = { booking_request: 'booking request', approval_policy: 'approval policy', jurisdiction_pack: 'state rules pack', mfa: 'two-step sign-in', asap: 'ASAP entry', hold: 'slot hold', template: 'schedule template', merge: 'chart merge', portal: 'patient portal', guarantor: 'guarantor', contact: 'phone or email', patients: 'patients', confirmation: 'reminder' }
 const EVENTS: Record<string, string> = {
   'appointment.ready': 'Appointment ready for checkout', 'appointment.withdrawn': 'Appointment withdrawn (spam booking)', 'patient.merged_into': 'Patient chart merged into another', 'patient.unmerged': 'Patient chart merge undone',
-  'patients.sample_loaded': 'Sample practice loaded', 'confirmation.send_failed': 'Reminder failed to send', 'confirmation.suppressed': 'Reminder held back', 'consent.opt_out': 'Patient opted out (STOP)',
+  'patients.sample_loaded': 'Practice loaded', 'confirmation.send_failed': 'Reminder failed to send', 'confirmation.suppressed': 'Reminder held back', 'consent.opt_out': 'Patient opted out (STOP)',
   'portal.code_sent': 'Patient portal sign-in code sent', 'portal.signed_in': 'Patient signed in to the portal', 'patient.duplicate_acknowledged': 'Possible duplicate reviewed: different person',
   'booking_request.accept': 'Online booking kept', 'booking_request.reject_spam': 'Online booking rejected as spam', 'booking_request.link': 'Online booking linked to an existing chart',
   'mfa.enrolment_started': 'Two-step sign-in set-up started', 'mfa.recovery_used': 'Recovery code used', 'practice.controls_changed': 'Practice controls changed',

@@ -16,7 +16,7 @@ export type GridAppointment = {
 
 const PX_PER_MIN = 1.6;
 const STATUS_RING: Record<string, string> = {
-  scheduled: 'ring-amber-400', confirmed: 'ring-emerald-500', arrived: 'ring-sky-500', seated: 'ring-indigo-500', ready_for_checkout: 'ring-violet-500',
+  scheduled: 'ring-amber-400', confirmed: 'ring-emerald-500', arrived: 'ring-sky-500', seated: 'ring-cyan-600', ready_for_checkout: 'ring-lime-600',
   completed: 'ring-slate-300', broken: 'ring-red-500', cancelled: 'ring-red-300',
 };
 
@@ -122,9 +122,9 @@ export function ScheduleGrid({ date, locationId, operatories, blocks, appointmen
                         ))}
                       </span>
                       <span className="block pl-3 pr-1 pt-0.5 text-[11px] leading-tight">
-                        <span className="block truncate font-semibold">{a.patient}{a.alerts ? ' ⚠' : ''}</span>
-                        <span className="block truncate text-muted-foreground">{clock(a.startMin)} · {a.typeName}</span>
-                        <span className="block truncate text-[10px] text-muted-foreground">{a.provider} · {title(a.status)}</span>
+                        <span className="block line-clamp-2 font-semibold">{a.patient}{a.alerts ? ' ⚠' : ''}</span>
+                        <span className="block line-clamp-2 text-muted-foreground">{clock(a.startMin)} · {a.typeName}</span>
+                        <span className="block line-clamp-2 text-[10px] text-muted-foreground">{a.provider} · {title(a.status)}</span>
                       </span>
                     </Link>
                   );

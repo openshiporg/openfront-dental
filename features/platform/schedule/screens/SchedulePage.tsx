@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { q } from '../../lib/server';
-import { money, when } from '../../lib/format';
+import { money, when, zoneLabel } from '../../lib/format';
 import { Page, Section, Stat, Tabs, Empty, Meta, Row, TitleLine } from '../../components/ui';
 import { ScheduleGrid, type GridAppointment, type GridBlock } from '../components/ScheduleGrid';
 import { AppointmentDrawer } from '../components/AppointmentDrawer';
@@ -24,7 +24,7 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Pr
   }`);
   const location = meta.locations.find((l) => l.id === sp.loc) ?? meta.locations[0];
   if (!location) {
-    return <Page title="Schedule"><Empty>No locations yet. Load the sample practice or add a location in practice settings.</Empty></Page>;
+    return <Page title="Schedule"><Empty>No locations yet. Add a location in practice settings.</Empty></Page>;
   }
   const tz = location.timeZone;
   const today = localToday(tz);
@@ -48,7 +48,7 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Pr
         <Link className="rounded-md border px-2.5 py-1 hover:bg-muted" href={link({ date: today, appt: undefined })}>Today</Link>
         <Link className="rounded-md border px-2.5 py-1 hover:bg-muted" href={link({ date: addDays(date, step), appt: undefined })}>{view === 'week' ? 'Next week' : 'Next'} →</Link>
         <span className="font-medium">{view === 'week' ? `Week of ${shortDay(weekStart(date))}` : dayTitle(date)}</span>
-        <span className="text-muted-foreground">· {location.name} · {tz}</span>
+        <span className="text-muted-foreground">· {location.name} · {zoneLabel(tz)}</span>
       </div>
       {view === 'week'
         ? <WeekView location={location} date={date} link={link} />

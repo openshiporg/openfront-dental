@@ -49,7 +49,6 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     <Page title={name} status={p.status} crumbs={[{ label: 'Patients', href: '/dashboard/platform/patients' }]}>
       <div className="flex flex-wrap items-center gap-3">
         <span className="font-mono text-sm text-muted-foreground">{p.chartNumber}</span>
-        {p.isSynthetic ? <span className="text-xs text-muted-foreground">Sample practice: synthetic data</span> : null}
         {p.mergedInto ? <Link className="text-sm underline" href={`/dashboard/platform/patients/${p.mergedInto.id}`}>Merged into {p.mergedInto.chartNumber}</Link> : null}
       </div>
       {activeAlerts.length ? (

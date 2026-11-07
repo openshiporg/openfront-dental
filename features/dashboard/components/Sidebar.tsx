@@ -367,7 +367,7 @@ export function Sidebar({ adminMeta, user, onOpenDialog }: SidebarProps) {
             steps={[{
               href: '#onboarding',
               title: 'Set up your practice',
-              description: 'Load the sample practice (synthetic data): locations, roles, providers, staff and approval policies.',
+              description: 'Set up Bayview Family Dental: locations, roles, providers, staff and approval policies.',
             }]}
             onboardingStatus={user?.onboardingStatus}
             menuItemsCount={user?.menuItemsCount}

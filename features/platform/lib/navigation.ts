@@ -29,7 +29,7 @@ export const platformNavItems: PlatformNavItem[] = [
 
   { title: 'ASAP list', href: '/platform/schedule/asap', color: 'cyan', description: 'Patients who want an earlier appointment.', icon: CalendarClock, group: 'front-desk' },
   { title: 'Confirmations', href: '/platform/schedule/confirmations', color: 'green', description: 'Tomorrow and the next two days: who has confirmed.', icon: CalendarCheck2, group: 'front-desk' },
-  { title: 'Booking requests', href: '/platform/schedule/booking-requests', color: 'violet', description: 'Online booking requests waiting for review.', icon: Inbox, group: 'front-desk' },
+  { title: 'Booking requests', href: '/platform/schedule/booking-requests', color: 'orange', description: 'Online booking requests waiting for review.', icon: Inbox, group: 'front-desk' },
 
   { title: 'Locations & operatories', href: '/platform/settings/locations', color: 'slate', description: 'Offices, chairs, appointment types and schedule templates.', icon: MapPin, group: 'practice' },
   { title: 'Audit log', href: '/platform/audit', color: 'slate', description: 'Hash-chained audit events and chain verification.', icon: BookOpenCheck, group: 'practice' },

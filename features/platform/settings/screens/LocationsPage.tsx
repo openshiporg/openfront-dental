@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { q } from '../../lib/server';
-import { money, label, title, calendarDate } from '../../lib/format';
+import { money, label, title, calendarDate, zoneLabel } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Status, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 
@@ -35,7 +35,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
     <Page title="Locations & operatories" crumbs={[{ label: 'Practice settings' }]}>
       <Tabs active={location.id} items={meta.locations.map((l: any) => ({ key: l.id, label: l.code, href: `/dashboard/platform/settings/locations?loc=${l.id}` }))} />
       <Section title={location.name}>
-        <Row><span>Time zone</span><Meta>{location.timeZone}</Meta></Row>
+        <Row><span>Time zone</span><Meta>{zoneLabel(location.timeZone)}</Meta></Row>
         <Row><span>Jurisdiction pack</span><Meta>{location.jurisdiction?.label ?? 'Generic (strict defaults)'}</Meta></Row>
         <Row><span>Address</span><Meta>{location.address ? [location.address.line1, location.address.city, location.address.state, location.address.postal].filter(Boolean).join(', ') : '—'}</Meta></Row>
         <Row><span>Phone</span><Meta>{location.phone || '—'}</Meta></Row>
