@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { q } from '../../lib/server';
 import { money, when } from '../../lib/format';
-import { Page, Section, Stat, Status, Tabs, Empty, Meta, Row } from '../../components/ui';
+import { Page, Section, Stat, Tabs, Empty, Meta, Row, TitleLine } from '../../components/ui';
 import { ScheduleGrid, type GridAppointment, type GridBlock } from '../components/ScheduleGrid';
 import { AppointmentDrawer } from '../components/AppointmentDrawer';
 import { ACTIVE, COUNTS_FOR_PRODUCTION, addDays, dayTitle, isDate, localMinutes, localToday, percentOf, shortDay, sumMinor, weekStart, weekdayOf } from '../lib/day';
@@ -147,10 +147,9 @@ async function DayView({ location, date, unitMinutes, selected, link }: { locati
             {visible.length ? visible.map((a) => (
               <Row key={a.id} href={link({ appt: a.id })}>
                 <div className="min-w-0">
-                  <div className="font-medium">{nameOf(a.patient)} <span className="font-mono text-xs text-muted-foreground">{a.patient?.chartNumber}</span></div>
+                  <TitleLine status={a.status}><span className="font-medium">{nameOf(a.patient)}</span><span className="font-mono text-xs text-muted-foreground">{a.patient?.chartNumber}</span></TitleLine>
                   <Meta>{when(a.startsAt, tz, 'time')} · {a.type?.name} · {a.primaryProvider?.abbreviation}</Meta>
                 </div>
-                <Status value={a.status} />
               </Row>
             )) : <Empty>No visits booked.</Empty>}
             {counts.broken ? <Meta>{counts.broken} broken appointment{counts.broken === 1 ? '' : 's'} today.</Meta> : null}
@@ -197,7 +196,7 @@ async function WeekView({ location, date, link }: { location: { id: string; time
         <table className="w-full min-w-[46rem] text-sm">
           <thead>
             <tr className="border-b text-left">
-              <th className="sticky left-0 bg-background p-2 font-mono text-xs uppercase text-muted-foreground">Provider</th>
+              <th className="sticky left-0 bg-background p-2 text-xs font-medium text-muted-foreground">Provider</th>
               {days.map((d) => <th key={d} className="p-2 text-right font-medium"><Link className="hover:underline" href={link({ view: 'day', date: d })}>{shortDay(d)}</Link>{closed.has(d) ? <div className="text-[11px] font-normal text-amber-700">{closed.get(d)}</div> : null}</th>)}
             </tr>
           </thead>

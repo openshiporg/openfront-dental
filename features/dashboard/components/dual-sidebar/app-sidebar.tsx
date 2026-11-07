@@ -28,8 +28,8 @@ import { TeamSwitcher } from "./team-switcher";
 // This is sample data.
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
+    name: "Dr. Maya Okafor",
+    email: "maya.okafor@bayviewfamilydental.com",
     avatar: "/avatars/shadcn.jpg",
   },
   teams: [

@@ -6,7 +6,8 @@ import { materialiseBlocks, parsePattern, patternUnits, planSegments, MS_PER_MIN
 
 /*
  * Phase 1 sample data for Bayview Family Dental (BUILD-PLAN §5). Sample practice: synthetic data.
- * Every name, birth date, phone and email is invented (555 numbers, .example domains).
+ * Every name, birth date, phone and email is invented (555 numbers). Sample data never leaves the manual
+ * message queue, so no reminder is ever sent to these addresses.
  *
  * The schedule is laid out by the same engine the booking commands use (template windows, unit
  * patterns, the hygiene exam float), and the rows go through the database exclusion constraints, so
@@ -143,7 +144,7 @@ export function samplePatients(today: string): SeedPatient[] {
       out.push({
         id, chart: `PT-SEED-${String(n).padStart(4, '0')}`, familyId, first, last, preferred: '', dob: dobFor(age), sex, language, homeLocationId,
         status: rand() < 0.08 ? 'inactive' : 'active',
-        email: isAdult ? `${slug}@mail.example` : undefined, mobile: isAdult ? phone() : undefined,
+        email: isAdult ? personalEmail(slug, rand) : undefined, mobile: isAdult ? phone() : undefined,
         guarantorOf: m === 0 ? null : head, relationship: m === 0 ? 'self' : isAdult ? 'spouse' : 'parent', alerts,
       })
       if (m === 0) head = id
@@ -385,6 +386,14 @@ async function seedAppointments(uow: UnitOfWork, people: SeedPatient[], today: s
           FROM "Appointment" a JOIN "Location" l ON l.id = a.location WHERE a.status = 'completed' AND a.id LIKE 'seed_%' GROUP BY a.patient) v
     WHERE p.id = v.patient AND p."isSynthetic"`)
   return count
+}
+
+const MAIL_DOMAINS = ['gmail.com', 'gmail.com', 'gmail.com', 'yahoo.com', 'outlook.com', 'icloud.com', 'hotmail.com', 'aol.com', 'comcast.net']
+/** A personal address the way people actually pick them: first.last, firstlast, f.last, with a number sometimes. */
+function personalEmail(slug: string, rand: () => number) {
+  const [first, last] = slug.split('.')
+  const forms = [`${first}.${last}`, `${first}${last}`, `${first[0]}${last}`, `${first}.${last}${10 + Math.floor(rand() * 80)}`, `${first}${last[0]}${Math.floor(rand() * 9000) + 1000}`]
+  return `${forms[Math.floor(rand() * forms.length)]}@${MAIL_DOMAINS[Math.floor(rand() * MAIL_DOMAINS.length)]}`
 }
 
 function pickType(w: OpenWindow, rand: () => number) {

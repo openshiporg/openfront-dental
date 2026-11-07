@@ -1,6 +1,6 @@
 import { q, practiceTimeZone } from '../../lib/server';
-import { when, label } from '../../lib/format';
-import { Page, Row, Empty, Status, Meta, Section, Tabs } from '../../components/ui';
+import { when, title } from '../../lib/format';
+import { Page, Row, Empty, Meta, Section, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 
 type Request = {
@@ -43,7 +43,7 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
           return (
             <Row key={r.id}>
               <div className="min-w-0 flex-1 space-y-1">
-                <span className="font-medium">{label(r.action.replace('.', ' · '))}</span>
+                <TitleLine status={expired ? 'expired' : r.status}><span className="font-medium">{title(r.action)}</span></TitleLine>
                 {r.summary ? <p className="break-words text-sm">{r.summary}</p> : null}
                 <Meta>
                   Asked by {r.requestedBy?.name ?? (r.requestedByAgent ? `agent ${r.requestedByAgent.name}` : 'the system')} · {when(r.createdAt, tz)}
@@ -51,10 +51,9 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: P
                 </Meta>
                 {r.decisions.map((d, i) => <Meta key={i}><br />{d.decision === 'approve' ? 'Approved' : 'Rejected'} by {d.decidedBy?.name ?? 'someone'} · {when(d.at, tz)}{d.reason ? ` · ${d.reason}` : ''}</Meta>)}
                 {r.consumedAt ? <Meta><br />Carried out {when(r.consumedAt, tz)}</Meta> : null}
-                <p className="break-all font-mono text-[11px] text-muted-foreground">{r.targetList} {r.targetId} · payload {r.payloadHash.slice(0, 12)}</p>
+                <p className="break-all font-mono text-xs text-muted-foreground">{r.targetList} {r.targetId} · payload {r.payloadHash.slice(0, 12)}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Status value={expired ? 'expired' : r.status} />
                 {r.status === 'pending' && !expired && !mine ? (
                   <>
                     <ActionButton op="decideApprovalRequest" vars={{ requestId: r.id, decision: 'approve', expectedVersion: r.version }} paths={['/dashboard/platform/approvals']}>Approve</ActionButton>

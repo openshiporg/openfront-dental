@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { q, practiceTimeZone } from '../../lib/server';
-import { when, label } from '../../lib/format';
-import { Page, Section, Row, Empty, Meta, Status, Tabs } from '../../components/ui';
+import { when, label, calendarDate } from '../../lib/format';
+import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 
@@ -42,19 +42,18 @@ export default async function BookingRequestsPage({ searchParams }: { searchPara
           return (
             <Row key={r.id}>
               <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
+                <TitleLine status={r.status}>
                   <span className="font-medium">{c.firstName} {c.lastName}</span>
                   <span className="font-mono text-xs text-muted-foreground">{r.publicRef}</span>
-                  <Status value={r.matchStatus} />
-                </div>
-                <Meta>{r.location?.code} · {r.appointment?.type?.name ?? 'Visit'} · {r.appointment ? when(r.appointment.startsAt, tz) : 'no visit'} · sent {when(r.createdAt, tz)} · captcha {label(r.captchaScore || 'not_configured')}</Meta>
-                <div><Meta>{[c.email, c.phone, c.dateOfBirth ? `born ${c.dateOfBirth}` : ''].filter(Boolean).join(' · ')}</Meta></div>
+                </TitleLine>
+                <div className={r.matchStatus === 'possible_duplicate' ? 'text-sm text-amber-800' : 'text-sm text-muted-foreground'}>{r.matchStatus === 'new_patient' ? 'New patient' : r.matchStatus === 'matched' ? 'Matched an existing patient' : 'Possible existing patient'}</div>
+                <Meta>{r.location?.code} · {r.appointment?.type?.name ?? 'Visit'} · {r.appointment ? when(r.appointment.startsAt, tz, 'dayTime') : 'no visit'} · sent {when(r.createdAt, tz)} · captcha {label(r.captchaScore || 'not_configured')}</Meta>
+                <div><Meta>{[c.email, c.phone, c.dateOfBirth ? `born ${calendarDate(c.dateOfBirth, 'date')}` : ''].filter(Boolean).join(' · ')}</Meta></div>
                 {r.patientMatch ? <div><Link className="text-sm underline-offset-2 hover:underline" href={`/dashboard/platform/patients/${r.patientMatch.id}`}>Booked on {r.patientMatch.chartNumber} ({label(r.patientMatch.status)})</Link>{r.appointment ? <> · <Link className="text-sm underline-offset-2 hover:underline" href={`/dashboard/platform/schedule?date=${r.appointment.startsAt.slice(0, 10)}&appt=${r.appointment.id}`}>{r.appointment.ref} ({label(r.appointment.status)})</Link></> : null}</div> : null}
                 {candidates.length ? <div className="text-sm text-amber-800">Possible existing patient: {candidates.map((x) => `${x.chartNumber} (${x.evidence.map(label).join(', ')})`).join('; ')}</div> : null}
                 {r.reviewedAt ? <Meta>Reviewed by {r.reviewedBy?.name ?? 'staff'} · {when(r.reviewedAt, tz)}{r.reviewNote ? ` · ${r.reviewNote}` : ''}</Meta> : null}
               </div>
               <div className="flex min-w-0 flex-col items-end gap-2">
-                <Status value={r.status} />
                 {!r.reviewedAt ? (
                   <div className="flex flex-wrap justify-end gap-2">
                     <ActionButton op="reviewBookingRequest" vars={{ requestId: r.id, decision: 'accept', expectedVersion: r.version }} paths={PATHS}>{r.matchStatus === 'possible_duplicate' ? 'Different person: keep' : 'Keep'}</ActionButton>

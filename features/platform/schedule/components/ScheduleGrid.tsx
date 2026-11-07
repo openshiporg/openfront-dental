@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { runCommand } from '../../actions/commands';
+import { title } from '../../lib/format';
 
 export type GridOperatory = { id: string; code: string; name: string; kind: string };
 export type GridBlock = { id: string; operatoryId: string; startMin: number; endMin: number; label: string; provider: string; providerId: string | null; onlineBookable: boolean };
@@ -117,13 +118,13 @@ export function ScheduleGrid({ date, locationId, operatories, blocks, appointmen
                     >
                       <span className="absolute inset-y-0 left-0 flex w-1.5 flex-col">
                         {a.segments.map((s, i) => (
-                          <span key={i} title={s.role} style={{ flexGrow: s.endMin - s.startMin, background: s.role === 'assistant' ? '#cbd5e1' : s.role === 'exam' ? '#f59e0b' : a.colour }} />
+                          <span key={i} title={title(s.role)} style={{ flexGrow: s.endMin - s.startMin, background: s.role === 'assistant' ? '#cbd5e1' : s.role === 'exam' ? '#f59e0b' : a.colour }} />
                         ))}
                       </span>
                       <span className="block pl-3 pr-1 pt-0.5 text-[11px] leading-tight">
                         <span className="block truncate font-semibold">{a.patient}{a.alerts ? ' ⚠' : ''}</span>
                         <span className="block truncate text-muted-foreground">{clock(a.startMin)} · {a.typeName}</span>
-                        <span className="block truncate font-mono text-[10px] uppercase text-muted-foreground">{a.provider} · {a.status.replaceAll('_', ' ')}</span>
+                        <span className="block truncate text-[10px] text-muted-foreground">{a.provider} · {title(a.status)}</span>
                       </span>
                     </Link>
                   );

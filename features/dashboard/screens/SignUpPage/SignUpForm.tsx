@@ -82,7 +82,7 @@ export function SignUpForm() {
               id="email"
               name="email"
               autoComplete="email"
-              placeholder="you@example.com"
+              placeholder="you@yourpractice.com"
               className="mt-2 bg-muted/40"
               defaultValue={state.formData.email}
               required

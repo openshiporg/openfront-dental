@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { q } from '../../lib/server';
-import { money, label } from '../../lib/format';
-import { Page, Section, Row, Empty, Meta, Status, Tabs } from '../../components/ui';
+import { money, label, title, calendarDate } from '../../lib/format';
+import { Page, Section, Row, Empty, Meta, Status, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -43,12 +43,12 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
       <div className="grid min-w-0 gap-6 lg:grid-cols-2">
         <Section title="Operatories">
           {data.operatories.length ? data.operatories.map((o: any) => (
-            <Row key={o.id}><span><span className="font-medium">{o.code}</span> {o.name}</span><span className="flex items-center gap-2"><Meta>{label(o.kind)}</Meta><Status value={o.isActive ? 'active' : 'archived'} /></span></Row>
+            <Row key={o.id}><TitleLine status={o.isActive ? 'active' : 'archived'}><span><span className="font-medium">{o.code}</span> {o.name}</span></TitleLine><Meta>{title(o.kind)}</Meta></Row>
           )) : <Empty>No chairs yet.</Empty>}
         </Section>
         <Section title="Closures">
           {data.closureDays.length ? data.closureDays.map((c: any) => (
-            <Row key={c.id}><span>{String(c.date).slice(0, 10)} · {c.reason}</span><Meta>{c.isHalfDay ? `${c.startLocal}–${c.endLocal}` : 'All day'}{c.location ? '' : ' · all locations'}</Meta></Row>
+            <Row key={c.id}><span>{calendarDate(String(c.date))} · {c.reason}</span><Meta>{c.isHalfDay ? `${c.startLocal}–${c.endLocal}` : 'All day'}{c.location ? '' : ' · all locations'}</Meta></Row>
           )) : <Empty>No closures scheduled.</Empty>}
         </Section>
       </div>
@@ -56,15 +56,14 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
         {data.scheduleTemplates.length ? data.scheduleTemplates.map((t: any) => (
           <div key={t.id} className="space-y-2 border-b py-3 last:border-b-0">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div><span className="font-medium">{t.name}</span> <Meta>from {t.effectiveFrom}{t.effectiveTo ? ` to ${t.effectiveTo}` : ''} · {t.blocks.length} blocks</Meta></div>
+              <div className="min-w-0"><TitleLine status={t.status}><span className="font-medium">{t.name}</span></TitleLine><Meta>from {calendarDate(t.effectiveFrom)}{t.effectiveTo ? ` to ${calendarDate(t.effectiveTo)}` : ''} · {t.blocks.length} blocks</Meta></div>
               <span className="flex items-center gap-2">
-                <Status value={t.status} />
                 {t.status === 'draft' ? <ActionButton op="publishScheduleTemplate" vars={{ templateId: t.id, expectedVersion: t.version }} confirm="Publish this template? The current one ends the day before it starts." paths={path}>Publish</ActionButton> : null}
               </span>
             </div>
             <div className="max-w-full overflow-x-auto">
               <table className="w-full min-w-[34rem] text-xs">
-                <thead><tr className="text-left font-mono uppercase text-muted-foreground"><th className="py-1">Day</th><th>Chair</th><th>Hours</th><th>Provider</th><th>Block</th><th>Types</th><th>Online</th></tr></thead>
+                <thead><tr className="text-left font-medium text-muted-foreground"><th className="py-1">Day</th><th>Chair</th><th>Hours</th><th>Provider</th><th>Block</th><th>Types</th><th>Online</th></tr></thead>
                 <tbody>
                   {t.blocks.map((b: any) => (
                     <tr key={b.id} className="border-t"><td className="py-1">{DAYS[b.weekday]}</td><td>{b.operatory?.code}</td><td>{b.startLocal}–{b.endLocal}</td><td>{b.provider?.abbreviation}</td><td>{b.label}</td><td>{b.allowedTypesCount || 'any'}</td><td>{b.onlineBookable ? 'yes' : ''}</td></tr>
@@ -82,7 +81,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
             <Row key={t.id}>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2"><span className="size-2.5 rounded-full" style={{ background: t.colour }} /><span className="font-medium">{t.name}</span><span className="font-mono text-xs text-muted-foreground">{t.code}</span></div>
-                <Meta>{pattern.map((u) => `${label(u.role)} ${u.units * unit}m`).join(' → ')} · {t.defaultDurationUnits * unit} min · est. {money(t.defaultProductionMinor)}</Meta>
+                <Meta>{pattern.map((u) => `${title(u.role)} ${u.units * unit} min`).join(' → ')} · {t.defaultDurationUnits * unit} min · est. {money(t.defaultProductionMinor)}</Meta>
               </div>
               <Meta>{[t.onlineBookable ? `online as “${t.publicName || t.name}”` : '', t.newPatientOnly ? 'new patients' : '', t.requiresDentistOnSite ? 'dentist on site' : ''].filter(Boolean).join(' · ')}</Meta>
             </Row>

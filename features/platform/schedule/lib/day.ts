@@ -32,13 +32,16 @@ export function clock(minutes: number) {
   return `${((h + 11) % 12) + 1}${m ? `:${String(m).padStart(2, '0')}` : ''}${h < 12 ? 'a' : 'p'}`;
 }
 
+const thisYear = () => new Date().getUTCFullYear()
+
+/** "Mon, Nov 9" (with the year when it is not this year). */
 export function dayTitle(date: string) {
-  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(`${date}T12:00:00Z`));
+  const otherYear = Number(date.slice(0, 4)) !== thisYear()
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric', ...(otherYear ? { year: 'numeric' } : {}) }).format(new Date(`${date}T12:00:00Z`))
 }
 
-export function shortDay(date: string) {
-  return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' }).format(new Date(`${date}T12:00:00Z`));
-}
+/** "Mon, Nov 9": a column heading or a range end; the year is added when it is not this year. */
+export const shortDay = dayTitle
 
 /** Monday of the week that contains `date`. */
 export const weekStart = (date: string) => addDays(date, -((weekdayOf(date) + 6) % 7));

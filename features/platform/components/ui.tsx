@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { PageContainer } from '@/features/dashboard/components/PageContainer';
-import { label } from '../lib/format';
+import { title as words } from '../lib/format';
 
-const GREEN = ['active', 'approved', 'completed', 'delivered', 'confirmed', 'checked_in', 'seated', 'live', 'paid', 'ok', 'applied', 'acknowledged', 'verified', 'enrolled']
-const AMBER = ['pending', 'requested', 'draft', 'running', 'proposed', 'validated', 'leased', 'submitted', 'unconfirmed', 'unknown', 'paused', 'started', 'held', 'scheduled']
-const BLUE = ['sandbox', 'manual_export', 'expired', 'superseded', 'rescheduled']
-const RED = ['rejected', 'cancelled', 'failed', 'dead', 'revoked', 'broken', 'no_show', 'breached', 'archived', 'deceased']
+const GREEN = ['active', 'approved', 'completed', 'delivered', 'confirmed', 'checked_in', 'seated', 'arrived', 'in_progress', 'ready_for_checkout', 'live', 'paid', 'ok', 'applied', 'acknowledged', 'verified', 'enrolled', 'granted', 'converted', 'executed', 'replied_confirm', 'sent', 'booked', 'published']
+const AMBER = ['pending', 'requested', 'draft', 'running', 'executing', 'proposed', 'validated', 'leased', 'submitted', 'unconfirmed', 'unknown', 'paused', 'started', 'held', 'scheduled', 'queued', 'offered', 'possible', 'no_reply', 'prospect', 'invited']
+const BLUE = ['sandbox', 'manual_export', 'expired', 'superseded', 'rescheduled', 'inactive', 'merged_into', 'scheduled_elsewhere', 'suppressed', 'replied_other', 'reverted', 'released', 'new']
+const RED = ['rejected', 'rejected_spam', 'cancelled', 'failed', 'dead', 'revoked', 'broken', 'no_show', 'breached', 'archived', 'deceased', 'replied_cancel', 'disabled', 'suspended', 'blocked']
 const DOT: Record<string, string> = Object.fromEntries([
   ...GREEN.map(v => [v, 'bg-emerald-500']), ...AMBER.map(v => [v, 'bg-amber-500']), ...BLUE.map(v => [v, 'bg-blue-500']), ...RED.map(v => [v, 'bg-red-500']),
 ])
@@ -14,23 +14,29 @@ const DOT: Record<string, string> = Object.fromEntries([
 export function Status({ value, className }: { value?: string | null; className?: string }) {
   if (!value) return null;
   return (
-    <span className={cn('inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-wide', className)}>
-      <span className={cn('size-2 shrink-0 rounded-full', DOT[value] || 'bg-muted-foreground/50')} />
-      {label(value)}
+    <span className={cn('inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-xs font-medium text-muted-foreground', className)}>
+      <span aria-hidden className={cn('size-2 shrink-0 rounded-full', DOT[value] || 'bg-muted-foreground/50')} />
+      {words(value)}
     </span>
   );
 }
 
-export function Page({ title, crumbs = [], children }: { title: string; crumbs?: { label: string; href?: string }[]; children: React.ReactNode }) {
+/** A screen. `status` puts the record's state as a dot on the title line. */
+export function Page({ title, status, crumbs = [], children }: { title: string; status?: string | null; crumbs?: { label: string; href?: string }[]; children: React.ReactNode }) {
   return (
     <PageContainer
       title={title}
       breadcrumbs={[{ type: 'link', label: 'Dashboard', href: '/dashboard' }, ...crumbs.map((c) => ({ type: (c.href ? 'link' : 'page') as 'link' | 'page', label: c.label, href: c.href })), { type: 'page', label: title }]}
-      header={<h1 className="text-xl font-semibold tracking-tight">{title}</h1>}
+      header={<div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"><h1 className="min-w-0 break-words text-xl font-semibold tracking-tight">{title}</h1><Status value={status} /></div>}
     >
       <div className="min-w-0 space-y-6 px-4 pb-10 md:px-6">{children}</div>
     </PageContainer>
   );
+}
+
+/** A list item's first line: name, then its state as a dot. */
+export function TitleLine({ children, status, className }: { children: React.ReactNode; status?: string | null; className?: string }) {
+  return <div className={cn('flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5', className)}>{children}<Status value={status} /></div>;
 }
 
 export function Tabs({ items, active }: { items: { key: string; label: string; href: string; count?: number }[]; active: string }) {

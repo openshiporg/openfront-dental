@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { q } from '../../lib/server';
-import { when, label } from '../../lib/format';
-import { Page, Section, Row, Empty, Meta, Status, Tabs } from '../../components/ui';
+import { when, label, title } from '../../lib/format';
+import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { addDays, isDate, localToday, shortDay } from '../lib/day';
 
@@ -59,17 +59,15 @@ function ConfirmRow({ a, tz }: { a: any; tz: string }) {
   return (
     <Row>
       <div className="min-w-0 flex-1 space-y-0.5">
-        <Link href={`/dashboard/platform/schedule?date=${a.startsAt.slice(0, 10)}&appt=${a.id}`} className="font-medium hover:underline">{name}</Link>
-        <span className="ml-2 font-mono text-xs text-muted-foreground">{a.patient?.chartNumber}</span>
-        <div><Meta>{when(a.startsAt, tz, 'day')} {when(a.startsAt, tz, 'time')} · {a.type?.name} · {a.operatory?.code}</Meta></div>
+        <TitleLine status={a.status}><Link href={`/dashboard/platform/schedule?date=${a.startsAt.slice(0, 10)}&appt=${a.id}`} className="font-medium hover:underline">{name}</Link><span className="font-mono text-xs text-muted-foreground">{a.patient?.chartNumber}</span></TitleLine>
+        <div><Meta>{when(a.startsAt, tz, 'day')}, {when(a.startsAt, tz, 'time')} · {a.type?.name} · {a.operatory?.code}</Meta></div>
         <div><Meta>
-          {phones.length ? `Call ${phones[0].value}` : 'No phone on file'} · reminders by {consents.size ? [...consents].join(', ') : 'nobody (no consent)'}
-          {attempts.length ? ` · ${attempts.map((c) => `${label(c.channel)} ${label(c.status)}`).join(', ')}` : ''}{why ? ` · ${label(why)}` : ''}
+          {phones.length ? `Call ${phones[0].value}` : 'No phone on file'} · reminders by {consents.size ? [...consents].map((c) => label(String(c))).join(', ') : 'nobody (no consent)'}
+          {attempts.length ? ` · ${attempts.map((c) => `${title(c.channel)} ${label(c.status)}`).join(', ')}` : ''}{why ? ` · held back: ${label(why)}` : ''}
         </Meta></div>
-        {a.status === 'confirmed' ? <Meta>Confirmed {a.confirmedAt ? when(a.confirmedAt, tz) : ''} by {label(a.confirmationMethod)}</Meta> : null}
+        {a.status === 'confirmed' ? <Meta>Confirmed {a.confirmedAt ? when(a.confirmedAt, tz, 'dayTime') : ''} by {label(a.confirmationMethod)}</Meta> : null}
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Status value={a.status} />
         {a.status === 'scheduled' ? <ActionButton op="confirmAppointment" vars={{ appointmentId: a.id, expectedVersion: a.version, method: 'phone' }} paths={['/dashboard/platform/schedule/confirmations']}>Confirmed by phone</ActionButton> : null}
       </div>
     </Row>

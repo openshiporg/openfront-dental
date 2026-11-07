@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { q, practiceTimeZone } from '../../lib/server';
-import { when } from '../../lib/format';
-import { Page, Section, Row, Empty, Meta, Status, Tabs } from '../../components/ui';
+import { when, calendarDate } from '../../lib/format';
+import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 
@@ -38,15 +38,13 @@ export default async function AsapPage({ searchParams }: { searchParams?: Promis
         {data.asapEntries.length ? data.asapEntries.map((e: any) => (
           <Row key={e.id}>
             <div className="min-w-0 flex-1 space-y-0.5">
-              <Link href={`/dashboard/platform/patients/${e.patient?.id}`} className="font-medium hover:underline">{e.patient ? `${e.patient.preferredName || e.patient.firstName} ${e.patient.lastName}` : 'Patient'}</Link>
-              <span className="ml-2 font-mono text-xs text-muted-foreground">{e.patient?.chartNumber}</span>
+              <TitleLine status={e.status}><Link href={`/dashboard/platform/patients/${e.patient?.id}`} className="font-medium hover:underline">{e.patient ? `${e.patient.preferredName || e.patient.firstName} ${e.patient.lastName}` : 'Patient'}</Link><span className="font-mono text-xs text-muted-foreground">{e.patient?.chartNumber}</span></TitleLine>
               <div><Meta>{e.location?.code} · {e.appointmentType?.name ?? 'Any visit'}{e.provider ? ` · ${e.provider.abbreviation}` : ''} · priority {e.priority ?? 0} · added {when(e.createdAt, tz, 'day')}</Meta></div>
-              <div><Meta>{(Array.isArray(e.preferredWindows) ? e.preferredWindows : []).map((w: any) => `${DAYS[w.weekday] ?? '?'} ${w.from}–${w.to}`).join(', ') || 'Any time'}{e.earliestDate ? ` · from ${e.earliestDate}` : ''}</Meta></div>
+              <div><Meta>{(Array.isArray(e.preferredWindows) ? e.preferredWindows : []).map((w: any) => `${DAYS[w.weekday] ?? '?'} ${w.from}–${w.to}`).join(', ') || 'Any time'}{e.earliestDate ? ` · from ${calendarDate(e.earliestDate)}` : ''}</Meta></div>
               {e.note ? <p className="text-sm">{e.note}</p> : null}
-              {e.bookedAppointment ? <Meta>Booked {e.bookedAppointment.ref} · {when(e.bookedAppointment.startsAt, tz)}</Meta> : null}
+              {e.bookedAppointment ? <Meta>Booked {e.bookedAppointment.ref} · {when(e.bookedAppointment.startsAt, tz, 'dayTime')}</Meta> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Status value={e.status} />
               {['active', 'offered'].includes(e.status) ? (
                 <>
                   <Link className="inline-flex h-8 items-center rounded-md border px-3 text-sm hover:bg-muted" href={`/dashboard/platform/schedule?loc=${e.location?.id}`}>Find a time</Link>

@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { q, practiceTimeZone } from '../../lib/server';
-import { money, when, label } from '../../lib/format';
-import { Page, Section, Row, Empty, Meta, Status, Stat } from '../../components/ui';
+import { money, when, label, title, options, calendarDate, languageName } from '../../lib/format';
+import { Page, Section, Row, Empty, Meta, Stat, TitleLine } from '../../components/ui';
 import { ActionButton, PillTrack } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 
@@ -46,38 +46,37 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
   const guarantor = p.guarantorLinks[0];
   const gName = guarantor?.guarantor?.patient ? `${guarantor.guarantor.patient.firstName} ${guarantor.guarantor.patient.lastName}` : guarantor?.guarantor?.personName?.full ?? '—';
   return (
-    <Page title={name} crumbs={[{ label: 'Patients', href: '/dashboard/platform/patients' }]}>
+    <Page title={name} status={p.status} crumbs={[{ label: 'Patients', href: '/dashboard/platform/patients' }]}>
       <div className="flex flex-wrap items-center gap-3">
         <span className="font-mono text-sm text-muted-foreground">{p.chartNumber}</span>
-        <Status value={p.status} />
-        {p.isSynthetic ? <span className="rounded border px-1.5 py-0.5 text-[11px] text-muted-foreground">Sample practice: synthetic data</span> : null}
+        {p.isSynthetic ? <span className="text-xs text-muted-foreground">Sample practice: synthetic data</span> : null}
         {p.mergedInto ? <Link className="text-sm underline" href={`/dashboard/platform/patients/${p.mergedInto.id}`}>Merged into {p.mergedInto.chartNumber}</Link> : null}
       </div>
       {activeAlerts.length ? (
         <div className="space-y-1 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
           {activeAlerts.map((a: any) => (
             <div key={a.id} className="flex flex-wrap items-start justify-between gap-2">
-              <span><span className="font-mono text-[11px] uppercase">{label(a.kind)} · {a.severity}</span><br />{a.text}</span>
+              <span><span className="font-medium">{title(a.kind)}</span> · {label(a.severity)}<br />{a.text}</span>
               <ActionButton op="endPatientAlert" vars={{ alertId: a.id }} ask="Why is this alert no longer active?" paths={path}>End</ActionButton>
             </div>
           ))}
         </div>
       ) : null}
       <div className="grid grid-cols-2 gap-4 rounded-lg border p-4 sm:grid-cols-4">
-        <Stat name="Born" value={p.dateOfBirth} />
+        <Stat name="Born" value={calendarDate(p.dateOfBirth, 'date') || '—'} />
         <Stat name="Home location" value={p.homeLocation?.code ?? '—'} />
-        <Stat name="Last visit" value={p.lastVisitOn ?? '—'} />
+        <Stat name="Last visit" value={calendarDate(p.lastVisitOn) || '—'} />
         <Stat name="Next visit" value={upcoming[0] ? when(upcoming[0].startsAt, tz, 'day') : '—'} />
       </div>
       <div className="grid min-w-0 gap-6 lg:grid-cols-2">
         <Section title="Demographics">
           <Row><span>Legal name</span><Meta>{[p.firstName, p.middleName, p.lastName, p.suffix].filter(Boolean).join(' ')}</Meta></Row>
-          <Row><span>Sex at birth · pronouns</span><Meta>{label(p.sexAssignedAtBirth)}{p.pronouns ? ` · ${p.pronouns}` : ''}</Meta></Row>
-          <Row><span>Language</span><Meta>{p.preferredLanguage?.toUpperCase()}</Meta></Row>
+          <Row><span>Sex at birth · pronouns</span><Meta>{title(p.sexAssignedAtBirth) || 'Not recorded'}{p.pronouns ? ` · ${p.pronouns}` : ''}</Meta></Row>
+          <Row><span>Language</span><Meta>{languageName(p.preferredLanguage)}</Meta></Row>
           <Row><span>Address</span><Meta>{p.address ? [p.address.line1, p.address.city, p.address.state, p.address.postal].filter(Boolean).join(', ') : '—'}</Meta></Row>
           <Row><span>Providers</span><Meta>{p.primaryProvider?.displayName ?? '—'}{p.primaryHygienist ? ` · ${p.primaryHygienist.displayName}` : ''}</Meta></Row>
-          <Row><span>First visit</span><Meta>{p.firstVisitOn ?? '—'}</Meta></Row>
-          {p.dateOfDeath ? <Row><span>Date of death</span><Meta>{p.dateOfDeath}</Meta></Row> : null}
+          <Row><span>First visit</span><Meta>{calendarDate(p.firstVisitOn, 'date') || '—'}</Meta></Row>
+          {p.dateOfDeath ? <Row><span>Date of death</span><Meta>{calendarDate(p.dateOfDeath, 'date')}</Meta></Row> : null}
           <PillTrack className="mt-2">
             {['prospect', 'inactive'].includes(p.status) ? <ActionButton op="setPatientStatus" vars={{ patientId: p.id, status: 'active', expectedVersion: p.version }} ask="Reason" paths={path}>Make active</ActionButton> : null}
             {p.status === 'active' ? <ActionButton op="setPatientStatus" vars={{ patientId: p.id, status: 'inactive', expectedVersion: p.version }} ask="Why is this patient inactive?" paths={path}>Make inactive</ActionButton> : null}
@@ -88,11 +87,11 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           <Row><span>Guarantor</span><Meta>{guarantor ? `${gName} (${label(guarantor.relationship)})` : 'None'}</Meta></Row>
           {p.family ? (
             <>
-              <div className="pt-2 font-mono text-[11px] uppercase text-muted-foreground">{p.family.name}</div>
+              <div className="pt-2 text-xs font-medium text-muted-foreground">{p.family.name}</div>
               {(p.family.members as any[]).map((m) => (
                 <Row key={m.id} href={m.id === p.id ? undefined : `/dashboard/platform/patients/${m.id}`}>
-                  <span className={m.id === p.id ? 'font-semibold' : ''}>{m.preferredName || m.firstName} {m.lastName}</span>
-                  <span className="flex items-center gap-2"><Meta>{m.chartNumber} · {m.dateOfBirth}</Meta><Status value={m.status} /></span>
+                  <TitleLine status={m.status}><span className={m.id === p.id ? 'font-semibold' : ''}>{m.preferredName || m.firstName} {m.lastName}</span></TitleLine>
+                  <Meta>{m.chartNumber} · born {calendarDate(m.dateOfBirth, 'date')}</Meta>
                 </Row>
               ))}
             </>
@@ -103,8 +102,8 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         {(p.contactPoints as any[]).length ? (p.contactPoints as any[]).map((c) => (
           <Row key={c.id}>
             <div className="min-w-0 flex-1">
-              <div className="font-medium">{c.value} <span className="font-mono text-xs text-muted-foreground">{label(c.kind)}{c.isPrimary ? ' · primary' : ''}{c.isActive ? '' : ' · inactive'}</span></div>
-              <Meta>{(c.consentGrants as any[]).length ? (c.consentGrants as any[]).map((g) => `${label(g.purpose)} by ${g.channel}: ${g.status}${g.needsReconfirmation ? ' (reconfirm)' : ''}`).join(' · ') : 'No consent recorded'}</Meta>
+              <div className="font-medium">{c.value} <span className="text-xs font-normal text-muted-foreground">{title(c.kind)}{c.isPrimary ? ' · primary' : ''}{c.isActive ? '' : ' · no longer used'}</span></div>
+              <Meta>{(c.consentGrants as any[]).length ? (c.consentGrants as any[]).map((g) => `${title(g.purpose)} by ${label(g.channel)}: ${label(g.status)}${g.needsReconfirmation ? ' (ask again)' : ''}`).join(' · ') : 'No consent recorded'}</Meta>
             </div>
             {c.isActive ? (
               <div className="flex flex-wrap gap-2">
@@ -134,8 +133,8 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
       <Section title="Upcoming visits" aside={<Link className="text-sm hover:underline" href={`/dashboard/platform/schedule?loc=${p.homeLocation?.id ?? ''}`}>Book</Link>}>
         {upcoming.length ? upcoming.map((a) => (
           <Row key={a.id} href={`/dashboard/platform/schedule?date=${a.startsAt.slice(0, 10)}&appt=${a.id}`}>
-            <span>{when(a.startsAt, tz)} · {a.type?.name}</span>
-            <span className="flex items-center gap-2"><Meta>{a.location?.code} {a.operatory?.code} · {a.primaryProvider?.abbreviation} · {money(a.productionScheduledMinor)}</Meta><Status value={a.status} /></span>
+            <TitleLine status={a.status}><span>{when(a.startsAt, tz, 'dayTime')} · {a.type?.name}</span></TitleLine>
+            <Meta>{a.location?.code} {a.operatory?.code} · {a.primaryProvider?.abbreviation} · {money(a.productionScheduledMinor)}</Meta>
           </Row>
         )) : <Empty>Nothing booked.</Empty>}
         {(p.asapEntries as any[]).map((e) => <Meta key={e.id}>On the ASAP list for {e.appointmentType?.name ?? 'any visit'}{e.note ? ` · ${e.note}` : ''}</Meta>)}
@@ -143,8 +142,8 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
       <Section title="Visit history">
         {past.length ? past.map((a) => (
           <Row key={a.id}>
-            <span>{when(a.startsAt, tz)} · {a.type?.name}</span>
-            <span className="flex items-center gap-2"><Meta>{a.ref} · {a.location?.code} · {a.primaryProvider?.abbreviation}</Meta><Status value={a.status} /></span>
+            <TitleLine status={a.status}><span>{when(a.startsAt, tz, 'dayTime')} · {a.type?.name}</span></TitleLine>
+            <Meta>{a.ref} · {a.location?.code} · {a.primaryProvider?.abbreviation}</Meta>
           </Row>
         )) : <Empty>No past visits.</Empty>}
       </Section>
@@ -152,7 +151,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         <Section title="Add a medical alert">
           <CommandForm op="addPatientAlert" submitLabel="Add alert" columns={2} paths={path} fixed={{ patientId: p.id }}
             fields={[
-              { name: 'kind', label: 'Kind', kind: 'select', options: ALERT_KINDS.map((k) => ({ value: k, label: label(k) })) },
+              { name: 'kind', label: 'Kind', kind: 'select', options: options(ALERT_KINDS) },
               { name: 'severity', label: 'Severity', kind: 'select', options: [{ value: 'caution', label: 'Caution' }, { value: 'critical', label: 'Critical' }, { value: 'info', label: 'Info' }] },
               { name: 'text', label: 'What the team must know', kind: 'textarea', required: true },
             ]} />
@@ -160,15 +159,14 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         <Section title="Portal access and merges">
           {(data.portalScopes as any[]).map((s) => (
             <Row key={s.id}>
-              <span>{s.account?.email} <Meta>{label(s.relationship)}{s.validUntilMajority ? ' · until majority' : ''}</Meta></span>
-              <span className="flex items-center gap-2"><Status value={s.status} />{s.status === 'active' ? <ActionButton op="revokePortalScope" vars={{ portalScopeId: s.id }} ask="Why is access removed?" paths={path}>Revoke</ActionButton> : null}</span>
+              <span className="min-w-0"><TitleLine status={s.status}><span className="break-all">{s.account?.email}</span></TitleLine><Meta>{title(s.relationship)}{s.validUntilMajority ? ' · until the age of majority' : ''}</Meta></span>
+              <span className="flex items-center gap-2">{s.status === 'active' ? <ActionButton op="revokePortalScope" vars={{ portalScopeId: s.id }} ask="Why is access removed?" paths={path}>Revoke</ActionButton> : null}</span>
             </Row>
           ))}
           {(data.mergeCases as any[]).map((m) => (
             <Row key={m.id}>
-              <span>{m.merged?.chartNumber} → {m.survivor?.chartNumber} <Meta>{m.reason}</Meta></span>
+              <span className="min-w-0"><TitleLine status={m.status}><span>{m.merged?.chartNumber} → {m.survivor?.chartNumber}</span></TitleLine><Meta>{m.reason}</Meta></span>
               <span className="flex items-center gap-2">
-                <Status value={m.status} />
                 {m.status === 'applied' && m.revertibleUntil && new Date(m.revertibleUntil).getTime() > Date.now() ? <ActionButton op="revertMerge" vars={{ mergeCaseId: m.id, expectedVersion: m.version }} ask="Why undo this merge?" paths={path}>Undo merge</ActionButton> : null}
               </span>
             </Row>

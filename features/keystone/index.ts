@@ -8,6 +8,7 @@ import { withMcpBearerSessions } from "./mcp-oauth/session";
 import { isSignedIn, NEVER_DEFAULT, permissionNames, type Session } from "./access";
 import { dentalSessions } from "./lib/session";
 import { addDatabaseConstraints } from "./prismaConstraints";
+import { throwKeystonePrismaErrors } from "./lib/keystonePrismaErrors";
 
 const databaseURL = process.env.DATABASE_URL || "file:./keystone.db";
 
@@ -70,6 +71,8 @@ export default withAuth(
       provider: "postgresql",
       url: databaseURL,
       extendPrismaSchema: addDatabaseConstraints,
+      // Keystone 6.5 returns failed queries instead of throwing; inside $transaction later writes would still commit.
+      extendPrismaClient: throwKeystonePrismaErrors,
     },
     lists: models,
     storage: {
