@@ -4,6 +4,10 @@ import { OAuthApp } from './OAuthApp'
 import { OAuthToken } from './OAuthToken'
 import * as platform from './platform'
 import { AgentIdentity, AgentToolGrant, AgentRun, Proposal } from './agents'
+import * as patients from './patients'
+import * as scheduling from './scheduling'
+import * as messaging from './messaging'
+import * as portal from './portal'
 import { applyPhiTiers } from '../security/phiFields'
 import { sys } from '../access'
 
@@ -34,6 +38,10 @@ export const models = hideRefusedActions(applyPhiTiers({
   AgentToolGrant,
   AgentRun,
   Proposal,
+  ...listsOf(patients),
+  ...listsOf(scheduling),
+  ...listsOf(messaging),
+  ...listsOf(portal),
 }))
 
 export default models

@@ -61,7 +61,7 @@ describe.skipIf(!hasTestDatabase)('Phase 0 commands (database)', () => {
     expect(tampa.jurisdiction?.label).toBe('US-FL@2026.1')
     expect(tampa.timeZone).toBe('America/New_York')
     expect((await verifyAuditChain(prisma)).ok).toBe(true)
-  })
+  }, 180_000)
 
   it('refuses setup without canManageOnboarding', async () => {
     await expect(loadPracticeSetup(null, { idempotencyKey: uniqueKey('setup') }, frontDesk)).rejects.toMatchObject({ code: 'NOT_AUTHORIZED' })

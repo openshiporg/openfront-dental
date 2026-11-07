@@ -12,47 +12,58 @@ generator client {
 }
 
 model User {
-  id                               String             @id @default(cuid())
-  name                             String             @default("")
-  email                            String             @unique @default("")
-  password                         String
-  role                             Role?              @relation("User_role", fields: [roleId], references: [id])
-  roleId                           String?            @map("role")
-  kind                             UserKindType?      @default(staff)
-  title                            String             @default("")
-  assignments                      StaffAssignment[]  @relation("StaffAssignment_user")
-  providerProfile                  ProviderProfile?   @relation("ProviderProfile_user")
-  accessExpiresAt                  DateTime?
-  mfaEnrolled                      Boolean            @default(false)
-  mfaSecretId                      String?
-  mfaPendingSecretId               String?
-  mfaPendingExpiresAt              DateTime?
-  mfaLastCounter                   Int?               @default(-1)
-  mfaRecoveryHashes                String             @default("[]")
-  mfaFailures                      Int?               @default(0)
-  mfaLockedUntil                   DateTime?
-  quickSwitchPinHash               String?
-  authVersion                      Int?               @default(1)
-  onboardingStatus                 String?            @default("not_started")
-  createdAt                        DateTime           @default(now())
-  updatedAt                        DateTime           @default(now()) @updatedAt
-  passwordResetToken               String?
-  passwordResetIssuedAt            DateTime?
-  passwordResetRedeemedAt          DateTime?
-  from_OAuthToken_user             OAuthToken[]       @relation("OAuthToken_user")
-  from_ApprovalDecision_decidedBy  ApprovalDecision[] @relation("ApprovalDecision_decidedBy")
-  from_ApprovalRequest_requestedBy ApprovalRequest[]  @relation("ApprovalRequest_requestedBy")
-  from_AuditEvent_actorUser        AuditEvent[]       @relation("AuditEvent_actorUser")
-  from_AuditEvent_approver         AuditEvent[]       @relation("AuditEvent_approver")
-  from_BreakGlassEvent_user        BreakGlassEvent[]  @relation("BreakGlassEvent_user")
-  from_BreakGlassEvent_reviewedBy  BreakGlassEvent[]  @relation("BreakGlassEvent_reviewedBy")
-  from_Credential_staffUser        Credential[]       @relation("Credential_staffUser")
-  from_Document_uploadedBy         Document[]         @relation("Document_uploadedBy")
-  from_JurisdictionPack_verifiedBy JurisdictionPack[] @relation("JurisdictionPack_verifiedBy")
-  from_Notification_recipient      Notification[]     @relation("Notification_recipient")
-  from_PhiReadAudit_actorUser      PhiReadAudit[]     @relation("PhiReadAudit_actorUser")
-  from_AgentIdentity_owner         AgentIdentity[]    @relation("AgentIdentity_owner")
-  from_Proposal_proposedByUser     Proposal[]         @relation("Proposal_proposedByUser")
+  id                                     String                   @id @default(cuid())
+  name                                   String                   @default("")
+  email                                  String                   @unique @default("")
+  password                               String
+  role                                   Role?                    @relation("User_role", fields: [roleId], references: [id])
+  roleId                                 String?                  @map("role")
+  kind                                   UserKindType?            @default(staff)
+  title                                  String                   @default("")
+  assignments                            StaffAssignment[]        @relation("StaffAssignment_user")
+  providerProfile                        ProviderProfile?         @relation("ProviderProfile_user")
+  accessExpiresAt                        DateTime?
+  mfaEnrolled                            Boolean                  @default(false)
+  mfaSecretId                            String?
+  mfaPendingSecretId                     String?
+  mfaPendingExpiresAt                    DateTime?
+  mfaLastCounter                         Int?                     @default(-1)
+  mfaRecoveryHashes                      String                   @default("[]")
+  mfaFailures                            Int?                     @default(0)
+  mfaLockedUntil                         DateTime?
+  quickSwitchPinHash                     String?
+  authVersion                            Int?                     @default(1)
+  onboardingStatus                       String?                  @default("not_started")
+  createdAt                              DateTime                 @default(now())
+  updatedAt                              DateTime                 @default(now()) @updatedAt
+  passwordResetToken                     String?
+  passwordResetIssuedAt                  DateTime?
+  passwordResetRedeemedAt                DateTime?
+  from_OAuthToken_user                   OAuthToken[]             @relation("OAuthToken_user")
+  from_ApprovalDecision_decidedBy        ApprovalDecision[]       @relation("ApprovalDecision_decidedBy")
+  from_ApprovalRequest_requestedBy       ApprovalRequest[]        @relation("ApprovalRequest_requestedBy")
+  from_AuditEvent_actorUser              AuditEvent[]             @relation("AuditEvent_actorUser")
+  from_AuditEvent_approver               AuditEvent[]             @relation("AuditEvent_approver")
+  from_BreakGlassEvent_user              BreakGlassEvent[]        @relation("BreakGlassEvent_user")
+  from_BreakGlassEvent_reviewedBy        BreakGlassEvent[]        @relation("BreakGlassEvent_reviewedBy")
+  from_Credential_staffUser              Credential[]             @relation("Credential_staffUser")
+  from_Document_uploadedBy               Document[]               @relation("Document_uploadedBy")
+  from_JurisdictionPack_verifiedBy       JurisdictionPack[]       @relation("JurisdictionPack_verifiedBy")
+  from_Notification_recipient            Notification[]           @relation("Notification_recipient")
+  from_PhiReadAudit_actorUser            PhiReadAudit[]           @relation("PhiReadAudit_actorUser")
+  from_AgentIdentity_owner               AgentIdentity[]          @relation("AgentIdentity_owner")
+  from_Proposal_proposedByUser           Proposal[]               @relation("Proposal_proposedByUser")
+  from_MergeCase_proposedBy              MergeCase[]              @relation("MergeCase_proposedBy")
+  from_PatientAlert_recordedBy           PatientAlert[]           @relation("PatientAlert_recordedBy")
+  from_Appointment_alertAckBy            Appointment[]            @relation("Appointment_alertAckBy")
+  from_Appointment_bookedBy              Appointment[]            @relation("Appointment_bookedBy")
+  from_BrokenAppointmentEvent_recordedBy BrokenAppointmentEvent[] @relation("BrokenAppointmentEvent_recordedBy")
+  from_ScheduleTemplate_publishedBy      ScheduleTemplate[]       @relation("ScheduleTemplate_publishedBy")
+  from_ConsentGrant_recordedBy           ConsentGrant[]           @relation("ConsentGrant_recordedBy")
+  from_Conversation_assignedTo           Conversation[]           @relation("Conversation_assignedTo")
+  from_PortalAccount_invitedBy           PortalAccount[]          @relation("PortalAccount_invitedBy")
+  from_PortalScope_grantedBy             PortalScope[]            @relation("PortalScope_grantedBy")
+  from_PublicBookingRequest_reviewedBy   PublicBookingRequest[]   @relation("PublicBookingRequest_reviewedBy")
 
   @@index([roleId])
 }
@@ -258,6 +269,7 @@ model ApprovalRequest {
   updatedAt                    DateTime           @default(now()) @updatedAt
   from_AgentToolGrant_approval AgentToolGrant[]   @relation("AgentToolGrant_approval")
   from_Proposal_approval       Proposal[]         @relation("Proposal_approval")
+  from_MergeCase_approval      MergeCase[]        @relation("MergeCase_approval")
 
   @@index([action])
   @@index([targetId])
@@ -415,6 +427,7 @@ model Document {
   from_Credential_evidence           Credential[]         @relation("Credential_evidence")
   from_Document_supersedes           Document[]           @relation("Document_supersedes")
   from_InboundObservation_raw        InboundObservation[] @relation("InboundObservation_raw")
+  from_Referral_letter               Referral[]           @relation("Referral_letter")
 
   @@index([supersedesId])
   @@index([uploadedById])
@@ -505,29 +518,40 @@ model Lease {
 }
 
 model Location {
-  id                            String            @id @default(cuid())
-  name                          String            @default("")
-  code                          String            @unique @default("")
-  address                       Json?             @default("{}")
-  phone                         String            @default("")
-  email                         String            @default("")
-  timeZone                      String            @default("America/New_York")
-  jurisdiction                  JurisdictionPack? @relation("Location_jurisdiction", fields: [jurisdictionId], references: [id])
-  jurisdictionId                String?           @map("jurisdiction")
-  npiType2                      String            @default("")
-  taxonomyCode                  String            @default("")
-  placeOfServiceCode            String            @default("11")
-  stateFacilityPermit           String            @default("")
-  hours                         Json?             @default("{}")
-  billingEntity                 BillingEntity?    @relation("Location_billingEntity", fields: [billingEntityId], references: [id])
-  billingEntityId               String?           @map("billingEntity")
-  staff                         StaffAssignment[] @relation("StaffAssignment_location")
-  isActive                      Boolean           @default(true)
-  isSynthetic                   Boolean           @default(false)
-  createdAt                     DateTime          @default(now())
-  updatedAt                     DateTime          @default(now()) @updatedAt
-  from_BreakGlassEvent_location BreakGlassEvent[] @relation("BreakGlassEvent_location")
-  from_Proposal_location        Proposal[]        @relation("Proposal_location")
+  id                                 String                 @id @default(cuid())
+  name                               String                 @default("")
+  code                               String                 @unique @default("")
+  address                            Json?                  @default("{}")
+  phone                              String                 @default("")
+  email                              String                 @default("")
+  timeZone                           String                 @default("America/New_York")
+  jurisdiction                       JurisdictionPack?      @relation("Location_jurisdiction", fields: [jurisdictionId], references: [id])
+  jurisdictionId                     String?                @map("jurisdiction")
+  npiType2                           String                 @default("")
+  taxonomyCode                       String                 @default("")
+  placeOfServiceCode                 String                 @default("11")
+  stateFacilityPermit                String                 @default("")
+  hours                              Json?                  @default("{}")
+  billingEntity                      BillingEntity?         @relation("Location_billingEntity", fields: [billingEntityId], references: [id])
+  billingEntityId                    String?                @map("billingEntity")
+  staff                              StaffAssignment[]      @relation("StaffAssignment_location")
+  isActive                           Boolean                @default(true)
+  isSynthetic                        Boolean                @default(false)
+  createdAt                          DateTime               @default(now())
+  updatedAt                          DateTime               @default(now()) @updatedAt
+  from_BreakGlassEvent_location      BreakGlassEvent[]      @relation("BreakGlassEvent_location")
+  from_Proposal_location             Proposal[]             @relation("Proposal_location")
+  from_Patient_homeLocation          Patient[]              @relation("Patient_homeLocation")
+  from_Appointment_location          Appointment[]          @relation("Appointment_location")
+  from_AsapEntry_location            AsapEntry[]            @relation("AsapEntry_location")
+  from_BookingHold_location          BookingHold[]          @relation("BookingHold_location")
+  from_ClosureDay_location           ClosureDay[]           @relation("ClosureDay_location")
+  from_Operatory_location            Operatory[]            @relation("Operatory_location")
+  from_ProductionGoal_location       ProductionGoal[]       @relation("ProductionGoal_location")
+  from_ScheduleTemplate_location     ScheduleTemplate[]     @relation("ScheduleTemplate_location")
+  from_OnlineBookingPolicy_location  OnlineBookingPolicy[]  @relation("OnlineBookingPolicy_location")
+  from_PublicBookingRequest_location PublicBookingRequest[] @relation("PublicBookingRequest_location")
+  from_StorefrontSite_location       StorefrontSite[]       @relation("StorefrontSite_location")
 
   @@index([jurisdictionId])
   @@index([billingEntityId])
@@ -648,24 +672,34 @@ model PracticeSettings {
 }
 
 model ProviderProfile {
-  id                   String       @id @default(cuid())
-  user                 User?        @relation("ProviderProfile_user", fields: [userId], references: [id])
-  userId               String?      @unique @map("user")
-  displayName          String       @default("")
-  abbreviation         String       @unique @default("")
-  providerType         String       @default("dentist")
-  specialty            String       @default("general")
-  npiType1             String?      @unique
-  taxonomyCode         String       @default("")
-  credentials          Credential[] @relation("Credential_holder")
-  payerProviderIds     Json?        @default("{}")
-  supervisionClass     String       @default("")
-  colour               String       @default("#2563eb")
-  productionCreditMode String       @default("rendering")
-  isActive             Boolean      @default(true)
-  isSynthetic          Boolean      @default(false)
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @default(now()) @updatedAt
+  id                                  String               @id @default(cuid())
+  user                                User?                @relation("ProviderProfile_user", fields: [userId], references: [id])
+  userId                              String?              @unique @map("user")
+  displayName                         String               @default("")
+  abbreviation                        String               @unique @default("")
+  providerType                        String               @default("dentist")
+  specialty                           String               @default("general")
+  npiType1                            String?              @unique
+  taxonomyCode                        String               @default("")
+  credentials                         Credential[]         @relation("Credential_holder")
+  payerProviderIds                    Json?                @default("{}")
+  supervisionClass                    String               @default("")
+  colour                              String               @default("#2563eb")
+  productionCreditMode                String               @default("rendering")
+  isActive                            Boolean              @default(true)
+  isSynthetic                         Boolean              @default(false)
+  createdAt                           DateTime             @default(now())
+  updatedAt                           DateTime             @default(now()) @updatedAt
+  from_Patient_primaryProvider        Patient[]            @relation("Patient_primaryProvider")
+  from_Patient_primaryHygienist       Patient[]            @relation("Patient_primaryHygienist")
+  from_Appointment_primaryProvider    Appointment[]        @relation("Appointment_primaryProvider")
+  from_Appointment_supervisingDentist Appointment[]        @relation("Appointment_supervisingDentist")
+  from_AppointmentSegment_provider    AppointmentSegment[] @relation("AppointmentSegment_provider")
+  from_AsapEntry_provider             AsapEntry[]          @relation("AsapEntry_provider")
+  from_BookingHold_provider           BookingHold[]        @relation("BookingHold_provider")
+  from_ProductionGoal_provider        ProductionGoal[]     @relation("ProductionGoal_provider")
+  from_TemplateBlock_provider         TemplateBlock[]      @relation("TemplateBlock_provider")
+  from_StorefrontSite_providersShown  StorefrontSite[]     @relation("StorefrontSite_providersShown")
 }
 
 model RateLimitBucket {
@@ -737,6 +771,7 @@ model AgentIdentity {
   from_MachineCredential_agent          MachineCredential[] @relation("MachineCredential_agent")
   from_PhiReadAudit_actorAgent          PhiReadAudit[]      @relation("PhiReadAudit_actorAgent")
   from_Proposal_proposedByAgent         Proposal[]          @relation("Proposal_proposedByAgent")
+  from_Conversation_agent               Conversation[]      @relation("Conversation_agent")
 
   @@index([inferenceProviderId])
   @@index([ownerId])
@@ -786,32 +821,34 @@ model AgentRun {
 }
 
 model Proposal {
-  id                    String           @id @default(cuid())
-  kind                  String
-  payload               Json?
-  payloadHash           String           @default("")
-  expectedImpact        Json?
-  status                String           @default("proposed")
-  agentRun              AgentRun?        @relation("Proposal_agentRun", fields: [agentRunId], references: [id])
-  agentRunId            String?          @map("agentRun")
-  proposedByAgent       AgentIdentity?   @relation("Proposal_proposedByAgent", fields: [proposedByAgentId], references: [id])
-  proposedByAgentId     String?          @map("proposedByAgent")
-  proposedByUser        User?            @relation("Proposal_proposedByUser", fields: [proposedByUserId], references: [id])
-  proposedByUserId      String?          @map("proposedByUser")
-  location              Location?        @relation("Proposal_location", fields: [locationId], references: [id])
-  locationId            String?          @map("location")
-  targetList            String           @default("")
-  targetId              String           @default("")
-  approval              ApprovalRequest? @relation("Proposal_approval", fields: [approvalId], references: [id])
-  approvalId            String?          @map("approval")
-  validation            Json?
-  execution             Json?
-  realised              Json?
-  expiresAt             DateTime?
-  autonomyPolicyVersion Int?
-  version               Int              @default(0)
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @default(now()) @updatedAt
+  id                        String           @id @default(cuid())
+  kind                      String
+  payload                   Json?
+  payloadHash               String           @default("")
+  expectedImpact            Json?
+  status                    String           @default("proposed")
+  agentRun                  AgentRun?        @relation("Proposal_agentRun", fields: [agentRunId], references: [id])
+  agentRunId                String?          @map("agentRun")
+  proposedByAgent           AgentIdentity?   @relation("Proposal_proposedByAgent", fields: [proposedByAgentId], references: [id])
+  proposedByAgentId         String?          @map("proposedByAgent")
+  proposedByUser            User?            @relation("Proposal_proposedByUser", fields: [proposedByUserId], references: [id])
+  proposedByUserId          String?          @map("proposedByUser")
+  location                  Location?        @relation("Proposal_location", fields: [locationId], references: [id])
+  locationId                String?          @map("location")
+  targetList                String           @default("")
+  targetId                  String           @default("")
+  approval                  ApprovalRequest? @relation("Proposal_approval", fields: [approvalId], references: [id])
+  approvalId                String?          @map("approval")
+  validation                Json?
+  execution                 Json?
+  realised                  Json?
+  expiresAt                 DateTime?
+  autonomyPolicyVersion     Int?
+  version                   Int              @default(0)
+  createdAt                 DateTime         @default(now())
+  updatedAt                 DateTime         @default(now()) @updatedAt
+  from_Appointment_proposal Appointment[]    @relation("Appointment_proposal")
+  from_Message_proposal     Message[]        @relation("Message_proposal")
 
   @@index([agentRunId])
   @@index([proposedByAgentId])
@@ -819,6 +856,810 @@ model Proposal {
   @@index([locationId])
   @@index([targetId])
   @@index([approvalId])
+}
+
+model ContactPoint {
+  id                                    String                @id @default(cuid())
+  patient                               Patient?              @relation("ContactPoint_patient", fields: [patientId], references: [id])
+  patientId                             String?               @map("patient")
+  guarantor                             Guarantor?            @relation("ContactPoint_guarantor", fields: [guarantorId], references: [id])
+  guarantorId                           String?               @map("guarantor")
+  kind                                  String
+  value                                 String                @default("")
+  valueNormalized                       String                @default("")
+  isPrimary                             Boolean               @default(false)
+  isActive                              Boolean               @default(true)
+  verifiedAt                            DateTime?
+  consentGrants                         ConsentGrant[]        @relation("ConsentGrant_contactPoint")
+  createdAt                             DateTime              @default(now())
+  updatedAt                             DateTime              @default(now()) @updatedAt
+  from_ConfirmationAttempt_contactPoint ConfirmationAttempt[] @relation("ConfirmationAttempt_contactPoint")
+  from_Conversation_contactPoint        Conversation[]        @relation("Conversation_contactPoint")
+  from_PortalAccount_verifiedContact    PortalAccount[]       @relation("PortalAccount_verifiedContact")
+
+  @@index([patientId])
+  @@index([guarantorId])
+  @@index([valueNormalized])
+}
+
+model FamilyGroup {
+  id             String    @id @default(cuid())
+  name           String    @default("")
+  members        Patient[] @relation("Patient_family")
+  primaryAddress Json?     @default("{}")
+  notes          String    @default("")
+  isSynthetic    Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+}
+
+model Guarantor {
+  id            String          @id @default(cuid())
+  patient       Patient?        @relation("Guarantor_patient", fields: [patientId], references: [id])
+  patientId     String?         @map("patient")
+  personName    Json?           @default("{}")
+  contactPoints ContactPoint[]  @relation("ContactPoint_guarantor")
+  links         GuarantorLink[] @relation("GuarantorLink_guarantor")
+  isSynthetic   Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+
+  @@index([patientId])
+}
+
+model GuarantorLink {
+  id           String     @id @default(cuid())
+  patient      Patient?   @relation("GuarantorLink_patient", fields: [patientId], references: [id])
+  patientId    String?    @map("patient")
+  guarantor    Guarantor? @relation("GuarantorLink_guarantor", fields: [guarantorId], references: [id])
+  guarantorId  String?    @map("guarantor")
+  relationship String
+  status       String     @default("active")
+  startsOn     DateTime?  @postgresql.Date
+  endsOn       DateTime?  @postgresql.Date
+  version      Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([guarantorId])
+}
+
+model MergeCase {
+  id                 String           @id @default(cuid())
+  survivor           Patient?         @relation("MergeCase_survivor", fields: [survivorId], references: [id])
+  survivorId         String?          @map("survivor")
+  merged             Patient?         @relation("MergeCase_merged", fields: [mergedId], references: [id])
+  mergedId           String?          @map("merged")
+  evidence           Json?            @default("{}")
+  reason             String           @default("")
+  status             String           @default("proposed")
+  approval           ApprovalRequest? @relation("MergeCase_approval", fields: [approvalId], references: [id])
+  approvalId         String?          @map("approval")
+  proposedBy         User?            @relation("MergeCase_proposedBy", fields: [proposedById], references: [id])
+  proposedById       String?          @map("proposedBy")
+  appliedAt          DateTime?
+  revertibleUntil    DateTime?
+  revertedAt         DateTime?
+  mergedStatusBefore String           @default("")
+  entries            MergeMap[]       @relation("MergeMap_mergeCase")
+  version            Int              @default(0)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @default(now()) @updatedAt
+
+  @@index([survivorId])
+  @@index([mergedId])
+  @@index([approvalId])
+  @@index([proposedById])
+}
+
+model MergeMap {
+  id          String     @id @default(cuid())
+  mergeCase   MergeCase? @relation("MergeMap_mergeCase", fields: [mergeCaseId], references: [id])
+  mergeCaseId String?    @map("mergeCase")
+  listKey     String     @default("")
+  rowId       String     @default("")
+  field       String     @default("")
+  fromId      String     @default("")
+  toId        String     @default("")
+  seq         Int?       @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @default(now()) @updatedAt
+
+  @@index([mergeCaseId])
+}
+
+model Patient {
+  id                                     String                   @id @default(cuid())
+  chartNumber                            String                   @unique @default("")
+  status                                 String                   @default("prospect")
+  mergedInto                             Patient?                 @relation("Patient_mergedInto", fields: [mergedIntoId], references: [id])
+  mergedIntoId                           String?                  @map("mergedInto")
+  firstName                              String                   @default("")
+  middleName                             String                   @default("")
+  lastName                               String                   @default("")
+  preferredName                          String                   @default("")
+  suffix                                 String                   @default("")
+  dateOfBirth                            DateTime                 @postgresql.Date
+  sexAssignedAtBirth                     String
+  genderIdentity                         String                   @default("")
+  pronouns                               String                   @default("")
+  preferredLanguage                      String                   @default("en")
+  address                                Json?                    @default("{}")
+  contactPoints                          ContactPoint[]           @relation("ContactPoint_patient")
+  identifiers                            PatientIdentifier[]      @relation("PatientIdentifier_patient")
+  family                                 FamilyGroup?             @relation("Patient_family", fields: [familyId], references: [id])
+  familyId                               String?                  @map("family")
+  guarantorLinks                         GuarantorLink[]          @relation("GuarantorLink_patient")
+  primaryProvider                        ProviderProfile?         @relation("Patient_primaryProvider", fields: [primaryProviderId], references: [id])
+  primaryProviderId                      String?                  @map("primaryProvider")
+  primaryHygienist                       ProviderProfile?         @relation("Patient_primaryHygienist", fields: [primaryHygienistId], references: [id])
+  primaryHygienistId                     String?                  @map("primaryHygienist")
+  homeLocation                           Location?                @relation("Patient_homeLocation", fields: [homeLocationId], references: [id])
+  homeLocationId                         String?                  @map("homeLocation")
+  referralSource                         ReferralSource?          @relation("Patient_referralSource", fields: [referralSourceId], references: [id])
+  referralSourceId                       String?                  @map("referralSource")
+  referredBy                             String                   @default("")
+  firstVisitOn                           DateTime?                @postgresql.Date
+  lastVisitOn                            DateTime?                @postgresql.Date
+  dateOfDeath                            DateTime?                @postgresql.Date
+  alerts                                 PatientAlert[]           @relation("PatientAlert_patient")
+  appointments                           Appointment[]            @relation("Appointment_patient")
+  asapEntries                            AsapEntry[]              @relation("AsapEntry_patient")
+  statementHold                          Boolean                  @default(false)
+  isSynthetic                            Boolean                  @default(false)
+  version                                Int                      @default(0)
+  createdAt                              DateTime                 @default(now())
+  updatedAt                              DateTime                 @default(now()) @updatedAt
+  from_Guarantor_patient                 Guarantor[]              @relation("Guarantor_patient")
+  from_MergeCase_survivor                MergeCase[]              @relation("MergeCase_survivor")
+  from_MergeCase_merged                  MergeCase[]              @relation("MergeCase_merged")
+  from_Patient_mergedInto                Patient[]                @relation("Patient_mergedInto")
+  from_Referral_patient                  Referral[]               @relation("Referral_patient")
+  from_BookingHold_patient               BookingHold[]            @relation("BookingHold_patient")
+  from_BrokenAppointmentEvent_patient    BrokenAppointmentEvent[] @relation("BrokenAppointmentEvent_patient")
+  from_Conversation_patient              Conversation[]           @relation("Conversation_patient")
+  from_PortalScope_patient               PortalScope[]            @relation("PortalScope_patient")
+  from_PublicBookingRequest_patientMatch PublicBookingRequest[]   @relation("PublicBookingRequest_patientMatch")
+
+  @@index([mergedIntoId])
+  @@index([familyId])
+  @@index([primaryProviderId])
+  @@index([primaryHygienistId])
+  @@index([homeLocationId])
+  @@index([referralSourceId])
+  @@index([lastName, firstName, dateOfBirth], map: "Patient_name_dob_idx")
+}
+
+model PatientAlert {
+  id           String    @id @default(cuid())
+  patient      Patient?  @relation("PatientAlert_patient", fields: [patientId], references: [id])
+  patientId    String?   @map("patient")
+  kind         String
+  severity     String
+  text         String    @default("")
+  source       String
+  activeFrom   DateTime? @default(now())
+  endedAt      DateTime?
+  recordedBy   User?     @relation("PatientAlert_recordedBy", fields: [recordedById], references: [id])
+  recordedById String?   @map("recordedBy")
+  version      Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([recordedById])
+}
+
+model PatientIdentifier {
+  id        String   @id @default(cuid())
+  patient   Patient? @relation("PatientIdentifier_patient", fields: [patientId], references: [id])
+  patientId String?  @map("patient")
+  system    String
+  value     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([system, value], map: "PatientIdentifier_system_value_key")
+  @@index([patientId])
+}
+
+model Referral {
+  id        String          @id @default(cuid())
+  patient   Patient?        @relation("Referral_patient", fields: [patientId], references: [id])
+  patientId String?         @map("patient")
+  direction String          @default("out")
+  toFrom    ReferralSource? @relation("Referral_toFrom", fields: [toFromId], references: [id])
+  toFromId  String?         @map("toFrom")
+  reason    String          @default("")
+  status    String          @default("draft")
+  letter    Document?       @relation("Referral_letter", fields: [letterId], references: [id])
+  letterId  String?         @map("letter")
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([toFromId])
+  @@index([letterId])
+}
+
+model ReferralSource {
+  id                          String     @id @default(cuid())
+  name                        String     @unique @default("")
+  kind                        String     @default("marketing")
+  providerContact             Json?      @default("{}")
+  isActive                    Boolean    @default(true)
+  createdAt                   DateTime   @default(now())
+  updatedAt                   DateTime   @default(now()) @updatedAt
+  from_Patient_referralSource Patient[]  @relation("Patient_referralSource")
+  from_Referral_toFrom        Referral[] @relation("Referral_toFrom")
+}
+
+model Appointment {
+  id                                      String                   @id @default(cuid())
+  ref                                     String                   @unique @default("")
+  patient                                 Patient?                 @relation("Appointment_patient", fields: [patientId], references: [id])
+  patientId                               String?                  @map("patient")
+  location                                Location?                @relation("Appointment_location", fields: [locationId], references: [id])
+  locationId                              String?                  @map("location")
+  operatory                               Operatory?               @relation("Appointment_operatory", fields: [operatoryId], references: [id])
+  operatoryId                             String?                  @map("operatory")
+  type                                    AppointmentType?         @relation("Appointment_type", fields: [typeId], references: [id])
+  typeId                                  String?                  @map("type")
+  startsAt                                DateTime
+  endsAt                                  DateTime
+  localDate                               DateTime?                @postgresql.Date
+  bufferAfterMinutes                      Int?                     @default(0)
+  status                                  String                   @default("scheduled")
+  confirmedAt                             DateTime?
+  confirmationMethod                      String                   @default("")
+  arrivedAt                               DateTime?
+  seatedAt                                DateTime?
+  readyAt                                 DateTime?
+  completedAt                             DateTime?
+  cancelledAt                             DateTime?
+  cancelReason                            String                   @default("")
+  brokenKind                              String                   @default("")
+  rescheduledTo                           Appointment?             @relation("Appointment_rescheduledTo", fields: [rescheduledToId], references: [id])
+  rescheduledToId                         String?                  @map("rescheduledTo")
+  primaryProvider                         ProviderProfile?         @relation("Appointment_primaryProvider", fields: [primaryProviderId], references: [id])
+  primaryProviderId                       String?                  @map("primaryProvider")
+  supervisingDentist                      ProviderProfile?         @relation("Appointment_supervisingDentist", fields: [supervisingDentistId], references: [id])
+  supervisingDentistId                    String?                  @map("supervisingDentist")
+  segments                                AppointmentSegment[]     @relation("AppointmentSegment_appointment")
+  confirmations                           ConfirmationAttempt[]    @relation("ConfirmationAttempt_appointment")
+  alertAckBy                              User?                    @relation("Appointment_alertAckBy", fields: [alertAckById], references: [id])
+  alertAckById                            String?                  @map("alertAckBy")
+  alertAckAt                              DateTime?
+  note                                    String                   @default("")
+  warnings                                Json?                    @default("[]")
+  source                                  String
+  bookedViaHold                           BookingHold?             @relation("Appointment_bookedViaHold", fields: [bookedViaHoldId], references: [id])
+  bookedViaHoldId                         String?                  @map("bookedViaHold")
+  proposal                                Proposal?                @relation("Appointment_proposal", fields: [proposalId], references: [id])
+  proposalId                              String?                  @map("proposal")
+  bookedBy                                User?                    @relation("Appointment_bookedBy", fields: [bookedById], references: [id])
+  bookedById                              String?                  @map("bookedBy")
+  productionScheduledMinor                BigInt                   @default(0)
+  isSynthetic                             Boolean                  @default(false)
+  version                                 Int                      @default(0)
+  createdAt                               DateTime                 @default(now())
+  updatedAt                               DateTime                 @default(now()) @updatedAt
+  from_Appointment_rescheduledTo          Appointment[]            @relation("Appointment_rescheduledTo")
+  from_AsapEntry_bookedAppointment        AsapEntry[]              @relation("AsapEntry_bookedAppointment")
+  from_BookingHold_convertedTo            BookingHold[]            @relation("BookingHold_convertedTo")
+  from_BrokenAppointmentEvent_appointment BrokenAppointmentEvent[] @relation("BrokenAppointmentEvent_appointment")
+  from_PublicBookingRequest_appointment   PublicBookingRequest[]   @relation("PublicBookingRequest_appointment")
+
+  @@index([patientId])
+  @@index([locationId])
+  @@index([operatoryId])
+  @@index([typeId])
+  @@index([localDate])
+  @@index([rescheduledToId])
+  @@index([primaryProviderId])
+  @@index([supervisingDentistId])
+  @@index([alertAckById])
+  @@index([bookedViaHoldId])
+  @@index([proposalId])
+  @@index([bookedById])
+  @@index([locationId, localDate, status], map: "Appointment_location_day_status_idx")
+  @@index([operatoryId, startsAt], map: "Appointment_operatory_start_idx")
+}
+
+model AppointmentSegment {
+  id              String           @id @default(cuid())
+  appointment     Appointment?     @relation("AppointmentSegment_appointment", fields: [appointmentId], references: [id])
+  appointmentId   String?          @map("appointment")
+  role            String
+  provider        ProviderProfile? @relation("AppointmentSegment_provider", fields: [providerId], references: [id])
+  providerId      String?          @map("provider")
+  startsAt        DateTime
+  endsAt          DateTime
+  concurrencyKind String
+  overrideReason  String           @default("")
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+
+  @@index([appointmentId])
+  @@index([providerId])
+  @@index([providerId, startsAt], map: "AppointmentSegment_provider_start_idx")
+}
+
+model AppointmentType {
+  id                                        String                @id @default(cuid())
+  name                                      String                @default("")
+  code                                      String                @unique @default("")
+  category                                  String                @default("other")
+  defaultPattern                            Json?                 @default("[{\"role\":\"provider\",\"units\":6}]")
+  defaultDurationUnits                      Int                   @default(6)
+  onlineBookable                            Boolean               @default(false)
+  newPatientOnly                            Boolean               @default(false)
+  requiresDentistOnSite                     Boolean               @default(false)
+  requiresMedicalHistoryReview              Boolean               @default(true)
+  defaultProductionMinor                    BigInt                @default(0)
+  publicName                                String                @default("")
+  colour                                    String                @default("#64748b")
+  isActive                                  Boolean               @default(true)
+  isSynthetic                               Boolean               @default(false)
+  createdAt                                 DateTime              @default(now())
+  updatedAt                                 DateTime              @default(now()) @updatedAt
+  from_Appointment_type                     Appointment[]         @relation("Appointment_type")
+  from_AsapEntry_appointmentType            AsapEntry[]           @relation("AsapEntry_appointmentType")
+  from_BookingHold_type                     BookingHold[]         @relation("BookingHold_type")
+  from_TemplateBlock_allowedTypes           TemplateBlock[]       @relation("TemplateBlock_allowedTypes")
+  from_OnlineBookingPolicy_appointmentTypes OnlineBookingPolicy[] @relation("OnlineBookingPolicy_appointmentTypes")
+}
+
+model AsapEntry {
+  id                         String           @id @default(cuid())
+  patient                    Patient?         @relation("AsapEntry_patient", fields: [patientId], references: [id])
+  patientId                  String?          @map("patient")
+  location                   Location?        @relation("AsapEntry_location", fields: [locationId], references: [id])
+  locationId                 String?          @map("location")
+  appointmentType            AppointmentType? @relation("AsapEntry_appointmentType", fields: [appointmentTypeId], references: [id])
+  appointmentTypeId          String?          @map("appointmentType")
+  provider                   ProviderProfile? @relation("AsapEntry_provider", fields: [providerId], references: [id])
+  providerId                 String?          @map("provider")
+  preferredWindows           Json?            @default("[]")
+  earliestDate               DateTime?        @postgresql.Date
+  note                       String           @default("")
+  status                     String           @default("active")
+  priority                   Int?             @default(0)
+  bookedAppointment          Appointment?     @relation("AsapEntry_bookedAppointment", fields: [bookedAppointmentId], references: [id])
+  bookedAppointmentId        String?          @map("bookedAppointment")
+  isSynthetic                Boolean          @default(false)
+  version                    Int              @default(0)
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @default(now()) @updatedAt
+  from_BookingHold_asapEntry BookingHold[]    @relation("BookingHold_asapEntry")
+
+  @@index([patientId])
+  @@index([locationId])
+  @@index([appointmentTypeId])
+  @@index([providerId])
+  @@index([bookedAppointmentId])
+}
+
+model BookingHold {
+  id                             String                 @id @default(cuid())
+  location                       Location?              @relation("BookingHold_location", fields: [locationId], references: [id])
+  locationId                     String?                @map("location")
+  operatory                      Operatory?             @relation("BookingHold_operatory", fields: [operatoryId], references: [id])
+  operatoryId                    String?                @map("operatory")
+  provider                       ProviderProfile?       @relation("BookingHold_provider", fields: [providerId], references: [id])
+  providerId                     String?                @map("provider")
+  type                           AppointmentType?       @relation("BookingHold_type", fields: [typeId], references: [id])
+  typeId                         String?                @map("type")
+  startsAt                       DateTime
+  endsAt                         DateTime
+  segments                       Json?                  @default("[]")
+  holderKind                     String
+  holderRef                      String                 @default("")
+  patient                        Patient?               @relation("BookingHold_patient", fields: [patientId], references: [id])
+  patientId                      String?                @map("patient")
+  asapEntry                      AsapEntry?             @relation("BookingHold_asapEntry", fields: [asapEntryId], references: [id])
+  asapEntryId                    String?                @map("asapEntry")
+  status                         String                 @default("held")
+  expiresAt                      DateTime
+  convertedTo                    Appointment?           @relation("BookingHold_convertedTo", fields: [convertedToId], references: [id])
+  convertedToId                  String?                @map("convertedTo")
+  isSynthetic                    Boolean                @default(false)
+  version                        Int                    @default(0)
+  createdAt                      DateTime               @default(now())
+  updatedAt                      DateTime               @default(now()) @updatedAt
+  from_Appointment_bookedViaHold Appointment[]          @relation("Appointment_bookedViaHold")
+  from_PublicBookingRequest_hold PublicBookingRequest[] @relation("PublicBookingRequest_hold")
+
+  @@index([locationId])
+  @@index([operatoryId])
+  @@index([providerId])
+  @@index([typeId])
+  @@index([holderRef])
+  @@index([patientId])
+  @@index([asapEntryId])
+  @@index([expiresAt])
+  @@index([convertedToId])
+  @@index([status, expiresAt], map: "BookingHold_status_expiry_idx")
+}
+
+model BrokenAppointmentEvent {
+  id            String       @id @default(cuid())
+  appointment   Appointment? @relation("BrokenAppointmentEvent_appointment", fields: [appointmentId], references: [id])
+  appointmentId String?      @map("appointment")
+  patient       Patient?     @relation("BrokenAppointmentEvent_patient", fields: [patientId], references: [id])
+  patientId     String?      @map("patient")
+  kind          String
+  at            DateTime
+  recordedBy    User?        @relation("BrokenAppointmentEvent_recordedBy", fields: [recordedById], references: [id])
+  recordedById  String?      @map("recordedBy")
+  reason        String       @default("")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
+
+  @@index([appointmentId])
+  @@index([patientId])
+  @@index([recordedById])
+}
+
+model ClosureDay {
+  id         String    @id @default(cuid())
+  location   Location? @relation("ClosureDay_location", fields: [locationId], references: [id])
+  locationId String?   @map("location")
+  date       DateTime  @postgresql.Date
+  reason     String    @default("")
+  isHalfDay  Boolean   @default(false)
+  startLocal String    @default("")
+  endLocal   String    @default("")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
+
+  @@index([locationId])
+}
+
+model ConfirmationAttempt {
+  id               String        @id @default(cuid())
+  appointment      Appointment?  @relation("ConfirmationAttempt_appointment", fields: [appointmentId], references: [id])
+  appointmentId    String?       @map("appointment")
+  channel          String
+  scheduledFor     DateTime
+  contactPoint     ContactPoint? @relation("ConfirmationAttempt_contactPoint", fields: [contactPointId], references: [id])
+  contactPointId   String?       @map("contactPoint")
+  message          Message?      @relation("ConfirmationAttempt_message", fields: [messageId], references: [id])
+  messageId        String?       @map("message")
+  status           String        @default("scheduled")
+  suppressedReason String        @default("")
+  attemptedAt      DateTime?
+  version          Int           @default(0)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @default(now()) @updatedAt
+
+  @@index([appointmentId])
+  @@index([scheduledFor])
+  @@index([contactPointId])
+  @@index([messageId])
+  @@index([status, scheduledFor], map: "ConfirmationAttempt_status_due_idx")
+}
+
+model Operatory {
+  id                           String          @id @default(cuid())
+  location                     Location?       @relation("Operatory_location", fields: [locationId], references: [id])
+  locationId                   String?         @map("location")
+  code                         String          @default("")
+  name                         String          @default("")
+  kind                         String          @default("doctor")
+  equipmentTags                Json?           @default("[]")
+  sortOrder                    Int?            @default(0)
+  isActive                     Boolean         @default(true)
+  isSynthetic                  Boolean         @default(false)
+  createdAt                    DateTime        @default(now())
+  updatedAt                    DateTime        @default(now()) @updatedAt
+  from_Appointment_operatory   Appointment[]   @relation("Appointment_operatory")
+  from_BookingHold_operatory   BookingHold[]   @relation("BookingHold_operatory")
+  from_TemplateBlock_operatory TemplateBlock[] @relation("TemplateBlock_operatory")
+
+  @@unique([locationId, code], map: "Operatory_location_code_key")
+  @@index([locationId])
+}
+
+model ProductionGoal {
+  id         String           @id @default(cuid())
+  provider   ProviderProfile? @relation("ProductionGoal_provider", fields: [providerId], references: [id])
+  providerId String?          @map("provider")
+  location   Location?        @relation("ProductionGoal_location", fields: [locationId], references: [id])
+  locationId String?          @map("location")
+  weekday    Int?
+  date       DateTime?        @postgresql.Date
+  goalMinor  BigInt
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @default(now()) @updatedAt
+
+  @@index([providerId])
+  @@index([locationId])
+}
+
+model ScheduleTemplate {
+  id            String          @id @default(cuid())
+  location      Location?       @relation("ScheduleTemplate_location", fields: [locationId], references: [id])
+  locationId    String?         @map("location")
+  name          String          @default("")
+  effectiveFrom DateTime        @postgresql.Date
+  effectiveTo   DateTime?       @postgresql.Date
+  status        String          @default("draft")
+  blocks        TemplateBlock[] @relation("TemplateBlock_template")
+  publishedAt   DateTime?
+  publishedBy   User?           @relation("ScheduleTemplate_publishedBy", fields: [publishedById], references: [id])
+  publishedById String?         @map("publishedBy")
+  version       Int             @default(0)
+  isSynthetic   Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now()) @updatedAt
+
+  @@index([locationId])
+  @@index([publishedById])
+}
+
+model TemplateBlock {
+  id             String            @id @default(cuid())
+  template       ScheduleTemplate? @relation("TemplateBlock_template", fields: [templateId], references: [id])
+  templateId     String?           @map("template")
+  weekday        Int
+  operatory      Operatory?        @relation("TemplateBlock_operatory", fields: [operatoryId], references: [id])
+  operatoryId    String?           @map("operatory")
+  provider       ProviderProfile?  @relation("TemplateBlock_provider", fields: [providerId], references: [id])
+  providerId     String?           @map("provider")
+  startLocal     String            @default("")
+  endLocal       String            @default("")
+  allowedTypes   AppointmentType[] @relation("TemplateBlock_allowedTypes")
+  label          String            @default("")
+  onlineBookable Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @default(now()) @updatedAt
+
+  @@index([templateId])
+  @@index([operatoryId])
+  @@index([providerId])
+}
+
+model ConsentGrant {
+  id                  String        @id @default(cuid())
+  contactPoint        ContactPoint? @relation("ConsentGrant_contactPoint", fields: [contactPointId], references: [id])
+  contactPointId      String?       @map("contactPoint")
+  channel             String
+  purpose             String
+  status              String        @default("granted")
+  source              String
+  evidence            Json?         @default("{}")
+  recordedBy          User?         @relation("ConsentGrant_recordedBy", fields: [recordedById], references: [id])
+  recordedById        String?       @map("recordedBy")
+  grantedAt           DateTime?
+  revokedAt           DateTime?
+  revokeReason        String        @default("")
+  needsReconfirmation Boolean       @default(false)
+  version             Int           @default(0)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @default(now()) @updatedAt
+
+  @@index([contactPointId])
+  @@index([recordedById])
+}
+
+model Conversation {
+  id             String         @id @default(cuid())
+  patient        Patient?       @relation("Conversation_patient", fields: [patientId], references: [id])
+  patientId      String?        @map("patient")
+  contactPoint   ContactPoint?  @relation("Conversation_contactPoint", fields: [contactPointId], references: [id])
+  contactPointId String?        @map("contactPoint")
+  channel        String
+  status         String         @default("open")
+  aiDisclosureAt DateTime?
+  agent          AgentIdentity? @relation("Conversation_agent", fields: [agentId], references: [id])
+  agentId        String?        @map("agent")
+  assignedTo     User?          @relation("Conversation_assignedTo", fields: [assignedToId], references: [id])
+  assignedToId   String?        @map("assignedTo")
+  messages       Message[]      @relation("Message_conversation")
+  version        Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([contactPointId])
+  @@index([agentId])
+  @@index([assignedToId])
+}
+
+model Message {
+  id                               String                @id @default(cuid())
+  conversation                     Conversation?         @relation("Message_conversation", fields: [conversationId], references: [id])
+  conversationId                   String?               @map("conversation")
+  direction                        String
+  channel                          String
+  template                         MessageTemplate?      @relation("Message_template", fields: [templateId], references: [id])
+  templateId                       String?               @map("template")
+  toAddress                        String                @default("")
+  subject                          String                @default("")
+  body                             String                @default("")
+  purpose                          String                @default("")
+  status                           String                @default("draft")
+  suppressedReason                 String                @default("")
+  adapterKey                       String                @default("")
+  adapterMode                      String                @default("")
+  providerMessageId                String                @default("")
+  proposal                         Proposal?             @relation("Message_proposal", fields: [proposalId], references: [id])
+  proposalId                       String?               @map("proposal")
+  sentAt                           DateTime?
+  isSynthetic                      Boolean               @default(false)
+  version                          Int                   @default(0)
+  createdAt                        DateTime              @default(now())
+  updatedAt                        DateTime              @default(now()) @updatedAt
+  from_ConfirmationAttempt_message ConfirmationAttempt[] @relation("ConfirmationAttempt_message")
+
+  @@index([conversationId])
+  @@index([templateId])
+  @@index([providerMessageId])
+  @@index([proposalId])
+  @@index([conversationId, createdAt], map: "Message_conversation_created_idx")
+}
+
+model MessageTemplate {
+  id                    String    @id @default(cuid())
+  key                   String    @default("")
+  channel               String    @default("email")
+  purpose               String    @default("appointment_reminders")
+  phiLevel              String    @default("minimal")
+  subject               String    @default("")
+  body                  String    @default("")
+  locale                String    @default("en")
+  templateVersion       Int?      @default(1)
+  status                String    @default("active")
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+  from_Message_template Message[] @relation("Message_template")
+}
+
+model IntakeSession {
+  id                     String                @id @default(cuid())
+  portalAccount          PortalAccount?        @relation("IntakeSession_portalAccount", fields: [portalAccountId], references: [id])
+  portalAccountId        String?               @map("portalAccount")
+  publicBookingRequest   PublicBookingRequest? @relation("IntakeSession_publicBookingRequest", fields: [publicBookingRequestId], references: [id])
+  publicBookingRequestId String?               @map("publicBookingRequest")
+  status                 String                @default("open")
+  dueOn                  DateTime?             @postgresql.Date
+  expiresAt              DateTime?
+  createdAt              DateTime              @default(now())
+  updatedAt              DateTime              @default(now()) @updatedAt
+
+  @@index([portalAccountId])
+  @@index([publicBookingRequestId])
+}
+
+model OnlineBookingPolicy {
+  id                      String            @id @default(cuid())
+  location                Location?         @relation("OnlineBookingPolicy_location", fields: [locationId], references: [id])
+  locationId              String?           @map("location")
+  appointmentTypes        AppointmentType[] @relation("OnlineBookingPolicy_appointmentTypes")
+  newPatientAllowed       Boolean           @default(true)
+  leadTimeHours           Int               @default(4)
+  horizonDays             Int               @default(60)
+  holdMinutes             Int               @default(10)
+  requireCardOnFile       Boolean           @default(false)
+  depositMinor            BigInt            @default(0)
+  requireInsuranceCapture Boolean           @default(false)
+  rateLimit               Json?             @default("{\"perClientPerHour\":30,\"perContactPerDay\":5,\"globalPerMinute\":120}")
+  isActive                Boolean           @default(true)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @default(now()) @updatedAt
+
+  @@index([locationId])
+}
+
+model PortalAccount {
+  id                               String          @id @default(cuid())
+  email                            String          @unique @default("")
+  status                           String          @default("invited")
+  verifiedContact                  ContactPoint?   @relation("PortalAccount_verifiedContact", fields: [verifiedContactId], references: [id])
+  verifiedContactId                String?         @map("verifiedContact")
+  identityVerifiedAt               DateTime?
+  invitedBy                        User?           @relation("PortalAccount_invitedBy", fields: [invitedById], references: [id])
+  invitedById                      String?         @map("invitedBy")
+  lastLoginAt                      DateTime?
+  scopes                           PortalScope[]   @relation("PortalScope_account")
+  codeHash                         String?
+  codeExpiresAt                    DateTime?
+  codeFailures                     Int?            @default(0)
+  authVersion                      Int?            @default(1)
+  isSynthetic                      Boolean         @default(false)
+  version                          Int             @default(0)
+  createdAt                        DateTime        @default(now())
+  updatedAt                        DateTime        @default(now()) @updatedAt
+  from_IntakeSession_portalAccount IntakeSession[] @relation("IntakeSession_portalAccount")
+
+  @@index([verifiedContactId])
+  @@index([invitedById])
+}
+
+model PortalScope {
+  id                      String         @id @default(cuid())
+  account                 PortalAccount? @relation("PortalScope_account", fields: [accountId], references: [id])
+  accountId               String?        @map("account")
+  patient                 Patient?       @relation("PortalScope_patient", fields: [patientId], references: [id])
+  patientId               String?        @map("patient")
+  relationship            String
+  capabilities            Json?          @default("[\"appointments\",\"preferences\"]")
+  confidentialItemsHidden Boolean        @default(false)
+  status                  String         @default("active")
+  grantedBy               User?          @relation("PortalScope_grantedBy", fields: [grantedById], references: [id])
+  grantedById             String?        @map("grantedBy")
+  expiresAt               DateTime?
+  validUntilMajority      Boolean        @default(false)
+  version                 Int            @default(0)
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @default(now()) @updatedAt
+
+  @@index([accountId])
+  @@index([patientId])
+  @@index([grantedById])
+}
+
+model PublicBookingRequest {
+  id                                      String          @id @default(cuid())
+  site                                    StorefrontSite? @relation("PublicBookingRequest_site", fields: [siteId], references: [id])
+  siteId                                  String?         @map("site")
+  location                                Location?       @relation("PublicBookingRequest_location", fields: [locationId], references: [id])
+  locationId                              String?         @map("location")
+  publicRef                               String          @unique @default("")
+  hold                                    BookingHold?    @relation("PublicBookingRequest_hold", fields: [holdId], references: [id])
+  holdId                                  String?         @map("hold")
+  contact                                 Json?           @default("{}")
+  patientMatch                            Patient?        @relation("PublicBookingRequest_patientMatch", fields: [patientMatchId], references: [id])
+  patientMatchId                          String?         @map("patientMatch")
+  matchStatus                             String
+  matchEvidence                           Json?           @default("{}")
+  intake                                  Json?           @default("{}")
+  insuranceCapture                        Json?           @default("{}")
+  appointment                             Appointment?    @relation("PublicBookingRequest_appointment", fields: [appointmentId], references: [id])
+  appointmentId                           String?         @map("appointment")
+  status                                  String          @default("submitted")
+  reviewedAt                              DateTime?
+  reviewedBy                              User?           @relation("PublicBookingRequest_reviewedBy", fields: [reviewedById], references: [id])
+  reviewedById                            String?         @map("reviewedBy")
+  reviewNote                              String          @default("")
+  ipHash                                  String          @default("")
+  userAgentHash                           String          @default("")
+  captchaScore                            String          @default("")
+  isSynthetic                             Boolean         @default(false)
+  version                                 Int             @default(0)
+  createdAt                               DateTime        @default(now())
+  updatedAt                               DateTime        @default(now()) @updatedAt
+  from_IntakeSession_publicBookingRequest IntakeSession[] @relation("IntakeSession_publicBookingRequest")
+
+  @@index([siteId])
+  @@index([locationId])
+  @@index([holdId])
+  @@index([patientMatchId])
+  @@index([appointmentId])
+  @@index([reviewedById])
+}
+
+model StorefrontSite {
+  id                             String                 @id @default(cuid())
+  location                       Location?              @relation("StorefrontSite_location", fields: [locationId], references: [id])
+  locationId                     String?                @map("location")
+  slug                           String                 @unique @default("")
+  headline                       String                 @default("")
+  about                          String                 @default("")
+  services                       Json?                  @default("[]")
+  providersShown                 ProviderProfile[]      @relation("StorefrontSite_providersShown")
+  seo                            Json?                  @default("{}")
+  brand                          Json?                  @default("{}")
+  isPublished                    Boolean                @default(false)
+  isSynthetic                    Boolean                @default(false)
+  createdAt                      DateTime               @default(now())
+  updatedAt                      DateTime               @default(now()) @updatedAt
+  from_PublicBookingRequest_site PublicBookingRequest[] @relation("PublicBookingRequest_site")
+
+  @@index([locationId])
 }
 
 enum UserKindType {

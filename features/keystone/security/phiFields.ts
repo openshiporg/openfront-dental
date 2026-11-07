@@ -54,6 +54,24 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   Proposal: { payload: 'clin', validation: 'clin', execution: 'clin', realised: 'clin' },
   Document: { title: 'clin' },
   BreakGlassEvent: { reason: 'clin' },
+  // Phase 1: patients, scheduling, messaging, portal (SCHEMA §3, §4, §15, §16)
+  Patient: {
+    firstName: 'dem', middleName: 'dem', lastName: 'dem', preferredName: 'dem', suffix: 'dem', dateOfBirth: 'dem', sexAssignedAtBirth: 'dem',
+    genderIdentity: 'dem', pronouns: 'dem', preferredLanguage: 'dem', address: 'dem', referredBy: 'dem', dateOfDeath: 'dem',
+  },
+  PatientIdentifier: { value: 'dem' },
+  FamilyGroup: { name: 'dem', primaryAddress: 'dem', notes: 'dem' },
+  Guarantor: { personName: 'fin' },
+  ContactPoint: { value: 'dem', valueNormalized: 'dem' },
+  PatientAlert: { text: 'clin' },
+  Referral: { reason: 'clin' },
+  MergeCase: { evidence: 'dem', reason: 'dem' },
+  Appointment: { note: 'dem', cancelReason: 'dem' },
+  AsapEntry: { note: 'dem' },
+  ConsentGrant: { evidence: 'dem' },
+  Message: { toAddress: 'dem', subject: 'dem', body: 'dem' },
+  PublicBookingRequest: { contact: 'dem', intake: 'dem', insuranceCapture: 'ins', reviewNote: 'dem' },
+  PortalAccount: { email: 'dem' },
 }
 
 /** Every PHI field name, for log redaction (field names only, never values). */

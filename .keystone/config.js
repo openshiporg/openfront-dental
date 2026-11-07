@@ -36,7 +36,7 @@ module.exports = __toCommonJS(keystone_exports);
 
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
-var import_core10 = require("@keystone-6/core");
+var import_core14 = require("@keystone-6/core");
 var import_config = require("dotenv/config");
 
 // features/keystone/models/User.ts
@@ -1296,6 +1296,789 @@ var Proposal = (0, import_core8.list)({
   }
 });
 
+// features/keystone/models/patients.ts
+var patients_exports = {};
+__export(patients_exports, {
+  ALERT_KINDS: () => ALERT_KINDS,
+  CONTACT_KINDS: () => CONTACT_KINDS,
+  ContactPoint: () => ContactPoint,
+  FamilyGroup: () => FamilyGroup,
+  GUARANTOR_RELATIONSHIPS: () => GUARANTOR_RELATIONSHIPS,
+  Guarantor: () => Guarantor,
+  GuarantorLink: () => GuarantorLink,
+  IDENTIFIER_SYSTEMS: () => IDENTIFIER_SYSTEMS,
+  MergeCase: () => MergeCase,
+  MergeMap: () => MergeMap,
+  PATIENT_READERS: () => PATIENT_READERS,
+  PATIENT_STATUSES: () => PATIENT_STATUSES,
+  Patient: () => Patient,
+  PatientAlert: () => PatientAlert,
+  PatientIdentifier: () => PatientIdentifier,
+  Referral: () => Referral,
+  ReferralSource: () => ReferralSource,
+  SEX_AT_BIRTH: () => SEX_AT_BIRTH,
+  ageOn: () => ageOn
+});
+var import_core9 = require("@keystone-6/core");
+var import_fields9 = require("@keystone-6/core/fields");
+
+// features/keystone/models/scope.ts
+var rule2 = (read) => Array.isArray(read) ? anyOf(...read) : permissions[read];
+var PATIENT_LOCATION_LOOKBACK_YEARS = 3;
+var locationFilter = (path = ["location"]) => ({ session }) => {
+  if (!isSignedIn({ session })) return false;
+  const ids = sessionLocationIds(session);
+  if (ids === null) return true;
+  return nest(path, { id: { in: ids } });
+};
+var patientFilter = (path = []) => ({ session }) => {
+  if (!isSignedIn({ session })) return false;
+  const ids = sessionLocationIds(session);
+  if (ids === null) return true;
+  const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
+  const where = {
+    OR: [
+      { homeLocation: { id: { in: ids } } },
+      { appointments: { some: { location: { id: { in: ids } }, startsAt: { gte: since.toISOString() } } } }
+    ]
+  };
+  return path.length ? nest(path, where) : where;
+};
+function nest(path, leaf) {
+  return path.reduceRight((inner, key) => ({ [key]: inner }), leaf);
+}
+var scopedGoverned = (read, filter) => ({
+  operation: { query: rule2(read), create: () => false, update: () => false, delete: () => false },
+  filter: { query: filter }
+});
+var scopedManaged = (read, write, filter) => ({
+  operation: { query: rule2(read), create: rule2(write), update: rule2(write), delete: () => false },
+  filter: { query: filter, update: filter }
+});
+
+// features/keystone/models/patients.ts
+var PATIENT_READERS = ["canReadDemographics", "canManagePatients", "canReadClinical", "canReadInsurance", "canReadLedger", "canReadSchedule"];
+var PATIENT_STATUSES = ["prospect", "active", "inactive", "archived", "deceased", "merged_into"];
+var SEX_AT_BIRTH = ["female", "male", "unknown", "other"];
+var ALERT_KINDS = ["premedication", "anticoagulant", "antiresorptive", "allergy", "latex", "pregnancy", "diabetes", "hypertension", "cardiac", "sedation_history", "behavioural", "financial", "other"];
+var CONTACT_KINDS = ["mobile", "home", "work", "email"];
+var GUARANTOR_RELATIONSHIPS = ["self", "parent", "spouse", "guardian", "other"];
+var IDENTIFIER_SYSTEMS = ["incumbent_dentrix", "incumbent_eaglesoft", "incumbent_opendental", "incumbent_other", "mrn_external", "state_medicaid"];
+function ageOn(dateOfBirth, on) {
+  const [by, bm, bd] = dateOfBirth.split("-").map(Number);
+  const [y, m, d] = on.split("-").map(Number);
+  return y - by - (m < bm || m === bm && d < bd ? 1 : 0);
+}
+var Patient = (0, import_core9.list)({
+  access: scopedGoverned([...PATIENT_READERS], patientFilter()),
+  ui: {
+    labelField: "chartNumber",
+    listView: { initialColumns: ["chartNumber", "lastName", "firstName", "dateOfBirth", "status", "homeLocation"], initialSort: { field: "lastName", direction: "ASC" } }
+  },
+  fields: {
+    chartNumber: systemText({ indexed: "unique", required: true }),
+    status: lifecycle(PATIENT_STATUSES),
+    mergedInto: (0, import_fields9.relationship)({ ref: "Patient", ...readOnly }),
+    firstName: (0, import_fields9.text)({ validation: { isRequired: true }, ...readOnly }),
+    middleName: (0, import_fields9.text)({ ...readOnly }),
+    lastName: (0, import_fields9.text)({ validation: { isRequired: true }, ...readOnly }),
+    preferredName: (0, import_fields9.text)({ ...readOnly }),
+    suffix: (0, import_fields9.text)({ ...readOnly }),
+    dateOfBirth: (0, import_fields9.calendarDay)({ validation: { isRequired: true }, ...readOnly }),
+    sexAssignedAtBirth: fixedChoice(SEX_AT_BIRTH),
+    genderIdentity: (0, import_fields9.text)({ ...readOnly }),
+    pronouns: (0, import_fields9.text)({ ...readOnly }),
+    preferredLanguage: (0, import_fields9.text)({ defaultValue: "en", ...readOnly }),
+    address: (0, import_fields9.json)({ defaultValue: {}, ...readOnly }),
+    contactPoints: (0, import_fields9.relationship)({ ref: "ContactPoint.patient", many: true, ...readOnly }),
+    identifiers: (0, import_fields9.relationship)({ ref: "PatientIdentifier.patient", many: true, ...readOnly }),
+    family: (0, import_fields9.relationship)({ ref: "FamilyGroup.members", ...readOnly }),
+    guarantorLinks: (0, import_fields9.relationship)({ ref: "GuarantorLink.patient", many: true, ...readOnly }),
+    primaryProvider: (0, import_fields9.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    primaryHygienist: (0, import_fields9.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    homeLocation: (0, import_fields9.relationship)({ ref: "Location", ...readOnly }),
+    referralSource: (0, import_fields9.relationship)({ ref: "ReferralSource", ...readOnly }),
+    referredBy: (0, import_fields9.text)({ ...readOnly }),
+    isMinor: (0, import_fields9.virtual)({
+      field: import_core9.graphql.field({
+        type: import_core9.graphql.Boolean,
+        async resolve(item, _args, context) {
+          if (!item.dateOfBirth) return null;
+          const dob = item.dateOfBirth instanceof Date ? item.dateOfBirth.toISOString().slice(0, 10) : String(item.dateOfBirth).slice(0, 10);
+          let majority = 18;
+          if (item.homeLocationId) {
+            const location = await context.sudo().prisma.location.findUnique({ where: { id: item.homeLocationId }, select: { jurisdiction: { select: { rules: true } } } });
+            const age = location?.jurisdiction?.rules?.retention?.value?.majorityAge;
+            if (Number.isInteger(age)) majority = age;
+          }
+          return ageOn(dob, (/* @__PURE__ */ new Date()).toISOString().slice(0, 10)) < majority;
+        }
+      }),
+      ui: { itemView: { fieldMode: "read" }, listView: { fieldMode: "hidden" } }
+    }),
+    firstVisitOn: (0, import_fields9.calendarDay)({ ...readOnly }),
+    lastVisitOn: (0, import_fields9.calendarDay)({ ...readOnly }),
+    dateOfDeath: (0, import_fields9.calendarDay)({ ...readOnly }),
+    alerts: (0, import_fields9.relationship)({ ref: "PatientAlert.patient", many: true, ...readOnly }),
+    appointments: (0, import_fields9.relationship)({ ref: "Appointment.patient", many: true, ...readOnly }),
+    asapEntries: (0, import_fields9.relationship)({ ref: "AsapEntry.patient", many: true, ...readOnly }),
+    statementHold: (0, import_fields9.checkbox)({ defaultValue: false, ...readOnly }),
+    isSynthetic: (0, import_fields9.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PatientIdentifier = (0, import_core9.list)({
+  access: scopedGoverned(["canReadDemographics", "canManagePatients"], patientFilter(["patient"])),
+  ui: { labelField: "value", listView: { initialColumns: ["patient", "system", "value"] } },
+  fields: {
+    patient: (0, import_fields9.relationship)({ ref: "Patient.identifiers", ...readOnly }),
+    system: fixedChoice(IDENTIFIER_SYSTEMS),
+    value: systemText({ required: true }),
+    ...trackingFields
+  }
+});
+var FamilyGroup = (0, import_core9.list)({
+  access: managed(["canReadDemographics", "canManagePatients"], "canManagePatients"),
+  ui: { labelField: "name", listView: { initialColumns: ["name", "members"] } },
+  fields: {
+    name: (0, import_fields9.text)({ validation: { isRequired: true } }),
+    members: (0, import_fields9.relationship)({ ref: "Patient.family", many: true, ...readOnly }),
+    primaryAddress: (0, import_fields9.json)({ defaultValue: {} }),
+    notes: (0, import_fields9.text)({ ui: { displayMode: "textarea" } }),
+    isSynthetic: (0, import_fields9.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var Guarantor = (0, import_core9.list)({
+  access: governed(["canReadLedger", "canManagePatients", "canReadDemographics"]),
+  ui: { listView: { initialColumns: ["patient", "links"] } },
+  fields: {
+    patient: (0, import_fields9.relationship)({ ref: "Patient", ...readOnly, ui: { ...readOnly.ui, description: "Set when the guarantor is also a patient." } }),
+    personName: (0, import_fields9.json)({ defaultValue: {}, ...readOnly, ui: { ...readOnly.ui, description: "Name of a guarantor who is not a patient." } }),
+    contactPoints: (0, import_fields9.relationship)({ ref: "ContactPoint.guarantor", many: true, ...readOnly }),
+    links: (0, import_fields9.relationship)({ ref: "GuarantorLink.guarantor", many: true, ...readOnly }),
+    isSynthetic: (0, import_fields9.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var GuarantorLink = (0, import_core9.list)({
+  access: governed(["canReadLedger", "canManagePatients", "canReadDemographics"]),
+  ui: { listView: { initialColumns: ["patient", "guarantor", "relationship", "status", "startsOn"] } },
+  fields: {
+    patient: (0, import_fields9.relationship)({ ref: "Patient.guarantorLinks", ...readOnly }),
+    guarantor: (0, import_fields9.relationship)({ ref: "Guarantor.links", ...readOnly }),
+    relationship: fixedChoice(GUARANTOR_RELATIONSHIPS),
+    status: lifecycle(["active", "ended"]),
+    startsOn: (0, import_fields9.calendarDay)({ ...readOnly }),
+    endsOn: (0, import_fields9.calendarDay)({ ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ContactPoint = (0, import_core9.list)({
+  access: governed(["canReadDemographics", "canManagePatients", "canMessagePatients"]),
+  ui: { labelField: "kind", listView: { initialColumns: ["patient", "kind", "value", "isPrimary", "isActive"] } },
+  fields: {
+    patient: (0, import_fields9.relationship)({ ref: "Patient.contactPoints", ...readOnly }),
+    guarantor: (0, import_fields9.relationship)({ ref: "Guarantor.contactPoints", ...readOnly }),
+    kind: fixedChoice(CONTACT_KINDS),
+    value: systemText({ required: true }),
+    valueNormalized: systemText({ indexed: true, required: true }),
+    isPrimary: (0, import_fields9.checkbox)({ defaultValue: false, ...readOnly }),
+    isActive: (0, import_fields9.checkbox)({ defaultValue: true, ...readOnly }),
+    verifiedAt: (0, import_fields9.timestamp)({ ...readOnly }),
+    consentGrants: (0, import_fields9.relationship)({ ref: "ConsentGrant.contactPoint", many: true, ...readOnly }),
+    ...trackingFields
+  }
+});
+var PatientAlert = (0, import_core9.list)({
+  access: scopedGoverned([...PATIENT_READERS], patientFilter(["patient"])),
+  ui: { labelField: "kind", listView: { initialColumns: ["patient", "kind", "severity", "activeFrom", "endedAt"] } },
+  fields: {
+    patient: (0, import_fields9.relationship)({ ref: "Patient.alerts", ...readOnly }),
+    kind: fixedChoice(ALERT_KINDS),
+    severity: fixedChoice(["info", "caution", "critical"]),
+    text: systemText({ required: true }),
+    source: fixedChoice(["manual", "history_answer"]),
+    activeFrom: (0, import_fields9.timestamp)({ defaultValue: { kind: "now" }, ...readOnly }),
+    endedAt: (0, import_fields9.timestamp)({ ...readOnly }),
+    recordedBy: (0, import_fields9.relationship)({ ref: "User", ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ReferralSource = (0, import_core9.list)({
+  access: managed(["canReadDemographics", "canManagePatients"], "canManagePatients"),
+  ui: { labelField: "name", listView: { initialColumns: ["name", "kind", "isActive"] } },
+  fields: {
+    name: (0, import_fields9.text)({ validation: { isRequired: true }, isIndexed: "unique" }),
+    kind: choice(["marketing", "patient", "provider", "insurance_directory", "other"], "marketing"),
+    providerContact: (0, import_fields9.json)({ defaultValue: {} }),
+    isActive: (0, import_fields9.checkbox)({ defaultValue: true }),
+    ...trackingFields
+  }
+});
+var Referral = (0, import_core9.list)({
+  access: scopedManaged(["canReadDemographics", "canManagePatients", "canReadClinical"], ["canManagePatients", "canChart"], patientFilter(["patient"])),
+  ui: { listView: { initialColumns: ["patient", "direction", "toFrom", "status", "createdAt"] } },
+  fields: {
+    patient: (0, import_fields9.relationship)({ ref: "Patient" }),
+    direction: choice(["in", "out"], "out"),
+    toFrom: (0, import_fields9.relationship)({ ref: "ReferralSource" }),
+    reason: (0, import_fields9.text)({ ui: { displayMode: "textarea" } }),
+    status: choice(["draft", "sent", "scheduled_elsewhere", "report_received", "closed"], "draft"),
+    letter: (0, import_fields9.relationship)({ ref: "Document" }),
+    ...trackingFields
+  }
+});
+var MergeCase = (0, import_core9.list)({
+  access: governed(["canManagePatients", "canApprovePatientMerge"]),
+  ui: { listView: { initialColumns: ["survivor", "merged", "status", "createdAt", "revertibleUntil"] } },
+  fields: {
+    survivor: (0, import_fields9.relationship)({ ref: "Patient", ...readOnly }),
+    merged: (0, import_fields9.relationship)({ ref: "Patient", ...readOnly }),
+    evidence: (0, import_fields9.json)({ defaultValue: {}, ...readOnly }),
+    reason: systemText(),
+    status: lifecycle(["proposed", "approved", "applied", "reverted", "rejected"]),
+    approval: (0, import_fields9.relationship)({ ref: "ApprovalRequest", ...readOnly }),
+    proposedBy: (0, import_fields9.relationship)({ ref: "User", ...readOnly }),
+    appliedAt: (0, import_fields9.timestamp)({ ...readOnly }),
+    revertibleUntil: (0, import_fields9.timestamp)({ ...readOnly }),
+    revertedAt: (0, import_fields9.timestamp)({ ...readOnly }),
+    mergedStatusBefore: systemText(),
+    entries: (0, import_fields9.relationship)({ ref: "MergeMap.mergeCase", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var MergeMap = (0, import_core9.list)({
+  access: immutable(["canManagePatients", "canApprovePatientMerge"]),
+  ui: { listView: { initialColumns: ["mergeCase", "listKey", "rowId", "field"] } },
+  fields: {
+    mergeCase: (0, import_fields9.relationship)({ ref: "MergeCase.entries", ...readOnly }),
+    listKey: systemText({ required: true }),
+    rowId: systemText({ required: true }),
+    field: systemText({ required: true }),
+    fromId: systemText({ required: true }),
+    toId: systemText({ required: true }),
+    seq: (0, import_fields9.integer)({ ...readOnly, defaultValue: 0 }),
+    ...trackingFields
+  }
+});
+
+// features/keystone/models/scheduling.ts
+var scheduling_exports = {};
+__export(scheduling_exports, {
+  ACTIVE_APPOINTMENT_STATUSES: () => ACTIVE_APPOINTMENT_STATUSES,
+  APPOINTMENT_CATEGORIES: () => APPOINTMENT_CATEGORIES,
+  APPOINTMENT_SOURCES: () => APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES: () => APPOINTMENT_STATUSES,
+  Appointment: () => Appointment,
+  AppointmentSegment: () => AppointmentSegment,
+  AppointmentType: () => AppointmentType,
+  AsapEntry: () => AsapEntry,
+  BookingHold: () => BookingHold,
+  BrokenAppointmentEvent: () => BrokenAppointmentEvent,
+  CONFIRMATION_METHODS: () => CONFIRMATION_METHODS,
+  ClosureDay: () => ClosureDay,
+  ConfirmationAttempt: () => ConfirmationAttempt,
+  OPERATORY_KINDS: () => OPERATORY_KINDS,
+  Operatory: () => Operatory,
+  ProductionGoal: () => ProductionGoal,
+  SEGMENT_ROLES: () => SEGMENT_ROLES,
+  ScheduleTemplate: () => ScheduleTemplate,
+  TemplateBlock: () => TemplateBlock
+});
+var import_core10 = require("@keystone-6/core");
+var import_fields10 = require("@keystone-6/core/fields");
+var OPERATORY_KINDS = ["doctor", "hygiene", "flex", "consult", "surgery"];
+var APPOINTMENT_CATEGORIES = [
+  "new_patient",
+  "recall_hygiene",
+  "perio_maintenance",
+  "restorative",
+  "crown_prep",
+  "crown_seat",
+  "endo",
+  "extraction",
+  "emergency",
+  "consult",
+  "ortho",
+  "other"
+];
+var SEGMENT_ROLES = ["provider", "assistant", "hygienist", "exam"];
+var APPOINTMENT_STATUSES = ["planned", "scheduled", "confirmed", "arrived", "seated", "ready_for_checkout", "completed", "cancelled", "broken", "rescheduled"];
+var ACTIVE_APPOINTMENT_STATUSES = ["scheduled", "confirmed", "arrived", "seated", "ready_for_checkout"];
+var CONFIRMATION_METHODS = ["sms_reply", "email_link", "phone", "in_person", "portal_api"];
+var APPOINTMENT_SOURCES = ["staff", "online_booking", "agent_proposal", "import", "recall_auto"];
+var SCHEDULE_READERS = ["canReadSchedule", "canManageSchedule"];
+var scheduleRead = [...SCHEDULE_READERS];
+var Operatory = (0, import_core10.list)({
+  access: scopedManaged(scheduleRead, ["canManageTemplates", "canManagePractice"], locationFilter()),
+  ui: { labelField: "name", listView: { initialColumns: ["location", "code", "name", "kind", "sortOrder", "isActive"] } },
+  fields: {
+    location: (0, import_fields10.relationship)({ ref: "Location" }),
+    code: (0, import_fields10.text)({ validation: { isRequired: true, match: { regex: /^[A-Z0-9-]{1,8}$/, explanation: "Up to 8 capital letters, digits or dashes (OP3, H1)" } } }),
+    name: (0, import_fields10.text)({ validation: { isRequired: true } }),
+    kind: choice(OPERATORY_KINDS, "doctor"),
+    equipmentTags: (0, import_fields10.json)({ defaultValue: [] }),
+    sortOrder: (0, import_fields10.integer)({ defaultValue: 0 }),
+    isActive: (0, import_fields10.checkbox)({ defaultValue: true }),
+    isSynthetic: (0, import_fields10.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var AppointmentType = (0, import_core10.list)({
+  access: managed("signedIn", "canManageTemplates"),
+  ui: { labelField: "name", listView: { initialColumns: ["code", "name", "category", "defaultDurationUnits", "onlineBookable", "isActive"] } },
+  fields: {
+    name: (0, import_fields10.text)({ validation: { isRequired: true } }),
+    code: (0, import_fields10.text)({ isIndexed: "unique", validation: { isRequired: true, match: { regex: /^[A-Z0-9_]{2,24}$/, explanation: "2-24 capital letters, digits or underscores" } } }),
+    category: choice(APPOINTMENT_CATEGORIES, "other"),
+    defaultPattern: (0, import_fields10.json)({
+      defaultValue: [{ role: "provider", units: 6 }],
+      ui: { description: 'Units in order, e.g. [{"role":"assistant","units":1},{"role":"provider","units":4},{"role":"assistant","units":1}]. One unit is the practice schedule unit (10 minutes by default).' }
+    }),
+    defaultDurationUnits: (0, import_fields10.integer)({ defaultValue: 6, validation: { isRequired: true, min: 1, max: 96 } }),
+    onlineBookable: (0, import_fields10.checkbox)({ defaultValue: false }),
+    newPatientOnly: (0, import_fields10.checkbox)({ defaultValue: false }),
+    requiresDentistOnSite: (0, import_fields10.checkbox)({ defaultValue: false, ui: { description: "Hygiene visits that need a dentist in the building (I-S5). The jurisdiction pack decides whether it is a hard stop or a warning." } }),
+    requiresMedicalHistoryReview: (0, import_fields10.checkbox)({ defaultValue: true }),
+    defaultProductionMinor: minor({ defaultValue: 0n, description: "Practice estimate of production for this visit in cents, used for scheduled production until planned procedures with fees are attached." }),
+    publicName: (0, import_fields10.text)({ ui: { description: "Practice-authored name shown by the online booking API." } }),
+    colour: (0, import_fields10.text)({ defaultValue: "#64748b", validation: { match: { regex: /^#[0-9a-fA-F]{6}$/ } } }),
+    isActive: (0, import_fields10.checkbox)({ defaultValue: true }),
+    isSynthetic: (0, import_fields10.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var ScheduleTemplate = (0, import_core10.list)({
+  access: scopedManaged(scheduleRead, "canManageTemplates", locationFilter()),
+  ui: { labelField: "name", listView: { initialColumns: ["location", "name", "status", "effectiveFrom", "effectiveTo"] } },
+  fields: {
+    location: (0, import_fields10.relationship)({ ref: "Location" }),
+    name: (0, import_fields10.text)({ validation: { isRequired: true } }),
+    effectiveFrom: (0, import_fields10.calendarDay)({ validation: { isRequired: true } }),
+    effectiveTo: (0, import_fields10.calendarDay)(),
+    status: lifecycle(["draft", "active", "retired"]),
+    blocks: (0, import_fields10.relationship)({ ref: "TemplateBlock.template", many: true }),
+    publishedAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    publishedBy: (0, import_fields10.relationship)({ ref: "User", ...readOnly }),
+    version: versionField(),
+    isSynthetic: (0, import_fields10.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var TemplateBlock = (0, import_core10.list)({
+  access: scopedManaged(scheduleRead, "canManageTemplates", locationFilter(["template", "location"])),
+  ui: { labelField: "label", listView: { initialColumns: ["template", "weekday", "operatory", "provider", "startLocal", "endLocal", "onlineBookable"] } },
+  fields: {
+    template: (0, import_fields10.relationship)({ ref: "ScheduleTemplate.blocks" }),
+    weekday: (0, import_fields10.integer)({ validation: { isRequired: true, min: 0, max: 6 }, ui: { description: "0 = Sunday \u2026 6 = Saturday" } }),
+    operatory: (0, import_fields10.relationship)({ ref: "Operatory" }),
+    provider: (0, import_fields10.relationship)({ ref: "ProviderProfile" }),
+    startLocal: (0, import_fields10.text)({ validation: { isRequired: true, match: { regex: /^([01]\d|2[0-3]):[0-5]\d$/, explanation: "HH:mm" } } }),
+    endLocal: (0, import_fields10.text)({ validation: { isRequired: true, match: { regex: /^([01]\d|2[0-3]):[0-5]\d$/, explanation: "HH:mm" } } }),
+    allowedTypes: (0, import_fields10.relationship)({ ref: "AppointmentType", many: true, ui: { description: "Empty means any type." } }),
+    label: (0, import_fields10.text)(),
+    onlineBookable: (0, import_fields10.checkbox)({ defaultValue: false }),
+    ...trackingFields
+  }
+});
+var ProductionGoal = (0, import_core10.list)({
+  access: scopedManaged(scheduleRead, ["canManageTemplates", "canManagePractice"], locationFilter()),
+  ui: { listView: { initialColumns: ["provider", "location", "weekday", "date", "goalMinor"] } },
+  fields: {
+    provider: (0, import_fields10.relationship)({ ref: "ProviderProfile" }),
+    location: (0, import_fields10.relationship)({ ref: "Location" }),
+    weekday: (0, import_fields10.integer)({ validation: { min: 0, max: 6 }, ui: { description: "A standing goal for this weekday, or leave empty and set a date." } }),
+    date: (0, import_fields10.calendarDay)(),
+    goalMinor: minor({ required: true, description: "Scheduled production goal in cents." }),
+    ...trackingFields
+  }
+});
+var ClosureDay = (0, import_core10.list)({
+  access: scopedManaged(scheduleRead, ["canManageTemplates", "canManagePractice"], ({ session }) => {
+    const filter = locationFilter()({ session });
+    return filter === true || filter === false ? filter : { OR: [filter, { location: null }] };
+  }),
+  ui: { labelField: "reason", listView: { initialColumns: ["location", "date", "reason", "isHalfDay"] } },
+  fields: {
+    location: (0, import_fields10.relationship)({ ref: "Location", ui: { description: "Empty closes every location." } }),
+    date: (0, import_fields10.calendarDay)({ validation: { isRequired: true } }),
+    reason: (0, import_fields10.text)({ validation: { isRequired: true } }),
+    isHalfDay: (0, import_fields10.checkbox)({ defaultValue: false }),
+    startLocal: (0, import_fields10.text)({ validation: { match: { regex: /^(([01]\d|2[0-3]):[0-5]\d)?$/, explanation: "HH:mm" } } }),
+    endLocal: (0, import_fields10.text)({ validation: { match: { regex: /^(([01]\d|2[0-3]):[0-5]\d)?$/, explanation: "HH:mm" } } }),
+    ...trackingFields
+  }
+});
+var Appointment = (0, import_core10.list)({
+  access: scopedGoverned(scheduleRead, locationFilter()),
+  ui: {
+    labelField: "ref",
+    listView: { initialColumns: ["ref", "startsAt", "patient", "operatory", "type", "status"], initialSort: { field: "startsAt", direction: "DESC" } }
+  },
+  fields: {
+    ref: systemText({ indexed: "unique", required: true }),
+    patient: (0, import_fields10.relationship)({ ref: "Patient.appointments", ...readOnly }),
+    location: (0, import_fields10.relationship)({ ref: "Location", ...readOnly }),
+    operatory: (0, import_fields10.relationship)({ ref: "Operatory", ...readOnly }),
+    type: (0, import_fields10.relationship)({ ref: "AppointmentType", ...readOnly }),
+    startsAt: (0, import_fields10.timestamp)({ ...readOnly, validation: { isRequired: true } }),
+    endsAt: (0, import_fields10.timestamp)({ ...readOnly, validation: { isRequired: true } }),
+    localDate: (0, import_fields10.calendarDay)({ ...readOnly, isIndexed: true }),
+    bufferAfterMinutes: (0, import_fields10.integer)({ defaultValue: 0, ...readOnly }),
+    status: lifecycle(APPOINTMENT_STATUSES, "scheduled"),
+    confirmedAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    confirmationMethod: systemText(),
+    arrivedAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    seatedAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    readyAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    completedAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    cancelledAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    cancelReason: systemText(),
+    brokenKind: systemText(),
+    rescheduledTo: (0, import_fields10.relationship)({ ref: "Appointment", ...readOnly }),
+    primaryProvider: (0, import_fields10.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    supervisingDentist: (0, import_fields10.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    segments: (0, import_fields10.relationship)({ ref: "AppointmentSegment.appointment", many: true, ...readOnly }),
+    confirmations: (0, import_fields10.relationship)({ ref: "ConfirmationAttempt.appointment", many: true, ...readOnly }),
+    alertAckBy: (0, import_fields10.relationship)({ ref: "User", ...readOnly }),
+    alertAckAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    note: systemText(),
+    warnings: (0, import_fields10.json)({ defaultValue: [], ...readOnly, ui: { ...readOnly.ui, description: "Booking warnings accepted when the appointment was made (supervision, template)." } }),
+    source: fixedChoice(APPOINTMENT_SOURCES),
+    bookedViaHold: (0, import_fields10.relationship)({ ref: "BookingHold", ...readOnly }),
+    proposal: (0, import_fields10.relationship)({ ref: "Proposal", ...readOnly }),
+    bookedBy: (0, import_fields10.relationship)({ ref: "User", ...readOnly }),
+    productionScheduledMinor: minor({ defaultValue: 0n }),
+    isSynthetic: (0, import_fields10.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var AppointmentSegment = (0, import_core10.list)({
+  access: scopedGoverned(scheduleRead, locationFilter(["appointment", "location"])),
+  ui: { listView: { initialColumns: ["appointment", "role", "provider", "startsAt", "endsAt", "concurrencyKind"] } },
+  fields: {
+    appointment: (0, import_fields10.relationship)({ ref: "Appointment.segments", ...readOnly }),
+    role: fixedChoice(SEGMENT_ROLES),
+    provider: (0, import_fields10.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    startsAt: (0, import_fields10.timestamp)({ ...readOnly, validation: { isRequired: true } }),
+    endsAt: (0, import_fields10.timestamp)({ ...readOnly, validation: { isRequired: true } }),
+    concurrencyKind: fixedChoice(["none", "hygiene_exam_float", "approved_override"]),
+    overrideReason: systemText(),
+    isActive: (0, import_fields10.checkbox)({ defaultValue: true, ...readOnly, ui: { ...readOnly.ui, description: "False once the appointment is cancelled, broken or rescheduled: the time is free again." } }),
+    ...trackingFields
+  }
+});
+var BookingHold = (0, import_core10.list)({
+  access: scopedGoverned(scheduleRead, locationFilter()),
+  ui: { listView: { initialColumns: ["location", "operatory", "startsAt", "endsAt", "holderKind", "status", "expiresAt"] } },
+  fields: {
+    location: (0, import_fields10.relationship)({ ref: "Location", ...readOnly }),
+    operatory: (0, import_fields10.relationship)({ ref: "Operatory", ...readOnly }),
+    provider: (0, import_fields10.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    type: (0, import_fields10.relationship)({ ref: "AppointmentType", ...readOnly }),
+    startsAt: (0, import_fields10.timestamp)({ ...readOnly, validation: { isRequired: true } }),
+    endsAt: (0, import_fields10.timestamp)({ ...readOnly, validation: { isRequired: true } }),
+    segments: (0, import_fields10.json)({ defaultValue: [], ...readOnly }),
+    holderKind: fixedChoice(["staff", "public_api", "agent_offer"]),
+    holderRef: systemText({ indexed: true, required: true }),
+    patient: (0, import_fields10.relationship)({ ref: "Patient", ...readOnly }),
+    asapEntry: (0, import_fields10.relationship)({ ref: "AsapEntry", ...readOnly }),
+    status: lifecycle(["held", "converted", "expired", "released"]),
+    expiresAt: (0, import_fields10.timestamp)({ ...readOnly, isIndexed: true, validation: { isRequired: true } }),
+    convertedTo: (0, import_fields10.relationship)({ ref: "Appointment", ...readOnly }),
+    isSynthetic: (0, import_fields10.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var AsapEntry = (0, import_core10.list)({
+  access: scopedGoverned(scheduleRead, locationFilter()),
+  ui: { listView: { initialColumns: ["patient", "location", "appointmentType", "provider", "earliestDate", "status", "priority"] } },
+  fields: {
+    patient: (0, import_fields10.relationship)({ ref: "Patient.asapEntries", ...readOnly }),
+    location: (0, import_fields10.relationship)({ ref: "Location", ...readOnly }),
+    appointmentType: (0, import_fields10.relationship)({ ref: "AppointmentType", ...readOnly }),
+    provider: (0, import_fields10.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    preferredWindows: (0, import_fields10.json)({ defaultValue: [], ...readOnly, ui: { ...readOnly.ui, description: '[{ "weekday": 2, "from": "07:30", "to": "12:00" }, \u2026] local time.' } }),
+    earliestDate: (0, import_fields10.calendarDay)({ ...readOnly }),
+    note: systemText(),
+    status: lifecycle(["active", "offered", "booked", "declined", "expired"]),
+    priority: (0, import_fields10.integer)({ defaultValue: 0, ...readOnly }),
+    bookedAppointment: (0, import_fields10.relationship)({ ref: "Appointment", ...readOnly }),
+    isSynthetic: (0, import_fields10.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ConfirmationAttempt = (0, import_core10.list)({
+  access: scopedGoverned(scheduleRead, locationFilter(["appointment", "location"])),
+  ui: { listView: { initialColumns: ["appointment", "channel", "scheduledFor", "status", "suppressedReason"] } },
+  fields: {
+    appointment: (0, import_fields10.relationship)({ ref: "Appointment.confirmations", ...readOnly }),
+    channel: fixedChoice(["email", "sms", "voice", "portal", "manual"]),
+    scheduledFor: (0, import_fields10.timestamp)({ ...readOnly, isIndexed: true, validation: { isRequired: true } }),
+    contactPoint: (0, import_fields10.relationship)({ ref: "ContactPoint", ...readOnly }),
+    message: (0, import_fields10.relationship)({ ref: "Message", ...readOnly }),
+    status: lifecycle(["scheduled", "sent", "replied_confirm", "replied_cancel", "replied_other", "no_reply", "suppressed"]),
+    suppressedReason: systemText(),
+    attemptedAt: (0, import_fields10.timestamp)({ ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var BrokenAppointmentEvent = (0, import_core10.list)({
+  access: immutable(scheduleRead),
+  ui: { listView: { initialColumns: ["appointment", "patient", "kind", "at"] } },
+  fields: {
+    appointment: (0, import_fields10.relationship)({ ref: "Appointment", ...readOnly }),
+    patient: (0, import_fields10.relationship)({ ref: "Patient", ...readOnly }),
+    kind: fixedChoice(["no_show", "late_cancel"]),
+    at: (0, import_fields10.timestamp)({ ...readOnly, validation: { isRequired: true } }),
+    recordedBy: (0, import_fields10.relationship)({ ref: "User", ...readOnly }),
+    reason: systemText(),
+    ...trackingFields
+  }
+});
+
+// features/keystone/models/messaging.ts
+var messaging_exports = {};
+__export(messaging_exports, {
+  CONSENT_CHANNELS: () => CONSENT_CHANNELS,
+  CONSENT_PURPOSES: () => CONSENT_PURPOSES,
+  ConsentGrant: () => ConsentGrant,
+  Conversation: () => Conversation,
+  MESSAGE_CHANNELS: () => MESSAGE_CHANNELS,
+  Message: () => Message,
+  MessageTemplate: () => MessageTemplate
+});
+var import_core11 = require("@keystone-6/core");
+var import_fields11 = require("@keystone-6/core/fields");
+var CONSENT_CHANNELS = ["sms", "voice", "email"];
+var CONSENT_PURPOSES = [
+  "appointment_reminders",
+  "recall",
+  "treatment_follow_up",
+  "billing_statements",
+  "payment_reminders",
+  "marketing",
+  "reviews",
+  "ai_text_outbound",
+  "ai_voice_outbound"
+];
+var MESSAGE_CHANNELS = ["sms", "email", "web_chat", "portal", "voice", "manual"];
+var ConsentGrant = (0, import_core11.list)({
+  access: governed(["canMessagePatients", "canManagePatients", "canReadDemographics"]),
+  ui: { listView: { initialColumns: ["contactPoint", "channel", "purpose", "status", "source", "grantedAt"] } },
+  fields: {
+    contactPoint: (0, import_fields11.relationship)({ ref: "ContactPoint.consentGrants", ...readOnly }),
+    channel: fixedChoice(CONSENT_CHANNELS),
+    purpose: fixedChoice(CONSENT_PURPOSES),
+    status: lifecycle(["granted", "revoked", "expired"]),
+    source: fixedChoice(["intake_form", "portal_api", "verbal_staff", "sms_keyword", "import"]),
+    evidence: (0, import_fields11.json)({ defaultValue: {}, ...readOnly }),
+    recordedBy: (0, import_fields11.relationship)({ ref: "User", ...readOnly }),
+    grantedAt: (0, import_fields11.timestamp)({ ...readOnly }),
+    revokedAt: (0, import_fields11.timestamp)({ ...readOnly }),
+    revokeReason: systemText(),
+    needsReconfirmation: (0, import_fields11.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var MessageTemplate = (0, import_core11.list)({
+  access: managed(["canMessagePatients", "canManageTemplates"], "canManageTemplates"),
+  ui: { labelField: "key", listView: { initialColumns: ["key", "channel", "purpose", "phiLevel", "locale", "status"] } },
+  fields: {
+    key: (0, import_fields11.text)({ validation: { isRequired: true, match: { regex: /^[a-z0-9_.]{3,60}$/, explanation: "lowercase letters, digits, dots and underscores" } } }),
+    channel: choice(["sms", "email", "voice", "portal"], "email"),
+    purpose: choice(CONSENT_PURPOSES, "appointment_reminders"),
+    phiLevel: choice(["none", "minimal", "clinical"], "minimal"),
+    subject: (0, import_fields11.text)(),
+    body: (0, import_fields11.text)({ validation: { isRequired: true }, ui: { displayMode: "textarea", description: "Variables: {{patient.preferredName}}, {{appointment.when}}, {{location.name}}, {{location.phone}}, {{confirm.url}}." } }),
+    locale: (0, import_fields11.text)({ defaultValue: "en" }),
+    templateVersion: (0, import_fields11.integer)({ defaultValue: 1 }),
+    status: choice(["draft", "active", "retired"], "active"),
+    ...trackingFields
+  }
+});
+var Conversation = (0, import_core11.list)({
+  access: governed(["canMessagePatients", "canManagePatients"]),
+  ui: { listView: { initialColumns: ["patient", "channel", "status", "assignedTo", "updatedAt"] } },
+  fields: {
+    patient: (0, import_fields11.relationship)({ ref: "Patient", ...readOnly }),
+    contactPoint: (0, import_fields11.relationship)({ ref: "ContactPoint", ...readOnly }),
+    channel: fixedChoice(MESSAGE_CHANNELS),
+    status: lifecycle(["open", "agent_active", "human_active", "closed"]),
+    aiDisclosureAt: (0, import_fields11.timestamp)({ ...readOnly }),
+    agent: (0, import_fields11.relationship)({ ref: "AgentIdentity", ...readOnly }),
+    assignedTo: (0, import_fields11.relationship)({ ref: "User", ...readOnly }),
+    messages: (0, import_fields11.relationship)({ ref: "Message.conversation", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var Message = (0, import_core11.list)({
+  access: governed(["canMessagePatients", "canManagePatients"]),
+  ui: { listView: { initialColumns: ["conversation", "direction", "channel", "purpose", "status", "sentAt"] } },
+  fields: {
+    conversation: (0, import_fields11.relationship)({ ref: "Conversation.messages", ...readOnly }),
+    direction: fixedChoice(["outbound", "inbound"]),
+    channel: fixedChoice(MESSAGE_CHANNELS),
+    template: (0, import_fields11.relationship)({ ref: "MessageTemplate", ...readOnly }),
+    toAddress: systemText(),
+    subject: systemText(),
+    body: systemText(),
+    purpose: systemText(),
+    status: lifecycle(["draft", "queued", "suppressed", "accepted", "delivered", "failed", "unknown", "received"]),
+    suppressedReason: systemText(),
+    adapterKey: systemText(),
+    adapterMode: systemText(),
+    providerMessageId: systemText({ indexed: true }),
+    proposal: (0, import_fields11.relationship)({ ref: "Proposal", ...readOnly }),
+    sentAt: (0, import_fields11.timestamp)({ ...readOnly }),
+    isSynthetic: (0, import_fields11.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+
+// features/keystone/models/portal.ts
+var portal_exports = {};
+__export(portal_exports, {
+  IntakeSession: () => IntakeSession,
+  OnlineBookingPolicy: () => OnlineBookingPolicy,
+  PORTAL_CAPABILITIES: () => PORTAL_CAPABILITIES,
+  PORTAL_RELATIONSHIPS: () => PORTAL_RELATIONSHIPS,
+  PortalAccount: () => PortalAccount,
+  PortalScope: () => PortalScope,
+  PublicBookingRequest: () => PublicBookingRequest,
+  StorefrontSite: () => StorefrontSite
+});
+var import_core12 = require("@keystone-6/core");
+var import_access12 = require("@keystone-6/core/access");
+var import_fields12 = require("@keystone-6/core/fields");
+var secretField = { access: { read: import_access12.denyAll, create: import_access12.denyAll, update: import_access12.denyAll }, ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "hidden" }, listView: { fieldMode: "hidden" } } };
+var PORTAL_CAPABILITIES = ["appointments", "forms", "plans_accept", "statements_pay", "records", "messages", "membership", "preferences"];
+var PORTAL_RELATIONSHIPS = ["self", "guarantor", "guardian", "personal_representative"];
+var StorefrontSite = (0, import_core12.list)({
+  access: managed("signedIn", "canManagePractice"),
+  ui: { labelField: "slug", listView: { initialColumns: ["slug", "location", "headline", "isPublished"] } },
+  fields: {
+    location: (0, import_fields12.relationship)({ ref: "Location", ui: { description: "Empty means the whole practice." } }),
+    slug: (0, import_fields12.text)({ isIndexed: "unique", validation: { isRequired: true, match: { regex: /^[a-z0-9-]{2,60}$/, explanation: "lowercase letters, digits and dashes" } } }),
+    headline: (0, import_fields12.text)({ validation: { isRequired: true } }),
+    about: (0, import_fields12.text)({ ui: { displayMode: "textarea" } }),
+    services: (0, import_fields12.json)({ defaultValue: [], ui: { description: "Practice-authored service names and descriptions. Never paste licensed code descriptors here." } }),
+    providersShown: (0, import_fields12.relationship)({ ref: "ProviderProfile", many: true }),
+    seo: (0, import_fields12.json)({ defaultValue: {} }),
+    brand: (0, import_fields12.json)({ defaultValue: {} }),
+    isPublished: (0, import_fields12.checkbox)({ defaultValue: false }),
+    isSynthetic: (0, import_fields12.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var OnlineBookingPolicy = (0, import_core12.list)({
+  access: scopedManaged(["canReadSchedule", "canManageSchedule", "canManagePractice"], ["canManagePractice", "canManageTemplates"], locationFilter()),
+  ui: { listView: { initialColumns: ["location", "newPatientAllowed", "leadTimeHours", "horizonDays", "holdMinutes", "isActive"] } },
+  fields: {
+    location: (0, import_fields12.relationship)({ ref: "Location" }),
+    appointmentTypes: (0, import_fields12.relationship)({ ref: "AppointmentType", many: true, ui: { description: "Types the public API may book. Each must also be marked online-bookable." } }),
+    newPatientAllowed: (0, import_fields12.checkbox)({ defaultValue: true }),
+    leadTimeHours: (0, import_fields12.integer)({ defaultValue: 4, validation: { isRequired: true, min: 0, max: 336 } }),
+    horizonDays: (0, import_fields12.integer)({ defaultValue: 60, validation: { isRequired: true, min: 1, max: 365 } }),
+    holdMinutes: (0, import_fields12.integer)({ defaultValue: 10, validation: { isRequired: true, min: 2, max: 30 } }),
+    requireCardOnFile: (0, import_fields12.checkbox)({ defaultValue: false }),
+    depositMinor: minor({ defaultValue: 0n, description: "Optional deposit in cents, collected through the payments adapter (Stripe test mode in the sample practice)." }),
+    requireInsuranceCapture: (0, import_fields12.checkbox)({ defaultValue: false }),
+    rateLimit: (0, import_fields12.json)({ defaultValue: { perClientPerHour: 30, perContactPerDay: 5, globalPerMinute: 120 } }),
+    isActive: (0, import_fields12.checkbox)({ defaultValue: true }),
+    ...trackingFields
+  }
+});
+var PublicBookingRequest = (0, import_core12.list)({
+  access: scopedGoverned(["canManageSchedule", "canManagePatients"], locationFilter()),
+  ui: { listView: { initialColumns: ["createdAt", "status", "matchStatus", "appointment", "reviewedAt"] } },
+  fields: {
+    site: (0, import_fields12.relationship)({ ref: "StorefrontSite", ...readOnly }),
+    location: (0, import_fields12.relationship)({ ref: "Location", ...readOnly }),
+    publicRef: systemText({ indexed: "unique", required: true }),
+    hold: (0, import_fields12.relationship)({ ref: "BookingHold", ...readOnly }),
+    contact: (0, import_fields12.json)({ defaultValue: {}, ...readOnly }),
+    patientMatch: (0, import_fields12.relationship)({ ref: "Patient", ...readOnly }),
+    matchStatus: fixedChoice(["new_patient", "matched", "possible_duplicate"]),
+    matchEvidence: (0, import_fields12.json)({ defaultValue: {}, ...readOnly }),
+    intake: (0, import_fields12.json)({ defaultValue: {}, ...readOnly }),
+    insuranceCapture: (0, import_fields12.json)({ defaultValue: {}, ...readOnly }),
+    appointment: (0, import_fields12.relationship)({ ref: "Appointment", ...readOnly }),
+    status: lifecycle(["started", "submitted", "booked", "abandoned", "rejected_spam"], "submitted"),
+    reviewedAt: (0, import_fields12.timestamp)({ ...readOnly }),
+    reviewedBy: (0, import_fields12.relationship)({ ref: "User", ...readOnly }),
+    reviewNote: systemText(),
+    ipHash: (0, import_fields12.text)({ ...secretField }),
+    userAgentHash: (0, import_fields12.text)({ ...secretField }),
+    captchaScore: systemText(),
+    isSynthetic: (0, import_fields12.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PortalAccount = (0, import_core12.list)({
+  access: governed(["canManagePatients"]),
+  ui: { labelField: "email", listView: { initialColumns: ["email", "status", "identityVerifiedAt", "lastLoginAt"] } },
+  fields: {
+    email: systemText({ indexed: "unique", required: true }),
+    status: lifecycle(["invited", "active", "suspended", "revoked"]),
+    verifiedContact: (0, import_fields12.relationship)({ ref: "ContactPoint", ...readOnly }),
+    identityVerifiedAt: (0, import_fields12.timestamp)({ ...readOnly }),
+    invitedBy: (0, import_fields12.relationship)({ ref: "User", ...readOnly }),
+    lastLoginAt: (0, import_fields12.timestamp)({ ...readOnly }),
+    scopes: (0, import_fields12.relationship)({ ref: "PortalScope.account", many: true, ...readOnly }),
+    // One-time sign-in code (hashed) and the token generation; bumping authVersion ends every portal session.
+    codeHash: (0, import_fields12.text)({ ...secretField, db: { isNullable: true } }),
+    codeExpiresAt: (0, import_fields12.timestamp)({ ...secretField, db: { isNullable: true } }),
+    codeFailures: (0, import_fields12.integer)({ defaultValue: 0, ...secretField }),
+    authVersion: (0, import_fields12.integer)({ defaultValue: 1, ...readOnly }),
+    isSynthetic: (0, import_fields12.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PortalScope = (0, import_core12.list)({
+  access: governed(["canManagePatients"]),
+  ui: { listView: { initialColumns: ["account", "patient", "relationship", "status", "expiresAt"] } },
+  fields: {
+    account: (0, import_fields12.relationship)({ ref: "PortalAccount.scopes", ...readOnly }),
+    patient: (0, import_fields12.relationship)({ ref: "Patient", ...readOnly }),
+    relationship: fixedChoice(PORTAL_RELATIONSHIPS),
+    capabilities: (0, import_fields12.json)({ defaultValue: ["appointments", "preferences"], ...readOnly }),
+    confidentialItemsHidden: (0, import_fields12.checkbox)({ defaultValue: false, ...readOnly }),
+    status: lifecycle(["active", "revoked"]),
+    grantedBy: (0, import_fields12.relationship)({ ref: "User", ...readOnly }),
+    expiresAt: (0, import_fields12.timestamp)({ ...readOnly }),
+    validUntilMajority: (0, import_fields12.checkbox)({ defaultValue: false, ...readOnly, ui: { ...readOnly.ui, description: "Guardian access that ends when the patient reaches the age of majority in the location\u2019s jurisdiction pack." } }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var IntakeSession = (0, import_core12.list)({
+  access: governed(["canManagePatients"]),
+  ui: { listView: { initialColumns: ["portalAccount", "publicBookingRequest", "status", "expiresAt"] } },
+  fields: {
+    portalAccount: (0, import_fields12.relationship)({ ref: "PortalAccount", ...readOnly }),
+    publicBookingRequest: (0, import_fields12.relationship)({ ref: "PublicBookingRequest", ...readOnly }),
+    status: lifecycle(["open", "completed", "expired"]),
+    dueOn: (0, import_fields12.calendarDay)({ ...readOnly }),
+    expiresAt: (0, import_fields12.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+
 // features/keystone/security/phiFields.ts
 var TIER_PERMISSION = {
   dem: "canReadDemographics",
@@ -1320,17 +2103,46 @@ var PHI_FIELDS = {
   ApprovalRequest: { payload: "fin" },
   Proposal: { payload: "clin", validation: "clin", execution: "clin", realised: "clin" },
   Document: { title: "clin" },
-  BreakGlassEvent: { reason: "clin" }
+  BreakGlassEvent: { reason: "clin" },
+  // Phase 1: patients, scheduling, messaging, portal (SCHEMA §3, §4, §15, §16)
+  Patient: {
+    firstName: "dem",
+    middleName: "dem",
+    lastName: "dem",
+    preferredName: "dem",
+    suffix: "dem",
+    dateOfBirth: "dem",
+    sexAssignedAtBirth: "dem",
+    genderIdentity: "dem",
+    pronouns: "dem",
+    preferredLanguage: "dem",
+    address: "dem",
+    referredBy: "dem",
+    dateOfDeath: "dem"
+  },
+  PatientIdentifier: { value: "dem" },
+  FamilyGroup: { name: "dem", primaryAddress: "dem", notes: "dem" },
+  Guarantor: { personName: "fin" },
+  ContactPoint: { value: "dem", valueNormalized: "dem" },
+  PatientAlert: { text: "clin" },
+  Referral: { reason: "clin" },
+  MergeCase: { evidence: "dem", reason: "dem" },
+  Appointment: { note: "dem", cancelReason: "dem" },
+  AsapEntry: { note: "dem" },
+  ConsentGrant: { evidence: "dem" },
+  Message: { toAddress: "dem", subject: "dem", body: "dem" },
+  PublicBookingRequest: { contact: "dem", intake: "dem", insuranceCapture: "ins", reviewNote: "dem" },
+  PortalAccount: { email: "dem" }
 };
 var PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap((fields) => Object.keys(fields)));
 function applyPhiTiers(models2) {
-  for (const [listKey, list7] of Object.entries(models2)) {
+  for (const [listKey, list11] of Object.entries(models2)) {
     const tiers = PHI_FIELDS[listKey];
     if (!tiers) continue;
     for (const [fieldKey, tier] of Object.entries(tiers)) {
-      const original = list7.fields?.[fieldKey];
+      const original = list11.fields?.[fieldKey];
       if (typeof original !== "function") throw new Error(`PHI_FIELDS names ${listKey}.${fieldKey}, which does not exist.`);
-      list7.fields[fieldKey] = (args) => {
+      list11.fields[fieldKey] = (args) => {
         const field = original(args);
         const access = field.access;
         const baseRead = typeof access === "function" ? access : access?.read;
@@ -1363,7 +2175,11 @@ var models = hideRefusedActions(applyPhiTiers({
   AgentIdentity,
   AgentToolGrant,
   AgentRun,
-  Proposal
+  Proposal,
+  ...listsOf(patients_exports),
+  ...listsOf(scheduling_exports),
+  ...listsOf(messaging_exports),
+  ...listsOf(portal_exports)
 }));
 
 // features/keystone/mutations/index.ts
@@ -1431,7 +2247,14 @@ var Codes = {
   MFA_REQUIRED: "MFA_REQUIRED",
   BREAK_GLASS_REQUIRED: "BREAK_GLASS_REQUIRED",
   RATE_LIMITED: "RATE_LIMITED",
-  CONSENT_REQUIRED: "CONSENT_REQUIRED"
+  CONSENT_REQUIRED: "CONSENT_REQUIRED",
+  DUPLICATE_SUSPECTED: "DUPLICATE_SUSPECTED",
+  LATE_CANCEL_WINDOW: "LATE_CANCEL_WINDOW",
+  LAB_CASE_NOT_READY: "LAB_CASE_NOT_READY",
+  PORTAL_SCOPE_DENIED: "PORTAL_SCOPE_DENIED",
+  PORTAL_SESSION_INVALID: "PORTAL_SESSION_INVALID",
+  OUTSIDE_LOCATION_SCOPE: "OUTSIDE_LOCATION_SCOPE",
+  MERGE_CONFLICT: "MERGE_CONFLICT"
 };
 
 // features/keystone/mutations/op.ts
@@ -1490,9 +2313,9 @@ function dec(value) {
     if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
     return new Decimal(value);
   }
-  const text8 = String(value).trim();
-  if (!DECIMAL_TEXT.test(text8)) throw new Error(`Not a decimal number: ${JSON.stringify(text8).slice(0, 40)}`);
-  return new Decimal(text8);
+  const text12 = String(value).trim();
+  if (!DECIMAL_TEXT.test(text12)) throw new Error(`Not a decimal number: ${JSON.stringify(text12).slice(0, 40)}`);
+  return new Decimal(text12);
 }
 var plain = (value) => dec(value).toFixed();
 var ZERO = new Decimal(0);
@@ -1520,7 +2343,7 @@ function canonicalize(value) {
   throw new Error(`Canonical JSON cannot hold a ${typeof value}`);
 }
 var canonicalJson = (value) => JSON.stringify(canonicalize(value));
-var sha256 = (text8) => (0, import_node_crypto2.createHash)("sha256").update(text8).digest("hex");
+var sha256 = (text12) => (0, import_node_crypto2.createHash)("sha256").update(text12).digest("hex");
 var payloadHash = (value) => sha256(canonicalJson(value));
 var toJsonValue = (value) => canonicalize(value);
 
@@ -2243,9 +3066,9 @@ var import_graphql2 = require("graphql");
 var import_node_crypto4 = require("node:crypto");
 var SECRET_KEY_VERSION = 1;
 function decodeKey(value) {
-  const text8 = String(value || "").trim();
-  if (!text8) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
-  const key = /^[a-f0-9]{64}$/i.test(text8) ? Buffer.from(text8, "hex") : Buffer.from(text8, "base64");
+  const text12 = String(value || "").trim();
+  if (!text12) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
+  const key = /^[a-f0-9]{64}$/i.test(text12) ? Buffer.from(text12, "hex") : Buffer.from(text12, "base64");
   if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
   return key;
 }
@@ -2534,11 +3357,11 @@ async function manageMfa(_root, args, context) {
 }
 
 // features/keystone/mutations/index.ts
-var graphql = String.raw;
+var graphql2 = String.raw;
 function extendGraphqlSchema(baseSchema) {
   return (0, import_schema.mergeSchemas)({
     schemas: [baseSchema],
-    typeDefs: graphql`
+    typeDefs: graphql2`
       scalar JSON
       type Query {
         redirectToInit: Boolean
@@ -2675,7 +3498,19 @@ function withMcpBearerSessions(strategy, listKey = "User") {
 // features/keystone/prismaConstraints.ts
 var COMPOUND_UNIQUES = {
   StaffAssignment: ['@@index([userId, locationId], map: "StaffAssignment_user_location_idx")'],
-  AgentToolGrant: ['@@index([agentId, scope], map: "AgentToolGrant_agent_scope_idx")']
+  AgentToolGrant: ['@@index([agentId, scope], map: "AgentToolGrant_agent_scope_idx")'],
+  // Phase 1 (SCHEMA §2–§4, §21 hot paths)
+  Operatory: ['@@unique([locationId, code], map: "Operatory_location_code_key")'],
+  PatientIdentifier: ['@@unique([system, value], map: "PatientIdentifier_system_value_key")'],
+  Patient: ['@@index([lastName, firstName, dateOfBirth], map: "Patient_name_dob_idx")'],
+  Appointment: [
+    '@@index([locationId, localDate, status], map: "Appointment_location_day_status_idx")',
+    '@@index([operatoryId, startsAt], map: "Appointment_operatory_start_idx")'
+  ],
+  AppointmentSegment: ['@@index([providerId, startsAt], map: "AppointmentSegment_provider_start_idx")'],
+  BookingHold: ['@@index([status, expiresAt], map: "BookingHold_status_expiry_idx")'],
+  ConfirmationAttempt: ['@@index([status, scheduledFor], map: "ConfirmationAttempt_status_due_idx")'],
+  Message: ['@@index([conversationId, createdAt], map: "Message_conversation_created_idx")']
 };
 function addDatabaseConstraints(schema) {
   for (const [modelName, directives] of Object.entries(COMPOUND_UNIQUES)) {
@@ -2744,7 +3579,7 @@ var { withAuth } = (0, import_auth.createAuth)({
   `
 });
 var keystone_default = withAuth(
-  (0, import_core10.config)({
+  (0, import_core14.config)({
     db: {
       provider: "postgresql",
       url: databaseURL,
