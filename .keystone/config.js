@@ -2283,16 +2283,20 @@ function actorFromSession(session) {
   const granted = new Set(role ? permissionNames.filter((name) => role[name] === true) : []);
   return { kind: "user", userId: session.itemId, name: session.data.name, permissions: granted };
 }
-function requirePermission(actor, ...anyOf2) {
-  if (actor.kind === "system") return;
-  if (actor.kind === "agent") throw new DomainError(Codes.NOT_AUTHORIZED, "Agents act only through their tool grants.");
-  if (!anyOf2.some((permission) => actor.permissions.has(permission))) {
+var systemActor = (name) => ({ kind: "system", name });
+function can(actor2, permission) {
+  return actor2.kind === "user" && actor2.permissions.has(permission);
+}
+function requirePermission(actor2, ...anyOf2) {
+  if (actor2.kind === "system") return;
+  if (actor2.kind === "agent") throw new DomainError(Codes.NOT_AUTHORIZED, "Agents act only through their tool grants.");
+  if (!anyOf2.some((permission) => actor2.permissions.has(permission))) {
     throw new DomainError(Codes.NOT_AUTHORIZED, `This needs the ${anyOf2.join(" or ")} permission.`);
   }
 }
-var principalKey = (actor) => actor.kind === "user" ? `user:${actor.userId}` : actor.kind === "agent" ? `agent:${actor.agentId}` : `system:${actor.name}`;
-var actorUserId = (actor) => actor.kind === "user" ? actor.userId : null;
-var actorAgentId = (actor) => actor.kind === "agent" ? actor.agentId : null;
+var principalKey = (actor2) => actor2.kind === "user" ? `user:${actor2.userId}` : actor2.kind === "agent" ? `agent:${actor2.agentId}` : `system:${actor2.name}`;
+var actorUserId = (actor2) => actor2.kind === "user" ? actor2.userId : null;
+var actorAgentId = (actor2) => actor2.kind === "agent" ? actor2.agentId : null;
 
 // features/keystone/lib/canonical.ts
 var import_node_crypto2 = require("node:crypto");
@@ -2548,6 +2552,7 @@ async function runInTransaction(db, work, options = {}) {
 
 // features/keystone/lib/command.ts
 var RETRYABLE = /deadlock detected|could not serialize|P2034|40P01|40001/i;
+var NOT_STARTED = /Unable to start a transaction in the given time/i;
 async function command(db, spec, work) {
   const principal = principalKey(spec.actor);
   for (let attempt = 1; ; attempt += 1) {
@@ -2563,6 +2568,10 @@ async function command(db, spec, work) {
       const message = error instanceof Error ? error.message : String(error);
       const code = error?.code ?? "";
       if (attempt < 4 && (RETRYABLE.test(message) || RETRYABLE.test(code))) continue;
+      if (attempt < 6 && NOT_STARTED.test(message)) {
+        await new Promise((resolve) => setTimeout(resolve, 100 * attempt + Math.floor(Math.random() * 400)));
+        continue;
+      }
       throw error;
     }
   }
@@ -2611,17 +2620,589 @@ async function transition(uow, spec) {
   });
   return await delegateOf(uow.tx, spec.model).findUnique({ where: { id: spec.id } });
 }
-function auditCreate(uow, actor, model, id, eventType, after, extra = {}) {
+function auditCreate(uow, actor2, model, id, eventType, after, extra = {}) {
   uow.audit({
     eventType,
     entityType: model,
     entityId: id,
-    actorUserId: actorUserId(actor),
-    actorAgentId: actorAgentId(actor),
+    actorUserId: actorUserId(actor2),
+    actorAgentId: actorAgentId(actor2),
     reason: extra.reason ?? null,
     after,
-    metadata: { ...extra.metadata ?? {}, ...actor.kind === "system" ? { system: actor.name } : {} }
+    metadata: { ...extra.metadata ?? {}, ...actor2.kind === "system" ? { system: actor2.name } : {} }
   });
+}
+
+// features/keystone/lib/time.ts
+var DATE = /^\d{4}-\d{2}-\d{2}$/;
+var HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+function assertDate(date) {
+  if (!DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || (/* @__PURE__ */ new Date(`${date}T00:00:00Z`)).toISOString().slice(0, 10) !== date) {
+    throw new Error(`Invalid date ${date}`);
+  }
+}
+function assertHhmm(value) {
+  if (!HHMM.test(value)) throw new Error(`Invalid local time ${value} (expected HH:mm)`);
+}
+function addDays(date, days) {
+  assertDate(date);
+  const t = Date.parse(`${date}T12:00:00Z`) + days * 864e5;
+  return new Date(t).toISOString().slice(0, 10);
+}
+var weekdayOf = (date) => {
+  assertDate(date);
+  return (/* @__PURE__ */ new Date(`${date}T12:00:00Z`)).getUTCDay();
+};
+var zoneParts = (timeZone, at) => Object.fromEntries(
+  new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at)).map((p) => [p.type, p.value])
+);
+function localDate(timeZone, at) {
+  const p = zoneParts(timeZone, typeof at === "number" ? at : at.getTime());
+  return `${p.year}-${p.month}-${p.day}`;
+}
+function zonedInstant(timeZone, date, hhmm) {
+  assertDate(date);
+  assertHhmm(hhmm);
+  const [h, m] = hhmm.split(":").map((x) => Number.parseInt(x, 10));
+  const target = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m);
+  const wall = (at) => {
+    const p = zoneParts(timeZone, at);
+    return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
+  };
+  const offsetBefore = wall(target - 864e5) - (target - 864e5);
+  const offsetAfter = wall(target + 864e5) - (target + 864e5);
+  const valid = [target - offsetBefore, target - offsetAfter].filter((at) => wall(at) === target).sort((x, y) => x - y);
+  return new Date(valid[0] ?? target - offsetBefore);
+}
+var minutesOf = (hhmm) => {
+  assertHhmm(hhmm);
+  return Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+};
+var overlaps = (a0, a1, b0, b1) => a0 < b1 && b0 < a1;
+
+// features/keystone/scheduling/engine.ts
+var MS_PER_MINUTE = 6e4;
+function parsePattern(value) {
+  if (!Array.isArray(value) || value.length === 0) throw new Error("An appointment type needs at least one unit in its pattern.");
+  return value.map((entry, index) => {
+    const role = entry?.role;
+    const units = Number(entry?.units);
+    if (!["provider", "assistant", "hygienist", "exam"].includes(role)) throw new Error(`Pattern unit ${index + 1} has an unknown role.`);
+    if (!Number.isInteger(units) || units < 1 || units > 96) throw new Error(`Pattern unit ${index + 1} needs a whole number of units from 1 to 96.`);
+    return { role, units };
+  });
+}
+var patternUnits = (pattern) => pattern.reduce((sum, unit) => sum + unit.units, 0);
+function expandPattern(pattern, unitMinutes, startMs, providers) {
+  const segments = [];
+  let at = startMs;
+  for (const unit of pattern) {
+    const endMs = at + unit.units * unitMinutes * MS_PER_MINUTE;
+    const providerId = unit.role === "assistant" ? null : unit.role === "exam" ? providers.examProviderId ?? null : providers.providerId;
+    const concurrencyKind = unit.role === "exam" ? "hygiene_exam_float" : "none";
+    const last = segments[segments.length - 1];
+    if (last && last.role === unit.role && last.providerId === providerId && last.endMs === at) last.endMs = endMs;
+    else segments.push({ role: unit.role, providerId, startMs: at, endMs, concurrencyKind });
+    at = endMs;
+  }
+  return segments;
+}
+function subtract(start, end, cut0, cut1) {
+  if (!overlaps(start, end, cut0, cut1)) return [[start, end]];
+  const out = [];
+  if (cut0 > start) out.push([start, cut0]);
+  if (cut1 < end) out.push([cut1, end]);
+  return out;
+}
+function materialiseBlocks(date, timeZone, blocks, closures) {
+  const weekday = weekdayOf(date);
+  const dayClosures = closures.filter((c) => c.date === date);
+  if (dayClosures.some((c) => !c.isHalfDay)) return [];
+  const cuts = dayClosures.flatMap((c) => c.startLocal && c.endLocal ? [[zonedInstant(timeZone, date, c.startLocal).getTime(), zonedInstant(timeZone, date, c.endLocal).getTime()]] : []);
+  const windows = [];
+  for (const block of blocks) {
+    if (block.weekday !== weekday) continue;
+    if (minutesOf(block.endLocal) <= minutesOf(block.startLocal)) continue;
+    let pieces = [[zonedInstant(timeZone, date, block.startLocal).getTime(), zonedInstant(timeZone, date, block.endLocal).getTime()]];
+    for (const [c0, c1] of cuts) pieces = pieces.flatMap(([s, e]) => subtract(s, e, c0, c1));
+    for (const [startMs, endMs] of pieces) {
+      if (endMs > startMs) windows.push({ blockId: block.id, operatoryId: block.operatoryId, providerId: block.providerId, providerType: block.providerType ?? null, startMs, endMs, allowedTypeIds: block.allowedTypeIds, onlineBookable: block.onlineBookable });
+    }
+  }
+  return windows.sort((a, b) => a.startMs - b.startMs || a.operatoryId.localeCompare(b.operatoryId));
+}
+function chairClash(startMs, endMs, bufferAfterMinutes, busy) {
+  const end = endMs + bufferAfterMinutes * MS_PER_MINUTE;
+  return busy.some((b) => overlaps(startMs, end, b.startMs, b.endMs + (b.bufferAfterMinutes ?? 0) * MS_PER_MINUTE));
+}
+function providerClashes(segments, busy) {
+  const clashes = [];
+  for (const segment of segments) {
+    if (!segment.providerId || segment.role === "assistant" || segment.concurrencyKind === "approved_override") continue;
+    for (const other of busy) {
+      if (other.providerId !== segment.providerId || other.role === "assistant" || other.concurrencyKind === "approved_override") continue;
+      if (!overlaps(segment.startMs, segment.endMs, other.startMs, other.endMs)) continue;
+      const segmentIsExam = segment.role === "exam";
+      const otherIsExam = other.role === "exam";
+      if (segmentIsExam !== otherIsExam) continue;
+      clashes.push({ segment, with: other });
+    }
+  }
+  return clashes;
+}
+function templateWindowFor(windows, operatoryId, typeId, startMs, endMs, options = {}) {
+  return windows.find((w) => w.operatoryId === operatoryId && w.startMs <= startMs && endMs <= w.endMs && (w.allowedTypeIds.length === 0 || w.allowedTypeIds.includes(typeId)) && (!options.onlineOnly || w.onlineBookable)) ?? null;
+}
+function dentistsOnSite(windows, startMs, endMs) {
+  const ids = windows.filter((w) => w.providerType === "dentist" && w.providerId && w.startMs <= startMs && endMs <= w.endMs).map((w) => w.providerId);
+  return [...new Set(ids)].sort();
+}
+function planSegments(input) {
+  const endMs = input.startMs + patternUnits(input.pattern) * input.unitMinutes * MS_PER_MINUTE;
+  const needsExam = input.pattern.some((u) => u.role === "exam");
+  const candidates = !needsExam ? [null] : input.examProviderId ? [input.examProviderId] : dentistsOnSite(input.windows, input.startMs, endMs);
+  let fallback = null;
+  for (const examProviderId of candidates.length ? candidates : [null]) {
+    const segments = expandPattern(input.pattern, input.unitMinutes, input.startMs, { providerId: input.providerId, examProviderId });
+    const clashes = providerClashes(segments, input.providerBusy);
+    if (!clashes.length) return { segments, clashes, examProviderId, endMs };
+    fallback ??= { segments, clashes };
+  }
+  return { segments: fallback.segments, clashes: fallback.clashes, examProviderId: null, endMs };
+}
+function findSlots(q) {
+  const out = [];
+  const step = q.unitMinutes * MS_PER_MINUTE;
+  const duration = q.durationMinutes * MS_PER_MINUTE;
+  const earliest = q.nowMs + q.leadMinutes * MS_PER_MINUTE;
+  for (const w of q.windows) {
+    if (q.operatoryIds && !q.operatoryIds.includes(w.operatoryId)) continue;
+    if (w.allowedTypeIds.length && !w.allowedTypeIds.includes(q.typeId)) continue;
+    if (q.onlineOnly && !w.onlineBookable) continue;
+    const providerId = q.providerId ?? w.providerId;
+    if (q.providerId && w.providerId && w.providerId !== q.providerId) continue;
+    for (let start = w.startMs; start + duration <= w.endMs; start += step) {
+      if (start < earliest) continue;
+      const end = start + duration;
+      if (chairClash(start, end, q.bufferAfterMinutes, q.chairBusy[w.operatoryId] ?? [])) continue;
+      if (q.patientBusy && q.patientBusy.some((b) => overlaps(start, end, b.startMs, b.endMs))) continue;
+      const plan = planSegments({ pattern: q.pattern, unitMinutes: q.unitMinutes, startMs: start, providerId, windows: q.windows, providerBusy: q.providerBusy });
+      if (plan.clashes.length) continue;
+      out.push({ operatoryId: w.operatoryId, providerId, startMs: start, endMs: end, blockId: w.blockId });
+      if (q.limit && out.length >= q.limit) return out;
+    }
+  }
+  return out.sort((a, b) => a.startMs - b.startMs || a.operatoryId.localeCompare(b.operatoryId));
+}
+
+// features/keystone/seed/schedule.ts
+var TZ = "America/New_York";
+var meta = { metadata: { seed: true, synthetic: true } };
+var OPERATORIES = [
+  { id: "seed_op_tpa_op1", locationId: "seed_loc_tpa", code: "OP1", name: "Operatory 1", kind: "doctor", sortOrder: 1 },
+  { id: "seed_op_tpa_op2", locationId: "seed_loc_tpa", code: "OP2", name: "Operatory 2", kind: "doctor", sortOrder: 2 },
+  { id: "seed_op_tpa_op3", locationId: "seed_loc_tpa", code: "OP3", name: "Operatory 3", kind: "doctor", sortOrder: 3 },
+  { id: "seed_op_tpa_op4", locationId: "seed_loc_tpa", code: "OP4", name: "Operatory 4 (surgery)", kind: "surgery", sortOrder: 4 },
+  { id: "seed_op_tpa_h1", locationId: "seed_loc_tpa", code: "H1", name: "Hygiene 1", kind: "hygiene", sortOrder: 5 },
+  { id: "seed_op_tpa_h2", locationId: "seed_loc_tpa", code: "H2", name: "Hygiene 2", kind: "hygiene", sortOrder: 6 },
+  { id: "seed_op_stp_op1", locationId: "seed_loc_stp", code: "OP1", name: "Operatory 1", kind: "doctor", sortOrder: 1 },
+  { id: "seed_op_stp_op2", locationId: "seed_loc_stp", code: "OP2", name: "Operatory 2", kind: "doctor", sortOrder: 2 },
+  { id: "seed_op_stp_h1", locationId: "seed_loc_stp", code: "H1", name: "Hygiene 1", kind: "hygiene", sortOrder: 3 },
+  { id: "seed_op_stp_h2", locationId: "seed_loc_stp", code: "H2", name: "Hygiene 2", kind: "hygiene", sortOrder: 4 }
+];
+var P = (units) => ({ role: "provider", units });
+var A = (units) => ({ role: "assistant", units });
+var H = (units) => ({ role: "hygienist", units });
+var E = (units) => ({ role: "exam", units });
+var APPOINTMENT_TYPES = [
+  { id: "seed_apt_np", code: "NEW_PATIENT", name: "New patient exam and cleaning", publicName: "New patient visit", category: "new_patient", pattern: [H(5), E(1), H(3)], onlineBookable: true, newPatientOnly: true, requiresDentistOnSite: true, production: 32500n, colour: "#0ea5e9" },
+  { id: "seed_apt_recall", code: "RECALL", name: "Recall exam and cleaning", publicName: "Cleaning and check-up", category: "recall_hygiene", pattern: [H(4), E(1), H(1)], onlineBookable: true, newPatientOnly: false, requiresDentistOnSite: true, production: 21000n, colour: "#10b981" },
+  { id: "seed_apt_perio", code: "PERIO_MAINT", name: "Periodontal maintenance", publicName: "Gum maintenance visit", category: "perio_maintenance", pattern: [H(5), E(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: true, production: 19500n, colour: "#14b8a6" },
+  { id: "seed_apt_filling", code: "FILLING", name: "Filling(s)", publicName: "", category: "restorative", pattern: [A(1), P(4), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 38000n, colour: "#6366f1" },
+  { id: "seed_apt_crown_prep", code: "CROWN_PREP", name: "Crown preparation", publicName: "", category: "crown_prep", pattern: [A(2), P(6), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 125000n, colour: "#8b5cf6" },
+  { id: "seed_apt_crown_seat", code: "CROWN_SEAT", name: "Crown seat", publicName: "", category: "crown_seat", pattern: [A(1), P(2), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 0n, colour: "#a855f7" },
+  { id: "seed_apt_endo", code: "ENDO", name: "Root canal treatment", publicName: "", category: "endo", pattern: [A(1), P(8), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 110000n, colour: "#ec4899" },
+  { id: "seed_apt_ext", code: "EXTRACTION", name: "Extraction", publicName: "", category: "extraction", pattern: [A(1), P(3), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 29000n, colour: "#f97316" },
+  { id: "seed_apt_emerg", code: "EMERGENCY", name: "Emergency visit", publicName: "Tooth pain or emergency", category: "emergency", pattern: [A(1), P(2)], onlineBookable: true, newPatientOnly: false, requiresDentistOnSite: false, production: 15500n, colour: "#ef4444" },
+  { id: "seed_apt_consult", code: "CONSULT", name: "Treatment consultation", publicName: "Consultation", category: "consult", pattern: [P(3)], onlineBookable: true, newPatientOnly: false, requiresDentistOnSite: false, production: 0n, colour: "#64748b" }
+];
+var HYGIENE_TYPES = ["seed_apt_np", "seed_apt_recall", "seed_apt_perio"];
+var DOCTOR_TYPES = ["seed_apt_filling", "seed_apt_crown_prep", "seed_apt_crown_seat", "seed_apt_endo", "seed_apt_ext", "seed_apt_emerg", "seed_apt_consult"];
+function templateBlocks() {
+  const out = [];
+  const add = (loc, weekdays, op2, provider, start, end, types, online, label) => {
+    for (const w of weekdays) out.push({ id: `seed_blk_${loc}_${op2}_${w}_${start.replace(":", "")}`, weekday: w, operatoryId: `seed_op_${loc}_${op2}`, providerId: provider, startLocal: start, endLocal: end, types, online, label });
+  };
+  add("tpa", [1, 2, 3, 4], "op1", "seed_prov_okafor", "08:00", "12:00", DOCTOR_TYPES, false, "Dr. Okafor AM");
+  add("tpa", [1, 2, 3, 4], "op1", "seed_prov_okafor", "13:00", "17:00", DOCTOR_TYPES, false, "Dr. Okafor PM");
+  add("tpa", [1, 2, 3, 4], "op2", "seed_prov_reyes", "08:00", "12:00", DOCTOR_TYPES, false, "Dr. Reyes AM");
+  add("tpa", [1, 2, 3, 4], "op2", "seed_prov_reyes", "13:00", "17:00", DOCTOR_TYPES, true, "Dr. Reyes PM (online emergencies)");
+  add("tpa", [1, 3], "op3", "seed_prov_okafor", "13:00", "16:00", ["seed_apt_consult", "seed_apt_emerg"], true, "Consults and emergencies");
+  add("tpa", [4], "op4", "seed_prov_reyes", "08:00", "12:00", ["seed_apt_ext", "seed_apt_endo"], false, "Surgery morning");
+  add("tpa", [5], "op1", "seed_prov_okafor", "08:00", "13:00", DOCTOR_TYPES, false, "Friday short day");
+  add("tpa", [1, 2, 3, 4], "h1", "seed_prov_hale", "08:00", "12:00", HYGIENE_TYPES, true, "Hygiene AM");
+  add("tpa", [1, 2, 3, 4], "h1", "seed_prov_hale", "13:00", "17:00", HYGIENE_TYPES, true, "Hygiene PM");
+  add("tpa", [1, 2, 3, 4], "h2", "seed_prov_brandt", "08:00", "12:00", HYGIENE_TYPES, true, "Hygiene AM");
+  add("tpa", [1, 2, 3, 4], "h2", "seed_prov_brandt", "13:00", "17:00", HYGIENE_TYPES, false, "Hygiene PM");
+  add("tpa", [5], "h1", "seed_prov_ortiz", "08:00", "13:00", HYGIENE_TYPES, true, "Friday hygiene");
+  add("stp", [1, 2, 3, 4], "op1", "seed_prov_natarajan", "08:00", "12:00", DOCTOR_TYPES, false, "Dr. Natarajan AM");
+  add("stp", [1, 2, 3, 4], "op1", "seed_prov_natarajan", "13:00", "17:00", DOCTOR_TYPES, true, "Dr. Natarajan PM");
+  add("stp", [2, 4], "op2", "seed_prov_okafor", "08:00", "12:00", DOCTOR_TYPES, false, "Dr. Okafor (St. Pete)");
+  add("stp", [1, 2, 3, 4], "h1", "seed_prov_kim", "08:00", "12:00", HYGIENE_TYPES, true, "Hygiene AM");
+  add("stp", [1, 2, 3, 4], "h1", "seed_prov_kim", "13:00", "17:00", HYGIENE_TYPES, true, "Hygiene PM");
+  add("stp", [1, 3], "h2", "seed_prov_ortiz", "08:00", "12:00", HYGIENE_TYPES, false, "Hygiene AM");
+  return out;
+}
+var FIRST_F = ["Ava", "Sofia", "Maria", "Grace", "Chloe", "Layla", "Isabel", "Nora", "Hannah", "Leah", "Camila", "Zoe", "Ruth", "Elena", "Priya", "Mei", "Aaliyah", "Ivy", "June", "Rosa"];
+var FIRST_M = ["Liam", "Noah", "Mateo", "Elijah", "James", "Lucas", "Henry", "Owen", "Samuel", "Diego", "Marcus", "Theo", "Isaac", "Andre", "Kai", "Omar", "Felix", "Hugo", "Ezra", "Walter"];
+var LAST = ["Alvarez", "Bennett", "Castillo", "Dawson", "Ellison", "Fuentes", "Garrison", "Holloway", "Ibarra", "Jennings", "Kowalski", "Lindgren", "Mercado", "Nakamura", "Oyelaran", "Pruitt", "Quintero", "Ramsey", "Sandoval", "Thibodeaux", "Underwood", "Valencia", "Whitfield", "Yamada", "Zelinski", "Abernathy", "Beaumont", "Calloway", "Delacroix", "Espinoza", "Fairbanks", "Guerrero", "Hargrove", "Iverson", "Jardine", "Kaminski", "Lachance", "Montoya", "Nightingale", "Ortega"];
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = s + 1831565813 >>> 0;
+    let t = s;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function samplePatients(today2) {
+  const rand = rng(20261107);
+  const pick = (list11) => list11[Math.floor(rand() * list11.length)];
+  const year = Number(today2.slice(0, 4));
+  const dobFor = (age) => {
+    const month = 1 + Math.floor(rand() * 12);
+    const dayOf = 1 + Math.floor(rand() * 28);
+    return `${year - age}-${String(month).padStart(2, "0")}-${String(dayOf).padStart(2, "0")}`;
+  };
+  const out = [];
+  let n = 0;
+  const phone = () => `+1813555${String(1e3 + Math.floor(rand() * 8999)).slice(0, 4)}`;
+  for (let f = 0; f < 70; f += 1) {
+    const last = LAST[f % LAST.length] + (f >= LAST.length ? "-" + LAST[f * 7 % LAST.length] : "");
+    const familyId = `seed_fam_${String(f + 1).padStart(3, "0")}`;
+    const homeLocationId = f % 3 === 2 ? "seed_loc_stp" : "seed_loc_tpa";
+    const language = f % 6 === 1 ? "es" : "en";
+    const size = 1 + Math.floor(rand() * 6);
+    const adults = Math.min(size, size >= 3 ? 2 : 1 + Math.floor(rand() * 2));
+    let head = null;
+    for (let m = 0; m < size; m += 1) {
+      n += 1;
+      const id = `seed_pt_${String(n).padStart(4, "0")}`;
+      const isAdult = m < adults;
+      const sex = (m + f) % 2 === 0 ? "female" : "male";
+      const first = sex === "female" ? pick(FIRST_F) : pick(FIRST_M);
+      const age = isAdult ? 24 + Math.floor(rand() * 64) : 3 + Math.floor(rand() * 14);
+      const slug = `${first}.${last}`.toLowerCase().replace(/[^a-z.]/g, "");
+      const alerts = [];
+      if (isAdult && rand() < 0.08) alerts.push({ kind: "premedication", severity: "critical", text: "Premedicate before invasive procedures (joint replacement); confirm with the orthopaedic surgeon." });
+      if (isAdult && rand() < 0.07) alerts.push({ kind: "anticoagulant", severity: "caution", text: "Takes an anticoagulant; check the latest INR before extractions." });
+      if (rand() < 0.04) alerts.push({ kind: "latex", severity: "critical", text: "Latex allergy: use nitrile gloves and latex-free dam." });
+      out.push({
+        id,
+        chart: `PT-SEED-${String(n).padStart(4, "0")}`,
+        familyId,
+        first,
+        last,
+        preferred: "",
+        dob: dobFor(age),
+        sex,
+        language,
+        homeLocationId,
+        status: rand() < 0.08 ? "inactive" : "active",
+        email: isAdult ? personalEmail(slug, rand) : void 0,
+        mobile: isAdult ? phone() : void 0,
+        guarantorOf: m === 0 ? null : head,
+        relationship: m === 0 ? "self" : isAdult ? "spouse" : "parent",
+        alerts
+      });
+      if (m === 0) head = id;
+    }
+  }
+  const dupSource = [out[4], out[40]];
+  dupSource.forEach((p, i) => {
+    n += 1;
+    out.push({ ...p, id: `seed_pt_${String(n).padStart(4, "0")}`, chart: `PT-SEED-${String(n).padStart(4, "0")}`, first: i === 0 ? p.first.slice(0, Math.max(3, p.first.length - 1)) : p.first, status: "prospect", guarantorOf: null, relationship: "self", alerts: [], email: p.email, mobile: void 0 });
+  });
+  const deceased = out.find((p) => p.relationship === "self" && Number(p.dob.slice(0, 4)) < year - 75);
+  if (deceased) {
+    deceased.status = "deceased";
+    deceased.dateOfDeath = addDays(today2, -40);
+  }
+  return out;
+}
+async function seedPhase1(uow, actor2) {
+  const { tx, now } = uow;
+  const today2 = localDate(TZ, now);
+  const created = { operatories: 0, appointmentTypes: 0, templates: 0, blocks: 0, goals: 0, closures: 0, patients: 0, contacts: 0, consents: 0, alerts: 0, appointments: 0, asap: 0, bookingPolicies: 0, messageTemplates: 0, storefront: 0, portal: 0 };
+  const haveOps = new Set((await tx.operatory.findMany({ where: { id: { in: OPERATORIES.map((o) => o.id) } }, select: { id: true } })).map((o) => o.id));
+  const newOps = OPERATORIES.filter((o) => !haveOps.has(o.id));
+  if (newOps.length) {
+    await tx.operatory.createMany({ data: newOps.map((o) => ({ ...o, isSynthetic: true })) });
+    created.operatories = newOps.length;
+  }
+  const haveTypes = new Set((await tx.appointmentType.findMany({ where: { id: { in: APPOINTMENT_TYPES.map((t) => t.id) } }, select: { id: true } })).map((t) => t.id));
+  for (const t of APPOINTMENT_TYPES.filter((type) => !haveTypes.has(type.id))) {
+    await tx.appointmentType.create({ data: { id: t.id, code: t.code, name: t.name, publicName: t.publicName, category: t.category, defaultPattern: t.pattern, defaultDurationUnits: patternUnits(t.pattern), onlineBookable: t.onlineBookable, newPatientOnly: t.newPatientOnly, requiresDentistOnSite: t.requiresDentistOnSite, defaultProductionMinor: t.production, colour: t.colour, isSynthetic: true } });
+    created.appointmentTypes += 1;
+  }
+  const effectiveFrom = `${addDays(today2, -60).slice(0, 7)}-01`;
+  const blocks = templateBlocks();
+  for (const loc of ["tpa", "stp"]) {
+    const templateId = `seed_tpl_${loc}`;
+    if (await tx.scheduleTemplate.findUnique({ where: { id: templateId } })) continue;
+    await tx.scheduleTemplate.create({ data: { id: templateId, locationId: `seed_loc_${loc}`, name: loc === "tpa" ? "Tampa standard week" : "St. Petersburg standard week", effectiveFrom: /* @__PURE__ */ new Date(`${effectiveFrom}T00:00:00Z`), status: "active", publishedAt: now, isSynthetic: true } });
+    const mine = blocks.filter((x) => x.operatoryId.startsWith(`seed_op_${loc}_`));
+    await tx.templateBlock.createMany({ data: mine.map((b) => ({ id: b.id, templateId, weekday: b.weekday, operatoryId: b.operatoryId, providerId: b.providerId, startLocal: b.startLocal, endLocal: b.endLocal, label: b.label, onlineBookable: b.online })) });
+    const pairs = mine.flatMap((b) => b.types.map((t) => [t, b.id]));
+    await tx.$executeRawUnsafe(`INSERT INTO "_TemplateBlock_allowedTypes" ("A", "B") SELECT * FROM unnest($1::text[], $2::text[]) ON CONFLICT DO NOTHING`, pairs.map((x) => x[0]), pairs.map((x) => x[1]));
+    created.blocks += mine.length;
+    auditCreate(uow, actor2, "ScheduleTemplate", templateId, "template.published", { location: loc, effectiveFrom }, meta);
+    created.templates += 1;
+  }
+  const goals = [
+    ["seed_prov_okafor", "seed_loc_tpa", 520000n],
+    ["seed_prov_reyes", "seed_loc_tpa", 420000n],
+    ["seed_prov_hale", "seed_loc_tpa", 160000n],
+    ["seed_prov_brandt", "seed_loc_tpa", 150000n],
+    ["seed_prov_natarajan", "seed_loc_stp", 400000n],
+    ["seed_prov_kim", "seed_loc_stp", 150000n]
+  ];
+  const goalRows = goals.flatMap(([providerId, locationId, goalMinor]) => [1, 2, 3, 4].map((weekday) => ({ id: `seed_goal_${providerId.slice(10)}_${weekday}`, providerId, locationId, weekday, goalMinor })));
+  created.goals = (await tx.productionGoal.createMany({ data: goalRows, skipDuplicates: true })).count;
+  const holiday = nextWeekday(addDays(today2, 18), 4);
+  if (!await tx.closureDay.findUnique({ where: { id: "seed_closure_holiday" } })) {
+    await tx.closureDay.create({ data: { id: "seed_closure_holiday", date: /* @__PURE__ */ new Date(`${holiday}T00:00:00Z`), reason: "Practice holiday (all locations)", isHalfDay: false } });
+    await tx.closureDay.create({ data: { id: "seed_closure_training", locationId: "seed_loc_stp", date: /* @__PURE__ */ new Date(`${nextWeekday(addDays(today2, 9), 3)}T00:00:00Z`), reason: "Staff CPR training", isHalfDay: true, startLocal: "13:00", endLocal: "17:00" } });
+    created.closures = 2;
+  }
+  const people = samplePatients(today2);
+  const havePatients = new Set((await tx.patient.findMany({ where: { id: { in: people.map((p) => p.id) } }, select: { id: true } })).map((p) => p.id));
+  const fresh = people.filter((p) => !havePatients.has(p.id));
+  if (fresh.length) {
+    const families = [...new Set(fresh.map((p) => p.familyId))];
+    const haveFamilies = new Set((await tx.familyGroup.findMany({ where: { id: { in: families } }, select: { id: true } })).map((f) => f.id));
+    const newFamilies = families.filter((id) => !haveFamilies.has(id));
+    if (newFamilies.length) await tx.familyGroup.createMany({ data: newFamilies.map((id) => ({ id, name: `${people.find((p) => p.familyId === id).last} household`, isSynthetic: true })) });
+    await tx.patient.createMany({
+      data: fresh.map((p) => ({
+        id: p.id,
+        chartNumber: p.chart,
+        status: p.status,
+        firstName: p.first,
+        lastName: p.last,
+        preferredName: p.preferred,
+        dateOfBirth: /* @__PURE__ */ new Date(`${p.dob}T00:00:00Z`),
+        sexAssignedAtBirth: p.sex,
+        preferredLanguage: p.language,
+        homeLocationId: p.homeLocationId,
+        familyId: p.status === "prospect" ? null : p.familyId,
+        primaryProviderId: p.homeLocationId === "seed_loc_tpa" ? "seed_prov_okafor" : "seed_prov_natarajan",
+        dateOfDeath: p.dateOfDeath ? /* @__PURE__ */ new Date(`${p.dateOfDeath}T00:00:00Z`) : null,
+        statementHold: p.status === "deceased",
+        address: { line1: `${100 + Number(p.id.slice(-3))} Palmetto Way`, city: p.homeLocationId === "seed_loc_tpa" ? "Tampa" : "St. Petersburg", state: "FL", postal: "33600", country: "US" },
+        isSynthetic: true
+      }))
+    });
+    created.patients = fresh.length;
+    await tx.guarantor.createMany({ data: fresh.filter((p) => p.relationship === "self").map((p) => ({ id: `seed_gtr_${p.id.slice(8)}`, patientId: p.id, isSynthetic: true })) });
+    const startsOn = /* @__PURE__ */ new Date(`${addDays(today2, -700)}T00:00:00Z`);
+    await tx.guarantorLink.createMany({
+      data: fresh.map((p) => ({ id: `seed_gl_${p.id.slice(8)}`, patientId: p.id, guarantorId: `seed_gtr_${(p.guarantorOf ?? p.id).slice(8)}`, relationship: p.relationship, status: "active", startsOn }))
+    });
+    const contacts = fresh.flatMap((p) => [
+      ...p.email ? [{ id: `seed_cp_${p.id.slice(8)}_e`, patientId: p.id, kind: "email", value: p.email, valueNormalized: p.email, isPrimary: true, isActive: true }] : [],
+      ...p.mobile ? [{ id: `seed_cp_${p.id.slice(8)}_m`, patientId: p.id, kind: "mobile", value: `(${p.mobile.slice(2, 5)}) ${p.mobile.slice(5, 8)}-${p.mobile.slice(8)}`, valueNormalized: p.mobile, isPrimary: true, isActive: true }] : []
+    ]);
+    await tx.contactPoint.createMany({ data: contacts });
+    created.contacts = contacts.length;
+    const consents = contacts.filter((c, i) => p_alive(fresh, c.patientId) && (c.kind === "email" || i % 9 !== 0)).map((c) => ({
+      id: `seed_cg_${c.id.slice(8)}`,
+      contactPointId: c.id,
+      channel: c.kind === "email" ? "email" : "sms",
+      purpose: "appointment_reminders",
+      status: "granted",
+      source: "intake_form",
+      evidence: { form: "paper intake", note: "Sample practice: synthetic data" },
+      grantedAt: /* @__PURE__ */ new Date(`${addDays(today2, -400)}T15:00:00Z`)
+    }));
+    await tx.consentGrant.createMany({ data: consents });
+    created.consents = consents.length;
+    const alerts = fresh.flatMap((p) => p.alerts.map((a, i) => ({ id: `seed_al_${p.id.slice(8)}_${i}`, patientId: p.id, kind: a.kind, severity: a.severity, text: a.text, source: "history_answer", activeFrom: /* @__PURE__ */ new Date(`${addDays(today2, -300)}T12:00:00Z`) })));
+    if (alerts.length) await tx.patientAlert.createMany({ data: alerts });
+    created.alerts = alerts.length;
+    auditCreate(uow, actor2, "Patient", "seed", "patients.sample_loaded", { patients: fresh.length, families: newFamilies.length, contacts: contacts.length }, meta);
+  }
+  if (!await tx.appointment.findFirst({ where: { id: { startsWith: "seed_appt_" } }, select: { id: true } })) {
+    created.appointments = await seedAppointments(uow, people, today2);
+  }
+  const asapPatients = people.filter((p) => p.status === "active").slice(30, 35);
+  for (const [i, p] of asapPatients.entries()) {
+    const id = `seed_asap_${i + 1}`;
+    if (await tx.asapEntry.findUnique({ where: { id } })) continue;
+    await tx.asapEntry.create({ data: { id, patientId: p.id, locationId: p.homeLocationId, appointmentTypeId: i % 2 ? "seed_apt_filling" : "seed_apt_recall", preferredWindows: [{ weekday: 1 + i % 4, from: i % 2 ? "08:00" : "13:00", to: i % 2 ? "12:00" : "17:00" }], note: i === 0 ? "Can come in on 30 minutes notice" : "", status: "active", priority: 5 - i, isSynthetic: true } });
+    created.asap += 1;
+  }
+  for (const loc of ["seed_loc_tpa", "seed_loc_stp"]) {
+    const id = `seed_obp_${loc.slice(9)}`;
+    if (await tx.onlineBookingPolicy.findUnique({ where: { id } })) continue;
+    await tx.onlineBookingPolicy.create({ data: { id, locationId: loc, newPatientAllowed: true, leadTimeHours: 4, horizonDays: 60, holdMinutes: 10, depositMinor: 0n, requireInsuranceCapture: false, rateLimit: { perClientPerHour: 30, perContactPerDay: 5, globalPerMinute: 120 }, isActive: true, appointmentTypes: { connect: APPOINTMENT_TYPES.filter((t) => t.onlineBookable).map((t) => ({ id: t.id })) } } });
+    created.bookingPolicies += 1;
+  }
+  const templates = [
+    { id: "seed_mt_reminder_email", key: "appointment.reminder", channel: "email", subject: "Your visit at {{location.name}}", body: "Hi {{patient.preferredName}},\n\nThis is a reminder of your visit at {{location.name}} on {{appointment.when}}.\nReply C to confirm, or call {{location.phone}} if you need to change it.\n\nBayview Family Dental" },
+    { id: "seed_mt_reminder_sms", key: "appointment.reminder", channel: "sms", subject: "", body: "Bayview Family Dental: reminder of your visit {{appointment.when}}. Reply C to confirm or call {{location.phone}}. Reply STOP to opt out." }
+  ];
+  for (const t of templates) {
+    if (await tx.messageTemplate.findUnique({ where: { id: t.id } })) continue;
+    await tx.messageTemplate.create({ data: { ...t, purpose: "appointment_reminders", phiLevel: "minimal", locale: "en", status: "active" } });
+    created.messageTemplates += 1;
+  }
+  if (!await tx.storefrontSite.findUnique({ where: { id: "seed_site" } })) {
+    await tx.storefrontSite.create({ data: { id: "seed_site", slug: "bayview", headline: "Family dentistry on Tampa Bay", about: "Sample practice: synthetic data.", services: [{ name: "Cleanings and check-ups" }, { name: "Fillings and crowns" }, { name: "Emergency visits" }], isPublished: true, isSynthetic: true, providersShown: { connect: [{ id: "seed_prov_okafor" }, { id: "seed_prov_reyes" }, { id: "seed_prov_natarajan" }, { id: "seed_prov_hale" }] } } });
+    created.storefront = 1;
+  }
+  const parent = people.find((p) => p.relationship === "self" && p.email && people.some((c) => c.guarantorOf === p.id && c.relationship === "parent"));
+  if (parent && !await tx.portalAccount.findUnique({ where: { id: "seed_portal_1" } })) {
+    const child = people.find((c) => c.guarantorOf === parent.id && c.relationship === "parent");
+    await tx.portalAccount.create({ data: { id: "seed_portal_1", email: parent.email, status: "active", identityVerifiedAt: now, isSynthetic: true } });
+    await tx.portalScope.create({ data: { id: "seed_ps_self", accountId: "seed_portal_1", patientId: parent.id, relationship: "self", capabilities: ["appointments", "preferences", "forms", "statements_pay"], status: "active" } });
+    await tx.portalScope.create({ data: { id: "seed_ps_child", accountId: "seed_portal_1", patientId: child.id, relationship: "guardian", capabilities: ["appointments", "preferences", "forms"], status: "active", validUntilMajority: true } });
+    created.portal = 1;
+  }
+  return created;
+}
+var p_alive = (people, id) => people.find((p) => p.id === id)?.status !== "deceased";
+function nextWeekday(date, weekday) {
+  let d = date;
+  while (weekdayOf(d) !== weekday) d = addDays(d, 1);
+  return d;
+}
+async function seedAppointments(uow, people, today2) {
+  const { tx, now } = uow;
+  const rand = rng(77);
+  const types = new Map(APPOINTMENT_TYPES.map((t) => [t.id, t]));
+  const blocks = templateBlocks();
+  const providerType = (id) => id.includes("hale") || id.includes("brandt") || id.includes("ortiz") || id.includes("kim") ? "hygienist" : "dentist";
+  const bookable = people.filter((p) => p.status === "active" || p.status === "inactive");
+  const patientBusy = /* @__PURE__ */ new Map();
+  const providerBusy = [];
+  let count = 0;
+  let pi = 0;
+  const appointments = [];
+  const segments = [];
+  const broken = [];
+  const holiday = await tx.closureDay.findMany({ select: { date: true, isHalfDay: true, startLocal: true, endLocal: true, locationId: true } });
+  for (let offset = -21; offset <= 14; offset += 1) {
+    const date = addDays(today2, offset);
+    for (const loc of ["tpa", "stp"]) {
+      const input = blocks.filter((b) => b.operatoryId.startsWith(`seed_op_${loc}_`)).map((b) => ({ id: b.id, weekday: b.weekday, operatoryId: b.operatoryId, providerId: b.providerId, providerType: providerType(b.providerId), startLocal: b.startLocal, endLocal: b.endLocal, allowedTypeIds: b.types, onlineBookable: b.online }));
+      const closures = holiday.filter((c) => !c.locationId || c.locationId === `seed_loc_${loc}`).map((c) => ({ date: c.date.toISOString().slice(0, 10), isHalfDay: c.isHalfDay, startLocal: c.startLocal, endLocal: c.endLocal }));
+      const windows = materialiseBlocks(date, TZ, input, closures);
+      const fill = offset < 0 ? 0.85 : offset <= 2 ? 0.8 : Math.max(0.25, 0.75 - offset * 0.04);
+      for (const w of windows) {
+        let at = w.startMs;
+        while (at < w.endMs) {
+          const typeId = pickType(w, rand);
+          const type = types.get(typeId);
+          const pattern = parsePattern(type.pattern);
+          const endMs = at + patternUnits(pattern) * 10 * MS_PER_MINUTE;
+          if (endMs > w.endMs) break;
+          if (rand() > fill) {
+            at += 10 * MS_PER_MINUTE * (1 + Math.floor(rand() * 3));
+            continue;
+          }
+          const plan = planSegments({ pattern, unitMinutes: 10, startMs: at, providerId: w.providerId, windows, providerBusy });
+          const patient = nextPatient(bookable, w, at, endMs, patientBusy, () => pi++);
+          if (plan.clashes.length || !patient || offset === 1 && w.operatoryId.endsWith("_h1") && at === w.startMs + 120 * MS_PER_MINUTE) {
+            at += 10 * MS_PER_MINUTE;
+            continue;
+          }
+          const id = `seed_appt_${String(++count).padStart(5, "0")}`;
+          const status = offset < 0 ? pastOutcome(rand) : offset === 0 ? at < now.getTime() ? "completed" : at < now.getTime() + 36e5 ? "arrived" : "confirmed" : rand() < (offset <= 2 ? 0.6 : 0.3) ? "confirmed" : "scheduled";
+          const brokenKind = status === "broken" ? rand() < 0.6 ? "no_show" : "late_cancel" : "";
+          const active = ["scheduled", "confirmed", "arrived", "seated", "ready_for_checkout"].includes(status);
+          appointments.push({
+            id,
+            ref: `APT-SEED-${String(count).padStart(5, "0")}`,
+            patientId: patient.id,
+            locationId: `seed_loc_${loc}`,
+            operatoryId: w.operatoryId,
+            typeId,
+            startsAt: new Date(at),
+            endsAt: new Date(endMs),
+            localDate: /* @__PURE__ */ new Date(`${date}T00:00:00Z`),
+            status,
+            brokenKind,
+            confirmedAt: status === "confirmed" ? new Date(at - 864e5) : null,
+            confirmationMethod: status === "confirmed" ? rand() < 0.6 ? "sms_reply" : "phone" : "",
+            arrivedAt: ["arrived", "completed"].includes(status) ? new Date(at - 5 * MS_PER_MINUTE) : null,
+            completedAt: status === "completed" ? new Date(endMs) : null,
+            cancelledAt: status === "cancelled" ? new Date(at - 3 * 864e5) : null,
+            cancelReason: status === "cancelled" ? "Patient asked to move to next month" : "",
+            primaryProviderId: w.providerId,
+            supervisingDentistId: plan.examProviderId,
+            source: "import",
+            productionScheduledMinor: type.production,
+            warnings: [],
+            isSynthetic: true
+          });
+          plan.segments.forEach((seg, i) => segments.push({ id: `${id}_s${i}`, appointmentId: id, role: seg.role, providerId: seg.providerId, startsAt: new Date(seg.startMs), endsAt: new Date(seg.endMs), concurrencyKind: seg.concurrencyKind, isActive: active || status === "completed" }));
+          if (status === "broken") broken.push({ id: `${id}_b`, appointmentId: id, patientId: patient.id, kind: brokenKind, at: new Date(at), reason: "Sample practice: synthetic data" });
+          if (active || status === "completed") {
+            for (const seg of plan.segments) if (seg.providerId) providerBusy.push({ providerId: seg.providerId, startMs: seg.startMs, endMs: seg.endMs, concurrencyKind: seg.concurrencyKind, role: seg.role });
+            patientBusy.set(patient.id, [...patientBusy.get(patient.id) ?? [], [at, endMs]]);
+          }
+          at = endMs;
+        }
+      }
+    }
+  }
+  for (let i = 0; i < appointments.length; i += 500) await tx.appointment.createMany({ data: appointments.slice(i, i + 500) });
+  for (let i = 0; i < segments.length; i += 1e3) await tx.appointmentSegment.createMany({ data: segments.slice(i, i + 1e3) });
+  if (broken.length) await tx.brokenAppointmentEvent.createMany({ data: broken });
+  await tx.$executeRawUnsafe(`
+    UPDATE "Patient" p SET "firstVisitOn" = v.first, "lastVisitOn" = v.last
+    FROM (SELECT a.patient, min((a."startsAt" AT TIME ZONE 'UTC' AT TIME ZONE l."timeZone")::date) AS first, max((a."startsAt" AT TIME ZONE 'UTC' AT TIME ZONE l."timeZone")::date) AS last
+          FROM "Appointment" a JOIN "Location" l ON l.id = a.location WHERE a.status = 'completed' AND a.id LIKE 'seed_%' GROUP BY a.patient) v
+    WHERE p.id = v.patient AND p."isSynthetic"`);
+  return count;
+}
+var MAIL_DOMAINS = ["gmail.com", "gmail.com", "gmail.com", "yahoo.com", "outlook.com", "icloud.com", "hotmail.com", "aol.com", "comcast.net"];
+function personalEmail(slug, rand) {
+  const [first, last] = slug.split(".");
+  const forms = [`${first}.${last}`, `${first}${last}`, `${first[0]}${last}`, `${first}.${last}${10 + Math.floor(rand() * 80)}`, `${first}${last[0]}${Math.floor(rand() * 9e3) + 1e3}`];
+  return `${forms[Math.floor(rand() * forms.length)]}@${MAIL_DOMAINS[Math.floor(rand() * MAIL_DOMAINS.length)]}`;
+}
+function pickType(w, rand) {
+  const allowed = w.allowedTypeIds;
+  if (allowed.includes("seed_apt_recall")) {
+    const r2 = rand();
+    return r2 < 0.7 ? "seed_apt_recall" : r2 < 0.85 ? "seed_apt_perio" : "seed_apt_np";
+  }
+  const weights = [["seed_apt_filling", 0.4], ["seed_apt_crown_prep", 0.15], ["seed_apt_crown_seat", 0.1], ["seed_apt_endo", 0.08], ["seed_apt_ext", 0.1], ["seed_apt_emerg", 0.1], ["seed_apt_consult", 0.07]];
+  const options = weights.filter(([id]) => allowed.includes(id));
+  const total = options.reduce((s, [, x]) => s + x, 0);
+  let r = rand() * total;
+  for (const [id, x] of options) {
+    r -= x;
+    if (r <= 0) return id;
+  }
+  return options[0]?.[0] ?? allowed[0];
+}
+function pastOutcome(rand) {
+  const r = rand();
+  return r < 0.86 ? "completed" : r < 0.93 ? "broken" : "cancelled";
+}
+function nextPatient(people, w, startMs, endMs, busy, next) {
+  const location = w.operatoryId.includes("_stp_") ? "seed_loc_stp" : "seed_loc_tpa";
+  for (let tries = 0; tries < people.length; tries += 1) {
+    const p = people[next() % people.length];
+    if (p.homeLocationId !== location) continue;
+    if ((busy.get(p.id) ?? []).some(([s, e]) => s < endMs && startMs < e)) continue;
+    return p;
+  }
+  return null;
 }
 
 // features/keystone/lib/jurisdiction.ts
@@ -2688,6 +3269,9 @@ var US_GENERIC_2026_1 = {
   sources: [SOURCES.ada, SOURCES.adha, SOURCES.cms, SOURCES.fcc]
 };
 var PACKS = [US_FL_2026_1, US_GENERIC_2026_1];
+function parsePackRules(rules2) {
+  return packRulesSchema.parse(rules2);
+}
 
 // features/keystone/seed/practice.ts
 var PACK_LABELS = PACKS.map((pack) => `${pack.key}@${pack.version}`);
@@ -2707,7 +3291,7 @@ var LOCATIONS = [
     timeZone: "America/New_York",
     address: { line1: "4100 Harbour Light Way", line2: "Suite 210", city: "Tampa", state: "FL", postal: "33609", country: "US" },
     phone: "(813) 555-0142",
-    email: "tampa@bayviewdental.example",
+    email: "tampa@bayviewfamilydental.com",
     hours: { 1: [["07:30", "17:00"]], 2: [["07:30", "17:00"]], 3: [["08:00", "18:00"]], 4: [["07:30", "17:00"]], 5: [["07:30", "14:00"]] }
   },
   {
@@ -2717,7 +3301,7 @@ var LOCATIONS = [
     timeZone: "America/New_York",
     address: { line1: "880 Pelican Shore Drive", line2: "", city: "St. Petersburg", state: "FL", postal: "33701", country: "US" },
     phone: "(727) 555-0187",
-    email: "stpete@bayviewdental.example",
+    email: "stpete@bayviewfamilydental.com",
     hours: { 1: [["08:00", "17:00"]], 2: [["08:00", "17:00"]], 3: [["08:00", "17:00"]], 4: [["08:00", "17:00"]] }
   }
 ];
@@ -2745,25 +3329,25 @@ var ROLES = [
   { id: "seed_role_patient", name: "Patient", description: "Portal only (through the portal API); no dashboard.", permissions: [] }
 ];
 var STAFF = [
-  { id: "seed_user_okafor", name: "Dr. Maya Okafor", email: "maya.okafor@bayviewdental.example", title: "Owner dentist", roleId: "seed_role_owner", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"], provider: { id: "seed_prov_okafor", abbreviation: "MOK", type: "dentist", npi: "1999000015", colour: "#2563eb", supervisionClass: "dentist" } },
-  { id: "seed_user_reyes", name: "Dr. Daniel Reyes", email: "daniel.reyes@bayviewdental.example", title: "Associate dentist", roleId: "seed_role_associate", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_reyes", abbreviation: "DRE", type: "dentist", npi: "1999000023", colour: "#7c3aed", supervisionClass: "dentist" } },
-  { id: "seed_user_natarajan", name: "Dr. Priya Natarajan", email: "priya.natarajan@bayviewdental.example", title: "Associate dentist", roleId: "seed_role_associate", kind: "staff", locations: ["seed_loc_stp"], provider: { id: "seed_prov_natarajan", abbreviation: "PNA", type: "dentist", npi: "1999000031", colour: "#0891b2", supervisionClass: "dentist" } },
-  { id: "seed_user_hale", name: "Jenna Hale, RDH", email: "jenna.hale@bayviewdental.example", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_hale", abbreviation: "JHA", type: "hygienist", npi: "1999000049", colour: "#059669", supervisionClass: "rdh_general" } },
-  { id: "seed_user_brandt", name: "Marcus Brandt, RDH", email: "marcus.brandt@bayviewdental.example", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_brandt", abbreviation: "MBR", type: "hygienist", npi: "1999000056", colour: "#16a34a", supervisionClass: "rdh_general" } },
-  { id: "seed_user_ortiz", name: "Lucia Ortiz, RDH", email: "lucia.ortiz@bayviewdental.example", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"], provider: { id: "seed_prov_ortiz", abbreviation: "LOR", type: "hygienist", npi: "1999000064", colour: "#65a30d", supervisionClass: "rdh_general" } },
-  { id: "seed_user_kim", name: "Grace Kim, RDH", email: "grace.kim@bayviewdental.example", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_stp"], provider: { id: "seed_prov_kim", abbreviation: "GKI", type: "hygienist", npi: "1999000072", colour: "#0d9488", supervisionClass: "rdh_general" } },
-  { id: "seed_user_dupree", name: "Tasha Dupree", email: "tasha.dupree@bayviewdental.example", title: "Dental assistant", roleId: "seed_role_assistant", kind: "staff", locations: ["seed_loc_tpa"] },
-  { id: "seed_user_novak", name: "Eli Novak", email: "eli.novak@bayviewdental.example", title: "Dental assistant", roleId: "seed_role_assistant", kind: "staff", locations: ["seed_loc_tpa"] },
-  { id: "seed_user_mendes", name: "Carla Mendes", email: "carla.mendes@bayviewdental.example", title: "Dental assistant", roleId: "seed_role_assistant", kind: "staff", locations: ["seed_loc_stp"] },
-  { id: "seed_user_baptiste", name: "Rene Baptiste", email: "rene.baptiste@bayviewdental.example", title: "Dental assistant", roleId: "seed_role_assistant", kind: "staff", locations: ["seed_loc_stp"] },
-  { id: "seed_user_walsh", name: "Kerry Walsh", email: "kerry.walsh@bayviewdental.example", title: "Front desk", roleId: "seed_role_front_office", kind: "staff", locations: ["seed_loc_tpa"] },
-  { id: "seed_user_ibrahim", name: "Noor Ibrahim", email: "noor.ibrahim@bayviewdental.example", title: "Front desk", roleId: "seed_role_front_office", kind: "staff", locations: ["seed_loc_tpa"] },
-  { id: "seed_user_tran", name: "Vivian Tran", email: "vivian.tran@bayviewdental.example", title: "Front desk", roleId: "seed_role_front_office", kind: "staff", locations: ["seed_loc_stp"] },
-  { id: "seed_user_foster", name: "Dana Foster", email: "dana.foster@bayviewdental.example", title: "Insurance coordinator", roleId: "seed_role_insurance", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"] },
-  { id: "seed_user_morales", name: "Rosa Morales", email: "rosa.morales@bayviewdental.example", title: "Office manager", roleId: "seed_role_office_manager", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"] },
-  { id: "seed_user_quinn", name: "Avery Quinn", email: "avery.quinn@bayviewdental.example", title: "Treatment coordinator", roleId: "seed_role_tc", kind: "staff", locations: ["seed_loc_tpa"] },
-  { id: "seed_user_shah", name: "Imran Shah", email: "imran.shah@bayviewdental.example", title: "Privacy officer", roleId: "seed_role_privacy", kind: "staff", locations: [] },
-  { id: "seed_user_lindqvist", name: "M. Lindqvist", email: "m.lindqvist@gulfcoastcpa.example", title: "Bookkeeper, Gulf Coast CPA", roleId: "seed_role_bookkeeper", kind: "auditor", locations: [], accessDays: 30 }
+  { id: "seed_user_okafor", name: "Dr. Maya Okafor", email: "maya.okafor@bayviewfamilydental.com", title: "Owner dentist", roleId: "seed_role_owner", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"], provider: { id: "seed_prov_okafor", abbreviation: "MOK", type: "dentist", npi: "1999000015", colour: "#2563eb", supervisionClass: "dentist" } },
+  { id: "seed_user_reyes", name: "Dr. Daniel Reyes", email: "daniel.reyes@bayviewfamilydental.com", title: "Associate dentist", roleId: "seed_role_associate", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_reyes", abbreviation: "DRE", type: "dentist", npi: "1999000023", colour: "#7c3aed", supervisionClass: "dentist" } },
+  { id: "seed_user_natarajan", name: "Dr. Priya Natarajan", email: "priya.natarajan@bayviewfamilydental.com", title: "Associate dentist", roleId: "seed_role_associate", kind: "staff", locations: ["seed_loc_stp"], provider: { id: "seed_prov_natarajan", abbreviation: "PNA", type: "dentist", npi: "1999000031", colour: "#0891b2", supervisionClass: "dentist" } },
+  { id: "seed_user_hale", name: "Jenna Hale, RDH", email: "jenna.hale@bayviewfamilydental.com", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_hale", abbreviation: "JHA", type: "hygienist", npi: "1999000049", colour: "#059669", supervisionClass: "rdh_general" } },
+  { id: "seed_user_brandt", name: "Marcus Brandt, RDH", email: "marcus.brandt@bayviewfamilydental.com", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_brandt", abbreviation: "MBR", type: "hygienist", npi: "1999000056", colour: "#16a34a", supervisionClass: "rdh_general" } },
+  { id: "seed_user_ortiz", name: "Lucia Ortiz, RDH", email: "lucia.ortiz@bayviewfamilydental.com", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"], provider: { id: "seed_prov_ortiz", abbreviation: "LOR", type: "hygienist", npi: "1999000064", colour: "#65a30d", supervisionClass: "rdh_general" } },
+  { id: "seed_user_kim", name: "Grace Kim, RDH", email: "grace.kim@bayviewfamilydental.com", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_stp"], provider: { id: "seed_prov_kim", abbreviation: "GKI", type: "hygienist", npi: "1999000072", colour: "#0d9488", supervisionClass: "rdh_general" } },
+  { id: "seed_user_dupree", name: "Tasha Dupree", email: "tasha.dupree@bayviewfamilydental.com", title: "Dental assistant", roleId: "seed_role_assistant", kind: "staff", locations: ["seed_loc_tpa"] },
+  { id: "seed_user_novak", name: "Eli Novak", email: "eli.novak@bayviewfamilydental.com", title: "Dental assistant", roleId: "seed_role_assistant", kind: "staff", locations: ["seed_loc_tpa"] },
+  { id: "seed_user_mendes", name: "Carla Mendes", email: "carla.mendes@bayviewfamilydental.com", title: "Dental assistant", roleId: "seed_role_assistant", kind: "staff", locations: ["seed_loc_stp"] },
+  { id: "seed_user_baptiste", name: "Rene Baptiste", email: "rene.baptiste@bayviewfamilydental.com", title: "Dental assistant", roleId: "seed_role_assistant", kind: "staff", locations: ["seed_loc_stp"] },
+  { id: "seed_user_walsh", name: "Kerry Walsh", email: "kerry.walsh@bayviewfamilydental.com", title: "Front desk", roleId: "seed_role_front_office", kind: "staff", locations: ["seed_loc_tpa"] },
+  { id: "seed_user_ibrahim", name: "Noor Ibrahim", email: "noor.ibrahim@bayviewfamilydental.com", title: "Front desk", roleId: "seed_role_front_office", kind: "staff", locations: ["seed_loc_tpa"] },
+  { id: "seed_user_tran", name: "Vivian Tran", email: "vivian.tran@bayviewfamilydental.com", title: "Front desk", roleId: "seed_role_front_office", kind: "staff", locations: ["seed_loc_stp"] },
+  { id: "seed_user_foster", name: "Dana Foster", email: "dana.foster@bayviewfamilydental.com", title: "Insurance coordinator", roleId: "seed_role_insurance", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"] },
+  { id: "seed_user_morales", name: "Rosa Morales", email: "rosa.morales@bayviewfamilydental.com", title: "Office manager", roleId: "seed_role_office_manager", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"] },
+  { id: "seed_user_quinn", name: "Avery Quinn", email: "avery.quinn@bayviewfamilydental.com", title: "Treatment coordinator", roleId: "seed_role_tc", kind: "staff", locations: ["seed_loc_tpa"] },
+  { id: "seed_user_shah", name: "Imran Shah", email: "imran.shah@bayviewfamilydental.com", title: "Privacy officer", roleId: "seed_role_privacy", kind: "staff", locations: [] },
+  { id: "seed_user_lindqvist", name: "M. Lindqvist", email: "m.lindqvist@gulfcoastcpa.com", title: "Bookkeeper, Gulf Coast CPA", roleId: "seed_role_bookkeeper", kind: "auditor", locations: [], accessDays: 30 }
 ];
 var APPROVAL_POLICIES = [
   { action: "practice.controls", description: "Change practice-wide controls (AI autonomy, agent-owner separation, break-glass window, staff MFA).", requiredPermission: "canApproveAutonomy", expiresAfterMinutes: 1440 },
@@ -2786,37 +3370,37 @@ var APPROVAL_POLICIES = [
 // features/keystone/seed/platform.ts
 var UNUSABLE_PASSWORD_HASH = "$2a$10$3dITCbIvf5zFA.1U8KZDhOHC3EEexi3KYy5ysZK1cRF6LHMm0H.ya";
 var day = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
-async function seedPracticePlatform(uow, actor) {
+async function seedPracticePlatform(uow, actor2) {
   if (process.env.NODE_ENV === "production" && process.env.DENTAL_ALLOW_SAMPLE_PRACTICE !== "true") {
     throw new Error("The sample practice cannot be loaded into a production deployment (I-G3). Set DENTAL_ALLOW_SAMPLE_PRACTICE=true only on a QA deployment.");
   }
   const { tx, now } = uow;
   const created = { practice: 0, jurisdictionPacks: 0, locations: 0, roles: 0, staff: 0, assignments: 0, providers: 0, approvalPolicies: 0 };
-  const meta = { metadata: { seed: true, synthetic: true } };
+  const meta2 = { metadata: { seed: true, synthetic: true } };
   if (!await tx.practiceSettings.findUnique({ where: { id: 1 } })) {
     await tx.practiceSettings.create({ data: { id: 1, ...PRACTICE, isSynthetic: true } });
-    auditCreate(uow, actor, "PracticeSettings", "1", "practice.created", PRACTICE, meta);
+    auditCreate(uow, actor2, "PracticeSettings", "1", "practice.created", PRACTICE, meta2);
     created.practice += 1;
   }
   for (const pack of PACKS) {
     const label = `${pack.key}@${pack.version}`;
     if (await tx.jurisdictionPack.findUnique({ where: { label } })) continue;
     const row = await tx.jurisdictionPack.create({ data: { label, key: pack.key, version: pack.version, name: pack.name, rules: pack.rules, sources: pack.sources, status: "active" } });
-    auditCreate(uow, actor, "JurisdictionPack", row.id, "jurisdiction_pack.loaded", { label }, meta);
+    auditCreate(uow, actor2, "JurisdictionPack", row.id, "jurisdiction_pack.loaded", { label }, meta2);
     created.jurisdictionPacks += 1;
   }
   const florida = await tx.jurisdictionPack.findUniqueOrThrow({ where: { label: "US-FL@2026.1" }, select: { id: true } });
   for (const location of LOCATIONS) {
     if (await tx.location.findUnique({ where: { id: location.id } })) continue;
     await tx.location.create({ data: { id: location.id, code: location.code, name: location.name, timeZone: location.timeZone, address: location.address, phone: location.phone, email: location.email, hours: location.hours, jurisdictionId: florida.id, isSynthetic: true } });
-    auditCreate(uow, actor, "Location", location.id, "location.created", { code: location.code, name: location.name }, meta);
+    auditCreate(uow, actor2, "Location", location.id, "location.created", { code: location.code, name: location.name }, meta2);
     created.locations += 1;
   }
   const haveRoles = new Set((await tx.role.findMany({ where: { id: { in: ROLES.map((r) => r.id) } }, select: { id: true } })).map((r) => r.id));
   const newRoles = ROLES.filter((role) => !haveRoles.has(role.id));
   if (newRoles.length) {
     await tx.role.createMany({ data: newRoles.map((role) => ({ id: role.id, name: role.name, description: role.description, ...Object.fromEntries(permissionNames.map((name) => [name, role.permissions.includes(name) && !NEVER_DEFAULT.includes(name)])) })) });
-    for (const role of newRoles) auditCreate(uow, actor, "Role", role.id, "role.created", { name: role.name, permissions: role.permissions }, meta);
+    for (const role of newRoles) auditCreate(uow, actor2, "Role", role.id, "role.created", { name: role.name, permissions: role.permissions }, meta2);
     created.roles = newRoles.length;
   }
   const haveUsers = await tx.user.findMany({ where: { OR: [{ id: { in: STAFF.map((p) => p.id) } }, { email: { in: STAFF.map((p) => p.email) } }] }, select: { id: true, email: true } });
@@ -2835,7 +3419,7 @@ async function seedPracticePlatform(uow, actor) {
         onboardingStatus: "dismissed"
       }))
     });
-    for (const person of newStaff) auditCreate(uow, actor, "User", person.id, "user.created", { name: person.name, title: person.title, role: person.roleId, kind: person.kind }, meta);
+    for (const person of newStaff) auditCreate(uow, actor2, "User", person.id, "user.created", { name: person.name, title: person.title, role: person.roleId, kind: person.kind }, meta2);
     created.staff = newStaff.length;
     const assignments = newStaff.flatMap((person) => person.locations.map((locationId) => ({ id: `seed_asg_${person.id.slice(10)}_${locationId.slice(9)}`, userId: person.id, locationId, startsOn: day("2024-01-02") })));
     if (assignments.length) {
@@ -2846,45 +3430,46 @@ async function seedPracticePlatform(uow, actor) {
     for (const person of providers) {
       const p = person.provider;
       await tx.providerProfile.create({ data: { id: p.id, userId: person.id, displayName: person.name, abbreviation: p.abbreviation, providerType: p.type, specialty: "general", npiType1: p.npi ?? null, colour: p.colour, supervisionClass: p.supervisionClass, isSynthetic: true } });
-      auditCreate(uow, actor, "ProviderProfile", p.id, "provider.created", { abbreviation: p.abbreviation, type: p.type }, meta);
+      auditCreate(uow, actor2, "ProviderProfile", p.id, "provider.created", { abbreviation: p.abbreviation, type: p.type }, meta2);
     }
     created.providers = providers.length;
   }
   const havePolicies = new Set((await tx.approvalPolicy.findMany({ select: { action: true } })).map((p) => p.action));
   for (const policy of APPROVAL_POLICIES.filter((p) => !havePolicies.has(p.action))) {
     const row = await tx.approvalPolicy.create({ data: { action: policy.action, description: policy.description, requiredPermission: policy.requiredPermission, minApprovals: 1, expiresAfterMinutes: policy.expiresAfterMinutes, thresholdMinor: policy.thresholdMinor ?? null } });
-    auditCreate(uow, actor, "ApprovalPolicy", row.id, "approval_policy.created", { action: policy.action, requiredPermission: policy.requiredPermission }, meta);
+    auditCreate(uow, actor2, "ApprovalPolicy", row.id, "approval_policy.created", { action: policy.action, requiredPermission: policy.requiredPermission }, meta2);
     created.approvalPolicies += 1;
   }
+  Object.assign(created, await seedPhase1(uow, actor2));
   return created;
 }
 
 // features/keystone/mutations/setup.ts
 async function loadPracticeSetup(_root, args, context) {
-  const actor = actorFromSession(context.session);
-  requirePermission(actor, "canManageOnboarding");
-  const result = await command(context.prisma, { name: "setup.load_practice", actor, idempotencyKey: args.idempotencyKey, params: {} }, (uow) => seedPracticePlatform(uow, actor));
+  const actor2 = actorFromSession(context.session);
+  requirePermission(actor2, "canManageOnboarding");
+  const result = await command(context.prisma, { name: "setup.load_practice", actor: actor2, idempotencyKey: args.idempotencyKey, params: {} }, (uow) => seedPracticePlatform(uow, actor2));
   return { replay: result.replay, created: result.value };
 }
 
 // features/keystone/mutations/audit.ts
 async function verifyAuditChain2(_root, _args, context) {
-  const actor = actorFromSession(context.session);
-  requirePermission(actor, "canReadAudit");
+  const actor2 = actorFromSession(context.session);
+  requirePermission(actor2, "canReadAudit");
   return verifyAuditChain(context.prisma);
 }
 
 // features/keystone/lib/separationOfDuties.ts
 var SELF_APPROVAL_MESSAGE = "You can't approve your own request.";
 var AGENT_APPROVAL_MESSAGE = "An agent can propose but never approve.";
-function assertCanDecide(actor, requesterUserId, requesterAgentOwnerId, strictAgentOwner = true) {
-  if (actor.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, AGENT_APPROVAL_MESSAGE);
-  if (requesterUserId && requesterUserId === actor.userId) throw new DomainError(Codes.SELF_APPROVAL, SELF_APPROVAL_MESSAGE);
-  if (strictAgentOwner && requesterAgentOwnerId && requesterAgentOwnerId === actor.userId) throw new DomainError(Codes.SELF_APPROVAL, "You can't approve a proposal made by your own agent.");
+function assertCanDecide(actor2, requesterUserId, requesterAgentOwnerId, strictAgentOwner = true) {
+  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, AGENT_APPROVAL_MESSAGE);
+  if (requesterUserId && requesterUserId === actor2.userId) throw new DomainError(Codes.SELF_APPROVAL, SELF_APPROVAL_MESSAGE);
+  if (strictAgentOwner && requesterAgentOwnerId && requesterAgentOwnerId === actor2.userId) throw new DomainError(Codes.SELF_APPROVAL, "You can't approve a proposal made by your own agent.");
 }
 
 // features/keystone/lib/approval.ts
-async function requestApproval(uow, actor, input) {
+async function requestApproval(uow, actor2, input) {
   const policy = await uow.tx.approvalPolicy.findUnique({ where: { action: input.action } });
   const requiredPermission = policy?.requiredPermission ?? input.requiredPermission;
   const minutes = input.expiresInMinutes ?? policy?.expiresAfterMinutes ?? 1440;
@@ -2897,29 +3482,29 @@ async function requestApproval(uow, actor, input) {
       payload: toJsonValue(input.payload),
       payloadHash: payloadHash(input.payload),
       requiredPermission,
-      requestedById: actorUserId(actor),
-      requestedByAgentId: actorAgentId(actor),
+      requestedById: actorUserId(actor2),
+      requestedByAgentId: actorAgentId(actor2),
       status: "pending",
       expiresAt: new Date(uow.now.getTime() + minutes * 6e4)
     }
   });
-  uow.audit({ eventType: "approval.requested", entityType: "ApprovalRequest", entityId: created.id, actorUserId: actorUserId(actor), actorAgentId: actorAgentId(actor), after: { action: input.action, targetList: input.targetList, targetId: input.targetId, payloadHash: created.payloadHash, requiredPermission } });
+  uow.audit({ eventType: "approval.requested", entityType: "ApprovalRequest", entityId: created.id, actorUserId: actorUserId(actor2), actorAgentId: actorAgentId(actor2), after: { action: input.action, targetList: input.targetList, targetId: input.targetId, payloadHash: created.payloadHash, requiredPermission } });
   uow.emit({ topic: "notify.approval", aggregateType: "ApprovalRequest", aggregateId: created.id, payload: { action: input.action, requiredPermission }, dedupeKey: `notify.approval:${created.id}` });
   return created;
 }
-async function decideApproval(uow, actor, input) {
+async function decideApproval(uow, actor2, input) {
   const request = await lockRow(uow.tx, "ApprovalRequest", input.requestId);
   let agentOwnerId = null;
   if (request.requestedByAgentId) {
     const agent = await uow.tx.agentIdentity.findUnique({ where: { id: request.requestedByAgentId }, select: { ownerId: true } });
     agentOwnerId = agent?.ownerId ?? null;
   }
-  assertCanDecide(actor, request.requestedById, agentOwnerId, input.strictAgentOwner ?? true);
-  if (actor.kind !== "user" || !actor.permissions.has(request.requiredPermission)) {
+  assertCanDecide(actor2, request.requestedById, agentOwnerId, input.strictAgentOwner ?? true);
+  if (actor2.kind !== "user" || !actor2.permissions.has(request.requiredPermission)) {
     throw new DomainError(Codes.NOT_AUTHORIZED, `Deciding this needs the ${request.requiredPermission} permission.`);
   }
   if (request.expiresAt && new Date(request.expiresAt).getTime() <= uow.now.getTime()) {
-    await transition(uow, { model: "ApprovalRequest", id: input.requestId, from: ["pending"], to: "expired", actor, eventType: "approval.expired" });
+    await transition(uow, { model: "ApprovalRequest", id: input.requestId, from: ["pending"], to: "expired", actor: actor2, eventType: "approval.expired" });
     throw new DomainError(Codes.GUARD_FAILED, "This approval request has expired.");
   }
   const to = input.decision === "approve" ? "approved" : "rejected";
@@ -2929,12 +3514,12 @@ async function decideApproval(uow, actor, input) {
     from: ["pending"],
     to,
     expectedVersion: input.expectedVersion,
-    actor,
+    actor: actor2,
     eventType: `approval.${to}`,
     reason: input.reason ?? null,
-    approverId: actor.userId
+    approverId: actor2.userId
   });
-  await uow.tx.approvalDecision.create({ data: { requestId: input.requestId, decidedById: actor.userId, decision: input.decision, reason: input.reason ?? "", at: uow.now } });
+  await uow.tx.approvalDecision.create({ data: { requestId: input.requestId, decidedById: actor2.userId, decision: input.decision, reason: input.reason ?? "", at: uow.now } });
   return updated;
 }
 async function consumeApproval(uow, input) {
@@ -2982,11 +3567,11 @@ function validatePracticeControls(input) {
   }
   return out;
 }
-async function requestPracticeControlsChange(uow, actor, input, reason) {
+async function requestPracticeControlsChange(uow, actor2, input, reason) {
   const changes = validatePracticeControls(input);
   const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 } });
   if (!practice) throw new DomainError(Codes.NOT_FOUND, "Practice settings are not set up yet.");
-  return requestApproval(uow, actor, {
+  return requestApproval(uow, actor2, {
     action: "practice.controls",
     targetList: "PracticeSettings",
     targetId: "1",
@@ -2995,7 +3580,7 @@ async function requestPracticeControlsChange(uow, actor, input, reason) {
     summary: `Change practice controls: ${Object.keys(changes).join(", ")}${reason ? ` (${reason})` : ""}`
   });
 }
-registerApplier("practice.controls", async (uow, actor, request) => {
+registerApplier("practice.controls", async (uow, actor2, request) => {
   const [row] = await uow.tx.$queryRaw`SELECT version FROM "PracticeSettings" WHERE id = 1 FOR UPDATE`;
   if (!row) throw new DomainError(Codes.NOT_FOUND, "Practice settings are not set up yet.");
   const { changes, baseVersion } = request.payload;
@@ -3003,45 +3588,45 @@ registerApplier("practice.controls", async (uow, actor, request) => {
   const before = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { aiAutonomyAllowed: true, strictAgentOwnerSoD: true, breakGlassMinutes: true, requireStaffMfa: true } });
   const updated = await uow.tx.practiceSettings.updateMany({ where: { id: 1, version: baseVersion }, data: { ...changes, version: { increment: 1 } } });
   if (updated.count !== 1) throw new DomainError(Codes.STALE_STATE, "Practice settings changed while applying.");
-  uow.audit({ eventType: "practice.controls_changed", entityType: "PracticeSettings", entityId: "1", actorUserId: actor.kind === "user" ? actor.userId : null, before, after: changes });
+  uow.audit({ eventType: "practice.controls_changed", entityType: "PracticeSettings", entityId: "1", actorUserId: actor2.kind === "user" ? actor2.userId : null, before, after: changes });
   return { applied: Object.keys(changes) };
 });
 
 // features/keystone/mutations/approvals.ts
 async function decideApprovalRequest(_root, args, context) {
-  const actor = actorFromSession(context.session);
-  requirePermission(actor, "canAccessDashboard");
+  const actor2 = actorFromSession(context.session);
+  requirePermission(actor2, "canAccessDashboard");
   if (args.decision !== "approve" && args.decision !== "reject") throw new DomainError(Codes.INVALID_INPUT, "Decision must be approve or reject.");
   if (args.decision === "reject" && !args.reason?.trim()) throw new DomainError(Codes.INVALID_INPUT, "Say why you are rejecting it.", { field: "reason" });
-  const result = await command(context.prisma, { name: "approval.decide", actor, idempotencyKey: args.idempotencyKey, params: { requestId: args.requestId, decision: args.decision, reason: args.reason ?? "", expectedVersion: args.expectedVersion } }, async (uow) => {
+  const result = await command(context.prisma, { name: "approval.decide", actor: actor2, idempotencyKey: args.idempotencyKey, params: { requestId: args.requestId, decision: args.decision, reason: args.reason ?? "", expectedVersion: args.expectedVersion } }, async (uow) => {
     const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { strictAgentOwnerSoD: true } });
-    const decided = await decideApproval(uow, actor, { requestId: args.requestId, decision: args.decision, reason: args.reason ?? void 0, expectedVersion: args.expectedVersion, strictAgentOwner: practice?.strictAgentOwnerSoD ?? true });
+    const decided = await decideApproval(uow, actor2, { requestId: args.requestId, decision: args.decision, reason: args.reason ?? void 0, expectedVersion: args.expectedVersion, strictAgentOwner: practice?.strictAgentOwnerSoD ?? true });
     let applied = null;
     const registration = applierFor(String(decided.action));
     if (args.decision === "approve" && registration?.applyOnApprove) {
       const request = await uow.tx.approvalRequest.findUniqueOrThrow({ where: { id: args.requestId } });
       await consumeApproval(uow, { requestId: request.id, action: request.action, targetList: request.targetList, targetId: request.targetId, payload: request.payload });
-      applied = await registration.apply(uow, actor, request);
+      applied = await registration.apply(uow, actor2, request);
     }
     return { id: decided.id, status: decided.status, applied };
   });
   return { replay: result.replay, ...result.value };
 }
 async function cancelApprovalRequest(_root, args, context) {
-  const actor = actorFromSession(context.session);
-  requirePermission(actor, "canAccessDashboard");
-  const result = await command(context.prisma, { name: "approval.cancel", actor, idempotencyKey: args.idempotencyKey, params: args }, async (uow) => {
+  const actor2 = actorFromSession(context.session);
+  requirePermission(actor2, "canAccessDashboard");
+  const result = await command(context.prisma, { name: "approval.cancel", actor: actor2, idempotencyKey: args.idempotencyKey, params: args }, async (uow) => {
     const row = await transition(uow, {
       model: "ApprovalRequest",
       id: args.requestId,
       from: ["pending"],
       to: "cancelled",
       expectedVersion: args.expectedVersion,
-      actor,
+      actor: actor2,
       eventType: "approval.cancelled",
       reason: args.reason ?? null,
       guard: (request) => {
-        if (actor.kind !== "user" || request.requestedById !== actor.userId) throw new DomainError(Codes.NOT_AUTHORIZED, "Only the person who asked can withdraw a request.");
+        if (actor2.kind !== "user" || request.requestedById !== actor2.userId) throw new DomainError(Codes.NOT_AUTHORIZED, "Only the person who asked can withdraw a request.");
       }
     });
     return { id: row.id, status: row.status };
@@ -3049,11 +3634,11 @@ async function cancelApprovalRequest(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 async function requestPracticeControls(_root, args, context) {
-  const actor = actorFromSession(context.session);
-  requirePermission(actor, "canManagePractice");
+  const actor2 = actorFromSession(context.session);
+  requirePermission(actor2, "canManagePractice");
   if (!args.reason?.trim()) throw new DomainError(Codes.INVALID_INPUT, "Say why the controls should change.", { field: "reason" });
-  const result = await command(context.prisma, { name: "practice.controls.request", actor, idempotencyKey: args.idempotencyKey, params: args }, async (uow) => {
-    const request = await requestPracticeControlsChange(uow, actor, args.changes, args.reason.trim());
+  const result = await command(context.prisma, { name: "practice.controls.request", actor: actor2, idempotencyKey: args.idempotencyKey, params: args }, async (uow) => {
+    const request = await requestPracticeControlsChange(uow, actor2, args.changes, args.reason.trim());
     return { id: request.id, status: request.status };
   });
   return { replay: result.replay, ...result.value };
@@ -3108,9 +3693,9 @@ function attestVerifiedStart(user) {
   return data;
 }
 function sessionSecret() {
-  const secret2 = process.env.SESSION_SECRET || (process.env.NODE_ENV === "production" ? "" : "local-development-session-secret-change-me-now");
-  if (secret2.length < 32) throw new Error("SESSION_SECRET must contain at least 32 characters.");
-  return secret2;
+  const secret4 = process.env.SESSION_SECRET || (process.env.NODE_ENV === "production" ? "" : "local-development-session-secret-change-me-now");
+  if (secret4.length < 32) throw new Error("SESSION_SECRET must contain at least 32 characters.");
+  return secret4;
 }
 async function loadUser(context, id) {
   const user = await context.prisma.user.findUnique({ where: { id }, select: { id: true, authVersion: true, mfaEnrolled: true, accessExpiresAt: true } });
@@ -3190,12 +3775,12 @@ function encodeMfaSecret(bytes) {
   if (bits) result += BASE32[value << 5 - bits & 31];
   return result;
 }
-function decodeSecret(secret2) {
-  if (!/^[A-Z2-7]{32}$/.test(secret2)) throw new Error("Invalid authenticator secret.");
+function decodeSecret(secret4) {
+  if (!/^[A-Z2-7]{32}$/.test(secret4)) throw new Error("Invalid authenticator secret.");
   let bits = 0;
   let value = 0;
   const bytes = [];
-  for (const character of secret2) {
+  for (const character of secret4) {
     value = value << 5 | BASE32.indexOf(character);
     bits += 5;
     if (bits >= 8) {
@@ -3206,23 +3791,23 @@ function decodeSecret(secret2) {
   return Buffer.from(bytes);
 }
 var newMfaSecret = () => encodeMfaSecret((0, import_node_crypto6.randomBytes)(20));
-function totp(secret2, counter) {
+function totp(secret4, counter) {
   if (!Number.isSafeInteger(counter) || counter < 0) throw new Error("Invalid authenticator counter.");
   const input = Buffer.alloc(8);
   input.writeBigUInt64BE(BigInt(counter));
-  const hash = (0, import_node_crypto6.createHmac)("sha1", decodeSecret(secret2)).update(input).digest();
+  const hash = (0, import_node_crypto6.createHmac)("sha1", decodeSecret(secret4)).update(input).digest();
   const offset = hash[hash.length - 1] & 15;
   return String((hash.readUInt32BE(offset) & 2147483647) % 1e6).padStart(6, "0");
 }
-function verifyTotp(secret2, code, lastCounter, now = Date.now()) {
+function verifyTotp(secret4, code, lastCounter, now = Date.now()) {
   if (!/^\d{6}$/.test(code)) throw new DomainError(Codes.INVALID_INPUT, "Enter the six-digit code from your authenticator app.", { field: "code" });
   const current = Math.floor(now / 3e4);
   for (const counter of [current, current - 1, current + 1]) {
-    if (counter >= 0 && counter > lastCounter && (0, import_node_crypto6.timingSafeEqual)(Buffer.from(totp(secret2, counter)), Buffer.from(code))) return counter;
+    if (counter >= 0 && counter > lastCounter && (0, import_node_crypto6.timingSafeEqual)(Buffer.from(totp(secret4, counter)), Buffer.from(code))) return counter;
   }
   throw new DomainError(Codes.MFA_REQUIRED, "That code is wrong, expired or already used. Wait for the next code and try again.");
 }
-var provisioningUri = (issuer, account, secret2) => `otpauth://totp/${encodeURIComponent(`${issuer}:${account}`)}?secret=${secret2}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
+var provisioningUri = (issuer, account, secret4) => `otpauth://totp/${encodeURIComponent(`${issuer}:${account}`)}?secret=${secret4}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
 var hashRecoveryCode = (userId, code) => (0, import_node_crypto6.createHash)("sha256").update(`${userId}:${code.trim().toUpperCase()}`).digest("hex");
 function newRecoveryCodes(count = 10) {
   return Array.from({ length: count }, () => (0, import_node_crypto6.randomBytes)(10).toString("hex").toUpperCase().replace(/(.{5})(?=.)/g, "$1-"));
@@ -3316,11 +3901,11 @@ async function manageMfa(_root, args, context) {
       await requirePassword(context, user, args.password);
       if (args.action === "enrol") {
         if (user.mfaEnrolled) throw new DomainError(Codes.INVALID_TRANSITION, "A second factor is already set up. Disable it first to change authenticators.");
-        const secret2 = newMfaSecret();
-        const box = await storeSecret(uow.tx, `mfa:${id}`, secret2);
+        const secret4 = newMfaSecret();
+        const box = await storeSecret(uow.tx, `mfa:${id}`, secret4);
         await uow.tx.user.update({ where: { id }, data: { mfaPendingSecretId: box.id, mfaPendingExpiresAt: new Date(uow.now.getTime() + 10 * 6e4) } });
         audit(uow, id, "mfa.enrolment_started");
-        return { secret: secret2, provisioningUri: provisioningUri("Openfront Dental", user.email, secret2), expiresInMinutes: 10 };
+        return { secret: secret4, provisioningUri: provisioningUri("Openfront Dental", user.email, secret4), expiresInMinutes: 10 };
       }
       let factor;
       if (args.action === "confirm") {
@@ -3356,6 +3941,1881 @@ async function manageMfa(_root, args, context) {
   }
 }
 
+// features/keystone/lib/sequence.ts
+var import_node_crypto7 = require("node:crypto");
+async function nextReference(tx, prefix, now = /* @__PURE__ */ new Date(), width = 6) {
+  if (!/^[A-Z]{2,5}$/.test(prefix)) throw new Error("Reference prefix must be 2-5 capital letters");
+  const key = `${prefix}-${now.getUTCFullYear()}`;
+  await advisoryLock(tx, `sequence:${key}`);
+  const row = await tx.sequence.upsert({ where: { key }, create: { key, nextValue: 2 }, update: { nextValue: { increment: 1 } } });
+  const value = row.nextValue - 1;
+  return `${key}-${String(value).padStart(width, "0")}`;
+}
+var CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+function publicCode(prefix, groups = 2) {
+  const bytes = (0, import_node_crypto7.randomBytes)(groups * 4);
+  const chars = Array.from(bytes, (byte) => CROCKFORD[byte % 32]);
+  const parts = Array.from({ length: groups }, (_, i) => chars.slice(i * 4, i * 4 + 4).join(""));
+  return `${prefix}-${parts.join("-")}`;
+}
+
+// features/keystone/scheduling/service.ts
+var ACTIVE = [...ACTIVE_APPOINTMENT_STATUSES];
+async function lockResources(tx, input) {
+  const keys = [
+    ...uniq(input.operatoryIds).map((id) => `operatory:${id}`),
+    ...uniq(input.providerIds).map((id) => `provider:${id}`),
+    ...uniq(input.patientIds).map((id) => `patient:${id}`)
+  ];
+  if (!keys.length) return keys;
+  await tx.$executeRawUnsafe(
+    "SELECT pg_advisory_xact_lock(hashtextextended(t.k, 0)) FROM (SELECT k FROM unnest($1::text[]) WITH ORDINALITY AS u(k, n) ORDER BY n) AS t",
+    keys
+  );
+  return keys;
+}
+async function expireStaleHolds(tx, operatoryIds, now) {
+  const stale = await tx.bookingHold.findMany({ where: { operatoryId: { in: operatoryIds }, status: "held", expiresAt: { lte: now } }, select: { id: true } });
+  if (!stale.length) return 0;
+  const result = await tx.bookingHold.updateMany({ where: { id: { in: stale.map((h) => h.id) }, status: "held", expiresAt: { lte: now } }, data: { status: "expired", version: { increment: 1 } } });
+  return result.count;
+}
+var uniq = (ids) => [...new Set((ids ?? []).filter((id) => !!id))].sort();
+async function loadLocationDay(tx, locationId, date) {
+  const location = await tx.location.findUnique({ where: { id: locationId }, select: { id: true, timeZone: true, name: true, isActive: true, jurisdiction: { select: { rules: true } } } });
+  if (!location || !location.isActive) throw new DomainError(Codes.NOT_FOUND, "That location does not exist or is closed.");
+  const practice = await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } });
+  const day2 = /* @__PURE__ */ new Date(`${date}T00:00:00.000Z`);
+  const template = await tx.scheduleTemplate.findFirst({
+    where: { locationId, status: "active", effectiveFrom: { lte: day2 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day2 } }] },
+    orderBy: { effectiveFrom: "desc" },
+    select: { blocks: { select: { id: true, weekday: true, operatoryId: true, providerId: true, startLocal: true, endLocal: true, onlineBookable: true, allowedTypes: { select: { id: true } }, provider: { select: { providerType: true } }, operatory: { select: { isActive: true } } } } }
+  });
+  const closures = await tx.closureDay.findMany({ where: { date: day2, OR: [{ locationId }, { locationId: null }] } });
+  const blocks = (template?.blocks ?? []).filter((b) => b.operatoryId && b.operatory?.isActive !== false).map((b) => ({
+    id: b.id,
+    weekday: b.weekday,
+    operatoryId: b.operatoryId,
+    providerId: b.providerId,
+    providerType: b.provider?.providerType ?? null,
+    startLocal: b.startLocal,
+    endLocal: b.endLocal,
+    allowedTypeIds: b.allowedTypes.map((t) => t.id),
+    onlineBookable: b.onlineBookable
+  }));
+  const windows = materialiseBlocks(date, location.timeZone, blocks, closures.map((c) => ({ date: c.date.toISOString().slice(0, 10), isHalfDay: c.isHalfDay, startLocal: c.startLocal, endLocal: c.endLocal })));
+  let supervision = { enforcement: "hard", hygieneGeneralAllowed: false, verify: true };
+  try {
+    if (location.jurisdiction?.rules) {
+      const rules2 = parsePackRules(location.jurisdiction.rules);
+      supervision = { enforcement: rules2.supervision.value.enforcement, hygieneGeneralAllowed: rules2.supervision.value.hygieneGeneralAllowed, verify: rules2.supervision.verify };
+    }
+  } catch {
+  }
+  return { location: { id: location.id, timeZone: location.timeZone, name: location.name }, date, windows, unitMinutes: practice?.scheduleUnitMinutes ?? 10, supervision };
+}
+async function loadChairBusy(tx, operatoryIds, fromMs, toMs, now, ignore = {}) {
+  const from = new Date(fromMs - 4 * 60 * MS_PER_MINUTE);
+  const to = new Date(toMs + 4 * 60 * MS_PER_MINUTE);
+  const [appointments, holds] = await Promise.all([
+    tx.appointment.findMany({ where: { operatoryId: { in: operatoryIds }, status: { in: ACTIVE }, startsAt: { lt: to }, endsAt: { gt: from }, id: { notIn: ignore.appointmentIds ?? [] } }, select: { operatoryId: true, startsAt: true, endsAt: true, bufferAfterMinutes: true } }),
+    tx.bookingHold.findMany({ where: { operatoryId: { in: operatoryIds }, status: "held", expiresAt: { gt: now }, startsAt: { lt: to }, endsAt: { gt: from }, id: { notIn: ignore.holdIds ?? [] } }, select: { operatoryId: true, startsAt: true, endsAt: true } })
+  ]);
+  const busy = {};
+  for (const a of appointments) (busy[a.operatoryId] ??= []).push({ startMs: a.startsAt.getTime(), endMs: a.endsAt.getTime(), bufferAfterMinutes: a.bufferAfterMinutes ?? 0 });
+  for (const h of holds) (busy[h.operatoryId] ??= []).push({ startMs: h.startsAt.getTime(), endMs: h.endsAt.getTime() });
+  return busy;
+}
+async function loadProviderBusy(tx, fromMs, toMs, now, ignore = {}) {
+  const from = new Date(fromMs);
+  const to = new Date(toMs);
+  const [segments, holds] = await Promise.all([
+    tx.appointmentSegment.findMany({
+      where: { providerId: { not: null }, startsAt: { lt: to }, endsAt: { gt: from }, appointment: { status: { in: ACTIVE }, id: { notIn: ignore.appointmentIds ?? [] } } },
+      select: { providerId: true, startsAt: true, endsAt: true, concurrencyKind: true, role: true }
+    }),
+    tx.bookingHold.findMany({ where: { status: "held", expiresAt: { gt: now }, startsAt: { lt: to }, endsAt: { gt: from }, id: { notIn: ignore.holdIds ?? [] } }, select: { segments: true } })
+  ]);
+  const out = segments.map((s) => ({ providerId: s.providerId, startMs: s.startsAt.getTime(), endMs: s.endsAt.getTime(), concurrencyKind: s.concurrencyKind, role: s.role }));
+  for (const hold of holds) {
+    for (const s of Array.isArray(hold.segments) ? hold.segments : []) {
+      if (s?.providerId && Number.isFinite(s.startMs) && Number.isFinite(s.endMs) && overlapsRange(s.startMs, s.endMs, fromMs, toMs)) out.push({ providerId: s.providerId, startMs: s.startMs, endMs: s.endMs, concurrencyKind: s.concurrencyKind ?? "none", role: s.role });
+    }
+  }
+  return out;
+}
+var overlapsRange = (a0, a1, b0, b1) => a0 < b1 && b0 < a1;
+async function loadPatientBusy(tx, patientId, fromMs, toMs, ignore = {}) {
+  const rows = await tx.appointment.findMany({ where: { patientId, status: { in: ACTIVE }, startsAt: { lt: new Date(toMs) }, endsAt: { gt: new Date(fromMs) }, id: { notIn: ignore.appointmentIds ?? [] } }, select: { startsAt: true, endsAt: true } });
+  return rows.map((r) => ({ startMs: r.startsAt.getTime(), endMs: r.endsAt.getTime() }));
+}
+async function checkSlot(tx, now, req) {
+  const [type, operatory, practice] = await Promise.all([
+    tx.appointmentType.findUnique({ where: { id: req.typeId } }),
+    tx.operatory.findUnique({ where: { id: req.operatoryId }, select: { id: true, locationId: true, isActive: true, location: { select: { timeZone: true } } } }),
+    tx.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } })
+  ]);
+  if (!type || !type.isActive) throw new DomainError(Codes.INVALID_INPUT, "That appointment type does not exist or is retired.", { field: "typeId" });
+  if (!operatory || !operatory.isActive || operatory.locationId !== req.locationId || !operatory.location) throw new DomainError(Codes.INVALID_INPUT, "That operatory is not an active chair at this location.", { field: "operatoryId" });
+  const unitMinutes = practice?.scheduleUnitMinutes ?? 10;
+  const pattern = parsePattern(type.defaultPattern);
+  const startMs = req.startsAt.getTime();
+  if (!Number.isFinite(startMs)) throw new DomainError(Codes.INVALID_INPUT, "Choose a start time.", { field: "startsAt" });
+  if (startMs % (unitMinutes * MS_PER_MINUTE) !== 0) throw new DomainError(Codes.INVALID_INPUT, `Appointments start on a ${unitMinutes}-minute boundary.`, { field: "startsAt" });
+  const endMs = startMs + patternUnits(pattern) * unitMinutes * MS_PER_MINUTE;
+  const bufferAfterMinutes = 0;
+  const chair = await loadChairBusy(tx, [req.operatoryId], startMs, endMs, now, req.ignore);
+  if (chairClash(startMs, endMs, bufferAfterMinutes, chair[req.operatoryId] ?? [])) throw new DomainError(Codes.SLOT_TAKEN, "That chair is already booked or held for this time.");
+  const date = localDate(operatory.location.timeZone, req.startsAt);
+  const day2 = await loadLocationDay(tx, req.locationId, date);
+  const warnings = [];
+  const window = templateWindowFor(day2.windows, req.operatoryId, req.typeId, startMs, endMs, { onlineOnly: req.onlineOnly });
+  if (!window) {
+    if (!req.overrideTemplate || req.onlineOnly) throw new DomainError(Codes.OUTSIDE_TEMPLATE, "That time is outside the schedule template for this chair and appointment type.");
+    warnings.push("outside_template");
+  }
+  const providerId = req.providerId ?? window?.providerId ?? null;
+  if (!providerId) throw new DomainError(Codes.INVALID_INPUT, "Choose a provider for this appointment.", { field: "providerId" });
+  const provider = await tx.providerProfile.findUnique({ where: { id: providerId }, select: { id: true, providerType: true, isActive: true } });
+  if (!provider || !provider.isActive) throw new DomainError(Codes.INVALID_INPUT, "That provider is not active.", { field: "providerId" });
+  if (req.patientId) {
+    const patientBusy = await loadPatientBusy(tx, req.patientId, startMs, endMs, req.ignore);
+    if (patientBusy.length) throw new DomainError(Codes.PATIENT_UNAVAILABLE, "The patient already has an appointment at this time.");
+  }
+  const providerBusy = await loadProviderBusy(tx, startMs, endMs, now, req.ignore);
+  const plan = planSegments({ pattern, unitMinutes, startMs, providerId, windows: day2.windows, providerBusy });
+  if (plan.clashes.length) {
+    if (!req.overrideProviderClash) throw new DomainError(Codes.PROVIDER_UNAVAILABLE, "The provider is already committed for part of this time.");
+    for (const c of plan.clashes) c.segment.concurrencyKind = "approved_override";
+    warnings.push("provider_overlap_override");
+  }
+  let supervisingDentistId = plan.examProviderId;
+  if (type.requiresDentistOnSite) {
+    const onSite = dentistsOnSite(day2.windows, startMs, endMs);
+    supervisingDentistId = supervisingDentistId && onSite.includes(supervisingDentistId) ? supervisingDentistId : onSite[0] ?? null;
+    if (!supervisingDentistId && day2.supervision.hygieneGeneralAllowed) warnings.push("general_supervision");
+    else if (!supervisingDentistId) {
+      if (day2.supervision.enforcement === "hard" || req.onlineOnly) throw new DomainError(Codes.SUPERVISION_REQUIRED, "No dentist is scheduled on site for this hygiene visit, and this location\u2019s jurisdiction pack requires one.");
+      warnings.push("no_dentist_on_site");
+    }
+  }
+  return {
+    startsAt: new Date(startMs),
+    endsAt: new Date(endMs),
+    localDate: date,
+    bufferAfterMinutes,
+    providerId,
+    supervisingDentistId,
+    segments: plan.segments,
+    warnings,
+    productionMinor: BigInt(type.defaultProductionMinor ?? 0n),
+    type: { id: type.id, name: type.name, requiresDentistOnSite: type.requiresDentistOnSite, onlineBookable: type.onlineBookable }
+  };
+}
+async function preflight(tx, req) {
+  const [type, operatory, practice] = await Promise.all([
+    tx.appointmentType.findUnique({ where: { id: req.typeId }, select: { defaultPattern: true } }),
+    tx.operatory.findUnique({ where: { id: req.operatoryId }, select: { locationId: true, location: { select: { timeZone: true } } } }),
+    tx.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } })
+  ]);
+  if (!type || !operatory?.location || operatory.locationId !== req.locationId) return { providerIds: req.providerId ? [req.providerId] : [] };
+  let pattern;
+  try {
+    pattern = parsePattern(type.defaultPattern);
+  } catch {
+    return { providerIds: req.providerId ? [req.providerId] : [] };
+  }
+  const startMs = req.startsAt.getTime();
+  const endMs = startMs + patternUnits(pattern) * (practice?.scheduleUnitMinutes ?? 10) * MS_PER_MINUTE;
+  const day2 = await loadLocationDay(tx, req.locationId, localDate(operatory.location.timeZone, req.startsAt));
+  const window = day2.windows.find((w) => w.operatoryId === req.operatoryId && w.startMs <= startMs && endMs <= w.endMs);
+  const providerIds = [req.providerId ?? window?.providerId ?? null];
+  if (pattern.some((u) => u.role === "exam")) providerIds.push(...dentistsOnSite(day2.windows, startMs, endMs));
+  return { providerIds: providerIds.filter((id) => !!id) };
+}
+async function labGate(_tx, _appointmentId) {
+  return { blocked: false };
+}
+function asSlotTaken(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/exclusion constraint|exclusion_violation|23P01|is held for this time|already has an appointment/i.test(message)) {
+    if (/patient_overlap/i.test(message)) throw new DomainError(Codes.PATIENT_UNAVAILABLE, "The patient already has an appointment at this time.");
+    throw new DomainError(Codes.SLOT_TAKEN, "That chair was just booked or held by someone else. Pick another time.");
+  }
+  throw error;
+}
+
+// features/keystone/mutations/shared.ts
+function staff(context) {
+  const actor2 = actorFromSession(context.session);
+  const locationIds = sessionLocationIds(context.session);
+  return { actor: actor2, locationIds, session: context.session };
+}
+function assertLocation(locationIds, locationId) {
+  if (!locationId) throw new DomainError(Codes.INVALID_INPUT, "Choose a location.", { field: "locationId" });
+  if (locationIds !== null && !locationIds.includes(locationId)) {
+    throw new DomainError(Codes.OUTSIDE_LOCATION_SCOPE, "You are not assigned to that location today.");
+  }
+}
+async function assertPatientInScope(tx, locationIds, patientId) {
+  const patient = await tx.patient.findUnique({ where: { id: patientId }, select: { id: true, status: true, homeLocationId: true, version: true } });
+  if (!patient) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+  if (locationIds === null) return patient;
+  if (patient.homeLocationId && locationIds.includes(patient.homeLocationId)) return patient;
+  const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
+  const seen = await tx.appointment.findFirst({ where: { patientId, locationId: { in: locationIds }, startsAt: { gte: since } }, select: { id: true } });
+  if (!seen) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+  return patient;
+}
+async function resolvePatientRef(tx, ref) {
+  const value = String(ref ?? "").trim();
+  if (!value.startsWith("chart:")) return value;
+  const chartNumber = value.slice(6).trim().toUpperCase();
+  const patient = chartNumber ? await tx.patient.findUnique({ where: { chartNumber }, select: { id: true } }) : null;
+  if (!patient) throw new DomainError(Codes.NOT_FOUND, "No patient has that chart number.", { field: "patientId" });
+  return patient.id;
+}
+var BOOKABLE_PATIENT = /* @__PURE__ */ new Set(["prospect", "active", "inactive"]);
+function assertBookablePatient(patient) {
+  if (!BOOKABLE_PATIENT.has(patient.status)) {
+    throw new DomainError(Codes.GUARD_FAILED, patient.status === "merged_into" ? "This record was merged; book on the surviving record." : `A ${patient.status} patient can't be booked.`, { currentStatus: patient.status });
+  }
+}
+var toDate = (value, field) => {
+  const date = new Date(String(value ?? ""));
+  if (Number.isNaN(date.getTime())) throw new DomainError(Codes.INVALID_INPUT, `Enter a valid ${field}.`, { field });
+  return date;
+};
+var requireText = (value, field, max = 500) => {
+  const text12 = String(value ?? "").trim();
+  if (!text12) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+  if (text12.length > max) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+  return text12;
+};
+var optionalText = (value, max = 2e3) => String(value ?? "").trim().slice(0, max);
+function normalizeContact(kind, value) {
+  const raw = String(value ?? "").trim();
+  if (kind === "email") {
+    const email = raw.toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid email address.", { field: "value" });
+    return { value: raw, normalized: email };
+  }
+  const digits = raw.replace(/\D/g, "");
+  const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith("1") ? `+${digits}` : digits.length >= 8 && digits.length <= 15 ? `+${digits}` : "";
+  if (!e164) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid phone number.", { field: "value" });
+  return { value: raw, normalized: e164 };
+}
+
+// features/keystone/mutations/scheduling.ts
+var ACTIVE2 = [...ACTIVE_APPOINTMENT_STATUSES];
+var STAFF_HOLD_MINUTES = 5;
+var MAX_SEARCH_DAYS = 31;
+async function findAvailability(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canReadSchedule", "canManageSchedule");
+  assertLocation(locationIds, args.locationId);
+  if (args.patientId) await assertPatientInScope(context.prisma, locationIds, args.patientId);
+  return availability(context.prisma, { ...args, onlineOnly: false, leadMinutes: 0 });
+}
+async function availability(db, args) {
+  const days = Math.min(Math.max(1, Number(args.days ?? 7)), args.horizonDays ?? MAX_SEARCH_DAYS);
+  const type = await db.appointmentType.findUnique({ where: { id: args.typeId } });
+  if (!type || !type.isActive || args.onlineOnly && !type.onlineBookable) throw new DomainError(Codes.INVALID_INPUT, "That appointment type is not available.", { field: "typeId" });
+  const pattern = parsePattern(type.defaultPattern);
+  const practice = await db.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } });
+  const unitMinutes = practice?.scheduleUnitMinutes ?? 10;
+  const now = /* @__PURE__ */ new Date();
+  const limit = Math.min(Math.max(1, Number(args.limit ?? 50)), 200);
+  const slots = [];
+  for (let i = 0; i < days && slots.length < limit; i += 1) {
+    const date = addDays(args.fromDate, i);
+    const day2 = await loadLocationDay(db, args.locationId, date);
+    if (!day2.windows.length) continue;
+    const from = Math.min(...day2.windows.map((w) => w.startMs));
+    const to = Math.max(...day2.windows.map((w) => w.endMs));
+    const operatoryIds = [...new Set(day2.windows.map((w) => w.operatoryId))];
+    const [chairBusy, providerBusy, patientBusy] = await Promise.all([
+      loadChairBusy(db, operatoryIds, from, to, now),
+      loadProviderBusy(db, from, to, now),
+      args.patientId ? db.appointment.findMany({ where: { patientId: args.patientId, status: { in: ACTIVE2 }, startsAt: { lt: new Date(to) }, endsAt: { gt: new Date(from) } }, select: { startsAt: true, endsAt: true } }) : Promise.resolve([])
+    ]);
+    const found = findSlots({
+      windows: day2.windows,
+      typeId: type.id,
+      durationMinutes: patternUnits(pattern) * unitMinutes,
+      unitMinutes,
+      bufferAfterMinutes: 0,
+      chairBusy,
+      providerBusy,
+      patientBusy: patientBusy.map((b) => ({ startMs: b.startsAt.getTime(), endMs: b.endsAt.getTime() })),
+      pattern,
+      nowMs: now.getTime(),
+      leadMinutes: args.leadMinutes,
+      onlineOnly: args.onlineOnly,
+      operatoryIds: args.operatoryIds ?? void 0,
+      providerId: args.providerId ?? null,
+      limit: limit - slots.length
+    });
+    const usable = type.requiresDentistOnSite && (day2.supervision.enforcement === "hard" || args.onlineOnly) && !day2.supervision.hygieneGeneralAllowed ? found.filter((s) => day2.windows.some((w) => w.providerType === "dentist" && w.startMs <= s.startMs && s.endMs <= w.endMs)) : found;
+    for (const s of usable) slots.push({ operatoryId: s.operatoryId, providerId: s.providerId, startsAt: new Date(s.startMs).toISOString(), endsAt: new Date(s.endMs).toISOString(), localDate: date });
+  }
+  return { typeId: type.id, unitMinutes, durationMinutes: patternUnits(pattern) * unitMinutes, slots };
+}
+async function placeHold(uow, actor2, input) {
+  const startsAt = toDate(input.startsAt, "startsAt");
+  const pre = await preflight(uow.tx, { ...input, startsAt });
+  await lockResources(uow.tx, { operatoryIds: [input.operatoryId], providerIds: pre.providerIds, patientIds: [input.patientId] });
+  await expireStaleHolds(uow.tx, [input.operatoryId], uow.now);
+  const check = await checkSlot(uow.tx, uow.now, { locationId: input.locationId, operatoryId: input.operatoryId, typeId: input.typeId, startsAt, providerId: input.providerId, patientId: input.patientId, onlineOnly: input.onlineOnly });
+  const expiresAt = new Date(uow.now.getTime() + input.minutes * 6e4);
+  const hold = await uow.tx.bookingHold.create({
+    data: {
+      locationId: input.locationId,
+      operatoryId: input.operatoryId,
+      providerId: check.providerId,
+      typeId: input.typeId,
+      startsAt: check.startsAt,
+      endsAt: check.endsAt,
+      segments: check.segments.map(serializeSegment),
+      holderKind: input.holderKind,
+      holderRef: input.holderRef,
+      patientId: input.patientId ?? null,
+      asapEntryId: input.asapEntryId ?? null,
+      status: "held",
+      expiresAt,
+      isSynthetic: input.isSynthetic ?? false,
+      createdAt: uow.now
+    }
+  }).catch(asSlotTaken);
+  auditCreate(uow, actor2, "BookingHold", hold.id, "hold.placed", { operatoryId: hold.operatoryId, startsAt: hold.startsAt, endsAt: hold.endsAt, holderKind: hold.holderKind, expiresAt });
+  return { hold, check };
+}
+var serializeSegment = (s) => ({ role: s.role, providerId: s.providerId, startMs: s.startMs, endMs: s.endMs, concurrencyKind: s.concurrencyKind });
+async function holdSlot(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  assertLocation(locationIds, args.locationId);
+  const result = await command(context.prisma, { name: "schedule.hold", actor: actor2, idempotencyKey: args.idempotencyKey, params: { ...args, idempotencyKey: void 0 } }, async (uow) => {
+    if (args.patientId) await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const { hold } = await placeHold(uow, actor2, { ...args, holderKind: "staff", holderRef: actor2.kind === "user" ? `user:${actor2.userId}` : "system", minutes: STAFF_HOLD_MINUTES });
+    return { holdId: hold.id, expiresAt: hold.expiresAt.toISOString(), startsAt: hold.startsAt.toISOString(), endsAt: hold.endsAt.toISOString() };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function releaseHold(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  const result = await command(context.prisma, { name: "schedule.release_hold", actor: actor2, idempotencyKey: args.idempotencyKey, params: { holdId: args.holdId } }, async (uow) => {
+    const hold = await uow.tx.bookingHold.findUnique({ where: { id: args.holdId } });
+    if (!hold) throw new DomainError(Codes.NOT_FOUND, "Hold not found.");
+    assertLocation(locationIds, hold.locationId);
+    const updated = await transition(uow, { model: "BookingHold", id: args.holdId, from: ["held"], to: "released", actor: actor2, eventType: "hold.released" });
+    return { holdId: updated.id, status: updated.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function createAppointment(uow, actor2, input) {
+  const startsAt = toDate(input.startsAt, "startsAt");
+  const pre = await preflight(uow.tx, { ...input, startsAt });
+  await lockResources(uow.tx, { operatoryIds: [input.operatoryId], providerIds: pre.providerIds, patientIds: [input.patientId] });
+  const patient = await uow.tx.patient.findUnique({ where: { id: input.patientId }, select: { id: true, status: true, homeLocationId: true, isSynthetic: true } });
+  if (!patient) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+  assertBookablePatient(patient);
+  let hold = null;
+  if (input.holdId) {
+    hold = await uow.tx.bookingHold.findUnique({ where: { id: input.holdId } });
+    if (!hold) throw new DomainError(Codes.NOT_FOUND, "Hold not found.");
+    const expectedHolder = input.holderRef ?? (actor2.kind === "user" ? `user:${actor2.userId}` : null);
+    if (hold.holderRef !== expectedHolder) throw new DomainError(Codes.NOT_AUTHORIZED, "That hold belongs to someone else.");
+    if (hold.status !== "held" || hold.expiresAt.getTime() <= uow.now.getTime()) {
+      if (hold.status === "held") await uow.tx.bookingHold.updateMany({ where: { id: hold.id, status: "held" }, data: { status: "expired", version: { increment: 1 } } });
+      throw new DomainError(Codes.HOLD_EXPIRED, "The hold on this time has expired. Pick the time again.");
+    }
+    if (hold.operatoryId !== input.operatoryId || hold.startsAt.getTime() !== startsAt.getTime() || hold.typeId !== input.typeId) {
+      throw new DomainError(Codes.INVALID_INPUT, "The booking does not match the held time.");
+    }
+    if (hold.patientId && hold.patientId !== input.patientId) throw new DomainError(Codes.INVALID_INPUT, "The hold was placed for a different patient.");
+  }
+  await expireStaleHolds(uow.tx, [input.operatoryId], uow.now);
+  const overrideTemplate = !!input.overrideTemplate;
+  const overrideProviderClash = !!input.overrideProviderClash;
+  if (overrideTemplate) requirePermission(actor2, "canOverrideTemplate");
+  if (overrideProviderClash) requirePermission(actor2, "canOverrideSchedule");
+  const overrideReason = overrideTemplate || overrideProviderClash ? requireText(input.overrideReason, "override reason") : "";
+  const check = await checkSlot(uow.tx, uow.now, {
+    locationId: input.locationId,
+    operatoryId: input.operatoryId,
+    typeId: input.typeId,
+    startsAt,
+    providerId: input.providerId ?? hold?.providerId,
+    patientId: input.patientId,
+    overrideTemplate,
+    overrideProviderClash,
+    onlineOnly: input.source === "online_booking",
+    ignore: hold ? { holdIds: [hold.id] } : void 0
+  });
+  if (hold) {
+    const converted = await uow.tx.bookingHold.updateMany({ where: { id: hold.id, status: "held", version: hold.version }, data: { status: "converted", version: { increment: 1 } } });
+    if (converted.count !== 1) throw new DomainError(Codes.STALE_STATE, "The hold changed while booking. Try again.");
+  }
+  const ref = await nextReference(uow.tx, "APT", uow.now);
+  const appointment = await uow.tx.appointment.create({
+    data: {
+      ref,
+      patientId: input.patientId,
+      locationId: input.locationId,
+      operatoryId: input.operatoryId,
+      typeId: input.typeId,
+      startsAt: check.startsAt,
+      endsAt: check.endsAt,
+      localDate: /* @__PURE__ */ new Date(`${check.localDate}T00:00:00Z`),
+      bufferAfterMinutes: check.bufferAfterMinutes,
+      status: "scheduled",
+      primaryProviderId: check.providerId,
+      supervisingDentistId: check.supervisingDentistId,
+      note: optionalText(input.note),
+      warnings: check.warnings,
+      source: input.source ?? "staff",
+      bookedViaHoldId: hold?.id ?? null,
+      proposalId: input.proposalId ?? null,
+      bookedById: actor2.kind === "user" ? actor2.userId : null,
+      productionScheduledMinor: check.productionMinor,
+      isSynthetic: input.isSynthetic ?? patient.isSynthetic,
+      segments: {
+        create: check.segments.map((s) => ({
+          role: s.role,
+          providerId: s.providerId,
+          startsAt: new Date(s.startMs),
+          endsAt: new Date(s.endMs),
+          concurrencyKind: s.concurrencyKind,
+          overrideReason: s.concurrencyKind === "approved_override" ? overrideReason : ""
+        }))
+      }
+    }
+  }).catch(asSlotTaken);
+  if (hold) await uow.tx.bookingHold.update({ where: { id: hold.id }, data: { convertedToId: appointment.id } });
+  if (patient.status === "prospect" && !patient.homeLocationId) await uow.tx.patient.update({ where: { id: patient.id }, data: { homeLocationId: input.locationId } });
+  auditCreate(uow, actor2, "Appointment", appointment.id, "appointment.booked", {
+    ref,
+    startsAt: appointment.startsAt,
+    endsAt: appointment.endsAt,
+    operatoryId: input.operatoryId,
+    providerId: check.providerId,
+    typeId: input.typeId,
+    source: appointment.source,
+    warnings: check.warnings,
+    holdId: hold?.id ?? null
+  }, { reason: overrideReason || null });
+  await scheduleConfirmations(uow, appointment);
+  uow.emit({ topic: "notify.staff", aggregateType: "Appointment", aggregateId: appointment.id, payload: { kind: "appointment.booked", locationId: input.locationId }, dedupeKey: `notify.staff:appointment.booked:${appointment.id}` });
+  return appointment;
+}
+async function bookAppointment(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  assertLocation(locationIds, args.locationId);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "schedule.book", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId).catch(async (error) => {
+      const p = await uow.tx.patient.findUnique({ where: { id: args.patientId }, select: { homeLocationId: true } });
+      if (!p || p.homeLocationId) throw error;
+    });
+    const appointment = await createAppointment(uow, actor2, { ...params, source: "staff" });
+    return { appointmentId: appointment.id, ref: appointment.ref, status: appointment.status, startsAt: appointment.startsAt.toISOString(), endsAt: appointment.endsAt.toISOString(), warnings: appointment.warnings };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function scheduleConfirmations(uow, appointment) {
+  if (!appointment.patientId) return;
+  const contacts = await uow.tx.contactPoint.findMany({ where: { patientId: appointment.patientId, isActive: true, isPrimary: true }, select: { id: true, kind: true } });
+  const offsets = [48, 24];
+  for (const contact of contacts) {
+    const channel = contact.kind === "email" ? "email" : contact.kind === "mobile" ? "sms" : null;
+    if (!channel) continue;
+    for (const hours of offsets) {
+      const scheduledFor = new Date(appointment.startsAt.getTime() - hours * 36e5);
+      if (scheduledFor.getTime() <= uow.now.getTime()) continue;
+      const attempt = await uow.tx.confirmationAttempt.create({ data: { appointmentId: appointment.id, channel, scheduledFor, contactPointId: contact.id, status: "scheduled" } });
+      uow.emit({ topic: "confirmation.dispatch", aggregateType: "ConfirmationAttempt", aggregateId: attempt.id, payload: { attemptId: attempt.id }, dedupeKey: `confirmation.dispatch:${attempt.id}`, availableAt: scheduledFor });
+    }
+  }
+}
+async function loadScoped(tx, locationIds, appointmentId) {
+  const appointment = await tx.appointment.findUnique({ where: { id: appointmentId } });
+  if (!appointment) throw new DomainError(Codes.NOT_FOUND, "Appointment not found.");
+  assertLocation(locationIds, appointment.locationId);
+  return appointment;
+}
+async function cancelFollowUps(uow, appointmentId) {
+  await uow.tx.confirmationAttempt.updateMany({ where: { appointmentId, status: "scheduled" }, data: { status: "suppressed", suppressedReason: "appointment_closed", version: { increment: 1 } } });
+  await uow.tx.appointmentSegment.updateMany({ where: { appointmentId }, data: { isActive: false } });
+}
+async function confirmAppointment(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  if (!CONFIRMATION_METHODS.includes(args.method)) throw new DomainError(Codes.INVALID_INPUT, "Choose how the patient confirmed.", { field: "method" });
+  return runTransition(context, actor2, "schedule.confirm", args, async (uow) => {
+    await loadScoped(uow.tx, locationIds, args.appointmentId);
+    return confirmIn(uow, actor2, args.appointmentId, args.method, args.expectedVersion);
+  });
+}
+async function confirmIn(uow, actor2, appointmentId, method, expectedVersion) {
+  const updated = await transition(uow, {
+    model: "Appointment",
+    id: appointmentId,
+    from: ["scheduled"],
+    to: "confirmed",
+    expectedVersion,
+    actor: actor2,
+    eventType: "appointment.confirmed",
+    data: { confirmedAt: uow.now, confirmationMethod: method },
+    metadata: { method }
+  });
+  await uow.tx.confirmationAttempt.updateMany({ where: { appointmentId, status: "scheduled" }, data: { status: "suppressed", suppressedReason: "already_confirmed", version: { increment: 1 } } });
+  return updated;
+}
+async function markArrived(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  return runTransition(context, actor2, "schedule.arrive", args, async (uow) => {
+    const appointment = await loadScoped(uow.tx, locationIds, args.appointmentId);
+    const location = await uow.tx.location.findUniqueOrThrow({ where: { id: appointment.locationId }, select: { timeZone: true } });
+    const today2 = localDate(location.timeZone, uow.now);
+    if (localDate(location.timeZone, appointment.startsAt) !== today2 && !can(actor2, "canOverrideSchedule")) {
+      throw new DomainError(Codes.GUARD_FAILED, "Only today\u2019s appointments can be checked in.");
+    }
+    const gate = await labGate(uow.tx, appointment.id);
+    if (gate.blocked) {
+      if (!args.overrideLabGate) throw new DomainError(Codes.LAB_CASE_NOT_READY, gate.reason);
+      requirePermission(actor2, "canOverrideLabGate");
+      requireText(args.reason, "override reason");
+    }
+    const updated = await transition(uow, { model: "Appointment", id: appointment.id, from: ["scheduled", "confirmed"], to: "arrived", expectedVersion: args.expectedVersion, actor: actor2, eventType: "appointment.arrived", reason: args.reason ?? null, data: { arrivedAt: uow.now } });
+    const patient = await uow.tx.patient.findUnique({ where: { id: appointment.patientId }, select: { id: true, status: true, version: true } });
+    if (patient && (patient.status === "prospect" || patient.status === "inactive")) {
+      await transition(uow, { model: "Patient", id: patient.id, from: ["prospect", "inactive"], to: "active", actor: actor2, eventType: "patient.activated", metadata: { by: "arrival", appointmentId: appointment.id }, data: patient.status === "prospect" ? { firstVisitOn: /* @__PURE__ */ new Date(`${today2}T00:00:00Z`) } : {} });
+    }
+    await uow.tx.confirmationAttempt.updateMany({ where: { appointmentId: appointment.id, status: "scheduled" }, data: { status: "suppressed", suppressedReason: "arrived", version: { increment: 1 } } });
+    return updated;
+  });
+}
+async function seatPatient(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule", "canChart");
+  return runTransition(context, actor2, "schedule.seat", args, async (uow) => {
+    const appointment = await loadScoped(uow.tx, locationIds, args.appointmentId);
+    const alerts = await uow.tx.patientAlert.count({ where: { patientId: appointment.patientId, endedAt: null, severity: { in: ["caution", "critical"] } } });
+    if (alerts && !args.acknowledgeAlerts) throw new DomainError(Codes.GUARD_FAILED, `This patient has ${alerts} active medical alert${alerts === 1 ? "" : "s"}. Review and acknowledge them before seating.`);
+    return transition(uow, {
+      model: "Appointment",
+      id: appointment.id,
+      from: ["arrived"],
+      to: "seated",
+      expectedVersion: args.expectedVersion,
+      actor: actor2,
+      eventType: "appointment.seated",
+      data: { seatedAt: uow.now, ...alerts ? { alertAckById: actor2.kind === "user" ? actor2.userId : null, alertAckAt: uow.now } : {} },
+      metadata: { alertsAcknowledged: alerts }
+    });
+  });
+}
+async function markReadyForCheckout(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule", "canChart");
+  return runTransition(context, actor2, "schedule.ready", args, async (uow) => {
+    await loadScoped(uow.tx, locationIds, args.appointmentId);
+    return transition(uow, { model: "Appointment", id: args.appointmentId, from: ["seated"], to: "ready_for_checkout", expectedVersion: args.expectedVersion, actor: actor2, eventType: "appointment.ready", reason: args.reason ?? null, data: { readyAt: uow.now } });
+  });
+}
+async function completeAppointment(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule", "canCompleteProcedures");
+  return runTransition(context, actor2, "schedule.complete", args, async (uow) => {
+    const appointment = await loadScoped(uow.tx, locationIds, args.appointmentId);
+    const location = await uow.tx.location.findUniqueOrThrow({ where: { id: appointment.locationId }, select: { timeZone: true } });
+    const updated = await transition(uow, { model: "Appointment", id: appointment.id, from: ["ready_for_checkout"], to: "completed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "appointment.completed", data: { completedAt: uow.now } });
+    await uow.tx.patient.update({ where: { id: appointment.patientId }, data: { lastVisitOn: /* @__PURE__ */ new Date(`${localDate(location.timeZone, appointment.startsAt)}T00:00:00Z`) } });
+    uow.emit({ topic: "notify.staff", aggregateType: "Appointment", aggregateId: appointment.id, payload: { kind: "appointment.completed" }, dedupeKey: `notify.staff:appointment.completed:${appointment.id}` });
+    return updated;
+  });
+}
+async function cancelAppointment(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  const reason = requireText(args.reason, "reason");
+  return runTransition(context, actor2, "schedule.cancel", args, async (uow) => {
+    await loadScoped(uow.tx, locationIds, args.appointmentId);
+    return cancelIn(uow, actor2, args.appointmentId, reason, args.expectedVersion);
+  });
+}
+async function cancelIn(uow, actor2, appointmentId, reason, expectedVersion) {
+  const appointment = await uow.tx.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+  const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { lateCancelHours: true } });
+  const lateHours = practice?.lateCancelHours ?? 24;
+  const late = appointment.startsAt.getTime() - uow.now.getTime() < lateHours * 36e5;
+  if (late) return breakIn(uow, actor2, appointmentId, "late_cancel", reason, expectedVersion);
+  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from: ["scheduled", "confirmed"], to: "cancelled", expectedVersion, actor: actor2, eventType: "appointment.cancelled", reason, data: { cancelledAt: uow.now, cancelReason: reason } });
+  await cancelFollowUps(uow, appointmentId);
+  emitOpenTime(uow, appointment);
+  return updated;
+}
+async function withdrawIn(uow, actor2, appointmentId, reason) {
+  const appointment = await uow.tx.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from: ["scheduled", "confirmed"], to: "cancelled", actor: actor2, eventType: "appointment.withdrawn", reason, data: { cancelledAt: uow.now, cancelReason: reason } });
+  await cancelFollowUps(uow, appointmentId);
+  emitOpenTime(uow, appointment);
+  return updated;
+}
+async function markBroken(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  if (args.kind !== "no_show" && args.kind !== "late_cancel") throw new DomainError(Codes.INVALID_INPUT, "Choose no-show or late cancel.", { field: "kind" });
+  return runTransition(context, actor2, "schedule.break", args, async (uow) => {
+    await loadScoped(uow.tx, locationIds, args.appointmentId);
+    return breakIn(uow, actor2, args.appointmentId, args.kind, args.reason ?? "", args.expectedVersion);
+  });
+}
+async function breakIn(uow, actor2, appointmentId, kind, reason, expectedVersion) {
+  const appointment = await uow.tx.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
+  const from = kind === "no_show" ? ["scheduled", "confirmed", "arrived"] : ["scheduled", "confirmed"];
+  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from, to: "broken", expectedVersion, actor: actor2, eventType: "appointment.broken", reason: reason || null, data: { brokenKind: kind, cancelledAt: kind === "late_cancel" ? uow.now : void 0, cancelReason: reason }, metadata: { kind } });
+  await uow.tx.brokenAppointmentEvent.create({ data: { appointmentId, patientId: appointment.patientId, kind, at: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null, reason } });
+  await cancelFollowUps(uow, appointmentId);
+  emitOpenTime(uow, appointment);
+  return updated;
+}
+function emitOpenTime(uow, appointment) {
+  uow.emit({ topic: "notify.staff", aggregateType: "Appointment", aggregateId: appointment.id, payload: { kind: "schedule.open_time", locationId: appointment.locationId, operatoryId: appointment.operatoryId, startsAt: appointment.startsAt, endsAt: appointment.endsAt }, dedupeKey: `notify.staff:open_time:${appointment.id}` });
+}
+async function rescheduleAppointment(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  assertLocation(locationIds, args.locationId);
+  return runTransition(context, actor2, "schedule.reschedule", args, async (uow) => {
+    const old = await loadScoped(uow.tx, locationIds, args.appointmentId);
+    return rescheduleIn(uow, actor2, old, args);
+  });
+}
+async function rescheduleIn(uow, actor2, old, args) {
+  if (!["scheduled", "confirmed"].includes(old.status)) throw new DomainError(Codes.INVALID_TRANSITION, `A ${old.status} appointment can't be rescheduled.`, { currentStatus: old.status });
+  if (args.expectedVersion !== void 0 && args.expectedVersion !== null && old.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The appointment changed since you loaded it.", { currentVersion: old.version });
+  const retired = await transition(uow, { model: "Appointment", id: old.id, from: ["scheduled", "confirmed"], to: "rescheduled", expectedVersion: old.version, actor: actor2, eventType: "appointment.rescheduled", reason: args.reason ?? null, data: { cancelledAt: uow.now } });
+  await cancelFollowUps(uow, old.id);
+  const fresh = await createAppointment(uow, actor2, {
+    locationId: args.locationId,
+    operatoryId: args.operatoryId,
+    typeId: args.typeId,
+    startsAt: args.startsAt,
+    providerId: args.providerId,
+    patientId: old.patientId,
+    holdId: args.holdId,
+    holderRef: args.holderRef,
+    note: old.note,
+    overrideTemplate: args.overrideTemplate,
+    overrideProviderClash: args.overrideProviderClash,
+    overrideReason: args.overrideReason,
+    source: args.source ?? "staff",
+    isSynthetic: old.isSynthetic
+  });
+  await uow.tx.appointment.update({ where: { id: old.id }, data: { rescheduledToId: fresh.id } });
+  emitOpenTime(uow, old);
+  return { ...fresh, previous: { id: retired.id, status: retired.status } };
+}
+async function runTransition(context, actor2, name, args, work) {
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name, actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await work(uow);
+    return { appointmentId: row.id, ref: row.ref, status: row.status, version: row.version, startsAt: row.startsAt?.toISOString?.() ?? row.startsAt, brokenKind: row.brokenKind ?? "", previous: row.previous ?? null };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function addAsapEntry(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  assertLocation(locationIds, args.locationId);
+  const windows = Array.isArray(args.preferredWindows) ? args.preferredWindows : [];
+  for (const w of windows) {
+    if (!Number.isInteger(w?.weekday) || w.weekday < 0 || w.weekday > 6 || !/^\d{2}:\d{2}$/.test(String(w?.from)) || !/^\d{2}:\d{2}$/.test(String(w?.to)) || w.to <= w.from) {
+      throw new DomainError(Codes.INVALID_INPUT, "Each preferred window needs a weekday (0\u20136) and a from/to time (HH:mm).", { field: "preferredWindows" });
+    }
+  }
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "schedule.asap_add", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const patientId = await resolvePatientRef(uow.tx, args.patientId);
+    const patient = await assertPatientInScope(uow.tx, locationIds, patientId);
+    assertBookablePatient(patient);
+    const entry = await uow.tx.asapEntry.create({
+      data: {
+        patientId,
+        locationId: args.locationId,
+        appointmentTypeId: args.appointmentTypeId ?? null,
+        providerId: args.providerId ?? null,
+        preferredWindows: windows,
+        earliestDate: args.earliestDate ? /* @__PURE__ */ new Date(`${args.earliestDate}T00:00:00Z`) : null,
+        note: optionalText(args.note),
+        status: "active",
+        priority: Math.max(0, Math.min(9, Number(args.priority ?? 0)))
+      }
+    });
+    auditCreate(uow, actor2, "AsapEntry", entry.id, "asap.added", { patientId, locationId: args.locationId });
+    return { asapEntryId: entry.id, status: entry.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function closeAsapEntry(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  if (args.status !== "declined" && args.status !== "expired") throw new DomainError(Codes.INVALID_INPUT, "Choose declined or expired.");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "schedule.asap_close", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const entry = await uow.tx.asapEntry.findUnique({ where: { id: args.asapEntryId } });
+    if (!entry) throw new DomainError(Codes.NOT_FOUND, "ASAP entry not found.");
+    assertLocation(locationIds, entry.locationId);
+    const updated = await transition(uow, { model: "AsapEntry", id: entry.id, from: ["active", "offered"], to: args.status, expectedVersion: args.expectedVersion, actor: actor2, eventType: `asap.${args.status}`, reason: args.reason ?? null });
+    return { asapEntryId: updated.id, status: updated.status, version: updated.version };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function publishScheduleTemplate(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageTemplates", "canManagePractice");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "schedule.template_publish", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const template = await uow.tx.scheduleTemplate.findUnique({ where: { id: args.templateId }, include: { blocks: true } });
+    if (!template) throw new DomainError(Codes.NOT_FOUND, "Template not found.");
+    assertLocation(locationIds, template.locationId);
+    if (!template.blocks.length) throw new DomainError(Codes.GUARD_FAILED, "Add at least one block before publishing.");
+    const effectiveFrom = template.effectiveFrom.toISOString().slice(0, 10);
+    const dayBefore = /* @__PURE__ */ new Date(`${addDays(effectiveFrom, -1)}T00:00:00Z`);
+    const previous = await uow.tx.scheduleTemplate.findMany({ where: { locationId: template.locationId, status: "active", id: { not: template.id } } });
+    for (const p of previous) {
+      if (p.effectiveFrom.getTime() >= template.effectiveFrom.getTime()) {
+        await transition(uow, { model: "ScheduleTemplate", id: p.id, from: ["active"], to: "retired", actor: actor2, eventType: "template.retired", metadata: { supersededBy: template.id } });
+      } else if (!p.effectiveTo || p.effectiveTo.getTime() >= template.effectiveFrom.getTime()) {
+        await uow.tx.scheduleTemplate.update({ where: { id: p.id }, data: { effectiveTo: dayBefore, version: { increment: 1 } } });
+        uow.audit({ eventType: "template.ended", entityType: "ScheduleTemplate", entityId: p.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { effectiveTo: dayBefore } });
+      }
+    }
+    const published = await transition(uow, { model: "ScheduleTemplate", id: template.id, from: ["draft"], to: "active", expectedVersion: args.expectedVersion, actor: actor2, eventType: "template.published", data: { publishedAt: uow.now, publishedById: actor2.kind === "user" ? actor2.userId : null } });
+    const location = await uow.tx.location.findUniqueOrThrow({ where: { id: template.locationId }, select: { timeZone: true } });
+    const upcoming = await uow.tx.appointment.findMany({ where: { locationId: template.locationId, status: { in: ACTIVE2 }, startsAt: { gte: zonedInstant(location.timeZone, effectiveFrom, "00:00") } }, select: { id: true, ref: true, operatoryId: true, typeId: true, startsAt: true, endsAt: true }, take: 500 });
+    const outside = [];
+    const cache = /* @__PURE__ */ new Map();
+    for (const a of upcoming) {
+      const date = localDate(location.timeZone, a.startsAt);
+      if (!cache.has(date)) cache.set(date, await loadLocationDay(uow.tx, template.locationId, date));
+      const day2 = cache.get(date);
+      const fits = day2.windows.some((w) => w.operatoryId === a.operatoryId && w.startMs <= a.startsAt.getTime() && a.endsAt.getTime() <= w.endMs && (!w.allowedTypeIds.length || w.allowedTypeIds.includes(a.typeId)));
+      if (!fits) outside.push(a.ref);
+    }
+    return { templateId: published.id, status: published.status, appointmentsOutsideTemplate: outside };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/mutations/patients.ts
+var DOB = /^\d{4}-\d{2}-\d{2}$/;
+function cleanPatient(input, today2) {
+  const firstName = requireText(input.firstName, "first name", 100);
+  const lastName = requireText(input.lastName, "last name", 100);
+  if (!DOB.test(String(input.dateOfBirth ?? "")) || Number.isNaN(Date.parse(`${input.dateOfBirth}T00:00:00Z`))) throw new DomainError(Codes.INVALID_INPUT, "Enter the date of birth as YYYY-MM-DD.", { field: "dateOfBirth" });
+  if (input.dateOfBirth > today2 || input.dateOfBirth < "1880-01-01") throw new DomainError(Codes.INVALID_INPUT, "The date of birth is not plausible.", { field: "dateOfBirth" });
+  const sex = input.sexAssignedAtBirth ?? "unknown";
+  if (!SEX_AT_BIRTH.includes(sex)) throw new DomainError(Codes.INVALID_INPUT, "Unknown sex assigned at birth.", { field: "sexAssignedAtBirth" });
+  return {
+    firstName,
+    lastName,
+    middleName: optionalText(input.middleName, 100),
+    preferredName: optionalText(input.preferredName, 100),
+    dateOfBirth: /* @__PURE__ */ new Date(`${input.dateOfBirth}T00:00:00Z`),
+    sexAssignedAtBirth: sex,
+    pronouns: optionalText(input.pronouns, 40),
+    preferredLanguage: optionalText(input.preferredLanguage, 20) || "en",
+    address: input.address ?? {}
+  };
+}
+async function findDuplicates(tx, input) {
+  const contacts = (input.contacts ?? []).filter(Boolean);
+  const rows = await tx.$queryRawUnsafe(
+    `SELECT p.id, p."chartNumber",
+            public.similarity(lower(p."lastName" || ' ' || p."firstName"), lower($2)) AS name_score,
+            EXISTS (SELECT 1 FROM "ContactPoint" c WHERE c.patient = p.id AND c."isActive" AND c."valueNormalized" = ANY($3::text[])) AS contact_match,
+            lower(p."lastName") = lower($4) AS last_exact
+       FROM "Patient" p
+      WHERE p."dateOfBirth" = $1::date AND p.status <> 'merged_into' AND ($5::text IS NULL OR p.id <> $5)
+      ORDER BY name_score DESC LIMIT 10`,
+    input.dateOfBirth,
+    `${input.lastName} ${input.firstName}`,
+    contacts,
+    input.lastName,
+    input.excludeId ?? null
+  );
+  return rows.map((r) => {
+    const evidence = ["date_of_birth"];
+    if (r.name_score >= 0.45) evidence.push("similar_name");
+    if (r.last_exact) evidence.push("same_last_name");
+    if (r.contact_match) evidence.push("shared_contact");
+    const score = Math.round((0.4 + Math.min(0.4, Number(r.name_score) * 0.4) + (r.contact_match ? 0.2 : 0)) * 100) / 100;
+    return { patientId: r.id, chartNumber: r.chartNumber, score, evidence };
+  }).filter((c) => c.evidence.includes("similar_name") || c.evidence.includes("shared_contact"));
+}
+async function createPatientIn(uow, actor2, input) {
+  const location = await uow.tx.location.findUnique({ where: { id: input.homeLocationId }, select: { timeZone: true } });
+  if (!location) throw new DomainError(Codes.INVALID_INPUT, "Choose a home location.", { field: "homeLocationId" });
+  const clean = cleanPatient(input, localDate(location.timeZone, uow.now));
+  const contacts = (input.contacts ?? []).map((c) => {
+    if (!CONTACT_KINDS.includes(c.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown contact kind.", { field: "contacts" });
+    return { kind: c.kind, isPrimary: c.isPrimary ?? true, ...normalizeContact(c.kind, c.value) };
+  });
+  const chartNumber = await nextReference(uow.tx, "PT", uow.now);
+  const patient = await uow.tx.patient.create({
+    data: {
+      ...clean,
+      chartNumber,
+      status: input.status ?? "prospect",
+      homeLocationId: input.homeLocationId,
+      primaryProviderId: input.primaryProviderId ?? null,
+      referralSourceId: input.referralSourceId ?? null,
+      isSynthetic: input.isSynthetic ?? false
+    }
+  });
+  const seenPrimary = /* @__PURE__ */ new Set();
+  for (const c of contacts) {
+    const primary = c.isPrimary && !seenPrimary.has(c.kind);
+    if (primary) seenPrimary.add(c.kind);
+    await uow.tx.contactPoint.create({ data: { patientId: patient.id, kind: c.kind, value: c.value, valueNormalized: c.normalized, isPrimary: primary, isActive: true } });
+  }
+  const guarantor = await uow.tx.guarantor.create({ data: { patientId: patient.id, isSynthetic: patient.isSynthetic } });
+  await uow.tx.guarantorLink.create({ data: { patientId: patient.id, guarantorId: guarantor.id, relationship: "self", status: "active", startsOn: /* @__PURE__ */ new Date(`${localDate(location.timeZone, uow.now)}T00:00:00Z`) } });
+  auditCreate(uow, actor2, "Patient", patient.id, "patient.created", { chartNumber, homeLocationId: input.homeLocationId, contacts: contacts.length });
+  return patient;
+}
+async function registerPatient(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  assertLocation(locationIds, args.data?.homeLocationId);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.create", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await advisoryLock(uow.tx, `patient-dob:${args.data.dateOfBirth}`);
+    const contacts = (args.data.contacts ?? []).map((c) => {
+      try {
+        return normalizeContact(c.kind, c.value).normalized;
+      } catch {
+        return "";
+      }
+    });
+    const duplicates = await findDuplicates(uow.tx, { firstName: args.data.firstName, lastName: args.data.lastName, dateOfBirth: args.data.dateOfBirth, contacts });
+    if (duplicates.length && !args.acknowledgeDuplicates) {
+      throw new DomainError(Codes.DUPLICATE_SUSPECTED, `This may be an existing patient (chart ${duplicates.map((d) => d.chartNumber).join(", ")}). Open that record, or confirm this is a different person.`, { problems: duplicates.map((d) => ({ chartNumber: d.chartNumber, evidence: d.evidence })) });
+    }
+    const patient = await createPatientIn(uow, actor2, args.data);
+    if (duplicates.length) uow.audit({ eventType: "patient.duplicate_acknowledged", entityType: "Patient", entityId: patient.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { candidates: duplicates.map((d) => d.chartNumber) } });
+    return { patientId: patient.id, chartNumber: patient.chartNumber, status: patient.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+var DEMOGRAPHIC_FIELDS = ["firstName", "lastName", "middleName", "preferredName", "dateOfBirth", "sexAssignedAtBirth", "pronouns", "preferredLanguage", "address", "genderIdentity", "suffix"];
+async function updatePatientDemographics(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  const keys = Object.keys(args.changes ?? {});
+  if (!keys.length) throw new DomainError(Codes.INVALID_INPUT, "Nothing to change.");
+  const unknown = keys.filter((k) => !DEMOGRAPHIC_FIELDS.includes(k));
+  if (unknown.length) throw new DomainError(Codes.INVALID_INPUT, `These fields can't be changed here: ${unknown.join(", ")}.`, { field: unknown[0] });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.update_demographics", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const row = await lockRow(uow.tx, "Patient", args.patientId);
+    if (row.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "This patient changed since you loaded it. Reload and try again.", { currentVersion: row.version });
+    if (row.status === "merged_into") throw new DomainError(Codes.GUARD_FAILED, "This record was merged; edit the surviving record.");
+    const merged = { ...row, dateOfBirth: row.dateOfBirth.toISOString().slice(0, 10), ...args.changes };
+    const location = await uow.tx.location.findUnique({ where: { id: row.homeLocationId ?? "" }, select: { timeZone: true } });
+    const clean = cleanPatient({ ...merged, homeLocationId: row.homeLocationId }, localDate(location?.timeZone ?? "UTC", uow.now));
+    const data = {};
+    for (const k of keys) data[k] = k in clean ? clean[k] : optionalText(args.changes[k], 100);
+    const before = Object.fromEntries(keys.map((k) => [k, row[k]]));
+    const updated = await uow.tx.patient.updateMany({ where: { id: row.id, version: row.version }, data: { ...data, version: { increment: 1 } } });
+    if (updated.count !== 1) throw new DomainError(Codes.STALE_STATE, "This patient changed while saving.");
+    uow.audit({ eventType: "patient.demographics_updated", entityType: "Patient", entityId: row.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason: args.reason ?? null, before, after: data });
+    return { patientId: row.id, version: row.version + 1 };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function addContactPoint(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  if (!CONTACT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown contact kind.", { field: "kind" });
+  const { value, normalized } = normalizeContact(args.kind, args.value);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.add_contact", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    await advisoryLock(uow.tx, `patient:${args.patientId}`);
+    if (args.isPrimary) await uow.tx.contactPoint.updateMany({ where: { patientId: args.patientId, kind: args.kind, isPrimary: true }, data: { isPrimary: false } });
+    const contact = await uow.tx.contactPoint.create({ data: { patientId: args.patientId, kind: args.kind, value, valueNormalized: normalized, isPrimary: !!args.isPrimary, isActive: true } });
+    auditCreate(uow, actor2, "ContactPoint", contact.id, "contact.added", { patientId: args.patientId, kind: args.kind, isPrimary: contact.isPrimary });
+    return { contactPointId: contact.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function deactivateContactPoint(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  const reason = requireText(args.reason, "reason");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.deactivate_contact", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const contact = await uow.tx.contactPoint.findUnique({ where: { id: args.contactPointId } });
+    if (!contact?.patientId) throw new DomainError(Codes.NOT_FOUND, "Contact not found.");
+    await assertPatientInScope(uow.tx, locationIds, contact.patientId);
+    await uow.tx.contactPoint.update({ where: { id: contact.id }, data: { isActive: false, isPrimary: false } });
+    const revoked = await uow.tx.consentGrant.updateMany({ where: { contactPointId: contact.id, status: "granted" }, data: { status: "revoked", revokedAt: uow.now, revokeReason: "contact_deactivated", version: { increment: 1 } } });
+    uow.audit({ eventType: "contact.deactivated", entityType: "ContactPoint", entityId: contact.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason, after: { consentsRevoked: revoked.count } });
+    return { contactPointId: contact.id, consentsRevoked: revoked.count };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function grantConsentIn(uow, actor2, input) {
+  if (!CONSENT_CHANNELS.includes(input.channel)) throw new DomainError(Codes.INVALID_INPUT, "Unknown consent channel.", { field: "channel" });
+  if (!CONSENT_PURPOSES.includes(input.purpose)) throw new DomainError(Codes.INVALID_INPUT, "Unknown consent purpose.", { field: "purpose" });
+  const contact = await uow.tx.contactPoint.findUnique({ where: { id: input.contactPointId } });
+  if (!contact || !contact.isActive) throw new DomainError(Codes.NOT_FOUND, "Contact not found.");
+  const fits = input.channel === "email" ? contact.kind === "email" : contact.kind !== "email";
+  if (!fits) throw new DomainError(Codes.INVALID_INPUT, `A ${contact.kind} contact can't carry ${input.channel} consent.`, { field: "channel" });
+  await advisoryLock(uow.tx, `consent:${contact.id}`);
+  const existing = await uow.tx.consentGrant.findFirst({ where: { contactPointId: contact.id, channel: input.channel, purpose: input.purpose, status: "granted" } });
+  if (existing) return existing;
+  const grant = await uow.tx.consentGrant.create({
+    data: { contactPointId: contact.id, channel: input.channel, purpose: input.purpose, status: "granted", source: input.source, evidence: input.evidence ?? {}, recordedById: actor2.kind === "user" ? actor2.userId : null, grantedAt: uow.now }
+  });
+  auditCreate(uow, actor2, "ConsentGrant", grant.id, "consent.granted", { contactPointId: contact.id, channel: input.channel, purpose: input.purpose, source: input.source });
+  return grant;
+}
+async function revokeConsentIn(uow, actor2, input) {
+  const where = { contactPointId: input.contactPointId, channel: input.channel, status: "granted", ...input.purpose ? { purpose: input.purpose } : {} };
+  const grants = await uow.tx.consentGrant.findMany({ where, select: { id: true, purpose: true } });
+  if (!grants.length) return 0;
+  await uow.tx.consentGrant.updateMany({ where: { id: { in: grants.map((g) => g.id) } }, data: { status: "revoked", revokedAt: uow.now, revokeReason: input.reason, version: { increment: 1 } } });
+  for (const g of grants) uow.audit({ eventType: "consent.revoked", entityType: "ConsentGrant", entityId: g.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason: input.reason, after: { purpose: g.purpose } });
+  return grants.length;
+}
+async function recordConsent(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients", "canMessagePatients");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "consent.record", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const contact = await uow.tx.contactPoint.findUnique({ where: { id: args.contactPointId }, select: { patientId: true } });
+    if (!contact?.patientId) throw new DomainError(Codes.NOT_FOUND, "Contact not found.");
+    await assertPatientInScope(uow.tx, locationIds, contact.patientId);
+    if (args.granted) {
+      const evidence = args.evidence ?? (args.reason?.trim() ? { note: args.reason.trim(), recordedVia: "staff_dashboard" } : {});
+      if (args.source === "verbal_staff" && !String(evidence.note ?? "").trim()) throw new DomainError(Codes.INVALID_INPUT, "Note what the patient said and when.", { field: "evidence" });
+      const grant = await grantConsentIn(uow, actor2, { contactPointId: args.contactPointId, channel: args.channel, purpose: args.purpose, source: args.source ?? "verbal_staff", evidence });
+      return { consentGrantId: grant.id, status: "granted" };
+    }
+    const revoked = await revokeConsentIn(uow, actor2, { contactPointId: args.contactPointId, channel: args.channel, purpose: args.purpose, reason: requireText(args.reason, "reason") });
+    return { revoked, status: "revoked" };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function addPatientAlert(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients", "canChart");
+  if (!ALERT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown alert kind.", { field: "kind" });
+  if (!["info", "caution", "critical"].includes(args.severity)) throw new DomainError(Codes.INVALID_INPUT, "Choose info, caution or critical.", { field: "severity" });
+  const text12 = requireText(args.text, "alert text", 500);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.alert_add", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text12, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
+    auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
+    return { alertId: alert.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function endPatientAlert(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients", "canChart");
+  const reason = requireText(args.reason, "reason");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.alert_end", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const alert = await uow.tx.patientAlert.findUnique({ where: { id: args.alertId } });
+    if (!alert?.patientId) throw new DomainError(Codes.NOT_FOUND, "Alert not found.");
+    await assertPatientInScope(uow.tx, locationIds, alert.patientId);
+    if (alert.endedAt) return { alertId: alert.id, endedAt: alert.endedAt.toISOString() };
+    await uow.tx.patientAlert.update({ where: { id: alert.id }, data: { endedAt: uow.now, version: { increment: 1 } } });
+    uow.audit({ eventType: "alert.ended", entityType: "PatientAlert", entityId: alert.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason });
+    return { alertId: alert.id, endedAt: uow.now.toISOString() };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function linkGuarantor(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  if (!GUARANTOR_RELATIONSHIPS.includes(args.relationship)) throw new DomainError(Codes.INVALID_INPUT, "Unknown relationship.", { field: "relationship" });
+  if (!args.guarantorPatientId && !String(args.personName?.lastName ?? "").trim()) throw new DomainError(Codes.INVALID_INPUT, "Choose a guarantor or enter their name.", { field: "personName" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.link_guarantor", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    await advisoryLock(uow.tx, `patient:${args.patientId}`);
+    const patient = await uow.tx.patient.findUniqueOrThrow({ where: { id: args.patientId }, select: { homeLocation: { select: { timeZone: true } }, isSynthetic: true } });
+    const today2 = /* @__PURE__ */ new Date(`${localDate(patient.homeLocation?.timeZone ?? "UTC", uow.now)}T00:00:00Z`);
+    let guarantor = args.guarantorPatientId ? await uow.tx.guarantor.findFirst({ where: { patientId: args.guarantorPatientId } }) : null;
+    if (!guarantor) guarantor = await uow.tx.guarantor.create({ data: { patientId: args.guarantorPatientId ?? null, personName: args.guarantorPatientId ? {} : args.personName, isSynthetic: patient.isSynthetic } });
+    const current = await uow.tx.guarantorLink.findFirst({ where: { patientId: args.patientId, status: "active" } });
+    if (current?.guarantorId === guarantor.id) return { guarantorId: guarantor.id, guarantorLinkId: current.id, changed: false };
+    if (current) await transition(uow, { model: "GuarantorLink", id: current.id, from: ["active"], to: "ended", actor: actor2, eventType: "guarantor.unlinked", data: { endsOn: today2 } });
+    const link = await uow.tx.guarantorLink.create({ data: { patientId: args.patientId, guarantorId: guarantor.id, relationship: args.relationship, status: "active", startsOn: today2 } });
+    auditCreate(uow, actor2, "GuarantorLink", link.id, "guarantor.linked", { patientId: args.patientId, guarantorId: guarantor.id, relationship: args.relationship });
+    return { guarantorId: guarantor.id, guarantorLinkId: link.id, changed: true };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function setPatientStatus(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  const reason = requireText(args.reason, "reason");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.set_status", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const future = await uow.tx.appointment.findMany({ where: { patientId: args.patientId, status: { in: [...ACTIVE_APPOINTMENT_STATUSES] }, startsAt: { gt: uow.now } }, select: { id: true, status: true } });
+    const from = { active: ["prospect", "inactive"], inactive: ["active"], archived: ["prospect", "active", "inactive"], deceased: ["prospect", "active", "inactive", "archived"] };
+    if (!from[args.status]) throw new DomainError(Codes.INVALID_INPUT, "Choose active, inactive, archived or deceased.", { field: "status" });
+    let data = {};
+    if (args.status === "archived" || args.status === "inactive") {
+      if (future.length) throw new DomainError(Codes.GUARD_FAILED, `Cancel the ${future.length} upcoming appointment${future.length === 1 ? "" : "s"} first.`);
+    }
+    if (args.status === "deceased") {
+      if (!args.dateOfDeath || !DOB.test(args.dateOfDeath)) throw new DomainError(Codes.INVALID_INPUT, "Enter the date of death.", { field: "dateOfDeath" });
+      data = { dateOfDeath: /* @__PURE__ */ new Date(`${args.dateOfDeath}T00:00:00Z`), statementHold: true };
+    }
+    const updated = await transition(uow, { model: "Patient", id: args.patientId, from: from[args.status], to: args.status, expectedVersion: args.expectedVersion, actor: actor2, eventType: `patient.${args.status}`, reason, data });
+    if (args.status === "deceased") {
+      for (const a of future.filter((f) => f.status === "scheduled" || f.status === "confirmed")) await withdrawIn(uow, actor2, a.id, "deceased");
+      await uow.tx.asapEntry.updateMany({ where: { patientId: args.patientId, status: { in: ["active", "offered"] } }, data: { status: "expired", version: { increment: 1 } } });
+      const contacts = await uow.tx.contactPoint.findMany({ where: { patientId: args.patientId }, select: { id: true } });
+      await uow.tx.consentGrant.updateMany({ where: { contactPointId: { in: contacts.map((c) => c.id) }, status: "granted" }, data: { status: "revoked", revokedAt: uow.now, revokeReason: "deceased", version: { increment: 1 } } });
+    }
+    return { patientId: updated.id, status: updated.status, version: updated.version };
+  });
+  return { replay: result.replay, ...result.value };
+}
+var MERGE_CHILDREN = [
+  { list: "Appointment", field: "patientId" },
+  { list: "AsapEntry", field: "patientId" },
+  { list: "BookingHold", field: "patientId" },
+  { list: "PatientAlert", field: "patientId" },
+  { list: "ContactPoint", field: "patientId" },
+  { list: "PatientIdentifier", field: "patientId" },
+  { list: "Referral", field: "patientId" },
+  { list: "PortalScope", field: "patientId" },
+  { list: "Conversation", field: "patientId" },
+  { list: "PublicBookingRequest", field: "patientMatchId" }
+];
+async function proposeMergeIn(uow, actor2, input) {
+  if (input.survivorId === input.mergedId) throw new DomainError(Codes.INVALID_INPUT, "Choose two different records.");
+  const [survivor, merged] = await Promise.all([uow.tx.patient.findUnique({ where: { id: input.survivorId } }), uow.tx.patient.findUnique({ where: { id: input.mergedId } })]);
+  if (!survivor || !merged) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+  if (survivor.status === "merged_into" || merged.status === "merged_into") throw new DomainError(Codes.GUARD_FAILED, "One of these records was already merged.");
+  const open = await uow.tx.mergeCase.findFirst({ where: { status: { in: ["proposed", "approved"] }, OR: [{ survivorId: input.survivorId, mergedId: input.mergedId }, { survivorId: input.mergedId, mergedId: input.survivorId }] } });
+  if (open) return { mergeCase: open, approvalId: open.approvalId };
+  const mergeCase = await uow.tx.mergeCase.create({ data: { survivorId: input.survivorId, mergedId: input.mergedId, evidence: input.evidence ?? {}, reason: input.reason, status: "proposed", proposedById: actor2.kind === "user" ? actor2.userId : null } });
+  const approval = await requestApproval(uow, actor2, {
+    action: "patient.merge",
+    targetList: "MergeCase",
+    targetId: mergeCase.id,
+    requiredPermission: "canApprovePatientMerge",
+    payload: { mergeCaseId: mergeCase.id, survivorId: input.survivorId, mergedId: input.mergedId },
+    summary: `Merge chart ${merged.chartNumber} into ${survivor.chartNumber}`
+  });
+  await uow.tx.mergeCase.update({ where: { id: mergeCase.id }, data: { approvalId: approval.id } });
+  auditCreate(uow, actor2, "MergeCase", mergeCase.id, "merge.proposed", { survivorId: input.survivorId, mergedId: input.mergedId }, { reason: input.reason });
+  return { mergeCase, approvalId: approval.id };
+}
+async function proposeMerge(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  const reason = requireText(args.reason, "reason");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.merge_propose", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const survivorId = await resolvePatientRef(uow.tx, args.survivorId);
+    const mergedId = await resolvePatientRef(uow.tx, args.mergedId);
+    await assertPatientInScope(uow.tx, locationIds, survivorId);
+    await assertPatientInScope(uow.tx, locationIds, mergedId);
+    const { mergeCase, approvalId } = await proposeMergeIn(uow, actor2, { survivorId, mergedId, reason, evidence: { proposedBy: "staff" } });
+    return { mergeCaseId: mergeCase.id, approvalId, status: mergeCase.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
+  const mergeCase = await lockRow(uow.tx, "MergeCase", mergeCaseId);
+  if (mergeCase.status !== "proposed" && mergeCase.status !== "approved") throw new DomainError(Codes.INVALID_TRANSITION, `A ${mergeCase.status} merge can't be applied.`, { currentStatus: mergeCase.status });
+  const { survivorId, mergedId } = mergeCase;
+  await lockResourcesForMerge(uow.tx, survivorId, mergedId);
+  const merged = await lockRow(uow.tx, "Patient", mergedId);
+  const survivor = await lockRow(uow.tx, "Patient", survivorId);
+  if (merged.status === "merged_into" || survivor.status === "merged_into") throw new DomainError(Codes.GUARD_FAILED, "One of these records was already merged.");
+  if (mergeCase.status === "proposed") await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["proposed"], to: "approved", actor: actor2, eventType: "merge.approved", approverId });
+  let seq = 0;
+  const entries = [];
+  const survivorPrimary = new Set((await uow.tx.contactPoint.findMany({ where: { patientId: survivorId, isPrimary: true, isActive: true }, select: { kind: true } })).map((c) => c.kind));
+  for (const { list: list11, field } of MERGE_CHILDREN) {
+    const rows = await delegateOf(uow.tx, list11).findMany({ where: { [field]: mergedId }, select: { id: true, ...list11 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
+    for (const row of rows) {
+      if (list11 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
+        await uow.tx.contactPoint.update({ where: { id: row.id }, data: { isPrimary: false } });
+        entries.push({ listKey: list11, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
+      }
+      try {
+        await delegateOf(uow.tx, list11).update({ where: { id: row.id }, data: { [field]: survivorId } });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list11 === "Appointment" ? "overlapping appointments" : list11} rows. Resolve them before merging.`);
+        throw error;
+      }
+      entries.push({ listKey: list11, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
+    }
+  }
+  if (entries.length) await uow.tx.mergeMap.createMany({ data: entries.map((e) => ({ ...e, mergeCaseId })) });
+  const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { mergeRevertDays: true } });
+  const revertibleUntil = new Date(uow.now.getTime() + (practice?.mergeRevertDays ?? 30) * 864e5);
+  await uow.tx.patient.update({ where: { id: mergedId }, data: { status: "merged_into", mergedIntoId: survivorId, version: { increment: 1 } } });
+  uow.audit({ eventType: "patient.merged_into", entityType: "Patient", entityId: mergedId, actorUserId: actor2.kind === "user" ? actor2.userId : null, approverId, before: { status: merged.status }, after: { status: "merged_into", mergedIntoId: survivorId } });
+  const applied = await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["approved"], to: "applied", actor: actor2, eventType: "merge.applied", approverId, data: { appliedAt: uow.now, revertibleUntil, mergedStatusBefore: merged.status }, metadata: { moved: entries.length } });
+  return { mergeCaseId: applied.id, status: applied.status, moved: entries.length, revertibleUntil: revertibleUntil.toISOString() };
+}
+async function lockResourcesForMerge(tx, a, b) {
+  for (const id of [a, b].sort()) await advisoryLock(tx, `patient:${id}`);
+}
+registerApplier("patient.merge", async (uow, actor2, request) => {
+  const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
+  return applyMergeIn(uow, actor2, String(request.payload.mergeCaseId), decision?.decidedById ?? null);
+}, { applyOnApprove: true });
+async function revertMerge(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canApprovePatientMerge", "canManagePatients");
+  const reason = requireText(args.reason, "reason");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "patient.merge_revert", actor: actor2, idempotencyKey, params }, async (uow) => revertMergeIn(uow, actor2, args.mergeCaseId, reason, args.expectedVersion));
+  return { replay: result.replay, ...result.value };
+}
+async function revertMergeIn(uow, actor2, mergeCaseId, reason, expectedVersion) {
+  const mergeCase = await lockRow(uow.tx, "MergeCase", mergeCaseId);
+  if (mergeCase.status !== "applied") throw new DomainError(Codes.INVALID_TRANSITION, `A ${mergeCase.status} merge can't be reverted.`, { currentStatus: mergeCase.status });
+  if (!mergeCase.revertibleUntil || mergeCase.revertibleUntil.getTime() <= uow.now.getTime()) throw new DomainError(Codes.GUARD_FAILED, "The revert window has passed; this merge is permanent.");
+  await lockResourcesForMerge(uow.tx, mergeCase.survivorId, mergeCase.mergedId);
+  const entries = await uow.tx.mergeMap.findMany({ where: { mergeCaseId }, orderBy: { seq: "desc" } });
+  for (const e of entries) {
+    const delegate = delegateOf(uow.tx, e.listKey);
+    if (e.field === "isPrimary") {
+      await delegate.update({ where: { id: e.rowId }, data: { isPrimary: e.fromId === "true" } });
+      continue;
+    }
+    const row = await delegate.findUnique({ where: { id: e.rowId }, select: { id: true, [e.field]: true } });
+    if (!row || row[e.field] !== e.toId) continue;
+    await delegate.update({ where: { id: e.rowId }, data: { [e.field]: e.fromId } });
+  }
+  await uow.tx.patient.update({ where: { id: mergeCase.mergedId }, data: { status: mergeCase.mergedStatusBefore || "active", mergedIntoId: null, version: { increment: 1 } } });
+  uow.audit({ eventType: "patient.unmerged", entityType: "Patient", entityId: mergeCase.mergedId, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason, after: { status: mergeCase.mergedStatusBefore || "active" } });
+  const reverted = await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["applied"], to: "reverted", expectedVersion, actor: actor2, eventType: "merge.reverted", reason, data: { revertedAt: uow.now } });
+  return { mergeCaseId: reverted.id, status: reverted.status, restored: entries.length };
+}
+
+// features/keystone/mutations/public.ts
+var import_node_crypto11 = require("node:crypto");
+
+// features/keystone/security/publicRateLimit.ts
+var import_node_crypto10 = require("node:crypto");
+
+// features/keystone/security/rateLimit.ts
+var import_node_crypto9 = require("node:crypto");
+var import_graphql3 = require("graphql");
+
+// features/keystone/security/internalIdentity.ts
+var import_node_crypto8 = require("node:crypto");
+var INTERNAL_IDENTITY_MAX_AGE_MS = 9e4;
+function safeEqual(left, right) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && (0, import_node_crypto8.timingSafeEqual)(leftBuffer, rightBuffer);
+}
+function verifiedInternalIdentity(headers, socketAddress, secret4, now) {
+  const loopback = /^(?:127\.|::1$|::ffff:127\.)/.test(String(socketAddress || ""));
+  if (!loopback || secret4.length < 32) return null;
+  const identity = String(headers["x-openfront-client-identity"] || "");
+  const timestamp10 = String(headers["x-openfront-client-timestamp"] || "");
+  const signature = String(headers["x-openfront-client-signature"] || "");
+  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp10) || !/^[a-f0-9]{64}$/.test(signature)) return null;
+  const age = Math.abs(now - Number(timestamp10) * 1e3);
+  if (!Number.isFinite(age) || age > INTERNAL_IDENTITY_MAX_AGE_MS) return null;
+  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp10}:${identity}`).digest("hex");
+  return safeEqual(signature, expected) ? `forwarded:${identity}` : null;
+}
+
+// features/keystone/security/rateLimit.ts
+var LIMITS = {
+  /** Per client address (or verified forwarded identity). */
+  client: { max: 30, windowMs: 15 * 6e4 },
+  /** Per account (email or signed-in user), across all addresses. */
+  account: { max: 10, windowMs: 15 * 6e4 }
+};
+async function hit(prisma, key, limit, now = /* @__PURE__ */ new Date()) {
+  const windowStart = new Date(Math.floor(now.getTime() / limit.windowMs) * limit.windowMs);
+  const rows = await prisma.$queryRawUnsafe(
+    `INSERT INTO "RateLimitBucket" ("id", "key", "windowStart", "count", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, 1, $4, $4)
+     ON CONFLICT ("key") DO UPDATE SET
+       "count" = CASE WHEN "RateLimitBucket"."windowStart" = EXCLUDED."windowStart" THEN "RateLimitBucket"."count" + 1 ELSE 1 END,
+       "windowStart" = EXCLUDED."windowStart",
+       "updatedAt" = EXCLUDED."updatedAt"
+     RETURNING "count"`,
+    (0, import_node_crypto9.randomUUID)(),
+    key,
+    windowStart,
+    now
+  );
+  const count = Number(rows[0]?.count ?? 0);
+  return { allowed: count <= limit.max, count, retryAfterSeconds: Math.ceil((windowStart.getTime() + limit.windowMs - now.getTime()) / 1e3) };
+}
+function clientKey(req, secret4, now = Date.now()) {
+  const headers = req?.headers ?? {};
+  const socket = req?.socket?.remoteAddress ?? null;
+  const forwarded = verifiedInternalIdentity(headers, socket, secret4, now);
+  if (forwarded) return forwarded;
+  const edge = process.env.RAILWAY_ENVIRONMENT ? String(headers["x-real-ip"] || "").split(",")[0].trim() : "";
+  return `addr:${edge || socket || "unknown"}`;
+}
+
+// features/keystone/security/publicRateLimit.ts
+var DEFAULT_PUBLIC_LIMITS = { perClientPerHour: 30, perContactPerDay: 5, globalPerMinute: 120 };
+var keyHash = (value) => (0, import_node_crypto10.createHash)("sha256").update(value).digest("hex").slice(0, 40);
+var secret2 = () => process.env.SESSION_SECRET || "local-development-session-secret-change-me-now";
+var clientFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(clientKey(req, secret2())).digest("hex").slice(0, 32);
+var userAgentFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(String(req?.headers?.["user-agent"] ?? "")).digest("hex").slice(0, 32);
+function limitsFrom(json9) {
+  const value = json9 && typeof json9 === "object" ? json9 : {};
+  const pick = (n, fallback, max) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max) : fallback;
+  return {
+    perClientPerHour: pick(value.perClientPerHour, DEFAULT_PUBLIC_LIMITS.perClientPerHour, 1e3),
+    perContactPerDay: pick(value.perContactPerDay, DEFAULT_PUBLIC_LIMITS.perContactPerDay, 100),
+    globalPerMinute: pick(value.globalPerMinute, DEFAULT_PUBLIC_LIMITS.globalPerMinute, 1e4)
+  };
+}
+async function enforcePublicLimit(prisma, input) {
+  const limits = input.limits ?? DEFAULT_PUBLIC_LIMITS;
+  const now = input.now ?? /* @__PURE__ */ new Date();
+  const checks = [
+    [`public:global:${input.scope}`, { max: limits.globalPerMinute, windowMs: 6e4 }],
+    [`public:client:${input.scope}:${keyHash(clientKey(input.req, secret2()))}`, { max: limits.perClientPerHour, windowMs: 36e5 }],
+    ...(input.contacts ?? []).filter(Boolean).map((c) => [`public:contact:${input.scope}:${keyHash(c.toLowerCase())}`, { max: limits.perContactPerDay, windowMs: 864e5 }])
+  ];
+  let refused = null;
+  try {
+    for (const [key, limit] of checks) {
+      const result = await hit(prisma, key, limit, now);
+      if (!result.allowed) refused = Math.max(refused ?? 0, result.retryAfterSeconds);
+    }
+  } catch {
+    refused = 60;
+  }
+  if (refused !== null) throw new DomainError(Codes.RATE_LIMITED, `Too many requests. Try again in ${Math.max(1, Math.ceil(refused / 60))} minutes.`, { reason: "rate_limited" });
+}
+async function verifyCaptcha(token, fetchImpl = fetch) {
+  const key = process.env.TURNSTILE_SECRET_KEY;
+  if (!key) return { ok: true, score: "not_configured" };
+  if (!token) return { ok: false, score: "missing" };
+  try {
+    const response = await fetchImpl("https://challenges.cloudflare.com/turnstile/v0/siteverify", { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ secret: key, response: token }) });
+    const body = await response.json();
+    return { ok: body.success === true, score: body.success ? "passed" : "failed" };
+  } catch {
+    return { ok: false, score: "unreachable" };
+  }
+}
+
+// features/keystone/mutations/public.ts
+var actor = systemActor("public-booking");
+var sha = (value) => (0, import_node_crypto11.createHash)("sha256").update(value).digest("hex");
+async function siteAndPolicy(db, slug, locationId) {
+  const site = await db.storefrontSite.findUnique({ where: { slug: String(slug ?? "") }, include: { location: true } });
+  if (!site || !site.isPublished) throw new DomainError(Codes.NOT_FOUND, "Practice not found.");
+  const location = locationId ?? site.locationId;
+  if (!location) throw new DomainError(Codes.INVALID_INPUT, "Choose a location.", { field: "locationId" });
+  if (site.locationId && site.locationId !== location) throw new DomainError(Codes.NOT_FOUND, "Location not found.");
+  const policy = await db.onlineBookingPolicy.findFirst({ where: { locationId: location, isActive: true }, include: { appointmentTypes: { select: { id: true } }, location: { select: { id: true, name: true, timeZone: true, isActive: true, isSynthetic: true } } } });
+  if (!policy || !policy.location?.isActive) throw new DomainError(Codes.NOT_FOUND, "Online booking is not available at this location.");
+  return { site, policy, limits: limitsFrom(policy.rateLimit) };
+}
+function assertTypeAllowed(policy, typeId) {
+  if (!policy.appointmentTypes.some((t) => t.id === typeId)) throw new DomainError(Codes.INVALID_INPUT, "That visit type can\u2019t be booked online.", { field: "typeId" });
+}
+async function publicSite(_root, args, context) {
+  await enforcePublicLimit(context.prisma, { scope: "site", req: context.req });
+  const site = await context.prisma.storefrontSite.findUnique({ where: { slug: String(args.slug ?? "") }, include: { providersShown: { where: { isActive: true }, select: { id: true, displayName: true, providerType: true, specialty: true } } } });
+  if (!site || !site.isPublished) throw new DomainError(Codes.NOT_FOUND, "Practice not found.");
+  const practice = await context.prisma.practiceSettings.findUnique({ where: { id: 1 }, select: { displayName: true, isSynthetic: true } });
+  const locations = await context.prisma.location.findMany({
+    where: { isActive: true, ...site.locationId ? { id: site.locationId } : {} },
+    select: { id: true, name: true, address: true, phone: true, timeZone: true, hours: true },
+    orderBy: { name: "asc" }
+  });
+  const policies = await context.prisma.onlineBookingPolicy.findMany({
+    where: { isActive: true, locationId: { in: locations.map((l) => l.id) } },
+    include: { appointmentTypes: { where: { isActive: true, onlineBookable: true }, select: { id: true, name: true, publicName: true, category: true, defaultPattern: true, newPatientOnly: true } } }
+  });
+  const unit = (await context.prisma.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } }))?.scheduleUnitMinutes ?? 10;
+  return {
+    slug: site.slug,
+    headline: site.headline,
+    about: site.about,
+    services: site.services,
+    seo: site.seo,
+    brand: site.brand,
+    practiceName: practice?.displayName ?? "",
+    sample: practice?.isSynthetic ? "Sample practice: synthetic data" : null,
+    providers: site.providersShown.map((p) => ({ id: p.id, name: p.displayName, kind: p.providerType, specialty: p.specialty })),
+    locations: locations.map((l) => {
+      const policy = policies.find((p) => p.locationId === l.id);
+      return {
+        ...l,
+        onlineBooking: policy ? {
+          newPatientAllowed: policy.newPatientAllowed,
+          leadTimeHours: policy.leadTimeHours,
+          horizonDays: policy.horizonDays,
+          holdMinutes: policy.holdMinutes,
+          depositMinor: String(policy.depositMinor ?? 0n),
+          requireInsuranceCapture: policy.requireInsuranceCapture,
+          visitTypes: policy.appointmentTypes.map((t) => ({ id: t.id, name: t.publicName || t.name, category: t.category, minutes: minutesOf2(t.defaultPattern, unit), newPatientOnly: t.newPatientOnly }))
+        } : null
+      };
+    })
+  };
+}
+async function publicAvailability(_root, args, context) {
+  const { policy, limits } = await siteAndPolicy(context.prisma, args.slug, args.locationId);
+  await enforcePublicLimit(context.prisma, { scope: "availability", req: context.req, limits });
+  assertTypeAllowed(policy, args.typeId);
+  const today2 = localDate(policy.location.timeZone, /* @__PURE__ */ new Date());
+  const from = /^\d{4}-\d{2}-\d{2}$/.test(String(args.fromDate)) && args.fromDate > today2 ? args.fromDate : today2;
+  const lastDay = addDays(today2, policy.horizonDays);
+  if (from > lastDay) return { slots: [], durationMinutes: 0 };
+  const result = await availability(context.prisma, {
+    locationId: policy.locationId,
+    typeId: args.typeId,
+    fromDate: from,
+    days: Math.min(Number(args.days ?? 7), 14),
+    providerId: args.providerId,
+    onlineOnly: true,
+    leadMinutes: policy.leadTimeHours * 60,
+    limit: 120,
+    horizonDays: 14
+  });
+  return {
+    durationMinutes: result.durationMinutes,
+    slots: result.slots.filter((s) => s.localDate <= lastDay).map((s) => ({ startsAt: s.startsAt, endsAt: s.endsAt, operatoryId: s.operatoryId, providerId: s.providerId, localDate: s.localDate }))
+  };
+}
+async function publicHoldSlot(_root, args, context) {
+  const { policy, limits } = await siteAndPolicy(context.prisma, args.slug, args.locationId);
+  await enforcePublicLimit(context.prisma, { scope: "hold", req: context.req, limits });
+  assertTypeAllowed(policy, args.typeId);
+  const captcha = await verifyCaptcha(args.captchaToken);
+  if (!captcha.ok) throw new DomainError(Codes.GUARD_FAILED, "Please complete the verification and try again.", { reason: "captcha" });
+  const startsAt = new Date(String(args.startsAt));
+  if (Number.isNaN(startsAt.getTime())) throw new DomainError(Codes.INVALID_INPUT, "Choose a time.", { field: "startsAt" });
+  if (startsAt.getTime() < Date.now() + policy.leadTimeHours * 36e5) throw new DomainError(Codes.OUTSIDE_TEMPLATE, "That time is too soon to book online. Please call the office.");
+  const token = (0, import_node_crypto11.randomBytes)(24).toString("base64url");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "public.hold", actor, idempotencyKey: `public-hold:${sha(`${idempotencyKey}:${clientFingerprint(context.req)}`).slice(0, 48)}`, params: { ...params, captchaToken: void 0 } }, async (uow) => {
+    const { hold } = await placeHold(uow, actor, {
+      locationId: policy.locationId,
+      operatoryId: args.operatoryId,
+      typeId: args.typeId,
+      startsAt: args.startsAt,
+      providerId: args.providerId,
+      holderKind: "public_api",
+      holderRef: `public:${sha(token)}`,
+      minutes: policy.holdMinutes,
+      onlineOnly: true,
+      isSynthetic: policy.location.isSynthetic
+    });
+    return { holdId: hold.id, expiresAt: hold.expiresAt.toISOString(), startsAt: hold.startsAt.toISOString(), endsAt: hold.endsAt.toISOString(), tokenHash: sha(token) };
+  });
+  return { replay: result.replay, holdId: result.value.holdId, expiresAt: result.value.expiresAt, startsAt: result.value.startsAt, endsAt: result.value.endsAt, holdToken: result.replay ? null : token };
+}
+async function publicSubmitBooking(_root, args, context) {
+  const hold = await context.prisma.bookingHold.findUnique({ where: { id: String(args.holdId ?? "") }, select: { locationId: true } });
+  const { site, policy, limits } = await siteAndPolicy(context.prisma, args.slug, hold?.locationId);
+  const contact = args.contact ?? {};
+  const email = contact.email ? normalizeContact("email", contact.email) : null;
+  const phone = contact.phone ? normalizeContact("mobile", contact.phone) : null;
+  if (!email && !phone) throw new DomainError(Codes.INVALID_INPUT, "Enter an email address or mobile number.", { field: "contact" });
+  await enforcePublicLimit(context.prisma, { scope: "submit", req: context.req, limits, contacts: [email?.normalized ?? "", phone?.normalized ?? ""] });
+  const captcha = await verifyCaptcha(args.captchaToken);
+  if (!captcha.ok) throw new DomainError(Codes.GUARD_FAILED, "Please complete the verification and try again.", { reason: "captcha" });
+  if (!hold) throw new DomainError(Codes.HOLD_EXPIRED, "That time is no longer held. Please pick a time again.");
+  if (policy.requireInsuranceCapture && !args.insuranceCapture) throw new DomainError(Codes.INVALID_INPUT, 'Add your insurance details, or choose "I don\u2019t have dental insurance".', { field: "insuranceCapture" });
+  const holderRef = `public:${sha(String(args.holdToken ?? ""))}`;
+  const fingerprint = clientFingerprint(context.req);
+  const result = await command(context.prisma, { name: "public.submit", actor, idempotencyKey: `public-submit:${sha(`${args.idempotencyKey}:${args.holdId}`).slice(0, 48)}`, params: { holdId: args.holdId, holderRef } }, async (uow) => {
+    const held = await uow.tx.bookingHold.findUnique({ where: { id: args.holdId } });
+    if (!held || !safeEqual2(held.holderRef, holderRef)) throw new DomainError(Codes.HOLD_EXPIRED, "That time is no longer held. Please pick a time again.");
+    const firstName = requireText(contact.firstName, "first name", 100);
+    const lastName = requireText(contact.lastName, "last name", 100);
+    const candidates = await findDuplicates(uow.tx, { firstName, lastName, dateOfBirth: String(contact.dateOfBirth ?? ""), contacts: [email?.normalized ?? "", phone?.normalized ?? ""] });
+    const strong = candidates.filter((c) => c.evidence.includes("shared_contact") && (c.evidence.includes("similar_name") || c.evidence.includes("same_last_name")));
+    let matchStatus;
+    let patientId;
+    if (strong.length === 1) {
+      matchStatus = "matched";
+      patientId = strong[0].patientId;
+      const existing = await uow.tx.patient.findUniqueOrThrow({ where: { id: patientId }, select: { status: true } });
+      if (!["prospect", "active", "inactive"].includes(existing.status)) throw new DomainError(Codes.GUARD_FAILED, "We couldn\u2019t book this online. Please call the office.");
+    } else {
+      if (!policy.newPatientAllowed && !candidates.length) throw new DomainError(Codes.GUARD_FAILED, "This location isn\u2019t taking new patients online. Please call the office.");
+      matchStatus = candidates.length ? "possible_duplicate" : "new_patient";
+      const created = await createPatientIn(uow, actor, {
+        firstName,
+        lastName,
+        dateOfBirth: String(contact.dateOfBirth ?? ""),
+        homeLocationId: policy.locationId,
+        contacts: [...email ? [{ kind: "email", value: email.value, isPrimary: true }] : [], ...phone ? [{ kind: "mobile", value: phone.value, isPrimary: true }] : []],
+        isSynthetic: policy.location.isSynthetic
+      });
+      patientId = created.id;
+    }
+    const appointment = await createAppointment(uow, actor, {
+      locationId: held.locationId,
+      operatoryId: held.operatoryId,
+      typeId: held.typeId,
+      startsAt: held.startsAt.toISOString(),
+      providerId: held.providerId,
+      patientId,
+      holdId: held.id,
+      holderRef,
+      source: "online_booking",
+      note: "Booked online",
+      isSynthetic: policy.location.isSynthetic
+    });
+    const points = await uow.tx.contactPoint.findMany({ where: { patientId, isActive: true, valueNormalized: { in: [email?.normalized ?? "", phone?.normalized ?? ""].filter(Boolean) } } });
+    const evidence = { form: "online_booking", siteSlug: site.slug, clientHash: fingerprint, at: uow.now.toISOString() };
+    for (const p of points) {
+      if (p.kind === "email" && contact.emailReminders !== false) await grantConsentIn(uow, actor, { contactPointId: p.id, channel: "email", purpose: "appointment_reminders", source: "intake_form", evidence });
+      if (p.kind === "mobile" && contact.smsConsent === true) await grantConsentIn(uow, actor, { contactPointId: p.id, channel: "sms", purpose: "appointment_reminders", source: "intake_form", evidence });
+    }
+    const publicRef = publicCode("BK");
+    await uow.tx.publicBookingRequest.create({
+      data: {
+        siteId: site.id,
+        locationId: held.locationId,
+        publicRef,
+        holdId: held.id,
+        contact: { firstName, lastName, email: email?.normalized ?? "", phone: phone?.normalized ?? "", dateOfBirth: contact.dateOfBirth },
+        patientMatchId: patientId,
+        matchStatus,
+        matchEvidence: { candidates: candidates.map((c) => ({ chartNumber: c.chartNumber, evidence: c.evidence, score: c.score })) },
+        intake: args.intake ?? {},
+        insuranceCapture: args.insuranceCapture ?? {},
+        appointmentId: appointment.id,
+        status: "booked",
+        ipHash: fingerprint,
+        userAgentHash: userAgentFingerprint(context.req),
+        captchaScore: captcha.score,
+        isSynthetic: policy.location.isSynthetic
+      }
+    });
+    uow.emit({ topic: "notify.staff", aggregateType: "PublicBookingRequest", aggregateId: publicRef, payload: { kind: "online_booking", matchStatus, locationId: held.locationId }, dedupeKey: `notify.staff:online_booking:${publicRef}` });
+    return { publicRef, status: "booked", startsAt: appointment.startsAt.toISOString(), endsAt: appointment.endsAt.toISOString(), locationName: policy.location.name };
+  });
+  return { replay: result.replay, ...result.value };
+}
+function safeEqual2(a, b) {
+  const left = Buffer.from(String(a));
+  const right = Buffer.from(String(b));
+  return left.length === right.length && (0, import_node_crypto11.timingSafeEqual)(left, right);
+}
+function minutesOf2(pattern, unit) {
+  try {
+    return patternUnits(parsePattern(pattern)) * unit;
+  } catch {
+    return null;
+  }
+}
+async function reviewBookingRequest(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageSchedule");
+  if (!["accept", "link", "reject_spam"].includes(args.decision)) throw new DomainError(Codes.INVALID_INPUT, "Choose accept, link or reject.", { field: "decision" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "booking_request.review", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const request = await uow.tx.publicBookingRequest.findUnique({ where: { id: args.requestId } });
+    if (!request) throw new DomainError(Codes.NOT_FOUND, "Booking request not found.");
+    assertLocation(locationIds, request.locationId);
+    if (request.reviewedAt) throw new DomainError(Codes.INVALID_TRANSITION, "This request was already reviewed.", { currentStatus: request.status });
+    const note = optionalText(args.note, 2e3) ?? "";
+    let status = request.status;
+    let mergeCaseId = null;
+    if (args.decision === "reject_spam") {
+      if (request.appointmentId) {
+        const appointment = await uow.tx.appointment.findUnique({ where: { id: request.appointmentId }, select: { status: true } });
+        if (appointment && ["scheduled", "confirmed"].includes(appointment.status)) await withdrawIn(uow, actor2, request.appointmentId, "online booking rejected as spam");
+      }
+      if (request.patientMatchId && request.matchStatus !== "matched") {
+        const prospect = await uow.tx.patient.findUnique({ where: { id: request.patientMatchId }, select: { status: true } });
+        if (prospect?.status === "prospect") await transition(uow, { model: "Patient", id: request.patientMatchId, from: ["prospect"], to: "archived", actor: actor2, eventType: "patient.archived", reason: "online booking rejected as spam" });
+      }
+      status = "rejected_spam";
+    } else if (args.decision === "link") {
+      if (!args.existingPatientId || !request.patientMatchId) throw new DomainError(Codes.INVALID_INPUT, "Choose the existing patient.", { field: "existingPatientId" });
+      const existingId = await resolvePatientRef(uow.tx, args.existingPatientId);
+      if (existingId === request.patientMatchId) throw new DomainError(Codes.INVALID_INPUT, "That is the record the booking is already on.", { field: "existingPatientId" });
+      await assertPatientInScope(uow.tx, locationIds, existingId);
+      const proposed = await proposeMergeIn(uow, actor2, { survivorId: existingId, mergedId: request.patientMatchId, reason: `Online booking ${request.publicRef} is the same person${note ? `: ${note}` : ""}` });
+      mergeCaseId = proposed.mergeCase.id;
+    }
+    const updated = await transition(uow, {
+      model: "PublicBookingRequest",
+      id: request.id,
+      from: [request.status],
+      to: status,
+      expectedVersion: args.expectedVersion,
+      actor: actor2,
+      eventType: `booking_request.${args.decision}`,
+      reason: note || args.decision,
+      data: { reviewedAt: uow.now, reviewedById: actor2.kind === "user" ? actor2.userId : null, reviewNote: note }
+    });
+    return { requestId: updated.id, status: updated.status, version: updated.version, mergeCaseId };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/mutations/portal.ts
+var import_node_crypto13 = require("node:crypto");
+
+// features/keystone/security/phiReadAudit.ts
+var import_node_crypto12 = require("node:crypto");
+var import_graphql4 = require("graphql");
+function referenceToken(secret4, list11, id) {
+  if (!secret4 || secret4.length < 32) throw new Error("A strong PHI audit reference secret (SESSION_SECRET) is required.");
+  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list11}\0${id}`).digest("hex");
+}
+async function recordPhiReadAudit(prisma, actor2, descriptor) {
+  await prisma.phiReadAudit.create({
+    data: {
+      actorUserId: actor2.userId ?? null,
+      actorAgentId: actor2.agentId ?? null,
+      actorReference: actor2.userId ? `user:${actor2.userId}` : actor2.agentId ? `agent:${actor2.agentId}` : "system",
+      purpose: actor2.purpose ?? "operations",
+      operationType: descriptor.operationType,
+      operationName: descriptor.operationName.slice(0, 200),
+      listKeys: descriptor.listKeys,
+      tiers: descriptor.tiers,
+      fields: descriptor.fields,
+      fieldSetDigest: descriptor.fieldSetDigest,
+      recordCount: descriptor.recordCount,
+      recordIdsDigest: descriptor.recordIdsDigest,
+      resourceReferences: descriptor.resourceReferences,
+      breakGlassId: actor2.breakGlassId ?? null,
+      success: descriptor.success,
+      correlationReference: actor2.correlationReference ?? "",
+      at: /* @__PURE__ */ new Date()
+    }
+  });
+}
+async function recordDirectPhiRead(prisma, actor2, input, secret4 = process.env.SESSION_SECRET || "") {
+  const refs = input.ids.map((id) => ({ list: input.list, ref: referenceToken(secret4, input.list, id) }));
+  const fields = input.fields.map((f) => `${input.list}.${f}`).sort();
+  await recordPhiReadAudit(prisma, actor2, {
+    operationType: "query",
+    operationName: input.operationName,
+    listKeys: [input.list],
+    tiers: [...new Set(input.tiers)].sort(),
+    fields,
+    fieldSetDigest: (0, import_node_crypto12.createHash)("sha256").update(fields.join("\n")).digest("hex"),
+    recordCount: refs.length,
+    recordIdsDigest: refs.length ? (0, import_node_crypto12.createHash)("sha256").update(refs.map((r) => `${r.list}:${r.ref}`).join("\0")).digest("hex") : "",
+    resourceReferences: refs,
+    success: true
+  });
+}
+
+// features/keystone/mutations/portal.ts
+var CODE_TTL_MS = 10 * 6e4;
+var CODE_MAX_FAILURES = 5;
+var TOKEN_TTL_MS = 2 * 36e5;
+var TOKEN_HEADER = "x-portal-token";
+var secret3 = () => {
+  const value = process.env.SESSION_SECRET || (process.env.NODE_ENV === "production" ? "" : "local-development-session-secret-change-me-now");
+  if (value.length < 32) throw new Error("SESSION_SECRET must contain at least 32 characters.");
+  return value;
+};
+var mac = (purpose, value) => (0, import_node_crypto13.createHmac)("sha256", secret3()).update(`${purpose}\0${value}`).digest("base64url");
+var portalActor = (accountId) => systemActor(`portal:${accountId}`);
+function equal(a, b) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && (0, import_node_crypto13.timingSafeEqual)(left, right);
+}
+async function issuePortalCode(db, email, now = /* @__PURE__ */ new Date()) {
+  const normalized = normalizeContact("email", email).normalized;
+  const account = await db.portalAccount.findUnique({ where: { email: normalized } });
+  if (!account || !["invited", "active"].includes(account.status)) return null;
+  const code = String((0, import_node_crypto13.randomInt)(0, 1e6)).padStart(6, "0");
+  await db.portalAccount.update({ where: { id: account.id }, data: { codeHash: mac("portal-code", `${account.id}:${code}`), codeExpiresAt: new Date(now.getTime() + CODE_TTL_MS), codeFailures: 0 } });
+  return { accountId: account.id, code, email: normalized };
+}
+async function portalRequestCode(_root, args, context) {
+  const email = normalizeContact("email", args.email).normalized;
+  await enforcePublicLimit(context.prisma, { scope: "portal-code", req: context.req, contacts: [email] });
+  const issued = await issuePortalCode(context.prisma, email);
+  if (issued) {
+    await command(context.prisma, { name: "portal.code_sent", actor: portalActor(issued.accountId), idempotencyKey: `portal-code:${issued.accountId}:${Date.now()}`, params: { accountId: issued.accountId } }, async (uow) => {
+      uow.emit({ topic: "message.send", aggregateType: "PortalAccount", aggregateId: issued.accountId, payload: { kind: "portal_code", to: issued.email, code: issued.code }, dedupeKey: `portal_code:${issued.accountId}:${uow.now.getTime()}` });
+      uow.audit({ eventType: "portal.code_sent", entityType: "PortalAccount", entityId: issued.accountId });
+      return null;
+    });
+  }
+  return { sent: true };
+}
+async function portalSession(_root, args, context) {
+  const email = normalizeContact("email", args.email).normalized;
+  await enforcePublicLimit(context.prisma, { scope: "portal-session", req: context.req, contacts: [email] });
+  const invalid = () => new DomainError(Codes.PORTAL_SESSION_INVALID, "That code is not valid. Request a new one.");
+  const now = /* @__PURE__ */ new Date();
+  const account = await context.prisma.portalAccount.findUnique({ where: { email } });
+  if (!account || !["invited", "active"].includes(account.status) || !account.codeHash || !account.codeExpiresAt || account.codeExpiresAt.getTime() <= now.getTime()) throw invalid();
+  const presented = mac("portal-code", `${account.id}:${String(args.code ?? "").trim()}`);
+  if (!equal(presented, account.codeHash)) {
+    const failures = Number(account.codeFailures ?? 0) + 1;
+    await context.prisma.portalAccount.update({ where: { id: account.id }, data: failures >= CODE_MAX_FAILURES ? { codeHash: null, codeExpiresAt: null, codeFailures: failures } : { codeFailures: failures } });
+    throw invalid();
+  }
+  const result = await command(context.prisma, { name: "portal.sign_in", actor: portalActor(account.id), idempotencyKey: `portal-sign-in:${account.id}:${presented.slice(0, 16)}`, params: { accountId: account.id } }, async (uow) => {
+    const updated = await uow.tx.portalAccount.updateMany({ where: { id: account.id, codeHash: account.codeHash }, data: { codeHash: null, codeExpiresAt: null, codeFailures: 0, lastLoginAt: uow.now, status: "active", identityVerifiedAt: account.identityVerifiedAt ?? uow.now, version: { increment: 1 } } });
+    if (updated.count !== 1) throw invalid();
+    uow.audit({ eventType: "portal.signed_in", entityType: "PortalAccount", entityId: account.id });
+    return { accountId: account.id };
+  });
+  if (result.replay) throw invalid();
+  return { token: signPortalToken({ accountId: account.id, authVersion: Number(account.authVersion ?? 1) }, now), expiresAt: new Date(now.getTime() + TOKEN_TTL_MS).toISOString() };
+}
+function signPortalToken(claims, now = /* @__PURE__ */ new Date()) {
+  const body = Buffer.from(JSON.stringify({ a: claims.accountId, v: claims.authVersion, e: now.getTime() + TOKEN_TTL_MS })).toString("base64url");
+  return `pt1.${body}.${mac("portal-token", body)}`;
+}
+function readToken(token, now = Date.now()) {
+  const [prefix, body, signature] = String(token ?? "").split(".");
+  if (prefix !== "pt1" || !body || !signature || !equal(mac("portal-token", body), signature)) return null;
+  try {
+    const claims = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
+    if (!claims.a || !Number.isFinite(claims.e) || claims.e <= now) return null;
+    return claims;
+  } catch {
+    return null;
+  }
+}
+var ageOn2 = (dob, at) => {
+  let age = at.getUTCFullYear() - dob.getUTCFullYear();
+  const m = at.getUTCMonth() - dob.getUTCMonth();
+  if (m < 0 || m === 0 && at.getUTCDate() < dob.getUTCDate()) age -= 1;
+  return age;
+};
+async function portalPrincipal(context, now = /* @__PURE__ */ new Date()) {
+  const header = context.req?.headers?.[TOKEN_HEADER];
+  const claims = readToken(Array.isArray(header) ? header[0] : header, now.getTime());
+  if (!claims) throw new DomainError(Codes.PORTAL_SESSION_INVALID, "Your session has ended. Sign in again.");
+  const account = await context.prisma.portalAccount.findUnique({ where: { id: claims.a }, select: { id: true, status: true, authVersion: true } });
+  if (!account || account.status !== "active" || Number(account.authVersion ?? 1) !== Number(claims.v)) throw new DomainError(Codes.PORTAL_SESSION_INVALID, "Your session has ended. Sign in again.");
+  const scopes = await context.prisma.portalScope.findMany({
+    where: { accountId: account.id, status: "active", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    include: { patient: { select: { id: true, status: true, dateOfBirth: true, homeLocation: { select: { jurisdiction: { select: { rules: true } } } } } } }
+  });
+  const valid = scopes.filter((s) => {
+    if (!s.patient || ["merged_into", "archived"].includes(s.patient.status)) return false;
+    if (!s.validUntilMajority) return true;
+    let majority = 18;
+    try {
+      if (s.patient.homeLocation?.jurisdiction?.rules) majority = parsePackRules(s.patient.homeLocation.jurisdiction.rules).retention.value.majorityAge;
+    } catch {
+      majority = 18;
+    }
+    return ageOn2(s.patient.dateOfBirth, now) < majority;
+  });
+  return { accountId: account.id, scopes: valid.map((s) => ({ id: s.id, patientId: s.patientId, relationship: s.relationship, capabilities: Array.isArray(s.capabilities) ? s.capabilities : [], confidentialItemsHidden: s.confidentialItemsHidden })) };
+}
+function assertPortalScope(principal, patientId, capability) {
+  const scope = principal.scopes.find((s) => s.patientId === patientId);
+  if (!scope || !scope.capabilities.includes(capability)) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
+  return scope;
+}
+async function auditPortalRead(context, principal, operationName, list11, ids, fields) {
+  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list11, ids, fields, tiers: ["dem"] });
+}
+async function portalMe(_root, _args, context) {
+  const principal = await portalPrincipal(context);
+  const patients = await context.prisma.patient.findMany({ where: { id: { in: principal.scopes.map((s) => s.patientId) } }, select: { id: true, firstName: true, preferredName: true } });
+  await auditPortalRead(context, principal, "portalMe", "Patient", patients.map((p) => p.id), ["firstName", "preferredName"]);
+  return {
+    people: principal.scopes.map((s) => {
+      const p = patients.find((x) => x.id === s.patientId);
+      return { patientId: s.patientId, name: p?.preferredName || p?.firstName || "", relationship: s.relationship, capabilities: s.capabilities };
+    })
+  };
+}
+async function portalAppointments(_root, args, context) {
+  const principal = await portalPrincipal(context);
+  assertPortalScope(principal, args.patientId, "appointments");
+  const since = new Date(Date.now() - 365 * 864e5);
+  const rows = await context.prisma.appointment.findMany({
+    where: { patientId: args.patientId, startsAt: { gte: since }, status: { notIn: ["planned", "rescheduled"] } },
+    orderBy: { startsAt: "asc" },
+    select: { id: true, startsAt: true, endsAt: true, status: true, version: true, type: { select: { publicName: true, name: true } }, location: { select: { name: true, phone: true, timeZone: true } }, primaryProvider: { select: { displayName: true } } },
+    take: 100
+  });
+  await auditPortalRead(context, principal, "portalAppointments", "Appointment", rows.map((r) => r.id), ["startsAt", "status", "type"]);
+  return {
+    appointments: rows.map((r) => ({
+      id: r.id,
+      startsAt: r.startsAt.toISOString(),
+      endsAt: r.endsAt.toISOString(),
+      status: r.status,
+      version: r.version,
+      visit: r.type?.publicName || r.type?.name || "",
+      location: r.location?.name ?? "",
+      locationPhone: r.location?.phone ?? "",
+      timeZone: r.location?.timeZone ?? "",
+      provider: r.primaryProvider?.displayName ?? "",
+      canConfirm: r.status === "scheduled",
+      canChange: ["scheduled", "confirmed"].includes(r.status) && r.startsAt.getTime() > Date.now()
+    }))
+  };
+}
+async function portalAppointmentCommand(context, name, args, work) {
+  const principal = await portalPrincipal(context);
+  const actor2 = portalActor(principal.accountId);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name, actor: actor2, idempotencyKey: `portal:${principal.accountId}:${idempotencyKey}`.slice(0, 200), params }, async (uow) => {
+    const appointment = await uow.tx.appointment.findUnique({ where: { id: args.appointmentId } });
+    if (!appointment) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
+    assertPortalScope(principal, appointment.patientId, "appointments");
+    const row = await work(uow, actor2, appointment);
+    return { appointmentId: row.id, status: row.status, version: row.version, startsAt: row.startsAt?.toISOString?.() ?? null };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function assertOutsideLateWindow(uow, appointment) {
+  const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { lateCancelHours: true } });
+  const hours = practice?.lateCancelHours ?? 24;
+  if (appointment.startsAt.getTime() - uow.now.getTime() < hours * 36e5) {
+    throw new DomainError(Codes.LATE_CANCEL_WINDOW, `This visit is less than ${hours} hours away. Please call the office to change it.`);
+  }
+}
+async function portalConfirm(_root, args, context) {
+  return portalAppointmentCommand(context, "portal.confirm", args, (uow, actor2, appointment) => confirmIn(uow, actor2, appointment.id, "portal_api", args.expectedVersion));
+}
+async function portalCancel(_root, args, context) {
+  return portalAppointmentCommand(context, "portal.cancel", args, async (uow, actor2, appointment) => {
+    await assertOutsideLateWindow(uow, appointment);
+    return cancelIn(uow, actor2, appointment.id, `Cancelled by patient online${args.reason ? `: ${String(args.reason).slice(0, 200)}` : ""}`, args.expectedVersion);
+  });
+}
+async function portalReschedule(_root, args, context) {
+  return portalAppointmentCommand(context, "portal.reschedule", args, async (uow, actor2, appointment) => {
+    await assertOutsideLateWindow(uow, appointment);
+    const policy = await uow.tx.onlineBookingPolicy.findFirst({ where: { locationId: appointment.locationId, isActive: true }, include: { appointmentTypes: { select: { id: true } } } });
+    if (!policy || !policy.appointmentTypes.some((t) => t.id === appointment.typeId)) throw new DomainError(Codes.GUARD_FAILED, "This visit can\u2019t be moved online. Please call the office.");
+    const startsAt = new Date(String(args.startsAt));
+    if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() < uow.now.getTime() + policy.leadTimeHours * 36e5) throw new DomainError(Codes.OUTSIDE_TEMPLATE, "That time is too soon to book online.");
+    return rescheduleIn(uow, actor2, appointment, {
+      appointmentId: appointment.id,
+      expectedVersion: args.expectedVersion ?? appointment.version,
+      reason: "Rescheduled by patient online",
+      locationId: appointment.locationId,
+      operatoryId: args.operatoryId,
+      typeId: appointment.typeId,
+      startsAt: args.startsAt,
+      providerId: args.providerId,
+      source: "online_booking"
+    });
+  });
+}
+async function portalPreferences(_root, args, context) {
+  const principal = await portalPrincipal(context);
+  assertPortalScope(principal, args.patientId, "preferences");
+  const actor2 = portalActor(principal.accountId);
+  const changes = args.changes ?? [];
+  if (changes.length) {
+    if (!args.idempotencyKey) throw new DomainError(Codes.IDEMPOTENCY_KEY_REQUIRED, "An idempotency key is required.");
+    await command(context.prisma, { name: "portal.preferences", actor: actor2, idempotencyKey: `portal:${principal.accountId}:${args.idempotencyKey}`.slice(0, 200), params: { patientId: args.patientId, changes } }, async (uow) => {
+      for (const change of changes.slice(0, 20)) {
+        const contact = await uow.tx.contactPoint.findUnique({ where: { id: change.contactPointId }, select: { patientId: true } });
+        if (!contact || contact.patientId !== args.patientId) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
+        if (change.granted) await grantConsentIn(uow, actor2, { contactPointId: change.contactPointId, channel: change.channel, purpose: change.purpose, source: "portal_api", evidence: { portalAccount: principal.accountId, at: uow.now.toISOString() } });
+        else await revokeConsentIn(uow, actor2, { contactPointId: change.contactPointId, channel: change.channel, purpose: change.purpose, reason: "portal_preference" });
+      }
+      return null;
+    });
+  }
+  const contacts = await context.prisma.contactPoint.findMany({ where: { patientId: args.patientId, isActive: true }, select: { id: true, kind: true, valueNormalized: true, consentGrants: { where: { status: "granted" }, select: { channel: true, purpose: true } } } });
+  await auditPortalRead(context, principal, "portalPreferences", "ContactPoint", contacts.map((c) => c.id), ["valueNormalized"]);
+  return { contacts: contacts.map((c) => ({ id: c.id, kind: c.kind, masked: mask(c.kind, c.valueNormalized), consents: c.consentGrants })) };
+}
+var mask = (kind, value) => kind === "email" ? value.replace(/^(.).*(@.*)$/, "$1\u2022\u2022\u2022$2") : `\u2022\u2022\u2022${value.slice(-4)}`;
+async function grantPortalAccess(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  if (!PORTAL_RELATIONSHIPS.includes(args.relationship)) throw new DomainError(Codes.INVALID_INPUT, "Unknown relationship.", { field: "relationship" });
+  const capabilities = (args.capabilities?.length ? args.capabilities : ["appointments", "preferences"]).filter((c) => PORTAL_CAPABILITIES.includes(c));
+  const email = normalizeContact("email", args.email).normalized;
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "portal.grant", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    if (["merged_into", "archived", "deceased"].includes(patient.status)) throw new DomainError(Codes.GUARD_FAILED, `A ${patient.status} patient can't be given portal access.`);
+    let account = await uow.tx.portalAccount.findUnique({ where: { email } });
+    if (!account) {
+      account = await uow.tx.portalAccount.create({ data: { email, status: "invited", invitedById: actor2.kind === "user" ? actor2.userId : null, isSynthetic: false } });
+      auditCreate(uow, actor2, "PortalAccount", account.id, "portal.account_invited", { relationship: args.relationship });
+    }
+    const existing = await uow.tx.portalScope.findFirst({ where: { accountId: account.id, patientId: args.patientId, status: "active" } });
+    if (existing) await transition(uow, { model: "PortalScope", id: existing.id, from: ["active"], to: "revoked", actor: actor2, eventType: "portal.scope_replaced" });
+    const scope = await uow.tx.portalScope.create({
+      data: {
+        accountId: account.id,
+        patientId: args.patientId,
+        relationship: args.relationship,
+        capabilities,
+        status: "active",
+        grantedById: actor2.kind === "user" ? actor2.userId : null,
+        expiresAt: args.expiresAt ? new Date(args.expiresAt) : null,
+        validUntilMajority: args.validUntilMajority ?? args.relationship === "guardian"
+      }
+    });
+    auditCreate(uow, actor2, "PortalScope", scope.id, "portal.scope_granted", { patientId: args.patientId, relationship: args.relationship, capabilities });
+    return { portalAccountId: account.id, portalScopeId: scope.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function revokePortalScope(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "portal.revoke", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const scope = await uow.tx.portalScope.findUnique({ where: { id: args.portalScopeId } });
+    if (!scope?.patientId) throw new DomainError(Codes.NOT_FOUND, "Portal access not found.");
+    await assertPatientInScope(uow.tx, locationIds, scope.patientId);
+    const updated = await transition(uow, { model: "PortalScope", id: scope.id, from: ["active"], to: "revoked", actor: actor2, eventType: "portal.scope_revoked", reason: args.reason });
+    return { portalScopeId: updated.id, status: updated.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function suspendPortalAccount(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canManagePatients");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "portal.suspend", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const updated = await transition(uow, { model: "PortalAccount", id: args.portalAccountId, from: ["invited", "active"], to: "suspended", actor: actor2, eventType: "portal.account_suspended", reason: args.reason, data: { authVersion: { increment: 1 }, codeHash: null, codeExpiresAt: null } });
+    return { portalAccountId: updated.id, status: updated.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
 // features/keystone/mutations/index.ts
 var graphql2 = String.raw;
 function extendGraphqlSchema(baseSchema) {
@@ -3367,6 +5827,11 @@ function extendGraphqlSchema(baseSchema) {
         redirectToInit: Boolean
         verifyAuditChain: JSON
         mfaStatus: JSON
+        findAvailability(locationId: ID!, typeId: ID!, fromDate: String!, days: Int, providerId: ID, operatoryIds: [ID!], patientId: ID, limit: Int): JSON
+        publicSite(slug: String!): JSON
+        publicAvailability(slug: String!, locationId: ID, typeId: ID!, fromDate: String!, days: Int, providerId: ID): JSON
+        portalMe: JSON
+        portalAppointments(patientId: ID!): JSON
       }
       input UserUpdateProfileInput { name: String, email: String, password: String, onboardingStatus: String }
       type Mutation {
@@ -3377,13 +5842,59 @@ function extendGraphqlSchema(baseSchema) {
         requestPracticeControls(changes: JSON!, reason: String!, idempotencyKey: String!): JSON
         verifyMfa(code: String!, recovery: Boolean): JSON
         manageMfa(action: String!, password: String!, code: String, recovery: Boolean): JSON
+
+        registerPatient(data: JSON!, acknowledgeDuplicates: Boolean, idempotencyKey: String!): JSON
+        updatePatientDemographics(patientId: ID!, expectedVersion: Int!, changes: JSON!, reason: String, idempotencyKey: String!): JSON
+        addContactPoint(patientId: ID!, kind: String!, value: String!, isPrimary: Boolean, idempotencyKey: String!): JSON
+        deactivateContactPoint(contactPointId: ID!, reason: String!, idempotencyKey: String!): JSON
+        recordConsent(contactPointId: ID!, channel: String!, purpose: String!, granted: Boolean!, source: String, evidence: JSON, reason: String, idempotencyKey: String!): JSON
+        addPatientAlert(patientId: ID!, kind: String!, severity: String!, text: String!, idempotencyKey: String!): JSON
+        endPatientAlert(alertId: ID!, reason: String!, idempotencyKey: String!): JSON
+        linkGuarantor(patientId: ID!, guarantorPatientId: ID, personName: JSON, relationship: String!, idempotencyKey: String!): JSON
+        setPatientStatus(patientId: ID!, status: String!, expectedVersion: Int!, dateOfDeath: String, reason: String!, idempotencyKey: String!): JSON
+        proposeMerge(survivorId: ID!, mergedId: ID!, reason: String!, idempotencyKey: String!): JSON
+        revertMerge(mergeCaseId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+
+        holdSlot(locationId: ID!, operatoryId: ID!, typeId: ID!, startsAt: String!, providerId: ID, patientId: ID, idempotencyKey: String!): JSON
+        releaseHold(holdId: ID!, idempotencyKey: String!): JSON
+        bookAppointment(locationId: ID!, operatoryId: ID!, typeId: ID!, startsAt: String!, providerId: ID, patientId: ID!, holdId: ID, note: String, overrideTemplate: Boolean, overrideProviderClash: Boolean, overrideReason: String, idempotencyKey: String!): JSON
+        confirmAppointment(appointmentId: ID!, expectedVersion: Int!, method: String!, idempotencyKey: String!): JSON
+        markArrived(appointmentId: ID!, expectedVersion: Int!, overrideLabGate: Boolean, reason: String, idempotencyKey: String!): JSON
+        seatPatient(appointmentId: ID!, expectedVersion: Int!, acknowledgeAlerts: Boolean, idempotencyKey: String!): JSON
+        markReadyForCheckout(appointmentId: ID!, expectedVersion: Int!, reason: String, idempotencyKey: String!): JSON
+        completeAppointment(appointmentId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+        cancelAppointment(appointmentId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+        markBroken(appointmentId: ID!, expectedVersion: Int!, kind: String!, reason: String, idempotencyKey: String!): JSON
+        rescheduleAppointment(appointmentId: ID!, expectedVersion: Int!, locationId: ID!, operatoryId: ID!, typeId: ID!, startsAt: String!, providerId: ID, holdId: ID, overrideTemplate: Boolean, overrideProviderClash: Boolean, overrideReason: String, reason: String, idempotencyKey: String!): JSON
+        addAsapEntry(patientId: ID!, locationId: ID!, appointmentTypeId: ID, providerId: ID, preferredWindows: JSON, earliestDate: String, note: String, priority: Int, idempotencyKey: String!): JSON
+        closeAsapEntry(asapEntryId: ID!, status: String!, expectedVersion: Int!, reason: String, idempotencyKey: String!): JSON
+        publishScheduleTemplate(templateId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+
+        grantPortalAccess(patientId: ID!, email: String!, relationship: String!, capabilities: [String!], expiresAt: String, validUntilMajority: Boolean, idempotencyKey: String!): JSON
+        revokePortalScope(portalScopeId: ID!, reason: String!, idempotencyKey: String!): JSON
+        suspendPortalAccount(portalAccountId: ID!, reason: String!, idempotencyKey: String!): JSON
+
+        publicHoldSlot(slug: String!, locationId: ID, typeId: ID!, operatoryId: ID!, startsAt: String!, providerId: ID, captchaToken: String, idempotencyKey: String!): JSON
+        publicSubmitBooking(slug: String!, holdId: ID!, holdToken: String!, contact: JSON!, intake: JSON, insuranceCapture: JSON, captchaToken: String, idempotencyKey: String!): JSON
+        reviewBookingRequest(requestId: ID!, decision: String!, expectedVersion: Int!, existingPatientId: ID, note: String, idempotencyKey: String!): JSON
+        portalRequestCode(email: String!): JSON
+        portalSession(email: String!, code: String!): JSON
+        portalConfirm(appointmentId: ID!, expectedVersion: Int, idempotencyKey: String!): JSON
+        portalCancel(appointmentId: ID!, expectedVersion: Int, reason: String, idempotencyKey: String!): JSON
+        portalReschedule(appointmentId: ID!, expectedVersion: Int, operatoryId: ID!, startsAt: String!, providerId: ID, idempotencyKey: String!): JSON
+        portalPreferences(patientId: ID!, changes: JSON, idempotencyKey: String): JSON
       }
     `,
     resolvers: {
       Query: {
         redirectToInit: redirectToInit_default,
         verifyAuditChain: op(verifyAuditChain2),
-        mfaStatus: op(mfaStatus)
+        mfaStatus: op(mfaStatus),
+        findAvailability: op(findAvailability),
+        publicSite: op(publicSite),
+        publicAvailability: op(publicAvailability),
+        portalMe: op(portalMe),
+        portalAppointments: op(portalAppointments)
       },
       Mutation: {
         updateActiveUser: updateActiveUser_default,
@@ -3392,7 +5903,44 @@ function extendGraphqlSchema(baseSchema) {
         cancelApprovalRequest: op(cancelApprovalRequest),
         requestPracticeControls: op(requestPracticeControls),
         verifyMfa: op(verifyMfa),
-        manageMfa: op(manageMfa)
+        manageMfa: op(manageMfa),
+        registerPatient: op(registerPatient),
+        updatePatientDemographics: op(updatePatientDemographics),
+        addContactPoint: op(addContactPoint),
+        deactivateContactPoint: op(deactivateContactPoint),
+        recordConsent: op(recordConsent),
+        addPatientAlert: op(addPatientAlert),
+        endPatientAlert: op(endPatientAlert),
+        linkGuarantor: op(linkGuarantor),
+        setPatientStatus: op(setPatientStatus),
+        proposeMerge: op(proposeMerge),
+        revertMerge: op(revertMerge),
+        holdSlot: op(holdSlot),
+        releaseHold: op(releaseHold),
+        bookAppointment: op(bookAppointment),
+        confirmAppointment: op(confirmAppointment),
+        markArrived: op(markArrived),
+        seatPatient: op(seatPatient),
+        markReadyForCheckout: op(markReadyForCheckout),
+        completeAppointment: op(completeAppointment),
+        cancelAppointment: op(cancelAppointment),
+        markBroken: op(markBroken),
+        rescheduleAppointment: op(rescheduleAppointment),
+        addAsapEntry: op(addAsapEntry),
+        closeAsapEntry: op(closeAsapEntry),
+        publishScheduleTemplate: op(publishScheduleTemplate),
+        grantPortalAccess: op(grantPortalAccess),
+        revokePortalScope: op(revokePortalScope),
+        suspendPortalAccount: op(suspendPortalAccount),
+        portalRequestCode: op(portalRequestCode),
+        portalSession: op(portalSession),
+        portalConfirm: op(portalConfirm),
+        portalCancel: op(portalCancel),
+        portalReschedule: op(portalReschedule),
+        portalPreferences: op(portalPreferences),
+        publicHoldSlot: op(publicHoldSlot),
+        publicSubmitBooking: op(publicSubmitBooking),
+        reviewBookingRequest: op(reviewBookingRequest)
       }
     }
   });
@@ -3526,6 +6074,66 @@ ${missing.map((directive) => `  ${directive}`).join("\n")}
   return schema;
 }
 
+// features/keystone/lib/keystonePrismaErrors.ts
+var RAW_METHOD = /^\$(queryRaw|executeRaw|queryRawUnsafe|executeRawUnsafe|queryRawTyped|runCommandRaw)$/;
+var clients = /* @__PURE__ */ new WeakMap();
+var delegates = /* @__PURE__ */ new WeakMap();
+function isKeystonePrismaError(value) {
+  return value instanceof Error && value.extensions?.code === "KS_PRISMA_ERROR";
+}
+function rethrowKeystonePrismaError(value) {
+  if (!isKeystonePrismaError(value)) return value;
+  const prisma = value.extensions.prisma ?? {};
+  throw Object.assign(value, { code: prisma.code, meta: prisma.meta, clientVersion: prisma.clientVersion });
+}
+function throwing(result) {
+  if (!result || typeof result.then !== "function") return rethrowKeystonePrismaError(result);
+  const settled = () => result.then(rethrowKeystonePrismaError);
+  return new Proxy(result, {
+    get(target, key) {
+      if (key === "then") return (ok, fail) => settled().then(ok, fail);
+      if (key === "catch") return (fail) => settled().catch(fail);
+      if (key === "finally") return (done) => settled().finally(done);
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
+function throwingDelegate(delegate) {
+  const cached = delegates.get(delegate);
+  if (cached) return cached;
+  const wrapped = new Proxy(delegate, {
+    get(target, key) {
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? (...args) => throwing(value.apply(target, args)) : value;
+    }
+  });
+  delegates.set(delegate, wrapped);
+  return wrapped;
+}
+function throwKeystonePrismaErrors(client) {
+  const cached = clients.get(client);
+  if (cached) return cached;
+  const wrapped = new Proxy(client, {
+    get(target, key) {
+      const value = Reflect.get(target, key, target);
+      if (key === "$transaction" && typeof value === "function") {
+        return (work, ...options) => {
+          if (typeof work === "function") return value.call(target, (tx) => work(throwKeystonePrismaErrors(tx)), ...options);
+          return Promise.resolve(value.call(target, work, ...options)).then((results) => Array.isArray(results) ? results.map(rethrowKeystonePrismaError) : results);
+        };
+      }
+      if (key === "$extends" && typeof value === "function") return (...args) => throwKeystonePrismaErrors(value.apply(target, args));
+      if (typeof key === "string" && RAW_METHOD.test(key) && typeof value === "function") return (...args) => throwing(value.apply(target, args));
+      if (typeof value === "function") return value.bind(target);
+      if (typeof key === "string" && !key.startsWith("$") && value && typeof value === "object" && typeof value.findFirst === "function") return throwingDelegate(value);
+      return value;
+    }
+  });
+  clients.set(client, wrapped);
+  return wrapped;
+}
+
 // features/keystone/index.ts
 var databaseURL = process.env.DATABASE_URL || "file:./keystone.db";
 var {
@@ -3583,7 +6191,9 @@ var keystone_default = withAuth(
     db: {
       provider: "postgresql",
       url: databaseURL,
-      extendPrismaSchema: addDatabaseConstraints
+      extendPrismaSchema: addDatabaseConstraints,
+      // Keystone 6.5 returns failed queries instead of throwing; inside $transaction later writes would still commit.
+      extendPrismaClient: throwKeystonePrismaErrors
     },
     lists: models,
     storage: {
