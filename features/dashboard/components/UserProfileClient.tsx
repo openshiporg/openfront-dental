@@ -60,7 +60,7 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!justify-center"
+              className="h-auto min-h-12 py-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground group-data-[collapsible=icon]:!p-0 group-data-[collapsible=icon]:!justify-center"
             >
               <Avatar className="h-8 w-8 rounded-lg group-data-[collapsible=icon]:h-6 group-data-[collapsible=icon]:w-6">
                 <AvatarFallback className="bg-muted/80 border rounded-lg">
@@ -68,10 +68,10 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-semibold">
+                <span className="font-semibold break-words">
                   {user.name || "User"}
                 </span>
-                <span className="truncate text-xs">{user.email}</span>
+                <span className="text-xs break-all">{user.email}</span>
               </div>
               <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
             </SidebarMenuButton>
@@ -96,10 +96,10 @@ export function UserProfileClient({ user }: UserProfileClientProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">
+                  <span className="font-semibold break-words">
                     {user.name || "User"}
                   </span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span className="text-xs text-muted-foreground break-all">
                     {user.email}
                   </span>
                 </div>

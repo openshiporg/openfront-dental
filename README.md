@@ -16,7 +16,7 @@ Coming next: the clinical chart, insurance and eligibility, claims and the patie
 
 ## Sample practice
 
-The seed loads **Bayview Family Dental** in Tampa, FL, and its St. Petersburg office: 20 staff, 70 families and about 260 patients with 800 appointments. Every name, birth date, phone number and address is invented. Phones use the 555 range. Staff emails use `@bayviewfamilydental.com` and patients use common mail providers; none of these mailboxes is real, and sample data only ever goes to the manual message queue, never to a live SMS or email provider. Every seeded record is marked synthetic.
+The seed loads **Bayview Family Dental** in Tampa, FL, and its St. Petersburg office: 19 staff, 70 families and about 230 patients with 794 appointments. Every name, birth date, phone number and address is invented. Phones use the 555 range. Staff emails use `@bayviewfamilydental.com` and patients use common mail providers; none of these mailboxes is real, and sample data only ever goes to the manual message queue, never to a live SMS or email provider. Every seeded record is marked synthetic.
 
 Seeded staff cannot sign in until an owner sets their password. Create the first owner at `/dashboard/init`, then load the sample practice from onboarding. A production deployment refuses the sample practice unless `DENTAL_ALLOW_SAMPLE_PRACTICE=true` is set (for QA deployments only).
 
