@@ -42,9 +42,10 @@ export async function PerioTab({ id, p, providers, examId, href, paths }: { id: 
   const editable = exam.status === 'in_progress';
 
   const Row16 = ({ teeth, label }: { teeth: string[]; label: string }) => (
-    <div className="overflow-x-auto">
+    <div>
+      <div className="pb-1 text-xs text-muted-foreground">{label}</div>
+      <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] border-collapse text-center font-mono text-xs">
-        <caption className="pb-1 text-left font-sans text-xs text-muted-foreground">{label}</caption>
         <thead><tr><th className="w-10 text-left">Tooth</th>{teeth.map((t) => <th key={t} colSpan={3} className="border-l px-0.5 font-semibold">{t}{mobility.get(t)?.mobility ? <span className="text-amber-700"> M{mobility.get(t).mobility}</span> : null}{mobility.get(t)?.missing ? ' ✕' : ''}</th>)}</tr></thead>
         <tbody>
           {[['Buccal', ['MB', 'B', 'DB']], ['Lingual', ['ML', 'L', 'DL']]].map(([name, sites]) => (
@@ -64,6 +65,7 @@ export async function PerioTab({ id, p, providers, examId, href, paths }: { id: 
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 

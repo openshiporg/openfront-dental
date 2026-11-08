@@ -68,6 +68,7 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
       code { id code nomenclature patientFriendlyName } condition { id label } provider { abbreviation } appointment { id }
     }
     procedureCodes(where: { effectiveTo: { equals: null } }, orderBy: { code: asc }, take: 200) { id code nomenclature patientFriendlyName areaRule requiresSurfaces maxSurfaces }
+    fees(where: { feeVersion: { status: { equals: "published" }, schedule: { isDefault: { equals: true } } } }, take: 300) { amountMinor code { id } }
     conditionTypes(where: { isActive: { equals: true } }, orderBy: { label: asc }) { id label areaRule }
     appointments(where: { patient: { id: { equals: $id } }, status: { in: ["scheduled", "confirmed", "arrived", "seated", "ready_for_checkout"] } }, orderBy: { startsAt: asc }, take: 10) { id ref startsAt }
   }`, { id });
@@ -77,6 +78,8 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
     .map((e) => ({ id: e.id, kind: e.kind, tooth: e.tooth, surfaces: e.surfaces ?? '', status: e.status, conditionStatus: e.conditionStatus, label: e.kind === 'condition' ? e.condition?.label ?? 'Condition' : e.code?.patientFriendlyName || e.code?.nomenclature || 'Procedure' }));
   const selected = tooth && marks.some((m) => m.tooth === tooth) ? tooth : tooth;
   const forTooth = selected ? entries.filter((e) => e.tooth === selected) : [];
+  const feeByCode = new Map((d.fees as any[]).map((f) => [f.code?.id, f.amountMinor]));
+  const feeOf = (e: any) => e.feeMinor ?? feeByCode.get(e.code?.id) ?? 0;
   const open = entries.filter((e) => e.kind === 'procedure' && !['posted', 'existing_current', 'existing_other'].includes(e.status));
   const done = entries.filter((e) => e.kind === 'procedure' && ['posted', 'existing_current', 'existing_other'].includes(e.status));
   const conditions = entries.filter((e) => e.kind === 'condition' && e.conditionStatus !== 'resolved');
@@ -87,7 +90,7 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
     <>
       <div className="grid grid-cols-2 gap-4 rounded-lg border p-4 sm:grid-cols-4">
         <Stat name="Planned work" value={open.length} />
-        <Stat name="Planned fees" value={money(open.reduce((s, e) => s + BigInt(e.feeMinor ?? 0), 0n).toString())} />
+        <Stat name="Planned fees" value={money(open.reduce((s, e) => s + BigInt(feeOf(e)), 0n).toString())} />
         <Stat name="Completed" value={done.length} />
         <Stat name="Active conditions" value={conditions.length} />
       </div>
@@ -125,7 +128,7 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
       <Section title="Open work">
         {open.length ? open.map((e) => (
           <Row key={e.id}>
-            <span className="min-w-0"><TitleLine status={e.status}><span className="font-medium">{e.code?.patientFriendlyName || e.code?.nomenclature}</span></TitleLine><Meta>{e.code?.code} · {toothName(e)}</Meta></span>
+            <span className="min-w-0"><TitleLine status={e.status}><span className="font-medium">{e.code?.patientFriendlyName || e.code?.nomenclature}</span></TitleLine><Meta>{e.code?.code} · {toothName(e)} · {money(String(feeOf(e)))}</Meta></span>
             <PillTrack>
               {['diagnosed', 'planned'].includes(e.status) ? <ActionButton op="acceptChartEntry" vars={{ chartEntryId: e.id, expectedVersion: e.version }} paths={paths}>Accept</ActionButton> : null}
               {e.status === 'accepted' && (d.appointments as any[]).length ? <ActionButton op="scheduleChartEntry" vars={{ chartEntryId: e.id, expectedVersion: e.version, appointmentId: d.appointments[0].id }} paths={paths}>Schedule at next visit</ActionButton> : null}
