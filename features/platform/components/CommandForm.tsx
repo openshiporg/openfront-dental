@@ -7,7 +7,7 @@ import { runCommand } from '../actions/commands';
 import { pillClass } from './ActionButton';
 
 export type FieldSpec =
-  | { name: string; label: string; kind: 'text' | 'date' | 'email' | 'tel' | 'datetime'; required?: boolean; placeholder?: string; defaultValue?: string; hint?: string }
+  | { name: string; label: string; kind: 'text' | 'date' | 'email' | 'tel' | 'datetime' | 'password' | 'number'; required?: boolean; placeholder?: string; defaultValue?: string; hint?: string }
   | { name: string; label: string; kind: 'textarea'; required?: boolean; placeholder?: string; defaultValue?: string; hint?: string }
   | { name: string; label: string; kind: 'select'; options: { value: string; label: string }[]; required?: boolean; defaultValue?: string; hint?: string }
   | { name: string; label: string; kind: 'checkbox'; defaultValue?: boolean; hint?: string };
@@ -29,6 +29,38 @@ const SHAPES = {
   }),
   /** Merge proposal: the record to fold in, by chart number. */
   mergeByChart: (v: Values) => ({ mergedId: `chart:${v.mergedId}`, reason: v.reason }),
+  /** Chart a procedure or condition: tooth and surfaces become the `site` argument. */
+  chartSite: (v: Values) => ({ codeId: v.codeId || undefined, conditionId: v.conditionId || undefined, status: v.status || undefined, site: { tooth: v.tooth, surfaces: v.surfaces, quadrant: v.quadrant || undefined, arch: v.arch || undefined } }),
+  /** Whole-mouth or arch work: no tooth. */
+  chartMouth: (v: Values) => ({ codeId: v.codeId, status: v.status || undefined, site: { arch: v.arch || undefined, quadrant: v.quadrant || undefined } }),
+  /** Code import: pasted CSV text (header row first) becomes the row list. */
+  csvRows: (v: Values) => {
+    const lines = String(v.csv).split(/\r?\n/).filter((l) => l.trim());
+    const head = (lines.shift() ?? '').split(',').map((h) => h.trim());
+    return { systemKey: v.systemKey, label: v.label, editionYear: Number(v.editionYear), fileName: v.fileName || 'pasted.csv', rows: lines.map((l) => Object.fromEntries(l.split(',').map((c, i) => [head[i], c.trim()]))) };
+  },
+  /** Perio entry for one tooth: three buccal and three lingual numbers become six site measurements. */
+  perioRow: (v: Values) => {
+    const nums = (t: unknown) => String(t ?? '').split(/[\s,]+/).filter(Boolean).map(Number);
+    const bleed = new Set(String(v.bleeding ?? '').toUpperCase().split(/[\s,]+/).filter(Boolean));
+    const out: Record<string, unknown>[] = [];
+    const add = (sites: string[], depths: number[], margins: number[]) => sites.forEach((site, i) => { if (depths[i] !== undefined) out.push({ tooth: v.tooth, site, probingDepthMm: depths[i], gingivalMarginMm: margins[i], bleeding: bleed.has(site) }); });
+    add(['MB', 'B', 'DB'], nums(v.depths), nums(v.margins));
+    add(['ML', 'L', 'DL'], nums(v.lingualDepths), nums(v.lingualMargins));
+    return { measurements: out };
+  },
+  /** Plan acceptance: one checkbox per item (named item_<id>) becomes the selected list. */
+  acceptItems: (v: Values) => ({ selectedItemIds: Object.entries(v).filter(([k, on]) => k.startsWith('item_') && on).map(([k]) => k.slice(5)), signer: v.signer, signerName: v.signerName, password: v.password }),
+  /** New plan: one checkbox per diagnosed entry (named entry_<id>). */
+  planFromEntries: (v: Values) => ({ title: v.title, chartEntryIds: Object.entries(v).filter(([k, on]) => k.startsWith('entry_') && on).map(([k]) => k.slice(6)) }),
+  /** Fee entry: dollars become whole minor units. */
+  feeDollars: (v: Values) => ({ codeId: v.codeId, amountMinor: String(Math.round(Number(String(v.dollars).replace(/[$,]/g, '')) * 100)) }),
+  /** Signed form: the signer attests; no extra answers are collected at the desk. */
+  signForm: (v: Values) => ({ data: { recordedAt: 'in_office' }, signerName: v.signerName, signerRole: v.signerRole, password: v.password, witnessUserId: v.witnessUserId || undefined }),
+  /** Medical history answers: every field is a question key. */
+  historyAnswers: (v: Values) => ({ answers: Object.fromEntries(Object.entries(v)) }),
+  /** Statement that blood-pressure style numbers are numbers. */
+  vitals: (v: Values) => ({ systolic: v.systolic ? Number(v.systolic) : undefined, diastolic: v.diastolic ? Number(v.diastolic) : undefined, pulse: v.pulse ? Number(v.pulse) : undefined, asaClass: v.asaClass || undefined }),
 } satisfies Record<string, (v: Values) => Record<string, unknown>>;
 export type CommandShape = keyof typeof SHAPES;
 

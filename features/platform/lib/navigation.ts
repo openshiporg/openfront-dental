@@ -1,5 +1,5 @@
 import {
-  Activity, BookOpenCheck, CalendarCheck2, CalendarClock, CalendarDays, ClipboardCheck, Inbox, KeyRound, LucideIcon, MapPin, Settings, ShieldCheck, Users,
+  Activity, BookOpenCheck, CalendarCheck2, CalendarClock, CalendarDays, ClipboardCheck, FileSignature, Inbox, ListChecks, Receipt, KeyRound, LucideIcon, MapPin, Settings, ShieldCheck, Users,
 } from 'lucide-react'
 
 export interface PlatformNavItem {
@@ -27,6 +27,10 @@ export const platformNavItems: PlatformNavItem[] = [
   { title: 'Patients', href: '/platform/patients', color: 'emerald', description: 'Patients, families, guarantors and alerts.', icon: Users, group: 'standalone' },
   { title: 'Approvals', href: '/platform/approvals', color: 'amber', description: 'Requests waiting for a second person.', icon: ClipboardCheck, group: 'standalone' },
 
+  { title: 'Forms & consents', href: '/platform/forms', color: 'teal', description: 'Send forms, record signatures, withdraw consents.', icon: FileSignature, group: 'clinical' },
+  { title: 'Procedure codes', href: '/platform/codes', color: 'sky', description: 'Practice codes, licensed code imports and approvals.', icon: ListChecks, group: 'clinical' },
+  { title: 'Fee schedules', href: '/platform/fees', color: 'lime', description: 'Fee versions: draft, second-person publish.', icon: Receipt, group: 'clinical' },
+
   { title: 'ASAP list', href: '/platform/schedule/asap', color: 'cyan', description: 'Patients who want an earlier appointment.', icon: CalendarClock, group: 'front-desk' },
   { title: 'Confirmations', href: '/platform/schedule/confirmations', color: 'green', description: 'Tomorrow and the next two days: who has confirmed.', icon: CalendarCheck2, group: 'front-desk' },
   { title: 'Booking requests', href: '/platform/schedule/booking-requests', color: 'orange', description: 'Online booking requests waiting for review.', icon: Inbox, group: 'front-desk' },
@@ -44,6 +48,8 @@ export const SHIPPED_ROUTES = new Set<string>([
   '/platform/approvals', '/platform/audit', '/platform/settings/security',
   // Phase 1
   '/platform/schedule', '/platform/patients', '/platform/schedule/asap', '/platform/schedule/confirmations', '/platform/schedule/booking-requests', '/platform/settings/locations',
+  // Phase 2
+  '/platform/forms', '/platform/codes', '/platform/fees',
 ])
 
 const shipped = () => platformNavItems.filter(item => SHIPPED_ROUTES.has(item.href))
@@ -51,6 +57,7 @@ const shipped = () => platformNavItems.filter(item => SHIPPED_ROUTES.has(item.hr
 export const platformStandaloneItems = shipped().filter(item => item.group === 'standalone')
 
 export const platformNavGroups: PlatformNavGroup[] = [
+  { id: 'clinical', title: 'Clinical', icon: ListChecks, items: shipped().filter(i => i.group === 'clinical') },
   { id: 'front-desk', title: 'Front desk', icon: CalendarCheck2, items: shipped().filter(i => i.group === 'front-desk') },
   { id: 'practice', title: 'Practice', icon: Settings, items: shipped().filter(i => i.group === 'practice') },
 ]

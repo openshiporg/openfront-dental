@@ -11,6 +11,7 @@ import * as patients from './patients'
 import * as scheduling from './scheduling'
 import * as publicApi from './public'
 import * as portal from './portal'
+import { PHASE2_OPS, phase2TypeDefs } from './phase2Ops'
 import '../lib/practiceControls'
 
 const graphql = String.raw
@@ -47,6 +48,7 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
         addContactPoint(patientId: ID!, kind: String!, value: String!, isPrimary: Boolean, idempotencyKey: String!): JSON
         deactivateContactPoint(contactPointId: ID!, reason: String!, idempotencyKey: String!): JSON
         recordConsent(contactPointId: ID!, channel: String!, purpose: String!, granted: Boolean!, source: String, evidence: JSON, reason: String, idempotencyKey: String!): JSON
+${phase2TypeDefs}
         addPatientAlert(patientId: ID!, kind: String!, severity: String!, text: String!, idempotencyKey: String!): JSON
         endPatientAlert(alertId: ID!, reason: String!, idempotencyKey: String!): JSON
         linkGuarantor(patientId: ID!, guarantorPatientId: ID, personName: JSON, relationship: String!, idempotencyKey: String!): JSON
@@ -114,6 +116,7 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
         setPatientStatus: op(patients.setPatientStatus as any),
         proposeMerge: op(patients.proposeMerge as any),
         revertMerge: op(patients.revertMerge as any),
+        ...Object.fromEntries(Object.entries(PHASE2_OPS).map(([name, spec]) => [name, op(spec.fn as any)])),
         holdSlot: op(scheduling.holdSlot as any),
         releaseHold: op(scheduling.releaseHold as any),
         bookAppointment: op(scheduling.bookAppointment as any),

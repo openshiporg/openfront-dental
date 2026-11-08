@@ -8,6 +8,9 @@ import * as patients from './patients'
 import * as scheduling from './scheduling'
 import * as messaging from './messaging'
 import * as portal from './portal'
+import * as catalogue from './catalogue'
+import * as clinical from './clinical'
+import * as treatment from './treatment'
 import { applyPhiTiers } from '../security/phiFields'
 import { sys } from '../access'
 
@@ -42,6 +45,9 @@ export const models = hideRefusedActions(applyPhiTiers({
   ...listsOf(scheduling),
   ...listsOf(messaging),
   ...listsOf(portal),
+  ...listsOf(catalogue),
+  ...listsOf(clinical),
+  ...listsOf(treatment),
 }))
 
 export default models

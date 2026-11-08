@@ -16,6 +16,21 @@ export const COMPOUND_UNIQUES: Record<string, string[]> = {
   AppointmentSegment: ['@@index([providerId, startsAt], map: "AppointmentSegment_provider_start_idx")'],
   BookingHold: ['@@index([status, expiresAt], map: "BookingHold_status_expiry_idx")'],
   ConfirmationAttempt: ['@@index([status, scheduledFor], map: "ConfirmationAttempt_status_due_idx")'],
+  // Phase 2 (SCHEMA §5–§7)
+  ProcedureCode: ['@@unique([codeSystemId, code, effectiveFrom], map: "ProcedureCode_system_code_from_key")'],
+  ProcedureCodeCrosswalk: ['@@unique([localCodeId, targetCodeId], map: "ProcedureCodeCrosswalk_pair_key")'],
+  Fee: ['@@unique([feeVersionId, codeId], map: "Fee_version_code_key")'],
+  PerioExam: ['@@unique([patientId, examDate, examinerId, revision], map: "PerioExam_patient_date_examiner_rev_key")'],
+  PerioSiteMeasurement: ['@@unique([examId, tooth, site], map: "PerioSiteMeasurement_exam_tooth_site_key")'],
+  PerioToothFinding: ['@@unique([examId, tooth], map: "PerioToothFinding_exam_tooth_key")'],
+  TreatmentPlanVersion: ['@@unique([planId, number], map: "TreatmentPlanVersion_plan_number_key")'],
+  TreatmentPlanItem: ['@@unique([planVersionId, chartEntryId], map: "TreatmentPlanItem_version_entry_key")'],
+  ChartEntry: [
+    '@@index([patientId, status], map: "ChartEntry_patient_status_idx")',
+    '@@index([patientId, tooth], map: "ChartEntry_patient_tooth_idx")',
+    '@@index([dateOfService, locationId], map: "ChartEntry_service_location_idx")',
+  ],
+  ClinicalNote: ['@@index([patientId, status], map: "ClinicalNote_patient_status_idx")'],
   Message: ['@@index([conversationId, createdAt], map: "Message_conversation_created_idx")'],
 }
 

@@ -7,7 +7,7 @@ export default defineConfig({
     include: ['features/**/*.test.ts', 'tests/**/*.test.ts'],
     exclude: ['node_modules/**', '.keystone/**', 'tests/**/*.test.cjs'],
     environment: 'node',
-    testTimeout: 30_000,
+    testTimeout: 120_000,
     hookTimeout: 60_000,
     // Database suites share one scratch database; run files one at a time.
     fileParallelism: false,

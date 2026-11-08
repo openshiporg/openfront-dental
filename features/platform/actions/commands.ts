@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { PHASE2_ARGS } from '@/features/keystone/mutations/phase2Args';
 import { keystoneClient } from '@/features/dashboard/lib/keystoneClient';
 
 /**
@@ -8,6 +9,7 @@ import { keystoneClient } from '@/features/dashboard/lib/keystoneClient';
  * client makes once per intent and reuses on retry, so a lost response never acts twice.
  */
 const OPS: Record<string, Record<string, string>> = {
+  ...Object.fromEntries(Object.entries(PHASE2_ARGS)),
   decideApprovalRequest: { requestId: 'ID!', decision: 'String!', reason: 'String', expectedVersion: 'Int!' },
   cancelApprovalRequest: { requestId: 'ID!', expectedVersion: 'Int!', reason: 'String' },
   requestPracticeControls: { changes: 'JSON!', reason: 'String!' },

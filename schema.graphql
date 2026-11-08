@@ -7132,6 +7132,3795 @@ input ProviderProfileRelateToManyForCreateInput {
   connect: [ProviderProfileWhereUniqueInput!]
 }
 
+type CodeImportBatch {
+  id: ID!
+  label: String
+  codeSystem: CodeSystem
+  editionYear: Int
+  fileName: String
+  fileSha256: String
+  rows: JSON
+  columnMap: JSON
+  rowCount: Int
+  validationReport: JSON
+  attestation: JSON
+  attestedBy: User
+  attestedAt: DateTime
+  status: String
+  approval: ApprovalRequest
+  uploadedBy: User
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CodeImportBatchWhereUniqueInput {
+  id: ID
+}
+
+input CodeImportBatchWhereInput {
+  AND: [CodeImportBatchWhereInput!]
+  OR: [CodeImportBatchWhereInput!]
+  NOT: [CodeImportBatchWhereInput!]
+  id: IDFilter
+  label: StringFilter
+  codeSystem: CodeSystemWhereInput
+  editionYear: IntNullableFilter
+  fileName: StringFilter
+  fileSha256: StringFilter
+  rowCount: IntNullableFilter
+  attestedBy: UserWhereInput
+  attestedAt: DateTimeNullableFilter
+  status: StringFilter
+  approval: ApprovalRequestWhereInput
+  uploadedBy: UserWhereInput
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input CodeImportBatchOrderByInput {
+  id: OrderDirection
+  label: OrderDirection
+  editionYear: OrderDirection
+  fileName: OrderDirection
+  fileSha256: OrderDirection
+  rowCount: OrderDirection
+  attestedAt: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input CodeImportBatchUpdateInput {
+  label: String
+  codeSystem: CodeSystemRelateToOneForUpdateInput
+  editionYear: Int
+  fileName: String
+  fileSha256: String
+  rows: JSON
+  columnMap: JSON
+  rowCount: Int
+  validationReport: JSON
+  attestation: JSON
+  attestedBy: UserRelateToOneForUpdateInput
+  attestedAt: DateTime
+  status: String
+  approval: ApprovalRequestRelateToOneForUpdateInput
+  uploadedBy: UserRelateToOneForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CodeSystemRelateToOneForUpdateInput {
+  create: CodeSystemCreateInput
+  connect: CodeSystemWhereUniqueInput
+  disconnect: Boolean
+}
+
+input CodeImportBatchUpdateArgs {
+  where: CodeImportBatchWhereUniqueInput!
+  data: CodeImportBatchUpdateInput!
+}
+
+input CodeImportBatchCreateInput {
+  label: String
+  codeSystem: CodeSystemRelateToOneForCreateInput
+  editionYear: Int
+  fileName: String
+  fileSha256: String
+  rows: JSON
+  columnMap: JSON
+  rowCount: Int
+  validationReport: JSON
+  attestation: JSON
+  attestedBy: UserRelateToOneForCreateInput
+  attestedAt: DateTime
+  status: String
+  approval: ApprovalRequestRelateToOneForCreateInput
+  uploadedBy: UserRelateToOneForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CodeSystemRelateToOneForCreateInput {
+  create: CodeSystemCreateInput
+  connect: CodeSystemWhereUniqueInput
+}
+
+type CodeSystem {
+  id: ID!
+  key: String
+  name: String
+  isLicensed: Boolean
+  activeImport: CodeImportBatch
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CodeSystemWhereUniqueInput {
+  id: ID
+  key: String
+}
+
+input CodeSystemWhereInput {
+  AND: [CodeSystemWhereInput!]
+  OR: [CodeSystemWhereInput!]
+  NOT: [CodeSystemWhereInput!]
+  id: IDFilter
+  key: StringFilter
+  name: StringFilter
+  isLicensed: BooleanFilter
+  activeImport: CodeImportBatchWhereInput
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input CodeSystemOrderByInput {
+  id: OrderDirection
+  key: OrderDirection
+  name: OrderDirection
+  isLicensed: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input CodeSystemUpdateInput {
+  key: String
+  name: String
+  isLicensed: Boolean
+  activeImport: CodeImportBatchRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CodeImportBatchRelateToOneForUpdateInput {
+  create: CodeImportBatchCreateInput
+  connect: CodeImportBatchWhereUniqueInput
+  disconnect: Boolean
+}
+
+input CodeSystemUpdateArgs {
+  where: CodeSystemWhereUniqueInput!
+  data: CodeSystemUpdateInput!
+}
+
+input CodeSystemCreateInput {
+  key: String
+  name: String
+  isLicensed: Boolean
+  activeImport: CodeImportBatchRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CodeImportBatchRelateToOneForCreateInput {
+  create: CodeImportBatchCreateInput
+  connect: CodeImportBatchWhereUniqueInput
+}
+
+type ExplosionCode {
+  id: ID!
+  name: String
+  items: JSON
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ExplosionCodeWhereUniqueInput {
+  id: ID
+}
+
+input ExplosionCodeWhereInput {
+  AND: [ExplosionCodeWhereInput!]
+  OR: [ExplosionCodeWhereInput!]
+  NOT: [ExplosionCodeWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  isActive: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ExplosionCodeOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  isActive: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ExplosionCodeUpdateInput {
+  name: String
+  items: JSON
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ExplosionCodeUpdateArgs {
+  where: ExplosionCodeWhereUniqueInput!
+  data: ExplosionCodeUpdateInput!
+}
+
+input ExplosionCodeCreateInput {
+  name: String
+  items: JSON
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Fee {
+  id: ID!
+  feeVersion: FeeScheduleVersion
+  code: ProcedureCode
+  amountMinor: BigInt
+  copayMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeWhereUniqueInput {
+  id: ID
+}
+
+input FeeWhereInput {
+  AND: [FeeWhereInput!]
+  OR: [FeeWhereInput!]
+  NOT: [FeeWhereInput!]
+  id: IDFilter
+  feeVersion: FeeScheduleVersionWhereInput
+  code: ProcedureCodeWhereInput
+  amountMinor: BigIntFilter
+  copayMinor: BigIntNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input FeeOrderByInput {
+  id: OrderDirection
+  amountMinor: OrderDirection
+  copayMinor: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FeeUpdateInput {
+  feeVersion: FeeScheduleVersionRelateToOneForUpdateInput
+  code: ProcedureCodeRelateToOneForUpdateInput
+  amountMinor: BigInt
+  copayMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeScheduleVersionRelateToOneForUpdateInput {
+  create: FeeScheduleVersionCreateInput
+  connect: FeeScheduleVersionWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ProcedureCodeRelateToOneForUpdateInput {
+  create: ProcedureCodeCreateInput
+  connect: ProcedureCodeWhereUniqueInput
+  disconnect: Boolean
+}
+
+input FeeUpdateArgs {
+  where: FeeWhereUniqueInput!
+  data: FeeUpdateInput!
+}
+
+input FeeCreateInput {
+  feeVersion: FeeScheduleVersionRelateToOneForCreateInput
+  code: ProcedureCodeRelateToOneForCreateInput
+  amountMinor: BigInt
+  copayMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeScheduleVersionRelateToOneForCreateInput {
+  create: FeeScheduleVersionCreateInput
+  connect: FeeScheduleVersionWhereUniqueInput
+}
+
+input ProcedureCodeRelateToOneForCreateInput {
+  create: ProcedureCodeCreateInput
+  connect: ProcedureCodeWhereUniqueInput
+}
+
+type FeeSchedule {
+  id: ID!
+  name: String
+  kind: String
+  isDefault: Boolean
+  versions(where: FeeScheduleVersionWhereInput! = {}, orderBy: [FeeScheduleVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FeeScheduleVersionWhereUniqueInput): [FeeScheduleVersion!]
+  versionsCount(where: FeeScheduleVersionWhereInput! = {}): Int
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeScheduleWhereUniqueInput {
+  id: ID
+}
+
+input FeeScheduleWhereInput {
+  AND: [FeeScheduleWhereInput!]
+  OR: [FeeScheduleWhereInput!]
+  NOT: [FeeScheduleWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  kind: StringFilter
+  isDefault: BooleanFilter
+  versions: FeeScheduleVersionManyRelationFilter
+  isSynthetic: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input FeeScheduleVersionManyRelationFilter {
+  every: FeeScheduleVersionWhereInput
+  some: FeeScheduleVersionWhereInput
+  none: FeeScheduleVersionWhereInput
+}
+
+input FeeScheduleOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  kind: OrderDirection
+  isDefault: OrderDirection
+  isSynthetic: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FeeScheduleUpdateInput {
+  name: String
+  kind: String
+  isDefault: Boolean
+  versions: FeeScheduleVersionRelateToManyForUpdateInput
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeScheduleVersionRelateToManyForUpdateInput {
+  disconnect: [FeeScheduleVersionWhereUniqueInput!]
+  set: [FeeScheduleVersionWhereUniqueInput!]
+  create: [FeeScheduleVersionCreateInput!]
+  connect: [FeeScheduleVersionWhereUniqueInput!]
+}
+
+input FeeScheduleUpdateArgs {
+  where: FeeScheduleWhereUniqueInput!
+  data: FeeScheduleUpdateInput!
+}
+
+input FeeScheduleCreateInput {
+  name: String
+  kind: String
+  isDefault: Boolean
+  versions: FeeScheduleVersionRelateToManyForCreateInput
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeScheduleVersionRelateToManyForCreateInput {
+  create: [FeeScheduleVersionCreateInput!]
+  connect: [FeeScheduleVersionWhereUniqueInput!]
+}
+
+type FeeScheduleVersion {
+  id: ID!
+  label: String
+  schedule: FeeSchedule
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  status: String
+  publishedBy: User
+  publishedAt: DateTime
+  approval: ApprovalRequest
+  fees(where: FeeWhereInput! = {}, orderBy: [FeeOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FeeWhereUniqueInput): [Fee!]
+  feesCount(where: FeeWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeScheduleVersionWhereUniqueInput {
+  id: ID
+}
+
+input FeeScheduleVersionWhereInput {
+  AND: [FeeScheduleVersionWhereInput!]
+  OR: [FeeScheduleVersionWhereInput!]
+  NOT: [FeeScheduleVersionWhereInput!]
+  id: IDFilter
+  label: StringFilter
+  schedule: FeeScheduleWhereInput
+  effectiveFrom: CalendarDayNullableFilter
+  effectiveTo: CalendarDayNullableFilter
+  status: StringFilter
+  publishedBy: UserWhereInput
+  publishedAt: DateTimeNullableFilter
+  approval: ApprovalRequestWhereInput
+  fees: FeeManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input FeeManyRelationFilter {
+  every: FeeWhereInput
+  some: FeeWhereInput
+  none: FeeWhereInput
+}
+
+input FeeScheduleVersionOrderByInput {
+  id: OrderDirection
+  label: OrderDirection
+  effectiveFrom: OrderDirection
+  effectiveTo: OrderDirection
+  status: OrderDirection
+  publishedAt: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FeeScheduleVersionUpdateInput {
+  label: String
+  schedule: FeeScheduleRelateToOneForUpdateInput
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  status: String
+  publishedBy: UserRelateToOneForUpdateInput
+  publishedAt: DateTime
+  approval: ApprovalRequestRelateToOneForUpdateInput
+  fees: FeeRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeScheduleRelateToOneForUpdateInput {
+  create: FeeScheduleCreateInput
+  connect: FeeScheduleWhereUniqueInput
+  disconnect: Boolean
+}
+
+input FeeRelateToManyForUpdateInput {
+  disconnect: [FeeWhereUniqueInput!]
+  set: [FeeWhereUniqueInput!]
+  create: [FeeCreateInput!]
+  connect: [FeeWhereUniqueInput!]
+}
+
+input FeeScheduleVersionUpdateArgs {
+  where: FeeScheduleVersionWhereUniqueInput!
+  data: FeeScheduleVersionUpdateInput!
+}
+
+input FeeScheduleVersionCreateInput {
+  label: String
+  schedule: FeeScheduleRelateToOneForCreateInput
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  status: String
+  publishedBy: UserRelateToOneForCreateInput
+  publishedAt: DateTime
+  approval: ApprovalRequestRelateToOneForCreateInput
+  fees: FeeRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FeeScheduleRelateToOneForCreateInput {
+  create: FeeScheduleCreateInput
+  connect: FeeScheduleWhereUniqueInput
+}
+
+input FeeRelateToManyForCreateInput {
+  create: [FeeCreateInput!]
+  connect: [FeeWhereUniqueInput!]
+}
+
+type GuarantorAccount {
+  id: ID!
+  ref: String
+  guarantor: Guarantor
+  balanceCache: JSON
+  balanceRebuiltAt: DateTime
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input GuarantorAccountWhereUniqueInput {
+  id: ID
+  ref: String
+}
+
+input GuarantorAccountWhereInput {
+  AND: [GuarantorAccountWhereInput!]
+  OR: [GuarantorAccountWhereInput!]
+  NOT: [GuarantorAccountWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  guarantor: GuarantorWhereInput
+  balanceRebuiltAt: DateTimeNullableFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input GuarantorAccountOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  balanceRebuiltAt: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input GuarantorAccountUpdateInput {
+  ref: String
+  guarantor: GuarantorRelateToOneForUpdateInput
+  balanceCache: JSON
+  balanceRebuiltAt: DateTime
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input GuarantorAccountUpdateArgs {
+  where: GuarantorAccountWhereUniqueInput!
+  data: GuarantorAccountUpdateInput!
+}
+
+input GuarantorAccountCreateInput {
+  ref: String
+  guarantor: GuarantorRelateToOneForCreateInput
+  balanceCache: JSON
+  balanceRebuiltAt: DateTime
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type LedgerEntry {
+  id: ID!
+  account: GuarantorAccount
+  patient: Patient
+  kind: String
+  amountMinor: BigInt
+  currencyCode: String
+  businessDate: CalendarDay
+  originalBusinessDate: CalendarDay
+  location: Location
+  provider: ProviderProfile
+  chartEntry: ChartEntry
+  reverses: LedgerEntry
+  memo: String
+  postedBy: User
+  postedAt: DateTime
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input LedgerEntryWhereUniqueInput {
+  id: ID
+}
+
+input LedgerEntryWhereInput {
+  AND: [LedgerEntryWhereInput!]
+  OR: [LedgerEntryWhereInput!]
+  NOT: [LedgerEntryWhereInput!]
+  id: IDFilter
+  account: GuarantorAccountWhereInput
+  patient: PatientWhereInput
+  kind: StringFilter
+  amountMinor: BigIntFilter
+  currencyCode: StringFilter
+  businessDate: CalendarDayNullableFilter
+  originalBusinessDate: CalendarDayNullableFilter
+  location: LocationWhereInput
+  provider: ProviderProfileWhereInput
+  chartEntry: ChartEntryWhereInput
+  reverses: LedgerEntryWhereInput
+  memo: StringFilter
+  postedBy: UserWhereInput
+  postedAt: DateTimeNullableFilter
+  isSynthetic: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input LedgerEntryOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  amountMinor: OrderDirection
+  currencyCode: OrderDirection
+  businessDate: OrderDirection
+  originalBusinessDate: OrderDirection
+  memo: OrderDirection
+  postedAt: OrderDirection
+  isSynthetic: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input LedgerEntryUpdateInput {
+  account: GuarantorAccountRelateToOneForUpdateInput
+  patient: PatientRelateToOneForUpdateInput
+  kind: String
+  amountMinor: BigInt
+  currencyCode: String
+  businessDate: CalendarDay
+  originalBusinessDate: CalendarDay
+  location: LocationRelateToOneForUpdateInput
+  provider: ProviderProfileRelateToOneForUpdateInput
+  chartEntry: ChartEntryRelateToOneForUpdateInput
+  reverses: LedgerEntryRelateToOneForUpdateInput
+  memo: String
+  postedBy: UserRelateToOneForUpdateInput
+  postedAt: DateTime
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input GuarantorAccountRelateToOneForUpdateInput {
+  create: GuarantorAccountCreateInput
+  connect: GuarantorAccountWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ChartEntryRelateToOneForUpdateInput {
+  create: ChartEntryCreateInput
+  connect: ChartEntryWhereUniqueInput
+  disconnect: Boolean
+}
+
+input LedgerEntryRelateToOneForUpdateInput {
+  create: LedgerEntryCreateInput
+  connect: LedgerEntryWhereUniqueInput
+  disconnect: Boolean
+}
+
+input LedgerEntryUpdateArgs {
+  where: LedgerEntryWhereUniqueInput!
+  data: LedgerEntryUpdateInput!
+}
+
+input LedgerEntryCreateInput {
+  account: GuarantorAccountRelateToOneForCreateInput
+  patient: PatientRelateToOneForCreateInput
+  kind: String
+  amountMinor: BigInt
+  currencyCode: String
+  businessDate: CalendarDay
+  originalBusinessDate: CalendarDay
+  location: LocationRelateToOneForCreateInput
+  provider: ProviderProfileRelateToOneForCreateInput
+  chartEntry: ChartEntryRelateToOneForCreateInput
+  reverses: LedgerEntryRelateToOneForCreateInput
+  memo: String
+  postedBy: UserRelateToOneForCreateInput
+  postedAt: DateTime
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input GuarantorAccountRelateToOneForCreateInput {
+  create: GuarantorAccountCreateInput
+  connect: GuarantorAccountWhereUniqueInput
+}
+
+input ChartEntryRelateToOneForCreateInput {
+  create: ChartEntryCreateInput
+  connect: ChartEntryWhereUniqueInput
+}
+
+input LedgerEntryRelateToOneForCreateInput {
+  create: LedgerEntryCreateInput
+  connect: LedgerEntryWhereUniqueInput
+}
+
+type ProcedureCode {
+  id: ID!
+  codeSystem: CodeSystem
+  code: String
+  nomenclature: String
+  patientFriendlyName: String
+  category: String
+  estimatingCategory: String
+  areaRule: String
+  requiresSurfaces: Boolean
+  maxSurfaces: Int
+  isLabMade: Boolean
+  isPreventiveRecallTrigger: Boolean
+  defaultUnitsMinutes: Int
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  importBatch: CodeImportBatch
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ProcedureCodeWhereUniqueInput {
+  id: ID
+}
+
+input ProcedureCodeWhereInput {
+  AND: [ProcedureCodeWhereInput!]
+  OR: [ProcedureCodeWhereInput!]
+  NOT: [ProcedureCodeWhereInput!]
+  id: IDFilter
+  codeSystem: CodeSystemWhereInput
+  code: StringFilter
+  nomenclature: StringFilter
+  patientFriendlyName: StringFilter
+  category: StringFilter
+  estimatingCategory: StringFilter
+  areaRule: StringFilter
+  requiresSurfaces: BooleanFilter
+  maxSurfaces: IntNullableFilter
+  isLabMade: BooleanFilter
+  isPreventiveRecallTrigger: BooleanFilter
+  defaultUnitsMinutes: IntNullableFilter
+  effectiveFrom: CalendarDayNullableFilter
+  effectiveTo: CalendarDayNullableFilter
+  importBatch: CodeImportBatchWhereInput
+  isSynthetic: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ProcedureCodeOrderByInput {
+  id: OrderDirection
+  code: OrderDirection
+  nomenclature: OrderDirection
+  patientFriendlyName: OrderDirection
+  category: OrderDirection
+  estimatingCategory: OrderDirection
+  areaRule: OrderDirection
+  requiresSurfaces: OrderDirection
+  maxSurfaces: OrderDirection
+  isLabMade: OrderDirection
+  isPreventiveRecallTrigger: OrderDirection
+  defaultUnitsMinutes: OrderDirection
+  effectiveFrom: OrderDirection
+  effectiveTo: OrderDirection
+  isSynthetic: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ProcedureCodeUpdateInput {
+  codeSystem: CodeSystemRelateToOneForUpdateInput
+  code: String
+  nomenclature: String
+  patientFriendlyName: String
+  category: String
+  estimatingCategory: String
+  areaRule: String
+  requiresSurfaces: Boolean
+  maxSurfaces: Int
+  isLabMade: Boolean
+  isPreventiveRecallTrigger: Boolean
+  defaultUnitsMinutes: Int
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  importBatch: CodeImportBatchRelateToOneForUpdateInput
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ProcedureCodeUpdateArgs {
+  where: ProcedureCodeWhereUniqueInput!
+  data: ProcedureCodeUpdateInput!
+}
+
+input ProcedureCodeCreateInput {
+  codeSystem: CodeSystemRelateToOneForCreateInput
+  code: String
+  nomenclature: String
+  patientFriendlyName: String
+  category: String
+  estimatingCategory: String
+  areaRule: String
+  requiresSurfaces: Boolean
+  maxSurfaces: Int
+  isLabMade: Boolean
+  isPreventiveRecallTrigger: Boolean
+  defaultUnitsMinutes: Int
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  importBatch: CodeImportBatchRelateToOneForCreateInput
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ProcedureCodeCrosswalk {
+  id: ID!
+  localCode: ProcedureCode
+  targetCode: ProcedureCode
+  status: String
+  proposedBasis: String
+  createdBy: User
+  confirmedBy: User
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ProcedureCodeCrosswalkWhereUniqueInput {
+  id: ID
+}
+
+input ProcedureCodeCrosswalkWhereInput {
+  AND: [ProcedureCodeCrosswalkWhereInput!]
+  OR: [ProcedureCodeCrosswalkWhereInput!]
+  NOT: [ProcedureCodeCrosswalkWhereInput!]
+  id: IDFilter
+  localCode: ProcedureCodeWhereInput
+  targetCode: ProcedureCodeWhereInput
+  status: StringFilter
+  proposedBasis: StringFilter
+  createdBy: UserWhereInput
+  confirmedBy: UserWhereInput
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ProcedureCodeCrosswalkOrderByInput {
+  id: OrderDirection
+  status: OrderDirection
+  proposedBasis: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ProcedureCodeCrosswalkUpdateInput {
+  localCode: ProcedureCodeRelateToOneForUpdateInput
+  targetCode: ProcedureCodeRelateToOneForUpdateInput
+  status: String
+  proposedBasis: String
+  createdBy: UserRelateToOneForUpdateInput
+  confirmedBy: UserRelateToOneForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ProcedureCodeCrosswalkUpdateArgs {
+  where: ProcedureCodeCrosswalkWhereUniqueInput!
+  data: ProcedureCodeCrosswalkUpdateInput!
+}
+
+input ProcedureCodeCrosswalkCreateInput {
+  localCode: ProcedureCodeRelateToOneForCreateInput
+  targetCode: ProcedureCodeRelateToOneForCreateInput
+  status: String
+  proposedBasis: String
+  createdBy: UserRelateToOneForCreateInput
+  confirmedBy: UserRelateToOneForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type AnestheticLog {
+  id: ID!
+  patient: Patient
+  appointment: Appointment
+  drug: String
+  concentration: String
+  vasoconstrictor: String
+  carpules: Decimal
+  injectionSites: JSON
+  administeredBy: User
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+scalar Decimal
+
+input AnestheticLogWhereUniqueInput {
+  id: ID
+}
+
+input AnestheticLogWhereInput {
+  AND: [AnestheticLogWhereInput!]
+  OR: [AnestheticLogWhereInput!]
+  NOT: [AnestheticLogWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  appointment: AppointmentWhereInput
+  drug: StringFilter
+  concentration: StringFilter
+  vasoconstrictor: StringFilter
+  carpules: DecimalNullableFilter
+  administeredBy: UserWhereInput
+  at: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input DecimalNullableFilter {
+  equals: Decimal
+  in: [Decimal!]
+  notIn: [Decimal!]
+  lt: Decimal
+  lte: Decimal
+  gt: Decimal
+  gte: Decimal
+  not: DecimalNullableFilter
+}
+
+input AnestheticLogOrderByInput {
+  id: OrderDirection
+  drug: OrderDirection
+  concentration: OrderDirection
+  vasoconstrictor: OrderDirection
+  carpules: OrderDirection
+  at: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input AnestheticLogUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  appointment: AppointmentRelateToOneForUpdateInput
+  drug: String
+  concentration: String
+  vasoconstrictor: String
+  carpules: Decimal
+  injectionSites: JSON
+  administeredBy: UserRelateToOneForUpdateInput
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AnestheticLogUpdateArgs {
+  where: AnestheticLogWhereUniqueInput!
+  data: AnestheticLogUpdateInput!
+}
+
+input AnestheticLogCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  appointment: AppointmentRelateToOneForCreateInput
+  drug: String
+  concentration: String
+  vasoconstrictor: String
+  carpules: Decimal
+  injectionSites: JSON
+  administeredBy: UserRelateToOneForCreateInput
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ChartEntry {
+  id: ID!
+  patient: Patient
+  kind: String
+  code: ProcedureCode
+  condition: ConditionType
+  tooth: String
+  surfaces: String
+  area: String
+  quadrant: String
+  sextant: Int
+  arch: String
+  status: String
+  conditionStatus: String
+  dateOfService: CalendarDay
+  originalServiceDate: CalendarDay
+  provider: ProviderProfile
+  location: Location
+  appointment: Appointment
+  feeMinor: BigInt
+  feeScheduleVersion: FeeScheduleVersion
+  units: Int
+  ledgerEntry: LedgerEntry
+  correctedBy: ChartEntry
+  corrects: ChartEntry
+  diagnosisCodes: JSON
+  note: ClinicalNote
+  externalFinding: ExternalFinding
+  source: String
+  acceptedVia: String
+  deletedReason: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ChartEntryWhereUniqueInput {
+  id: ID
+}
+
+input ChartEntryWhereInput {
+  AND: [ChartEntryWhereInput!]
+  OR: [ChartEntryWhereInput!]
+  NOT: [ChartEntryWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  kind: StringFilter
+  code: ProcedureCodeWhereInput
+  condition: ConditionTypeWhereInput
+  tooth: StringFilter
+  surfaces: StringFilter
+  area: StringFilter
+  quadrant: StringFilter
+  sextant: IntNullableFilter
+  arch: StringFilter
+  status: StringFilter
+  conditionStatus: StringFilter
+  dateOfService: CalendarDayNullableFilter
+  originalServiceDate: CalendarDayNullableFilter
+  provider: ProviderProfileWhereInput
+  location: LocationWhereInput
+  appointment: AppointmentWhereInput
+  feeMinor: BigIntNullableFilter
+  feeScheduleVersion: FeeScheduleVersionWhereInput
+  units: IntNullableFilter
+  ledgerEntry: LedgerEntryWhereInput
+  correctedBy: ChartEntryWhereInput
+  corrects: ChartEntryWhereInput
+  note: ClinicalNoteWhereInput
+  externalFinding: ExternalFindingWhereInput
+  source: StringFilter
+  acceptedVia: StringFilter
+  deletedReason: StringFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ChartEntryOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  tooth: OrderDirection
+  surfaces: OrderDirection
+  area: OrderDirection
+  quadrant: OrderDirection
+  sextant: OrderDirection
+  arch: OrderDirection
+  status: OrderDirection
+  conditionStatus: OrderDirection
+  dateOfService: OrderDirection
+  originalServiceDate: OrderDirection
+  feeMinor: OrderDirection
+  units: OrderDirection
+  source: OrderDirection
+  acceptedVia: OrderDirection
+  deletedReason: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ChartEntryUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  kind: String
+  code: ProcedureCodeRelateToOneForUpdateInput
+  condition: ConditionTypeRelateToOneForUpdateInput
+  tooth: String
+  surfaces: String
+  area: String
+  quadrant: String
+  sextant: Int
+  arch: String
+  status: String
+  conditionStatus: String
+  dateOfService: CalendarDay
+  originalServiceDate: CalendarDay
+  provider: ProviderProfileRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  appointment: AppointmentRelateToOneForUpdateInput
+  feeMinor: BigInt
+  feeScheduleVersion: FeeScheduleVersionRelateToOneForUpdateInput
+  units: Int
+  ledgerEntry: LedgerEntryRelateToOneForUpdateInput
+  correctedBy: ChartEntryRelateToOneForUpdateInput
+  corrects: ChartEntryRelateToOneForUpdateInput
+  diagnosisCodes: JSON
+  note: ClinicalNoteRelateToOneForUpdateInput
+  externalFinding: ExternalFindingRelateToOneForUpdateInput
+  source: String
+  acceptedVia: String
+  deletedReason: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConditionTypeRelateToOneForUpdateInput {
+  create: ConditionTypeCreateInput
+  connect: ConditionTypeWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ClinicalNoteRelateToOneForUpdateInput {
+  create: ClinicalNoteCreateInput
+  connect: ClinicalNoteWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ExternalFindingRelateToOneForUpdateInput {
+  create: ExternalFindingCreateInput
+  connect: ExternalFindingWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ChartEntryUpdateArgs {
+  where: ChartEntryWhereUniqueInput!
+  data: ChartEntryUpdateInput!
+}
+
+input ChartEntryCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  kind: String
+  code: ProcedureCodeRelateToOneForCreateInput
+  condition: ConditionTypeRelateToOneForCreateInput
+  tooth: String
+  surfaces: String
+  area: String
+  quadrant: String
+  sextant: Int
+  arch: String
+  status: String
+  conditionStatus: String
+  dateOfService: CalendarDay
+  originalServiceDate: CalendarDay
+  provider: ProviderProfileRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  appointment: AppointmentRelateToOneForCreateInput
+  feeMinor: BigInt
+  feeScheduleVersion: FeeScheduleVersionRelateToOneForCreateInput
+  units: Int
+  ledgerEntry: LedgerEntryRelateToOneForCreateInput
+  correctedBy: ChartEntryRelateToOneForCreateInput
+  corrects: ChartEntryRelateToOneForCreateInput
+  diagnosisCodes: JSON
+  note: ClinicalNoteRelateToOneForCreateInput
+  externalFinding: ExternalFindingRelateToOneForCreateInput
+  source: String
+  acceptedVia: String
+  deletedReason: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConditionTypeRelateToOneForCreateInput {
+  create: ConditionTypeCreateInput
+  connect: ConditionTypeWhereUniqueInput
+}
+
+input ClinicalNoteRelateToOneForCreateInput {
+  create: ClinicalNoteCreateInput
+  connect: ClinicalNoteWhereUniqueInput
+}
+
+input ExternalFindingRelateToOneForCreateInput {
+  create: ExternalFindingCreateInput
+  connect: ExternalFindingWhereUniqueInput
+}
+
+type ClinicalNote {
+  id: ID!
+  patient: Patient
+  appointment: Appointment
+  author: User
+  provider: ProviderProfile
+  template: NoteTemplateVersion
+  title: String
+  body: String
+  bodyHash: String
+  status: String
+  amends: ClinicalNote
+  isLateEntry: Boolean
+  refersToAt: DateTime
+  signedAt: DateTime
+  signatureMethod: String
+  errorReason: String
+  draftedByProposal: Proposal
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClinicalNoteWhereUniqueInput {
+  id: ID
+}
+
+input ClinicalNoteWhereInput {
+  AND: [ClinicalNoteWhereInput!]
+  OR: [ClinicalNoteWhereInput!]
+  NOT: [ClinicalNoteWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  appointment: AppointmentWhereInput
+  author: UserWhereInput
+  provider: ProviderProfileWhereInput
+  template: NoteTemplateVersionWhereInput
+  title: StringFilter
+  body: StringFilter
+  bodyHash: StringFilter
+  status: StringFilter
+  amends: ClinicalNoteWhereInput
+  isLateEntry: BooleanFilter
+  refersToAt: DateTimeNullableFilter
+  signedAt: DateTimeNullableFilter
+  signatureMethod: StringFilter
+  errorReason: StringFilter
+  draftedByProposal: ProposalWhereInput
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ClinicalNoteOrderByInput {
+  id: OrderDirection
+  title: OrderDirection
+  body: OrderDirection
+  bodyHash: OrderDirection
+  status: OrderDirection
+  isLateEntry: OrderDirection
+  refersToAt: OrderDirection
+  signedAt: OrderDirection
+  signatureMethod: OrderDirection
+  errorReason: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ClinicalNoteUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  appointment: AppointmentRelateToOneForUpdateInput
+  author: UserRelateToOneForUpdateInput
+  provider: ProviderProfileRelateToOneForUpdateInput
+  template: NoteTemplateVersionRelateToOneForUpdateInput
+  title: String
+  body: String
+  bodyHash: String
+  status: String
+  amends: ClinicalNoteRelateToOneForUpdateInput
+  isLateEntry: Boolean
+  refersToAt: DateTime
+  signedAt: DateTime
+  signatureMethod: String
+  errorReason: String
+  draftedByProposal: ProposalRelateToOneForUpdateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NoteTemplateVersionRelateToOneForUpdateInput {
+  create: NoteTemplateVersionCreateInput
+  connect: NoteTemplateVersionWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ClinicalNoteUpdateArgs {
+  where: ClinicalNoteWhereUniqueInput!
+  data: ClinicalNoteUpdateInput!
+}
+
+input ClinicalNoteCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  appointment: AppointmentRelateToOneForCreateInput
+  author: UserRelateToOneForCreateInput
+  provider: ProviderProfileRelateToOneForCreateInput
+  template: NoteTemplateVersionRelateToOneForCreateInput
+  title: String
+  body: String
+  bodyHash: String
+  status: String
+  amends: ClinicalNoteRelateToOneForCreateInput
+  isLateEntry: Boolean
+  refersToAt: DateTime
+  signedAt: DateTime
+  signatureMethod: String
+  errorReason: String
+  draftedByProposal: ProposalRelateToOneForCreateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NoteTemplateVersionRelateToOneForCreateInput {
+  create: NoteTemplateVersionCreateInput
+  connect: NoteTemplateVersionWhereUniqueInput
+}
+
+type ConditionType {
+  id: ID!
+  code: String
+  label: String
+  chartSymbol: String
+  areaRule: String
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConditionTypeWhereUniqueInput {
+  id: ID
+  code: String
+}
+
+input ConditionTypeWhereInput {
+  AND: [ConditionTypeWhereInput!]
+  OR: [ConditionTypeWhereInput!]
+  NOT: [ConditionTypeWhereInput!]
+  id: IDFilter
+  code: StringFilter
+  label: StringFilter
+  chartSymbol: StringFilter
+  areaRule: StringFilter
+  isActive: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ConditionTypeOrderByInput {
+  id: OrderDirection
+  code: OrderDirection
+  label: OrderDirection
+  chartSymbol: OrderDirection
+  areaRule: OrderDirection
+  isActive: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ConditionTypeUpdateInput {
+  code: String
+  label: String
+  chartSymbol: String
+  areaRule: String
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConditionTypeUpdateArgs {
+  where: ConditionTypeWhereUniqueInput!
+  data: ConditionTypeUpdateInput!
+}
+
+input ConditionTypeCreateInput {
+  code: String
+  label: String
+  chartSymbol: String
+  areaRule: String
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ExternalFinding {
+  id: ID!
+  study: ImagingStudy
+  patient: Patient
+  vendor: String
+  device: String
+  modelVersion: String
+  clearanceRef: String
+  findingType: String
+  tooth: String
+  surfaces: String
+  confidence: Decimal
+  status: String
+  decidedBy: User
+  dismissReason: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ExternalFindingWhereUniqueInput {
+  id: ID
+}
+
+input ExternalFindingWhereInput {
+  AND: [ExternalFindingWhereInput!]
+  OR: [ExternalFindingWhereInput!]
+  NOT: [ExternalFindingWhereInput!]
+  id: IDFilter
+  study: ImagingStudyWhereInput
+  patient: PatientWhereInput
+  vendor: StringFilter
+  device: StringFilter
+  modelVersion: StringFilter
+  clearanceRef: StringFilter
+  findingType: StringFilter
+  tooth: StringFilter
+  surfaces: StringFilter
+  confidence: DecimalNullableFilter
+  status: StringFilter
+  decidedBy: UserWhereInput
+  dismissReason: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ExternalFindingOrderByInput {
+  id: OrderDirection
+  vendor: OrderDirection
+  device: OrderDirection
+  modelVersion: OrderDirection
+  clearanceRef: OrderDirection
+  findingType: OrderDirection
+  tooth: OrderDirection
+  surfaces: OrderDirection
+  confidence: OrderDirection
+  status: OrderDirection
+  dismissReason: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ExternalFindingUpdateInput {
+  study: ImagingStudyRelateToOneForUpdateInput
+  patient: PatientRelateToOneForUpdateInput
+  vendor: String
+  device: String
+  modelVersion: String
+  clearanceRef: String
+  findingType: String
+  tooth: String
+  surfaces: String
+  confidence: Decimal
+  status: String
+  decidedBy: UserRelateToOneForUpdateInput
+  dismissReason: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ImagingStudyRelateToOneForUpdateInput {
+  create: ImagingStudyCreateInput
+  connect: ImagingStudyWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ExternalFindingUpdateArgs {
+  where: ExternalFindingWhereUniqueInput!
+  data: ExternalFindingUpdateInput!
+}
+
+input ExternalFindingCreateInput {
+  study: ImagingStudyRelateToOneForCreateInput
+  patient: PatientRelateToOneForCreateInput
+  vendor: String
+  device: String
+  modelVersion: String
+  clearanceRef: String
+  findingType: String
+  tooth: String
+  surfaces: String
+  confidence: Decimal
+  status: String
+  decidedBy: UserRelateToOneForCreateInput
+  dismissReason: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ImagingStudyRelateToOneForCreateInput {
+  create: ImagingStudyCreateInput
+  connect: ImagingStudyWhereUniqueInput
+}
+
+type ImagingStudy {
+  id: ID!
+  patient: Patient
+  modality: String
+  teeth: JSON
+  acquiredAt: DateTime
+  source: String
+  bridgeRef: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ImagingStudyWhereUniqueInput {
+  id: ID
+}
+
+input ImagingStudyWhereInput {
+  AND: [ImagingStudyWhereInput!]
+  OR: [ImagingStudyWhereInput!]
+  NOT: [ImagingStudyWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  modality: StringFilter
+  acquiredAt: DateTimeNullableFilter
+  source: StringFilter
+  bridgeRef: StringFilter
+  status: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ImagingStudyOrderByInput {
+  id: OrderDirection
+  modality: OrderDirection
+  acquiredAt: OrderDirection
+  source: OrderDirection
+  bridgeRef: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ImagingStudyUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  modality: String
+  teeth: JSON
+  acquiredAt: DateTime
+  source: String
+  bridgeRef: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ImagingStudyUpdateArgs {
+  where: ImagingStudyWhereUniqueInput!
+  data: ImagingStudyUpdateInput!
+}
+
+input ImagingStudyCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  modality: String
+  teeth: JSON
+  acquiredAt: DateTime
+  source: String
+  bridgeRef: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type InformedRefusal {
+  id: ID!
+  patient: Patient
+  planVersion: TreatmentPlanVersion
+  items(where: TreatmentPlanItemWhereInput! = {}, orderBy: [TreatmentPlanItemOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TreatmentPlanItemWhereUniqueInput): [TreatmentPlanItem!]
+  itemsCount(where: TreatmentPlanItemWhereInput! = {}): Int
+  risksExplained: String
+  signedBy: String
+  signerName: String
+  signatureEvidence: JSON
+  witness: User
+  signedAt: DateTime
+  status: String
+  withdrawnReason: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input InformedRefusalWhereUniqueInput {
+  id: ID
+}
+
+input InformedRefusalWhereInput {
+  AND: [InformedRefusalWhereInput!]
+  OR: [InformedRefusalWhereInput!]
+  NOT: [InformedRefusalWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  planVersion: TreatmentPlanVersionWhereInput
+  items: TreatmentPlanItemManyRelationFilter
+  risksExplained: StringFilter
+  signedBy: StringFilter
+  signerName: StringFilter
+  witness: UserWhereInput
+  signedAt: DateTimeNullableFilter
+  status: StringFilter
+  withdrawnReason: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input TreatmentPlanItemManyRelationFilter {
+  every: TreatmentPlanItemWhereInput
+  some: TreatmentPlanItemWhereInput
+  none: TreatmentPlanItemWhereInput
+}
+
+input InformedRefusalOrderByInput {
+  id: OrderDirection
+  risksExplained: OrderDirection
+  signedBy: OrderDirection
+  signerName: OrderDirection
+  signedAt: OrderDirection
+  status: OrderDirection
+  withdrawnReason: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input InformedRefusalUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  planVersion: TreatmentPlanVersionRelateToOneForUpdateInput
+  items: TreatmentPlanItemRelateToManyForUpdateInput
+  risksExplained: String
+  signedBy: String
+  signerName: String
+  signatureEvidence: JSON
+  witness: UserRelateToOneForUpdateInput
+  signedAt: DateTime
+  status: String
+  withdrawnReason: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanVersionRelateToOneForUpdateInput {
+  create: TreatmentPlanVersionCreateInput
+  connect: TreatmentPlanVersionWhereUniqueInput
+  disconnect: Boolean
+}
+
+input TreatmentPlanItemRelateToManyForUpdateInput {
+  disconnect: [TreatmentPlanItemWhereUniqueInput!]
+  set: [TreatmentPlanItemWhereUniqueInput!]
+  create: [TreatmentPlanItemCreateInput!]
+  connect: [TreatmentPlanItemWhereUniqueInput!]
+}
+
+input InformedRefusalUpdateArgs {
+  where: InformedRefusalWhereUniqueInput!
+  data: InformedRefusalUpdateInput!
+}
+
+input InformedRefusalCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  planVersion: TreatmentPlanVersionRelateToOneForCreateInput
+  items: TreatmentPlanItemRelateToManyForCreateInput
+  risksExplained: String
+  signedBy: String
+  signerName: String
+  signatureEvidence: JSON
+  witness: UserRelateToOneForCreateInput
+  signedAt: DateTime
+  status: String
+  withdrawnReason: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanVersionRelateToOneForCreateInput {
+  create: TreatmentPlanVersionCreateInput
+  connect: TreatmentPlanVersionWhereUniqueInput
+}
+
+input TreatmentPlanItemRelateToManyForCreateInput {
+  create: [TreatmentPlanItemCreateInput!]
+  connect: [TreatmentPlanItemWhereUniqueInput!]
+}
+
+type MedicalHistoryForm {
+  id: ID!
+  name: String
+  formVersion: Int
+  questions: JSON
+  jurisdictionTags: JSON
+  status: String
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicalHistoryFormWhereUniqueInput {
+  id: ID
+}
+
+input MedicalHistoryFormWhereInput {
+  AND: [MedicalHistoryFormWhereInput!]
+  OR: [MedicalHistoryFormWhereInput!]
+  NOT: [MedicalHistoryFormWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  formVersion: IntNullableFilter
+  status: StringFilter
+  isSynthetic: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input MedicalHistoryFormOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  formVersion: OrderDirection
+  status: OrderDirection
+  isSynthetic: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MedicalHistoryFormUpdateInput {
+  name: String
+  formVersion: Int
+  questions: JSON
+  jurisdictionTags: JSON
+  status: String
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicalHistoryFormUpdateArgs {
+  where: MedicalHistoryFormWhereUniqueInput!
+  data: MedicalHistoryFormUpdateInput!
+}
+
+input MedicalHistoryFormCreateInput {
+  name: String
+  formVersion: Int
+  questions: JSON
+  jurisdictionTags: JSON
+  status: String
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type MedicalHistoryResponse {
+  id: ID!
+  patient: Patient
+  form: MedicalHistoryForm
+  answers: JSON
+  submittedVia: String
+  submittedAt: DateTime
+  status: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicalHistoryResponseWhereUniqueInput {
+  id: ID
+}
+
+input MedicalHistoryResponseWhereInput {
+  AND: [MedicalHistoryResponseWhereInput!]
+  OR: [MedicalHistoryResponseWhereInput!]
+  NOT: [MedicalHistoryResponseWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  form: MedicalHistoryFormWhereInput
+  submittedVia: StringFilter
+  submittedAt: DateTimeNullableFilter
+  status: StringFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input MedicalHistoryResponseOrderByInput {
+  id: OrderDirection
+  submittedVia: OrderDirection
+  submittedAt: OrderDirection
+  status: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MedicalHistoryResponseUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  form: MedicalHistoryFormRelateToOneForUpdateInput
+  answers: JSON
+  submittedVia: String
+  submittedAt: DateTime
+  status: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicalHistoryFormRelateToOneForUpdateInput {
+  create: MedicalHistoryFormCreateInput
+  connect: MedicalHistoryFormWhereUniqueInput
+  disconnect: Boolean
+}
+
+input MedicalHistoryResponseUpdateArgs {
+  where: MedicalHistoryResponseWhereUniqueInput!
+  data: MedicalHistoryResponseUpdateInput!
+}
+
+input MedicalHistoryResponseCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  form: MedicalHistoryFormRelateToOneForCreateInput
+  answers: JSON
+  submittedVia: String
+  submittedAt: DateTime
+  status: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicalHistoryFormRelateToOneForCreateInput {
+  create: MedicalHistoryFormCreateInput
+  connect: MedicalHistoryFormWhereUniqueInput
+}
+
+type MedicalHistoryReview {
+  id: ID!
+  response: MedicalHistoryResponse
+  patient: Patient
+  reviewedBy: User
+  reviewedAt: DateTime
+  changesAcknowledged: JSON
+  alertsCreated: JSON
+  signatureHash: String
+  overrideReason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicalHistoryReviewWhereUniqueInput {
+  id: ID
+}
+
+input MedicalHistoryReviewWhereInput {
+  AND: [MedicalHistoryReviewWhereInput!]
+  OR: [MedicalHistoryReviewWhereInput!]
+  NOT: [MedicalHistoryReviewWhereInput!]
+  id: IDFilter
+  response: MedicalHistoryResponseWhereInput
+  patient: PatientWhereInput
+  reviewedBy: UserWhereInput
+  reviewedAt: DateTimeNullableFilter
+  signatureHash: StringFilter
+  overrideReason: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input MedicalHistoryReviewOrderByInput {
+  id: OrderDirection
+  reviewedAt: OrderDirection
+  signatureHash: OrderDirection
+  overrideReason: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MedicalHistoryReviewUpdateInput {
+  response: MedicalHistoryResponseRelateToOneForUpdateInput
+  patient: PatientRelateToOneForUpdateInput
+  reviewedBy: UserRelateToOneForUpdateInput
+  reviewedAt: DateTime
+  changesAcknowledged: JSON
+  alertsCreated: JSON
+  signatureHash: String
+  overrideReason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicalHistoryResponseRelateToOneForUpdateInput {
+  create: MedicalHistoryResponseCreateInput
+  connect: MedicalHistoryResponseWhereUniqueInput
+  disconnect: Boolean
+}
+
+input MedicalHistoryReviewUpdateArgs {
+  where: MedicalHistoryReviewWhereUniqueInput!
+  data: MedicalHistoryReviewUpdateInput!
+}
+
+input MedicalHistoryReviewCreateInput {
+  response: MedicalHistoryResponseRelateToOneForCreateInput
+  patient: PatientRelateToOneForCreateInput
+  reviewedBy: UserRelateToOneForCreateInput
+  reviewedAt: DateTime
+  changesAcknowledged: JSON
+  alertsCreated: JSON
+  signatureHash: String
+  overrideReason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicalHistoryResponseRelateToOneForCreateInput {
+  create: MedicalHistoryResponseCreateInput
+  connect: MedicalHistoryResponseWhereUniqueInput
+}
+
+type MedicationEntry {
+  id: ID!
+  patient: Patient
+  name: String
+  dose: String
+  frequency: String
+  source: String
+  activeFrom: CalendarDay
+  endedAt: CalendarDay
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicationEntryWhereUniqueInput {
+  id: ID
+}
+
+input MedicationEntryWhereInput {
+  AND: [MedicationEntryWhereInput!]
+  OR: [MedicationEntryWhereInput!]
+  NOT: [MedicationEntryWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  name: StringFilter
+  dose: StringFilter
+  frequency: StringFilter
+  source: StringFilter
+  activeFrom: CalendarDayNullableFilter
+  endedAt: CalendarDayNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input MedicationEntryOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  dose: OrderDirection
+  frequency: OrderDirection
+  source: OrderDirection
+  activeFrom: OrderDirection
+  endedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MedicationEntryUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  name: String
+  dose: String
+  frequency: String
+  source: String
+  activeFrom: CalendarDay
+  endedAt: CalendarDay
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MedicationEntryUpdateArgs {
+  where: MedicationEntryWhereUniqueInput!
+  data: MedicationEntryUpdateInput!
+}
+
+input MedicationEntryCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  name: String
+  dose: String
+  frequency: String
+  source: String
+  activeFrom: CalendarDay
+  endedAt: CalendarDay
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type NoteTemplate {
+  id: ID!
+  name: String
+  appliesToCategories: JSON
+  status: String
+  versions(where: NoteTemplateVersionWhereInput! = {}, orderBy: [NoteTemplateVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: NoteTemplateVersionWhereUniqueInput): [NoteTemplateVersion!]
+  versionsCount(where: NoteTemplateVersionWhereInput! = {}): Int
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NoteTemplateWhereUniqueInput {
+  id: ID
+}
+
+input NoteTemplateWhereInput {
+  AND: [NoteTemplateWhereInput!]
+  OR: [NoteTemplateWhereInput!]
+  NOT: [NoteTemplateWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  status: StringFilter
+  versions: NoteTemplateVersionManyRelationFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input NoteTemplateVersionManyRelationFilter {
+  every: NoteTemplateVersionWhereInput
+  some: NoteTemplateVersionWhereInput
+  none: NoteTemplateVersionWhereInput
+}
+
+input NoteTemplateOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  status: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input NoteTemplateUpdateInput {
+  name: String
+  appliesToCategories: JSON
+  status: String
+  versions: NoteTemplateVersionRelateToManyForUpdateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NoteTemplateVersionRelateToManyForUpdateInput {
+  disconnect: [NoteTemplateVersionWhereUniqueInput!]
+  set: [NoteTemplateVersionWhereUniqueInput!]
+  create: [NoteTemplateVersionCreateInput!]
+  connect: [NoteTemplateVersionWhereUniqueInput!]
+}
+
+input NoteTemplateUpdateArgs {
+  where: NoteTemplateWhereUniqueInput!
+  data: NoteTemplateUpdateInput!
+}
+
+input NoteTemplateCreateInput {
+  name: String
+  appliesToCategories: JSON
+  status: String
+  versions: NoteTemplateVersionRelateToManyForCreateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NoteTemplateVersionRelateToManyForCreateInput {
+  create: [NoteTemplateVersionCreateInput!]
+  connect: [NoteTemplateVersionWhereUniqueInput!]
+}
+
+type NoteTemplateVersion {
+  id: ID!
+  template: NoteTemplate
+  number: Int
+  body: String
+  prompts: JSON
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NoteTemplateVersionWhereUniqueInput {
+  id: ID
+}
+
+input NoteTemplateVersionWhereInput {
+  AND: [NoteTemplateVersionWhereInput!]
+  OR: [NoteTemplateVersionWhereInput!]
+  NOT: [NoteTemplateVersionWhereInput!]
+  id: IDFilter
+  template: NoteTemplateWhereInput
+  number: IntNullableFilter
+  body: StringFilter
+  status: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input NoteTemplateVersionOrderByInput {
+  id: OrderDirection
+  number: OrderDirection
+  body: OrderDirection
+  status: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input NoteTemplateVersionUpdateInput {
+  template: NoteTemplateRelateToOneForUpdateInput
+  number: Int
+  body: String
+  prompts: JSON
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NoteTemplateRelateToOneForUpdateInput {
+  create: NoteTemplateCreateInput
+  connect: NoteTemplateWhereUniqueInput
+  disconnect: Boolean
+}
+
+input NoteTemplateVersionUpdateArgs {
+  where: NoteTemplateVersionWhereUniqueInput!
+  data: NoteTemplateVersionUpdateInput!
+}
+
+input NoteTemplateVersionCreateInput {
+  template: NoteTemplateRelateToOneForCreateInput
+  number: Int
+  body: String
+  prompts: JSON
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input NoteTemplateRelateToOneForCreateInput {
+  create: NoteTemplateCreateInput
+  connect: NoteTemplateWhereUniqueInput
+}
+
+type PerioClassification {
+  id: ID!
+  exam: PerioExam
+  suggestedStage: String
+  suggestedGrade: String
+  extent: String
+  inputs: JSON
+  confirmedStage: String
+  confirmedGrade: String
+  status: String
+  signedBy: User
+  signedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioClassificationWhereUniqueInput {
+  id: ID
+}
+
+input PerioClassificationWhereInput {
+  AND: [PerioClassificationWhereInput!]
+  OR: [PerioClassificationWhereInput!]
+  NOT: [PerioClassificationWhereInput!]
+  id: IDFilter
+  exam: PerioExamWhereInput
+  suggestedStage: StringFilter
+  suggestedGrade: StringFilter
+  extent: StringFilter
+  confirmedStage: StringFilter
+  confirmedGrade: StringFilter
+  status: StringFilter
+  signedBy: UserWhereInput
+  signedAt: DateTimeNullableFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PerioClassificationOrderByInput {
+  id: OrderDirection
+  suggestedStage: OrderDirection
+  suggestedGrade: OrderDirection
+  extent: OrderDirection
+  confirmedStage: OrderDirection
+  confirmedGrade: OrderDirection
+  status: OrderDirection
+  signedAt: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PerioClassificationUpdateInput {
+  exam: PerioExamRelateToOneForUpdateInput
+  suggestedStage: String
+  suggestedGrade: String
+  extent: String
+  inputs: JSON
+  confirmedStage: String
+  confirmedGrade: String
+  status: String
+  signedBy: UserRelateToOneForUpdateInput
+  signedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioExamRelateToOneForUpdateInput {
+  create: PerioExamCreateInput
+  connect: PerioExamWhereUniqueInput
+  disconnect: Boolean
+}
+
+input PerioClassificationUpdateArgs {
+  where: PerioClassificationWhereUniqueInput!
+  data: PerioClassificationUpdateInput!
+}
+
+input PerioClassificationCreateInput {
+  exam: PerioExamRelateToOneForCreateInput
+  suggestedStage: String
+  suggestedGrade: String
+  extent: String
+  inputs: JSON
+  confirmedStage: String
+  confirmedGrade: String
+  status: String
+  signedBy: UserRelateToOneForCreateInput
+  signedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioExamRelateToOneForCreateInput {
+  create: PerioExamCreateInput
+  connect: PerioExamWhereUniqueInput
+}
+
+type PerioExam {
+  id: ID!
+  patient: Patient
+  examDate: CalendarDay
+  examiner: ProviderProfile
+  revision: Int
+  revisionOf: PerioExam
+  status: String
+  location: Location
+  signedAt: DateTime
+  signedBy: User
+  signatureHash: String
+  measurements(where: PerioSiteMeasurementWhereInput! = {}, orderBy: [PerioSiteMeasurementOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PerioSiteMeasurementWhereUniqueInput): [PerioSiteMeasurement!]
+  measurementsCount(where: PerioSiteMeasurementWhereInput! = {}): Int
+  findings(where: PerioToothFindingWhereInput! = {}, orderBy: [PerioToothFindingOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PerioToothFindingWhereUniqueInput): [PerioToothFinding!]
+  findingsCount(where: PerioToothFindingWhereInput! = {}): Int
+  classifications(where: PerioClassificationWhereInput! = {}, orderBy: [PerioClassificationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PerioClassificationWhereUniqueInput): [PerioClassification!]
+  classificationsCount(where: PerioClassificationWhereInput! = {}): Int
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioExamWhereUniqueInput {
+  id: ID
+}
+
+input PerioExamWhereInput {
+  AND: [PerioExamWhereInput!]
+  OR: [PerioExamWhereInput!]
+  NOT: [PerioExamWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  examDate: CalendarDayNullableFilter
+  examiner: ProviderProfileWhereInput
+  revision: IntNullableFilter
+  revisionOf: PerioExamWhereInput
+  status: StringFilter
+  location: LocationWhereInput
+  signedAt: DateTimeNullableFilter
+  signedBy: UserWhereInput
+  signatureHash: StringFilter
+  measurements: PerioSiteMeasurementManyRelationFilter
+  findings: PerioToothFindingManyRelationFilter
+  classifications: PerioClassificationManyRelationFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PerioSiteMeasurementManyRelationFilter {
+  every: PerioSiteMeasurementWhereInput
+  some: PerioSiteMeasurementWhereInput
+  none: PerioSiteMeasurementWhereInput
+}
+
+input PerioToothFindingManyRelationFilter {
+  every: PerioToothFindingWhereInput
+  some: PerioToothFindingWhereInput
+  none: PerioToothFindingWhereInput
+}
+
+input PerioClassificationManyRelationFilter {
+  every: PerioClassificationWhereInput
+  some: PerioClassificationWhereInput
+  none: PerioClassificationWhereInput
+}
+
+input PerioExamOrderByInput {
+  id: OrderDirection
+  examDate: OrderDirection
+  revision: OrderDirection
+  status: OrderDirection
+  signedAt: OrderDirection
+  signatureHash: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PerioExamUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  examDate: CalendarDay
+  examiner: ProviderProfileRelateToOneForUpdateInput
+  revision: Int
+  revisionOf: PerioExamRelateToOneForUpdateInput
+  status: String
+  location: LocationRelateToOneForUpdateInput
+  signedAt: DateTime
+  signedBy: UserRelateToOneForUpdateInput
+  signatureHash: String
+  measurements: PerioSiteMeasurementRelateToManyForUpdateInput
+  findings: PerioToothFindingRelateToManyForUpdateInput
+  classifications: PerioClassificationRelateToManyForUpdateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioSiteMeasurementRelateToManyForUpdateInput {
+  disconnect: [PerioSiteMeasurementWhereUniqueInput!]
+  set: [PerioSiteMeasurementWhereUniqueInput!]
+  create: [PerioSiteMeasurementCreateInput!]
+  connect: [PerioSiteMeasurementWhereUniqueInput!]
+}
+
+input PerioToothFindingRelateToManyForUpdateInput {
+  disconnect: [PerioToothFindingWhereUniqueInput!]
+  set: [PerioToothFindingWhereUniqueInput!]
+  create: [PerioToothFindingCreateInput!]
+  connect: [PerioToothFindingWhereUniqueInput!]
+}
+
+input PerioClassificationRelateToManyForUpdateInput {
+  disconnect: [PerioClassificationWhereUniqueInput!]
+  set: [PerioClassificationWhereUniqueInput!]
+  create: [PerioClassificationCreateInput!]
+  connect: [PerioClassificationWhereUniqueInput!]
+}
+
+input PerioExamUpdateArgs {
+  where: PerioExamWhereUniqueInput!
+  data: PerioExamUpdateInput!
+}
+
+input PerioExamCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  examDate: CalendarDay
+  examiner: ProviderProfileRelateToOneForCreateInput
+  revision: Int
+  revisionOf: PerioExamRelateToOneForCreateInput
+  status: String
+  location: LocationRelateToOneForCreateInput
+  signedAt: DateTime
+  signedBy: UserRelateToOneForCreateInput
+  signatureHash: String
+  measurements: PerioSiteMeasurementRelateToManyForCreateInput
+  findings: PerioToothFindingRelateToManyForCreateInput
+  classifications: PerioClassificationRelateToManyForCreateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioSiteMeasurementRelateToManyForCreateInput {
+  create: [PerioSiteMeasurementCreateInput!]
+  connect: [PerioSiteMeasurementWhereUniqueInput!]
+}
+
+input PerioToothFindingRelateToManyForCreateInput {
+  create: [PerioToothFindingCreateInput!]
+  connect: [PerioToothFindingWhereUniqueInput!]
+}
+
+input PerioClassificationRelateToManyForCreateInput {
+  create: [PerioClassificationCreateInput!]
+  connect: [PerioClassificationWhereUniqueInput!]
+}
+
+type PerioSiteMeasurement {
+  id: ID!
+  exam: PerioExam
+  tooth: String
+  site: String
+  probingDepthMm: Int
+  gingivalMarginMm: Int
+  bleeding: Boolean
+  suppuration: Boolean
+  plaque: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioSiteMeasurementWhereUniqueInput {
+  id: ID
+}
+
+input PerioSiteMeasurementWhereInput {
+  AND: [PerioSiteMeasurementWhereInput!]
+  OR: [PerioSiteMeasurementWhereInput!]
+  NOT: [PerioSiteMeasurementWhereInput!]
+  id: IDFilter
+  exam: PerioExamWhereInput
+  tooth: StringFilter
+  site: StringFilter
+  probingDepthMm: IntNullableFilter
+  gingivalMarginMm: IntNullableFilter
+  bleeding: BooleanFilter
+  suppuration: BooleanFilter
+  plaque: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PerioSiteMeasurementOrderByInput {
+  id: OrderDirection
+  tooth: OrderDirection
+  site: OrderDirection
+  probingDepthMm: OrderDirection
+  gingivalMarginMm: OrderDirection
+  bleeding: OrderDirection
+  suppuration: OrderDirection
+  plaque: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PerioSiteMeasurementUpdateInput {
+  exam: PerioExamRelateToOneForUpdateInput
+  tooth: String
+  site: String
+  probingDepthMm: Int
+  gingivalMarginMm: Int
+  bleeding: Boolean
+  suppuration: Boolean
+  plaque: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioSiteMeasurementUpdateArgs {
+  where: PerioSiteMeasurementWhereUniqueInput!
+  data: PerioSiteMeasurementUpdateInput!
+}
+
+input PerioSiteMeasurementCreateInput {
+  exam: PerioExamRelateToOneForCreateInput
+  tooth: String
+  site: String
+  probingDepthMm: Int
+  gingivalMarginMm: Int
+  bleeding: Boolean
+  suppuration: Boolean
+  plaque: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PerioToothFinding {
+  id: ID!
+  exam: PerioExam
+  tooth: String
+  mobility: Int
+  furcation: JSON
+  missing: Boolean
+  implant: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioToothFindingWhereUniqueInput {
+  id: ID
+}
+
+input PerioToothFindingWhereInput {
+  AND: [PerioToothFindingWhereInput!]
+  OR: [PerioToothFindingWhereInput!]
+  NOT: [PerioToothFindingWhereInput!]
+  id: IDFilter
+  exam: PerioExamWhereInput
+  tooth: StringFilter
+  mobility: IntNullableFilter
+  missing: BooleanFilter
+  implant: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PerioToothFindingOrderByInput {
+  id: OrderDirection
+  tooth: OrderDirection
+  mobility: OrderDirection
+  missing: OrderDirection
+  implant: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PerioToothFindingUpdateInput {
+  exam: PerioExamRelateToOneForUpdateInput
+  tooth: String
+  mobility: Int
+  furcation: JSON
+  missing: Boolean
+  implant: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PerioToothFindingUpdateArgs {
+  where: PerioToothFindingWhereUniqueInput!
+  data: PerioToothFindingUpdateInput!
+}
+
+input PerioToothFindingCreateInput {
+  exam: PerioExamRelateToOneForCreateInput
+  tooth: String
+  mobility: Int
+  furcation: JSON
+  missing: Boolean
+  implant: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Prescription {
+  id: ID!
+  patient: Patient
+  prescriber: ProviderProfile
+  drug: String
+  strength: String
+  form: String
+  sig: String
+  quantity: Decimal
+  refills: Int
+  isControlled: Boolean
+  schedule: String
+  pharmacy: JSON
+  mode: String
+  status: String
+  signedAt: DateTime
+  cancelReason: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PrescriptionWhereUniqueInput {
+  id: ID
+}
+
+input PrescriptionWhereInput {
+  AND: [PrescriptionWhereInput!]
+  OR: [PrescriptionWhereInput!]
+  NOT: [PrescriptionWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  prescriber: ProviderProfileWhereInput
+  drug: StringFilter
+  strength: StringFilter
+  form: StringFilter
+  sig: StringFilter
+  quantity: DecimalNullableFilter
+  refills: IntNullableFilter
+  isControlled: BooleanFilter
+  schedule: StringFilter
+  mode: StringFilter
+  status: StringFilter
+  signedAt: DateTimeNullableFilter
+  cancelReason: StringFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PrescriptionOrderByInput {
+  id: OrderDirection
+  drug: OrderDirection
+  strength: OrderDirection
+  form: OrderDirection
+  sig: OrderDirection
+  quantity: OrderDirection
+  refills: OrderDirection
+  isControlled: OrderDirection
+  schedule: OrderDirection
+  mode: OrderDirection
+  status: OrderDirection
+  signedAt: OrderDirection
+  cancelReason: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PrescriptionUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  prescriber: ProviderProfileRelateToOneForUpdateInput
+  drug: String
+  strength: String
+  form: String
+  sig: String
+  quantity: Decimal
+  refills: Int
+  isControlled: Boolean
+  schedule: String
+  pharmacy: JSON
+  mode: String
+  status: String
+  signedAt: DateTime
+  cancelReason: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PrescriptionUpdateArgs {
+  where: PrescriptionWhereUniqueInput!
+  data: PrescriptionUpdateInput!
+}
+
+input PrescriptionCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  prescriber: ProviderProfileRelateToOneForCreateInput
+  drug: String
+  strength: String
+  form: String
+  sig: String
+  quantity: Decimal
+  refills: Int
+  isControlled: Boolean
+  schedule: String
+  pharmacy: JSON
+  mode: String
+  status: String
+  signedAt: DateTime
+  cancelReason: String
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type VitalsReading {
+  id: ID!
+  patient: Patient
+  appointment: Appointment
+  systolic: Int
+  diastolic: Int
+  pulse: Int
+  asaClass: String
+  takenBy: User
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input VitalsReadingWhereUniqueInput {
+  id: ID
+}
+
+input VitalsReadingWhereInput {
+  AND: [VitalsReadingWhereInput!]
+  OR: [VitalsReadingWhereInput!]
+  NOT: [VitalsReadingWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  appointment: AppointmentWhereInput
+  systolic: IntNullableFilter
+  diastolic: IntNullableFilter
+  pulse: IntNullableFilter
+  asaClass: StringFilter
+  takenBy: UserWhereInput
+  at: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input VitalsReadingOrderByInput {
+  id: OrderDirection
+  systolic: OrderDirection
+  diastolic: OrderDirection
+  pulse: OrderDirection
+  asaClass: OrderDirection
+  at: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input VitalsReadingUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  appointment: AppointmentRelateToOneForUpdateInput
+  systolic: Int
+  diastolic: Int
+  pulse: Int
+  asaClass: String
+  takenBy: UserRelateToOneForUpdateInput
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input VitalsReadingUpdateArgs {
+  where: VitalsReadingWhereUniqueInput!
+  data: VitalsReadingUpdateInput!
+}
+
+input VitalsReadingCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  appointment: AppointmentRelateToOneForCreateInput
+  systolic: Int
+  diastolic: Int
+  pulse: Int
+  asaClass: String
+  takenBy: UserRelateToOneForCreateInput
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ConsentAction {
+  id: ID!
+  record: ConsentRecord
+  kind: String
+  at: DateTime
+  by: User
+  reason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConsentActionWhereUniqueInput {
+  id: ID
+}
+
+input ConsentActionWhereInput {
+  AND: [ConsentActionWhereInput!]
+  OR: [ConsentActionWhereInput!]
+  NOT: [ConsentActionWhereInput!]
+  id: IDFilter
+  record: ConsentRecordWhereInput
+  kind: StringFilter
+  at: DateTimeNullableFilter
+  by: UserWhereInput
+  reason: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ConsentActionOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  at: OrderDirection
+  reason: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ConsentActionUpdateInput {
+  record: ConsentRecordRelateToOneForUpdateInput
+  kind: String
+  at: DateTime
+  by: UserRelateToOneForUpdateInput
+  reason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConsentRecordRelateToOneForUpdateInput {
+  create: ConsentRecordCreateInput
+  connect: ConsentRecordWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ConsentActionUpdateArgs {
+  where: ConsentActionWhereUniqueInput!
+  data: ConsentActionUpdateInput!
+}
+
+input ConsentActionCreateInput {
+  record: ConsentRecordRelateToOneForCreateInput
+  kind: String
+  at: DateTime
+  by: UserRelateToOneForCreateInput
+  reason: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConsentRecordRelateToOneForCreateInput {
+  create: ConsentRecordCreateInput
+  connect: ConsentRecordWhereUniqueInput
+}
+
+type ConsentRecord {
+  id: ID!
+  patient: Patient
+  templateVersion: FormTemplateVersion
+  signerName: String
+  signerRole: String
+  signatureEvidence: JSON
+  witness: User
+  signedAt: DateTime
+  scope: JSON
+  effectiveUntil: CalendarDay
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ConsentRecordWhereUniqueInput {
+  id: ID
+}
+
+input ConsentRecordWhereInput {
+  AND: [ConsentRecordWhereInput!]
+  OR: [ConsentRecordWhereInput!]
+  NOT: [ConsentRecordWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  templateVersion: FormTemplateVersionWhereInput
+  signerName: StringFilter
+  signerRole: StringFilter
+  witness: UserWhereInput
+  signedAt: DateTimeNullableFilter
+  effectiveUntil: CalendarDayNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ConsentRecordOrderByInput {
+  id: OrderDirection
+  signerName: OrderDirection
+  signerRole: OrderDirection
+  signedAt: OrderDirection
+  effectiveUntil: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ConsentRecordUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  templateVersion: FormTemplateVersionRelateToOneForUpdateInput
+  signerName: String
+  signerRole: String
+  signatureEvidence: JSON
+  witness: UserRelateToOneForUpdateInput
+  signedAt: DateTime
+  scope: JSON
+  effectiveUntil: CalendarDay
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormTemplateVersionRelateToOneForUpdateInput {
+  create: FormTemplateVersionCreateInput
+  connect: FormTemplateVersionWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ConsentRecordUpdateArgs {
+  where: ConsentRecordWhereUniqueInput!
+  data: ConsentRecordUpdateInput!
+}
+
+input ConsentRecordCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  templateVersion: FormTemplateVersionRelateToOneForCreateInput
+  signerName: String
+  signerRole: String
+  signatureEvidence: JSON
+  witness: UserRelateToOneForCreateInput
+  signedAt: DateTime
+  scope: JSON
+  effectiveUntil: CalendarDay
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormTemplateVersionRelateToOneForCreateInput {
+  create: FormTemplateVersionCreateInput
+  connect: FormTemplateVersionWhereUniqueInput
+}
+
+type FormRequest {
+  id: ID!
+  patient: Patient
+  template: FormTemplateVersion
+  medicalHistoryForm: MedicalHistoryForm
+  channel: String
+  expiresAt: DateTime
+  status: String
+  requestedBy: User
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormRequestWhereUniqueInput {
+  id: ID
+}
+
+input FormRequestWhereInput {
+  AND: [FormRequestWhereInput!]
+  OR: [FormRequestWhereInput!]
+  NOT: [FormRequestWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  template: FormTemplateVersionWhereInput
+  medicalHistoryForm: MedicalHistoryFormWhereInput
+  channel: StringFilter
+  expiresAt: DateTimeNullableFilter
+  status: StringFilter
+  requestedBy: UserWhereInput
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input FormRequestOrderByInput {
+  id: OrderDirection
+  channel: OrderDirection
+  expiresAt: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FormRequestUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  template: FormTemplateVersionRelateToOneForUpdateInput
+  medicalHistoryForm: MedicalHistoryFormRelateToOneForUpdateInput
+  channel: String
+  expiresAt: DateTime
+  status: String
+  requestedBy: UserRelateToOneForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormRequestUpdateArgs {
+  where: FormRequestWhereUniqueInput!
+  data: FormRequestUpdateInput!
+}
+
+input FormRequestCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  template: FormTemplateVersionRelateToOneForCreateInput
+  medicalHistoryForm: MedicalHistoryFormRelateToOneForCreateInput
+  channel: String
+  expiresAt: DateTime
+  status: String
+  requestedBy: UserRelateToOneForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type FormSubmission {
+  id: ID!
+  request: FormRequest
+  data: JSON
+  submittedAt: DateTime
+  submitterRole: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormSubmissionWhereUniqueInput {
+  id: ID
+}
+
+input FormSubmissionWhereInput {
+  AND: [FormSubmissionWhereInput!]
+  OR: [FormSubmissionWhereInput!]
+  NOT: [FormSubmissionWhereInput!]
+  id: IDFilter
+  request: FormRequestWhereInput
+  submittedAt: DateTimeNullableFilter
+  submitterRole: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input FormSubmissionOrderByInput {
+  id: OrderDirection
+  submittedAt: OrderDirection
+  submitterRole: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FormSubmissionUpdateInput {
+  request: FormRequestRelateToOneForUpdateInput
+  data: JSON
+  submittedAt: DateTime
+  submitterRole: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormRequestRelateToOneForUpdateInput {
+  create: FormRequestCreateInput
+  connect: FormRequestWhereUniqueInput
+  disconnect: Boolean
+}
+
+input FormSubmissionUpdateArgs {
+  where: FormSubmissionWhereUniqueInput!
+  data: FormSubmissionUpdateInput!
+}
+
+input FormSubmissionCreateInput {
+  request: FormRequestRelateToOneForCreateInput
+  data: JSON
+  submittedAt: DateTime
+  submitterRole: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormRequestRelateToOneForCreateInput {
+  create: FormRequestCreateInput
+  connect: FormRequestWhereUniqueInput
+}
+
+type FormTemplate {
+  id: ID!
+  key: String
+  kind: String
+  title: String
+  versions(where: FormTemplateVersionWhereInput! = {}, orderBy: [FormTemplateVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FormTemplateVersionWhereUniqueInput): [FormTemplateVersion!]
+  versionsCount(where: FormTemplateVersionWhereInput! = {}): Int
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormTemplateWhereUniqueInput {
+  id: ID
+  key: String
+}
+
+input FormTemplateWhereInput {
+  AND: [FormTemplateWhereInput!]
+  OR: [FormTemplateWhereInput!]
+  NOT: [FormTemplateWhereInput!]
+  id: IDFilter
+  key: StringFilter
+  kind: StringFilter
+  title: StringFilter
+  versions: FormTemplateVersionManyRelationFilter
+  isSynthetic: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input FormTemplateVersionManyRelationFilter {
+  every: FormTemplateVersionWhereInput
+  some: FormTemplateVersionWhereInput
+  none: FormTemplateVersionWhereInput
+}
+
+input FormTemplateOrderByInput {
+  id: OrderDirection
+  key: OrderDirection
+  kind: OrderDirection
+  title: OrderDirection
+  isSynthetic: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FormTemplateUpdateInput {
+  key: String
+  kind: String
+  title: String
+  versions: FormTemplateVersionRelateToManyForUpdateInput
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormTemplateVersionRelateToManyForUpdateInput {
+  disconnect: [FormTemplateVersionWhereUniqueInput!]
+  set: [FormTemplateVersionWhereUniqueInput!]
+  create: [FormTemplateVersionCreateInput!]
+  connect: [FormTemplateVersionWhereUniqueInput!]
+}
+
+input FormTemplateUpdateArgs {
+  where: FormTemplateWhereUniqueInput!
+  data: FormTemplateUpdateInput!
+}
+
+input FormTemplateCreateInput {
+  key: String
+  kind: String
+  title: String
+  versions: FormTemplateVersionRelateToManyForCreateInput
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormTemplateVersionRelateToManyForCreateInput {
+  create: [FormTemplateVersionCreateInput!]
+  connect: [FormTemplateVersionWhereUniqueInput!]
+}
+
+type FormTemplateVersion {
+  id: ID!
+  template: FormTemplate
+  number: Int
+  body: String
+  fields: JSON
+  jurisdictionTags: JSON
+  requiresWitness: Boolean
+  contentHash: String
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormTemplateVersionWhereUniqueInput {
+  id: ID
+}
+
+input FormTemplateVersionWhereInput {
+  AND: [FormTemplateVersionWhereInput!]
+  OR: [FormTemplateVersionWhereInput!]
+  NOT: [FormTemplateVersionWhereInput!]
+  id: IDFilter
+  template: FormTemplateWhereInput
+  number: IntNullableFilter
+  body: StringFilter
+  requiresWitness: BooleanFilter
+  contentHash: StringFilter
+  status: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input FormTemplateVersionOrderByInput {
+  id: OrderDirection
+  number: OrderDirection
+  body: OrderDirection
+  requiresWitness: OrderDirection
+  contentHash: OrderDirection
+  status: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input FormTemplateVersionUpdateInput {
+  template: FormTemplateRelateToOneForUpdateInput
+  number: Int
+  body: String
+  fields: JSON
+  jurisdictionTags: JSON
+  requiresWitness: Boolean
+  contentHash: String
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormTemplateRelateToOneForUpdateInput {
+  create: FormTemplateCreateInput
+  connect: FormTemplateWhereUniqueInput
+  disconnect: Boolean
+}
+
+input FormTemplateVersionUpdateArgs {
+  where: FormTemplateVersionWhereUniqueInput!
+  data: FormTemplateVersionUpdateInput!
+}
+
+input FormTemplateVersionCreateInput {
+  template: FormTemplateRelateToOneForCreateInput
+  number: Int
+  body: String
+  fields: JSON
+  jurisdictionTags: JSON
+  requiresWitness: Boolean
+  contentHash: String
+  status: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input FormTemplateRelateToOneForCreateInput {
+  create: FormTemplateCreateInput
+  connect: FormTemplateWhereUniqueInput
+}
+
+type GoodFaithEstimate {
+  id: ID!
+  patient: Patient
+  planVersion: TreatmentPlanVersion
+  status: String
+  dueBy: DateTime
+  deliveredVia: String
+  deliveredAt: DateTime
+  itemsSnapshot: JSON
+  totalMinor: BigInt
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input GoodFaithEstimateWhereUniqueInput {
+  id: ID
+}
+
+input GoodFaithEstimateWhereInput {
+  AND: [GoodFaithEstimateWhereInput!]
+  OR: [GoodFaithEstimateWhereInput!]
+  NOT: [GoodFaithEstimateWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  planVersion: TreatmentPlanVersionWhereInput
+  status: StringFilter
+  dueBy: DateTimeNullableFilter
+  deliveredVia: StringFilter
+  deliveredAt: DateTimeNullableFilter
+  totalMinor: BigIntNullableFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input GoodFaithEstimateOrderByInput {
+  id: OrderDirection
+  status: OrderDirection
+  dueBy: OrderDirection
+  deliveredVia: OrderDirection
+  deliveredAt: OrderDirection
+  totalMinor: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input GoodFaithEstimateUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  planVersion: TreatmentPlanVersionRelateToOneForUpdateInput
+  status: String
+  dueBy: DateTime
+  deliveredVia: String
+  deliveredAt: DateTime
+  itemsSnapshot: JSON
+  totalMinor: BigInt
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input GoodFaithEstimateUpdateArgs {
+  where: GoodFaithEstimateWhereUniqueInput!
+  data: GoodFaithEstimateUpdateInput!
+}
+
+input GoodFaithEstimateCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  planVersion: TreatmentPlanVersionRelateToOneForCreateInput
+  status: String
+  dueBy: DateTime
+  deliveredVia: String
+  deliveredAt: DateTime
+  itemsSnapshot: JSON
+  totalMinor: BigInt
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PlanAcceptance {
+  id: ID!
+  planVersion: TreatmentPlanVersion
+  versionHash: String
+  selectedItems(where: TreatmentPlanItemWhereInput! = {}, orderBy: [TreatmentPlanItemOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TreatmentPlanItemWhereUniqueInput): [TreatmentPlanItem!]
+  selectedItemsCount(where: TreatmentPlanItemWhereInput! = {}): Int
+  signer: String
+  signerName: String
+  signatureEvidence: JSON
+  estimateSnapshot: JSON
+  financingSelection: JSON
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PlanAcceptanceWhereUniqueInput {
+  id: ID
+}
+
+input PlanAcceptanceWhereInput {
+  AND: [PlanAcceptanceWhereInput!]
+  OR: [PlanAcceptanceWhereInput!]
+  NOT: [PlanAcceptanceWhereInput!]
+  id: IDFilter
+  planVersion: TreatmentPlanVersionWhereInput
+  versionHash: StringFilter
+  selectedItems: TreatmentPlanItemManyRelationFilter
+  signer: StringFilter
+  signerName: StringFilter
+  at: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PlanAcceptanceOrderByInput {
+  id: OrderDirection
+  versionHash: OrderDirection
+  signer: OrderDirection
+  signerName: OrderDirection
+  at: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PlanAcceptanceUpdateInput {
+  planVersion: TreatmentPlanVersionRelateToOneForUpdateInput
+  versionHash: String
+  selectedItems: TreatmentPlanItemRelateToManyForUpdateInput
+  signer: String
+  signerName: String
+  signatureEvidence: JSON
+  estimateSnapshot: JSON
+  financingSelection: JSON
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PlanAcceptanceUpdateArgs {
+  where: PlanAcceptanceWhereUniqueInput!
+  data: PlanAcceptanceUpdateInput!
+}
+
+input PlanAcceptanceCreateInput {
+  planVersion: TreatmentPlanVersionRelateToOneForCreateInput
+  versionHash: String
+  selectedItems: TreatmentPlanItemRelateToManyForCreateInput
+  signer: String
+  signerName: String
+  signatureEvidence: JSON
+  estimateSnapshot: JSON
+  financingSelection: JSON
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PlanPresentation {
+  id: ID!
+  planVersion: TreatmentPlanVersion
+  presentedBy: User
+  channel: String
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PlanPresentationWhereUniqueInput {
+  id: ID
+}
+
+input PlanPresentationWhereInput {
+  AND: [PlanPresentationWhereInput!]
+  OR: [PlanPresentationWhereInput!]
+  NOT: [PlanPresentationWhereInput!]
+  id: IDFilter
+  planVersion: TreatmentPlanVersionWhereInput
+  presentedBy: UserWhereInput
+  channel: StringFilter
+  at: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PlanPresentationOrderByInput {
+  id: OrderDirection
+  channel: OrderDirection
+  at: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PlanPresentationUpdateInput {
+  planVersion: TreatmentPlanVersionRelateToOneForUpdateInput
+  presentedBy: UserRelateToOneForUpdateInput
+  channel: String
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PlanPresentationUpdateArgs {
+  where: PlanPresentationWhereUniqueInput!
+  data: PlanPresentationUpdateInput!
+}
+
+input PlanPresentationCreateInput {
+  planVersion: TreatmentPlanVersionRelateToOneForCreateInput
+  presentedBy: UserRelateToOneForCreateInput
+  channel: String
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type TreatmentPlan {
+  id: ID!
+  patient: Patient
+  ref: String
+  title: String
+  status: String
+  currentVersion: TreatmentPlanVersion
+  versions(where: TreatmentPlanVersionWhereInput! = {}, orderBy: [TreatmentPlanVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TreatmentPlanVersionWhereUniqueInput): [TreatmentPlanVersion!]
+  versionsCount(where: TreatmentPlanVersionWhereInput! = {}): Int
+  coordinator: User
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanWhereUniqueInput {
+  id: ID
+  ref: String
+}
+
+input TreatmentPlanWhereInput {
+  AND: [TreatmentPlanWhereInput!]
+  OR: [TreatmentPlanWhereInput!]
+  NOT: [TreatmentPlanWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  ref: StringFilter
+  title: StringFilter
+  status: StringFilter
+  currentVersion: TreatmentPlanVersionWhereInput
+  versions: TreatmentPlanVersionManyRelationFilter
+  coordinator: UserWhereInput
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input TreatmentPlanVersionManyRelationFilter {
+  every: TreatmentPlanVersionWhereInput
+  some: TreatmentPlanVersionWhereInput
+  none: TreatmentPlanVersionWhereInput
+}
+
+input TreatmentPlanOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  title: OrderDirection
+  status: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input TreatmentPlanUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  ref: String
+  title: String
+  status: String
+  currentVersion: TreatmentPlanVersionRelateToOneForUpdateInput
+  versions: TreatmentPlanVersionRelateToManyForUpdateInput
+  coordinator: UserRelateToOneForUpdateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanVersionRelateToManyForUpdateInput {
+  disconnect: [TreatmentPlanVersionWhereUniqueInput!]
+  set: [TreatmentPlanVersionWhereUniqueInput!]
+  create: [TreatmentPlanVersionCreateInput!]
+  connect: [TreatmentPlanVersionWhereUniqueInput!]
+}
+
+input TreatmentPlanUpdateArgs {
+  where: TreatmentPlanWhereUniqueInput!
+  data: TreatmentPlanUpdateInput!
+}
+
+input TreatmentPlanCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  ref: String
+  title: String
+  status: String
+  currentVersion: TreatmentPlanVersionRelateToOneForCreateInput
+  versions: TreatmentPlanVersionRelateToManyForCreateInput
+  coordinator: UserRelateToOneForCreateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanVersionRelateToManyForCreateInput {
+  create: [TreatmentPlanVersionCreateInput!]
+  connect: [TreatmentPlanVersionWhereUniqueInput!]
+}
+
+type TreatmentPlanItem {
+  id: ID!
+  planVersion: TreatmentPlanVersion
+  chartEntry: ChartEntry
+  phaseKey: String
+  alternateGroup: String
+  priority: String
+  feeMinor: BigInt
+  selected: Boolean
+  refused: Boolean
+  sortOrder: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanItemWhereUniqueInput {
+  id: ID
+}
+
+input TreatmentPlanItemWhereInput {
+  AND: [TreatmentPlanItemWhereInput!]
+  OR: [TreatmentPlanItemWhereInput!]
+  NOT: [TreatmentPlanItemWhereInput!]
+  id: IDFilter
+  planVersion: TreatmentPlanVersionWhereInput
+  chartEntry: ChartEntryWhereInput
+  phaseKey: StringFilter
+  alternateGroup: StringFilter
+  priority: StringFilter
+  feeMinor: BigIntFilter
+  selected: BooleanFilter
+  refused: BooleanFilter
+  sortOrder: IntNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input TreatmentPlanItemOrderByInput {
+  id: OrderDirection
+  phaseKey: OrderDirection
+  alternateGroup: OrderDirection
+  priority: OrderDirection
+  feeMinor: OrderDirection
+  selected: OrderDirection
+  refused: OrderDirection
+  sortOrder: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input TreatmentPlanItemUpdateInput {
+  planVersion: TreatmentPlanVersionRelateToOneForUpdateInput
+  chartEntry: ChartEntryRelateToOneForUpdateInput
+  phaseKey: String
+  alternateGroup: String
+  priority: String
+  feeMinor: BigInt
+  selected: Boolean
+  refused: Boolean
+  sortOrder: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanItemUpdateArgs {
+  where: TreatmentPlanItemWhereUniqueInput!
+  data: TreatmentPlanItemUpdateInput!
+}
+
+input TreatmentPlanItemCreateInput {
+  planVersion: TreatmentPlanVersionRelateToOneForCreateInput
+  chartEntry: ChartEntryRelateToOneForCreateInput
+  phaseKey: String
+  alternateGroup: String
+  priority: String
+  feeMinor: BigInt
+  selected: Boolean
+  refused: Boolean
+  sortOrder: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type TreatmentPlanVersion {
+  id: ID!
+  plan: TreatmentPlan
+  number: Int
+  phases: JSON
+  items(where: TreatmentPlanItemWhereInput! = {}, orderBy: [TreatmentPlanItemOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TreatmentPlanItemWhereUniqueInput): [TreatmentPlanItem!]
+  itemsCount(where: TreatmentPlanItemWhereInput! = {}): Int
+  totalsMinor: JSON
+  contentHash: String
+  frozenAt: DateTime
+  presentedBy: User
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanVersionWhereUniqueInput {
+  id: ID
+}
+
+input TreatmentPlanVersionWhereInput {
+  AND: [TreatmentPlanVersionWhereInput!]
+  OR: [TreatmentPlanVersionWhereInput!]
+  NOT: [TreatmentPlanVersionWhereInput!]
+  id: IDFilter
+  plan: TreatmentPlanWhereInput
+  number: IntNullableFilter
+  items: TreatmentPlanItemManyRelationFilter
+  contentHash: StringFilter
+  frozenAt: DateTimeNullableFilter
+  presentedBy: UserWhereInput
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input TreatmentPlanVersionOrderByInput {
+  id: OrderDirection
+  number: OrderDirection
+  contentHash: OrderDirection
+  frozenAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input TreatmentPlanVersionUpdateInput {
+  plan: TreatmentPlanRelateToOneForUpdateInput
+  number: Int
+  phases: JSON
+  items: TreatmentPlanItemRelateToManyForUpdateInput
+  totalsMinor: JSON
+  contentHash: String
+  frozenAt: DateTime
+  presentedBy: UserRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanRelateToOneForUpdateInput {
+  create: TreatmentPlanCreateInput
+  connect: TreatmentPlanWhereUniqueInput
+  disconnect: Boolean
+}
+
+input TreatmentPlanVersionUpdateArgs {
+  where: TreatmentPlanVersionWhereUniqueInput!
+  data: TreatmentPlanVersionUpdateInput!
+}
+
+input TreatmentPlanVersionCreateInput {
+  plan: TreatmentPlanRelateToOneForCreateInput
+  number: Int
+  phases: JSON
+  items: TreatmentPlanItemRelateToManyForCreateInput
+  totalsMinor: JSON
+  contentHash: String
+  frozenAt: DateTime
+  presentedBy: UserRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanRelateToOneForCreateInput {
+  create: TreatmentPlanCreateInput
+  connect: TreatmentPlanWhereUniqueInput
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -7516,6 +11305,252 @@ type Mutation {
   updateStorefrontSites(data: [StorefrontSiteUpdateArgs!]!): [StorefrontSite]
   deleteStorefrontSite(where: StorefrontSiteWhereUniqueInput!): StorefrontSite
   deleteStorefrontSites(where: [StorefrontSiteWhereUniqueInput!]!): [StorefrontSite]
+  createCodeImportBatch(data: CodeImportBatchCreateInput!): CodeImportBatch
+  createCodeImportBatches(data: [CodeImportBatchCreateInput!]!): [CodeImportBatch]
+  updateCodeImportBatch(where: CodeImportBatchWhereUniqueInput!, data: CodeImportBatchUpdateInput!): CodeImportBatch
+  updateCodeImportBatches(data: [CodeImportBatchUpdateArgs!]!): [CodeImportBatch]
+  deleteCodeImportBatch(where: CodeImportBatchWhereUniqueInput!): CodeImportBatch
+  deleteCodeImportBatches(where: [CodeImportBatchWhereUniqueInput!]!): [CodeImportBatch]
+  createCodeSystem(data: CodeSystemCreateInput!): CodeSystem
+  createCodeSystems(data: [CodeSystemCreateInput!]!): [CodeSystem]
+  updateCodeSystem(where: CodeSystemWhereUniqueInput!, data: CodeSystemUpdateInput!): CodeSystem
+  updateCodeSystems(data: [CodeSystemUpdateArgs!]!): [CodeSystem]
+  deleteCodeSystem(where: CodeSystemWhereUniqueInput!): CodeSystem
+  deleteCodeSystems(where: [CodeSystemWhereUniqueInput!]!): [CodeSystem]
+  createExplosionCode(data: ExplosionCodeCreateInput!): ExplosionCode
+  createExplosionCodes(data: [ExplosionCodeCreateInput!]!): [ExplosionCode]
+  updateExplosionCode(where: ExplosionCodeWhereUniqueInput!, data: ExplosionCodeUpdateInput!): ExplosionCode
+  updateExplosionCodes(data: [ExplosionCodeUpdateArgs!]!): [ExplosionCode]
+  deleteExplosionCode(where: ExplosionCodeWhereUniqueInput!): ExplosionCode
+  deleteExplosionCodes(where: [ExplosionCodeWhereUniqueInput!]!): [ExplosionCode]
+  createFee(data: FeeCreateInput!): Fee
+  createFees(data: [FeeCreateInput!]!): [Fee]
+  updateFee(where: FeeWhereUniqueInput!, data: FeeUpdateInput!): Fee
+  updateFees(data: [FeeUpdateArgs!]!): [Fee]
+  deleteFee(where: FeeWhereUniqueInput!): Fee
+  deleteFees(where: [FeeWhereUniqueInput!]!): [Fee]
+  createFeeSchedule(data: FeeScheduleCreateInput!): FeeSchedule
+  createFeeSchedules(data: [FeeScheduleCreateInput!]!): [FeeSchedule]
+  updateFeeSchedule(where: FeeScheduleWhereUniqueInput!, data: FeeScheduleUpdateInput!): FeeSchedule
+  updateFeeSchedules(data: [FeeScheduleUpdateArgs!]!): [FeeSchedule]
+  deleteFeeSchedule(where: FeeScheduleWhereUniqueInput!): FeeSchedule
+  deleteFeeSchedules(where: [FeeScheduleWhereUniqueInput!]!): [FeeSchedule]
+  createFeeScheduleVersion(data: FeeScheduleVersionCreateInput!): FeeScheduleVersion
+  createFeeScheduleVersions(data: [FeeScheduleVersionCreateInput!]!): [FeeScheduleVersion]
+  updateFeeScheduleVersion(where: FeeScheduleVersionWhereUniqueInput!, data: FeeScheduleVersionUpdateInput!): FeeScheduleVersion
+  updateFeeScheduleVersions(data: [FeeScheduleVersionUpdateArgs!]!): [FeeScheduleVersion]
+  deleteFeeScheduleVersion(where: FeeScheduleVersionWhereUniqueInput!): FeeScheduleVersion
+  deleteFeeScheduleVersions(where: [FeeScheduleVersionWhereUniqueInput!]!): [FeeScheduleVersion]
+  createGuarantorAccount(data: GuarantorAccountCreateInput!): GuarantorAccount
+  createGuarantorAccounts(data: [GuarantorAccountCreateInput!]!): [GuarantorAccount]
+  updateGuarantorAccount(where: GuarantorAccountWhereUniqueInput!, data: GuarantorAccountUpdateInput!): GuarantorAccount
+  updateGuarantorAccounts(data: [GuarantorAccountUpdateArgs!]!): [GuarantorAccount]
+  deleteGuarantorAccount(where: GuarantorAccountWhereUniqueInput!): GuarantorAccount
+  deleteGuarantorAccounts(where: [GuarantorAccountWhereUniqueInput!]!): [GuarantorAccount]
+  createLedgerEntry(data: LedgerEntryCreateInput!): LedgerEntry
+  createLedgerEntries(data: [LedgerEntryCreateInput!]!): [LedgerEntry]
+  updateLedgerEntry(where: LedgerEntryWhereUniqueInput!, data: LedgerEntryUpdateInput!): LedgerEntry
+  updateLedgerEntries(data: [LedgerEntryUpdateArgs!]!): [LedgerEntry]
+  deleteLedgerEntry(where: LedgerEntryWhereUniqueInput!): LedgerEntry
+  deleteLedgerEntries(where: [LedgerEntryWhereUniqueInput!]!): [LedgerEntry]
+  createProcedureCode(data: ProcedureCodeCreateInput!): ProcedureCode
+  createProcedureCodes(data: [ProcedureCodeCreateInput!]!): [ProcedureCode]
+  updateProcedureCode(where: ProcedureCodeWhereUniqueInput!, data: ProcedureCodeUpdateInput!): ProcedureCode
+  updateProcedureCodes(data: [ProcedureCodeUpdateArgs!]!): [ProcedureCode]
+  deleteProcedureCode(where: ProcedureCodeWhereUniqueInput!): ProcedureCode
+  deleteProcedureCodes(where: [ProcedureCodeWhereUniqueInput!]!): [ProcedureCode]
+  createProcedureCodeCrosswalk(data: ProcedureCodeCrosswalkCreateInput!): ProcedureCodeCrosswalk
+  createProcedureCodeCrosswalks(data: [ProcedureCodeCrosswalkCreateInput!]!): [ProcedureCodeCrosswalk]
+  updateProcedureCodeCrosswalk(where: ProcedureCodeCrosswalkWhereUniqueInput!, data: ProcedureCodeCrosswalkUpdateInput!): ProcedureCodeCrosswalk
+  updateProcedureCodeCrosswalks(data: [ProcedureCodeCrosswalkUpdateArgs!]!): [ProcedureCodeCrosswalk]
+  deleteProcedureCodeCrosswalk(where: ProcedureCodeCrosswalkWhereUniqueInput!): ProcedureCodeCrosswalk
+  deleteProcedureCodeCrosswalks(where: [ProcedureCodeCrosswalkWhereUniqueInput!]!): [ProcedureCodeCrosswalk]
+  createAnestheticLog(data: AnestheticLogCreateInput!): AnestheticLog
+  createAnestheticLogs(data: [AnestheticLogCreateInput!]!): [AnestheticLog]
+  updateAnestheticLog(where: AnestheticLogWhereUniqueInput!, data: AnestheticLogUpdateInput!): AnestheticLog
+  updateAnestheticLogs(data: [AnestheticLogUpdateArgs!]!): [AnestheticLog]
+  deleteAnestheticLog(where: AnestheticLogWhereUniqueInput!): AnestheticLog
+  deleteAnestheticLogs(where: [AnestheticLogWhereUniqueInput!]!): [AnestheticLog]
+  createChartEntry(data: ChartEntryCreateInput!): ChartEntry
+  createChartEntries(data: [ChartEntryCreateInput!]!): [ChartEntry]
+  updateChartEntry(where: ChartEntryWhereUniqueInput!, data: ChartEntryUpdateInput!): ChartEntry
+  updateChartEntries(data: [ChartEntryUpdateArgs!]!): [ChartEntry]
+  deleteChartEntry(where: ChartEntryWhereUniqueInput!): ChartEntry
+  deleteChartEntries(where: [ChartEntryWhereUniqueInput!]!): [ChartEntry]
+  createClinicalNote(data: ClinicalNoteCreateInput!): ClinicalNote
+  createClinicalNotes(data: [ClinicalNoteCreateInput!]!): [ClinicalNote]
+  updateClinicalNote(where: ClinicalNoteWhereUniqueInput!, data: ClinicalNoteUpdateInput!): ClinicalNote
+  updateClinicalNotes(data: [ClinicalNoteUpdateArgs!]!): [ClinicalNote]
+  deleteClinicalNote(where: ClinicalNoteWhereUniqueInput!): ClinicalNote
+  deleteClinicalNotes(where: [ClinicalNoteWhereUniqueInput!]!): [ClinicalNote]
+  createConditionType(data: ConditionTypeCreateInput!): ConditionType
+  createConditionTypes(data: [ConditionTypeCreateInput!]!): [ConditionType]
+  updateConditionType(where: ConditionTypeWhereUniqueInput!, data: ConditionTypeUpdateInput!): ConditionType
+  updateConditionTypes(data: [ConditionTypeUpdateArgs!]!): [ConditionType]
+  deleteConditionType(where: ConditionTypeWhereUniqueInput!): ConditionType
+  deleteConditionTypes(where: [ConditionTypeWhereUniqueInput!]!): [ConditionType]
+  createExternalFinding(data: ExternalFindingCreateInput!): ExternalFinding
+  createExternalFindings(data: [ExternalFindingCreateInput!]!): [ExternalFinding]
+  updateExternalFinding(where: ExternalFindingWhereUniqueInput!, data: ExternalFindingUpdateInput!): ExternalFinding
+  updateExternalFindings(data: [ExternalFindingUpdateArgs!]!): [ExternalFinding]
+  deleteExternalFinding(where: ExternalFindingWhereUniqueInput!): ExternalFinding
+  deleteExternalFindings(where: [ExternalFindingWhereUniqueInput!]!): [ExternalFinding]
+  createImagingStudy(data: ImagingStudyCreateInput!): ImagingStudy
+  createImagingStudies(data: [ImagingStudyCreateInput!]!): [ImagingStudy]
+  updateImagingStudy(where: ImagingStudyWhereUniqueInput!, data: ImagingStudyUpdateInput!): ImagingStudy
+  updateImagingStudies(data: [ImagingStudyUpdateArgs!]!): [ImagingStudy]
+  deleteImagingStudy(where: ImagingStudyWhereUniqueInput!): ImagingStudy
+  deleteImagingStudies(where: [ImagingStudyWhereUniqueInput!]!): [ImagingStudy]
+  createInformedRefusal(data: InformedRefusalCreateInput!): InformedRefusal
+  createInformedRefusals(data: [InformedRefusalCreateInput!]!): [InformedRefusal]
+  updateInformedRefusal(where: InformedRefusalWhereUniqueInput!, data: InformedRefusalUpdateInput!): InformedRefusal
+  updateInformedRefusals(data: [InformedRefusalUpdateArgs!]!): [InformedRefusal]
+  deleteInformedRefusal(where: InformedRefusalWhereUniqueInput!): InformedRefusal
+  deleteInformedRefusals(where: [InformedRefusalWhereUniqueInput!]!): [InformedRefusal]
+  createMedicalHistoryForm(data: MedicalHistoryFormCreateInput!): MedicalHistoryForm
+  createMedicalHistoryForms(data: [MedicalHistoryFormCreateInput!]!): [MedicalHistoryForm]
+  updateMedicalHistoryForm(where: MedicalHistoryFormWhereUniqueInput!, data: MedicalHistoryFormUpdateInput!): MedicalHistoryForm
+  updateMedicalHistoryForms(data: [MedicalHistoryFormUpdateArgs!]!): [MedicalHistoryForm]
+  deleteMedicalHistoryForm(where: MedicalHistoryFormWhereUniqueInput!): MedicalHistoryForm
+  deleteMedicalHistoryForms(where: [MedicalHistoryFormWhereUniqueInput!]!): [MedicalHistoryForm]
+  createMedicalHistoryResponse(data: MedicalHistoryResponseCreateInput!): MedicalHistoryResponse
+  createMedicalHistoryResponses(data: [MedicalHistoryResponseCreateInput!]!): [MedicalHistoryResponse]
+  updateMedicalHistoryResponse(where: MedicalHistoryResponseWhereUniqueInput!, data: MedicalHistoryResponseUpdateInput!): MedicalHistoryResponse
+  updateMedicalHistoryResponses(data: [MedicalHistoryResponseUpdateArgs!]!): [MedicalHistoryResponse]
+  deleteMedicalHistoryResponse(where: MedicalHistoryResponseWhereUniqueInput!): MedicalHistoryResponse
+  deleteMedicalHistoryResponses(where: [MedicalHistoryResponseWhereUniqueInput!]!): [MedicalHistoryResponse]
+  createMedicalHistoryReview(data: MedicalHistoryReviewCreateInput!): MedicalHistoryReview
+  createMedicalHistoryReviews(data: [MedicalHistoryReviewCreateInput!]!): [MedicalHistoryReview]
+  updateMedicalHistoryReview(where: MedicalHistoryReviewWhereUniqueInput!, data: MedicalHistoryReviewUpdateInput!): MedicalHistoryReview
+  updateMedicalHistoryReviews(data: [MedicalHistoryReviewUpdateArgs!]!): [MedicalHistoryReview]
+  deleteMedicalHistoryReview(where: MedicalHistoryReviewWhereUniqueInput!): MedicalHistoryReview
+  deleteMedicalHistoryReviews(where: [MedicalHistoryReviewWhereUniqueInput!]!): [MedicalHistoryReview]
+  createMedicationEntry(data: MedicationEntryCreateInput!): MedicationEntry
+  createMedicationEntries(data: [MedicationEntryCreateInput!]!): [MedicationEntry]
+  updateMedicationEntry(where: MedicationEntryWhereUniqueInput!, data: MedicationEntryUpdateInput!): MedicationEntry
+  updateMedicationEntries(data: [MedicationEntryUpdateArgs!]!): [MedicationEntry]
+  deleteMedicationEntry(where: MedicationEntryWhereUniqueInput!): MedicationEntry
+  deleteMedicationEntries(where: [MedicationEntryWhereUniqueInput!]!): [MedicationEntry]
+  createNoteTemplate(data: NoteTemplateCreateInput!): NoteTemplate
+  createNoteTemplates(data: [NoteTemplateCreateInput!]!): [NoteTemplate]
+  updateNoteTemplate(where: NoteTemplateWhereUniqueInput!, data: NoteTemplateUpdateInput!): NoteTemplate
+  updateNoteTemplates(data: [NoteTemplateUpdateArgs!]!): [NoteTemplate]
+  deleteNoteTemplate(where: NoteTemplateWhereUniqueInput!): NoteTemplate
+  deleteNoteTemplates(where: [NoteTemplateWhereUniqueInput!]!): [NoteTemplate]
+  createNoteTemplateVersion(data: NoteTemplateVersionCreateInput!): NoteTemplateVersion
+  createNoteTemplateVersions(data: [NoteTemplateVersionCreateInput!]!): [NoteTemplateVersion]
+  updateNoteTemplateVersion(where: NoteTemplateVersionWhereUniqueInput!, data: NoteTemplateVersionUpdateInput!): NoteTemplateVersion
+  updateNoteTemplateVersions(data: [NoteTemplateVersionUpdateArgs!]!): [NoteTemplateVersion]
+  deleteNoteTemplateVersion(where: NoteTemplateVersionWhereUniqueInput!): NoteTemplateVersion
+  deleteNoteTemplateVersions(where: [NoteTemplateVersionWhereUniqueInput!]!): [NoteTemplateVersion]
+  createPerioClassification(data: PerioClassificationCreateInput!): PerioClassification
+  createPerioClassifications(data: [PerioClassificationCreateInput!]!): [PerioClassification]
+  updatePerioClassification(where: PerioClassificationWhereUniqueInput!, data: PerioClassificationUpdateInput!): PerioClassification
+  updatePerioClassifications(data: [PerioClassificationUpdateArgs!]!): [PerioClassification]
+  deletePerioClassification(where: PerioClassificationWhereUniqueInput!): PerioClassification
+  deletePerioClassifications(where: [PerioClassificationWhereUniqueInput!]!): [PerioClassification]
+  createPerioExam(data: PerioExamCreateInput!): PerioExam
+  createPerioExams(data: [PerioExamCreateInput!]!): [PerioExam]
+  updatePerioExam(where: PerioExamWhereUniqueInput!, data: PerioExamUpdateInput!): PerioExam
+  updatePerioExams(data: [PerioExamUpdateArgs!]!): [PerioExam]
+  deletePerioExam(where: PerioExamWhereUniqueInput!): PerioExam
+  deletePerioExams(where: [PerioExamWhereUniqueInput!]!): [PerioExam]
+  createPerioSiteMeasurement(data: PerioSiteMeasurementCreateInput!): PerioSiteMeasurement
+  createPerioSiteMeasurements(data: [PerioSiteMeasurementCreateInput!]!): [PerioSiteMeasurement]
+  updatePerioSiteMeasurement(where: PerioSiteMeasurementWhereUniqueInput!, data: PerioSiteMeasurementUpdateInput!): PerioSiteMeasurement
+  updatePerioSiteMeasurements(data: [PerioSiteMeasurementUpdateArgs!]!): [PerioSiteMeasurement]
+  deletePerioSiteMeasurement(where: PerioSiteMeasurementWhereUniqueInput!): PerioSiteMeasurement
+  deletePerioSiteMeasurements(where: [PerioSiteMeasurementWhereUniqueInput!]!): [PerioSiteMeasurement]
+  createPerioToothFinding(data: PerioToothFindingCreateInput!): PerioToothFinding
+  createPerioToothFindings(data: [PerioToothFindingCreateInput!]!): [PerioToothFinding]
+  updatePerioToothFinding(where: PerioToothFindingWhereUniqueInput!, data: PerioToothFindingUpdateInput!): PerioToothFinding
+  updatePerioToothFindings(data: [PerioToothFindingUpdateArgs!]!): [PerioToothFinding]
+  deletePerioToothFinding(where: PerioToothFindingWhereUniqueInput!): PerioToothFinding
+  deletePerioToothFindings(where: [PerioToothFindingWhereUniqueInput!]!): [PerioToothFinding]
+  createPrescription(data: PrescriptionCreateInput!): Prescription
+  createPrescriptions(data: [PrescriptionCreateInput!]!): [Prescription]
+  updatePrescription(where: PrescriptionWhereUniqueInput!, data: PrescriptionUpdateInput!): Prescription
+  updatePrescriptions(data: [PrescriptionUpdateArgs!]!): [Prescription]
+  deletePrescription(where: PrescriptionWhereUniqueInput!): Prescription
+  deletePrescriptions(where: [PrescriptionWhereUniqueInput!]!): [Prescription]
+  createVitalsReading(data: VitalsReadingCreateInput!): VitalsReading
+  createVitalsReadings(data: [VitalsReadingCreateInput!]!): [VitalsReading]
+  updateVitalsReading(where: VitalsReadingWhereUniqueInput!, data: VitalsReadingUpdateInput!): VitalsReading
+  updateVitalsReadings(data: [VitalsReadingUpdateArgs!]!): [VitalsReading]
+  deleteVitalsReading(where: VitalsReadingWhereUniqueInput!): VitalsReading
+  deleteVitalsReadings(where: [VitalsReadingWhereUniqueInput!]!): [VitalsReading]
+  createConsentAction(data: ConsentActionCreateInput!): ConsentAction
+  createConsentActions(data: [ConsentActionCreateInput!]!): [ConsentAction]
+  updateConsentAction(where: ConsentActionWhereUniqueInput!, data: ConsentActionUpdateInput!): ConsentAction
+  updateConsentActions(data: [ConsentActionUpdateArgs!]!): [ConsentAction]
+  deleteConsentAction(where: ConsentActionWhereUniqueInput!): ConsentAction
+  deleteConsentActions(where: [ConsentActionWhereUniqueInput!]!): [ConsentAction]
+  createConsentRecord(data: ConsentRecordCreateInput!): ConsentRecord
+  createConsentRecords(data: [ConsentRecordCreateInput!]!): [ConsentRecord]
+  updateConsentRecord(where: ConsentRecordWhereUniqueInput!, data: ConsentRecordUpdateInput!): ConsentRecord
+  updateConsentRecords(data: [ConsentRecordUpdateArgs!]!): [ConsentRecord]
+  deleteConsentRecord(where: ConsentRecordWhereUniqueInput!): ConsentRecord
+  deleteConsentRecords(where: [ConsentRecordWhereUniqueInput!]!): [ConsentRecord]
+  createFormRequest(data: FormRequestCreateInput!): FormRequest
+  createFormRequests(data: [FormRequestCreateInput!]!): [FormRequest]
+  updateFormRequest(where: FormRequestWhereUniqueInput!, data: FormRequestUpdateInput!): FormRequest
+  updateFormRequests(data: [FormRequestUpdateArgs!]!): [FormRequest]
+  deleteFormRequest(where: FormRequestWhereUniqueInput!): FormRequest
+  deleteFormRequests(where: [FormRequestWhereUniqueInput!]!): [FormRequest]
+  createFormSubmission(data: FormSubmissionCreateInput!): FormSubmission
+  createFormSubmissions(data: [FormSubmissionCreateInput!]!): [FormSubmission]
+  updateFormSubmission(where: FormSubmissionWhereUniqueInput!, data: FormSubmissionUpdateInput!): FormSubmission
+  updateFormSubmissions(data: [FormSubmissionUpdateArgs!]!): [FormSubmission]
+  deleteFormSubmission(where: FormSubmissionWhereUniqueInput!): FormSubmission
+  deleteFormSubmissions(where: [FormSubmissionWhereUniqueInput!]!): [FormSubmission]
+  createFormTemplate(data: FormTemplateCreateInput!): FormTemplate
+  createFormTemplates(data: [FormTemplateCreateInput!]!): [FormTemplate]
+  updateFormTemplate(where: FormTemplateWhereUniqueInput!, data: FormTemplateUpdateInput!): FormTemplate
+  updateFormTemplates(data: [FormTemplateUpdateArgs!]!): [FormTemplate]
+  deleteFormTemplate(where: FormTemplateWhereUniqueInput!): FormTemplate
+  deleteFormTemplates(where: [FormTemplateWhereUniqueInput!]!): [FormTemplate]
+  createFormTemplateVersion(data: FormTemplateVersionCreateInput!): FormTemplateVersion
+  createFormTemplateVersions(data: [FormTemplateVersionCreateInput!]!): [FormTemplateVersion]
+  updateFormTemplateVersion(where: FormTemplateVersionWhereUniqueInput!, data: FormTemplateVersionUpdateInput!): FormTemplateVersion
+  updateFormTemplateVersions(data: [FormTemplateVersionUpdateArgs!]!): [FormTemplateVersion]
+  deleteFormTemplateVersion(where: FormTemplateVersionWhereUniqueInput!): FormTemplateVersion
+  deleteFormTemplateVersions(where: [FormTemplateVersionWhereUniqueInput!]!): [FormTemplateVersion]
+  createGoodFaithEstimate(data: GoodFaithEstimateCreateInput!): GoodFaithEstimate
+  createGoodFaithEstimates(data: [GoodFaithEstimateCreateInput!]!): [GoodFaithEstimate]
+  updateGoodFaithEstimate(where: GoodFaithEstimateWhereUniqueInput!, data: GoodFaithEstimateUpdateInput!): GoodFaithEstimate
+  updateGoodFaithEstimates(data: [GoodFaithEstimateUpdateArgs!]!): [GoodFaithEstimate]
+  deleteGoodFaithEstimate(where: GoodFaithEstimateWhereUniqueInput!): GoodFaithEstimate
+  deleteGoodFaithEstimates(where: [GoodFaithEstimateWhereUniqueInput!]!): [GoodFaithEstimate]
+  createPlanAcceptance(data: PlanAcceptanceCreateInput!): PlanAcceptance
+  createPlanAcceptances(data: [PlanAcceptanceCreateInput!]!): [PlanAcceptance]
+  updatePlanAcceptance(where: PlanAcceptanceWhereUniqueInput!, data: PlanAcceptanceUpdateInput!): PlanAcceptance
+  updatePlanAcceptances(data: [PlanAcceptanceUpdateArgs!]!): [PlanAcceptance]
+  deletePlanAcceptance(where: PlanAcceptanceWhereUniqueInput!): PlanAcceptance
+  deletePlanAcceptances(where: [PlanAcceptanceWhereUniqueInput!]!): [PlanAcceptance]
+  createPlanPresentation(data: PlanPresentationCreateInput!): PlanPresentation
+  createPlanPresentations(data: [PlanPresentationCreateInput!]!): [PlanPresentation]
+  updatePlanPresentation(where: PlanPresentationWhereUniqueInput!, data: PlanPresentationUpdateInput!): PlanPresentation
+  updatePlanPresentations(data: [PlanPresentationUpdateArgs!]!): [PlanPresentation]
+  deletePlanPresentation(where: PlanPresentationWhereUniqueInput!): PlanPresentation
+  deletePlanPresentations(where: [PlanPresentationWhereUniqueInput!]!): [PlanPresentation]
+  createTreatmentPlan(data: TreatmentPlanCreateInput!): TreatmentPlan
+  createTreatmentPlans(data: [TreatmentPlanCreateInput!]!): [TreatmentPlan]
+  updateTreatmentPlan(where: TreatmentPlanWhereUniqueInput!, data: TreatmentPlanUpdateInput!): TreatmentPlan
+  updateTreatmentPlans(data: [TreatmentPlanUpdateArgs!]!): [TreatmentPlan]
+  deleteTreatmentPlan(where: TreatmentPlanWhereUniqueInput!): TreatmentPlan
+  deleteTreatmentPlans(where: [TreatmentPlanWhereUniqueInput!]!): [TreatmentPlan]
+  createTreatmentPlanItem(data: TreatmentPlanItemCreateInput!): TreatmentPlanItem
+  createTreatmentPlanItems(data: [TreatmentPlanItemCreateInput!]!): [TreatmentPlanItem]
+  updateTreatmentPlanItem(where: TreatmentPlanItemWhereUniqueInput!, data: TreatmentPlanItemUpdateInput!): TreatmentPlanItem
+  updateTreatmentPlanItems(data: [TreatmentPlanItemUpdateArgs!]!): [TreatmentPlanItem]
+  deleteTreatmentPlanItem(where: TreatmentPlanItemWhereUniqueInput!): TreatmentPlanItem
+  deleteTreatmentPlanItems(where: [TreatmentPlanItemWhereUniqueInput!]!): [TreatmentPlanItem]
+  createTreatmentPlanVersion(data: TreatmentPlanVersionCreateInput!): TreatmentPlanVersion
+  createTreatmentPlanVersions(data: [TreatmentPlanVersionCreateInput!]!): [TreatmentPlanVersion]
+  updateTreatmentPlanVersion(where: TreatmentPlanVersionWhereUniqueInput!, data: TreatmentPlanVersionUpdateInput!): TreatmentPlanVersion
+  updateTreatmentPlanVersions(data: [TreatmentPlanVersionUpdateArgs!]!): [TreatmentPlanVersion]
+  deleteTreatmentPlanVersion(where: TreatmentPlanVersionWhereUniqueInput!): TreatmentPlanVersion
+  deleteTreatmentPlanVersions(where: [TreatmentPlanVersionWhereUniqueInput!]!): [TreatmentPlanVersion]
   endSession: Boolean!
   authenticateUserWithPassword(email: String!, password: String!): UserAuthenticationWithPasswordResult
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
@@ -7785,6 +11820,129 @@ type Query {
   storefrontSite(where: StorefrontSiteWhereUniqueInput!): StorefrontSite
   storefrontSites(where: StorefrontSiteWhereInput! = {}, orderBy: [StorefrontSiteOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: StorefrontSiteWhereUniqueInput): [StorefrontSite!]
   storefrontSitesCount(where: StorefrontSiteWhereInput! = {}): Int
+  codeImportBatch(where: CodeImportBatchWhereUniqueInput!): CodeImportBatch
+  codeImportBatches(where: CodeImportBatchWhereInput! = {}, orderBy: [CodeImportBatchOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: CodeImportBatchWhereUniqueInput): [CodeImportBatch!]
+  codeImportBatchesCount(where: CodeImportBatchWhereInput! = {}): Int
+  codeSystem(where: CodeSystemWhereUniqueInput!): CodeSystem
+  codeSystems(where: CodeSystemWhereInput! = {}, orderBy: [CodeSystemOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: CodeSystemWhereUniqueInput): [CodeSystem!]
+  codeSystemsCount(where: CodeSystemWhereInput! = {}): Int
+  explosionCode(where: ExplosionCodeWhereUniqueInput!): ExplosionCode
+  explosionCodes(where: ExplosionCodeWhereInput! = {}, orderBy: [ExplosionCodeOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ExplosionCodeWhereUniqueInput): [ExplosionCode!]
+  explosionCodesCount(where: ExplosionCodeWhereInput! = {}): Int
+  fee(where: FeeWhereUniqueInput!): Fee
+  fees(where: FeeWhereInput! = {}, orderBy: [FeeOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FeeWhereUniqueInput): [Fee!]
+  feesCount(where: FeeWhereInput! = {}): Int
+  feeSchedule(where: FeeScheduleWhereUniqueInput!): FeeSchedule
+  feeSchedules(where: FeeScheduleWhereInput! = {}, orderBy: [FeeScheduleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FeeScheduleWhereUniqueInput): [FeeSchedule!]
+  feeSchedulesCount(where: FeeScheduleWhereInput! = {}): Int
+  feeScheduleVersion(where: FeeScheduleVersionWhereUniqueInput!): FeeScheduleVersion
+  feeScheduleVersions(where: FeeScheduleVersionWhereInput! = {}, orderBy: [FeeScheduleVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FeeScheduleVersionWhereUniqueInput): [FeeScheduleVersion!]
+  feeScheduleVersionsCount(where: FeeScheduleVersionWhereInput! = {}): Int
+  guarantorAccount(where: GuarantorAccountWhereUniqueInput!): GuarantorAccount
+  guarantorAccounts(where: GuarantorAccountWhereInput! = {}, orderBy: [GuarantorAccountOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: GuarantorAccountWhereUniqueInput): [GuarantorAccount!]
+  guarantorAccountsCount(where: GuarantorAccountWhereInput! = {}): Int
+  ledgerEntry(where: LedgerEntryWhereUniqueInput!): LedgerEntry
+  ledgerEntries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
+  ledgerEntriesCount(where: LedgerEntryWhereInput! = {}): Int
+  procedureCode(where: ProcedureCodeWhereUniqueInput!): ProcedureCode
+  procedureCodes(where: ProcedureCodeWhereInput! = {}, orderBy: [ProcedureCodeOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ProcedureCodeWhereUniqueInput): [ProcedureCode!]
+  procedureCodesCount(where: ProcedureCodeWhereInput! = {}): Int
+  procedureCodeCrosswalk(where: ProcedureCodeCrosswalkWhereUniqueInput!): ProcedureCodeCrosswalk
+  procedureCodeCrosswalks(where: ProcedureCodeCrosswalkWhereInput! = {}, orderBy: [ProcedureCodeCrosswalkOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ProcedureCodeCrosswalkWhereUniqueInput): [ProcedureCodeCrosswalk!]
+  procedureCodeCrosswalksCount(where: ProcedureCodeCrosswalkWhereInput! = {}): Int
+  anestheticLog(where: AnestheticLogWhereUniqueInput!): AnestheticLog
+  anestheticLogs(where: AnestheticLogWhereInput! = {}, orderBy: [AnestheticLogOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: AnestheticLogWhereUniqueInput): [AnestheticLog!]
+  anestheticLogsCount(where: AnestheticLogWhereInput! = {}): Int
+  chartEntry(where: ChartEntryWhereUniqueInput!): ChartEntry
+  chartEntries(where: ChartEntryWhereInput! = {}, orderBy: [ChartEntryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ChartEntryWhereUniqueInput): [ChartEntry!]
+  chartEntriesCount(where: ChartEntryWhereInput! = {}): Int
+  clinicalNote(where: ClinicalNoteWhereUniqueInput!): ClinicalNote
+  clinicalNotes(where: ClinicalNoteWhereInput! = {}, orderBy: [ClinicalNoteOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ClinicalNoteWhereUniqueInput): [ClinicalNote!]
+  clinicalNotesCount(where: ClinicalNoteWhereInput! = {}): Int
+  conditionType(where: ConditionTypeWhereUniqueInput!): ConditionType
+  conditionTypes(where: ConditionTypeWhereInput! = {}, orderBy: [ConditionTypeOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ConditionTypeWhereUniqueInput): [ConditionType!]
+  conditionTypesCount(where: ConditionTypeWhereInput! = {}): Int
+  externalFinding(where: ExternalFindingWhereUniqueInput!): ExternalFinding
+  externalFindings(where: ExternalFindingWhereInput! = {}, orderBy: [ExternalFindingOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ExternalFindingWhereUniqueInput): [ExternalFinding!]
+  externalFindingsCount(where: ExternalFindingWhereInput! = {}): Int
+  imagingStudy(where: ImagingStudyWhereUniqueInput!): ImagingStudy
+  imagingStudies(where: ImagingStudyWhereInput! = {}, orderBy: [ImagingStudyOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ImagingStudyWhereUniqueInput): [ImagingStudy!]
+  imagingStudiesCount(where: ImagingStudyWhereInput! = {}): Int
+  informedRefusal(where: InformedRefusalWhereUniqueInput!): InformedRefusal
+  informedRefusals(where: InformedRefusalWhereInput! = {}, orderBy: [InformedRefusalOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: InformedRefusalWhereUniqueInput): [InformedRefusal!]
+  informedRefusalsCount(where: InformedRefusalWhereInput! = {}): Int
+  medicalHistoryForm(where: MedicalHistoryFormWhereUniqueInput!): MedicalHistoryForm
+  medicalHistoryForms(where: MedicalHistoryFormWhereInput! = {}, orderBy: [MedicalHistoryFormOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MedicalHistoryFormWhereUniqueInput): [MedicalHistoryForm!]
+  medicalHistoryFormsCount(where: MedicalHistoryFormWhereInput! = {}): Int
+  medicalHistoryResponse(where: MedicalHistoryResponseWhereUniqueInput!): MedicalHistoryResponse
+  medicalHistoryResponses(where: MedicalHistoryResponseWhereInput! = {}, orderBy: [MedicalHistoryResponseOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MedicalHistoryResponseWhereUniqueInput): [MedicalHistoryResponse!]
+  medicalHistoryResponsesCount(where: MedicalHistoryResponseWhereInput! = {}): Int
+  medicalHistoryReview(where: MedicalHistoryReviewWhereUniqueInput!): MedicalHistoryReview
+  medicalHistoryReviews(where: MedicalHistoryReviewWhereInput! = {}, orderBy: [MedicalHistoryReviewOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MedicalHistoryReviewWhereUniqueInput): [MedicalHistoryReview!]
+  medicalHistoryReviewsCount(where: MedicalHistoryReviewWhereInput! = {}): Int
+  medicationEntry(where: MedicationEntryWhereUniqueInput!): MedicationEntry
+  medicationEntries(where: MedicationEntryWhereInput! = {}, orderBy: [MedicationEntryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: MedicationEntryWhereUniqueInput): [MedicationEntry!]
+  medicationEntriesCount(where: MedicationEntryWhereInput! = {}): Int
+  noteTemplate(where: NoteTemplateWhereUniqueInput!): NoteTemplate
+  noteTemplates(where: NoteTemplateWhereInput! = {}, orderBy: [NoteTemplateOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: NoteTemplateWhereUniqueInput): [NoteTemplate!]
+  noteTemplatesCount(where: NoteTemplateWhereInput! = {}): Int
+  noteTemplateVersion(where: NoteTemplateVersionWhereUniqueInput!): NoteTemplateVersion
+  noteTemplateVersions(where: NoteTemplateVersionWhereInput! = {}, orderBy: [NoteTemplateVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: NoteTemplateVersionWhereUniqueInput): [NoteTemplateVersion!]
+  noteTemplateVersionsCount(where: NoteTemplateVersionWhereInput! = {}): Int
+  perioClassification(where: PerioClassificationWhereUniqueInput!): PerioClassification
+  perioClassifications(where: PerioClassificationWhereInput! = {}, orderBy: [PerioClassificationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PerioClassificationWhereUniqueInput): [PerioClassification!]
+  perioClassificationsCount(where: PerioClassificationWhereInput! = {}): Int
+  perioExam(where: PerioExamWhereUniqueInput!): PerioExam
+  perioExams(where: PerioExamWhereInput! = {}, orderBy: [PerioExamOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PerioExamWhereUniqueInput): [PerioExam!]
+  perioExamsCount(where: PerioExamWhereInput! = {}): Int
+  perioSiteMeasurement(where: PerioSiteMeasurementWhereUniqueInput!): PerioSiteMeasurement
+  perioSiteMeasurements(where: PerioSiteMeasurementWhereInput! = {}, orderBy: [PerioSiteMeasurementOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PerioSiteMeasurementWhereUniqueInput): [PerioSiteMeasurement!]
+  perioSiteMeasurementsCount(where: PerioSiteMeasurementWhereInput! = {}): Int
+  perioToothFinding(where: PerioToothFindingWhereUniqueInput!): PerioToothFinding
+  perioToothFindings(where: PerioToothFindingWhereInput! = {}, orderBy: [PerioToothFindingOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PerioToothFindingWhereUniqueInput): [PerioToothFinding!]
+  perioToothFindingsCount(where: PerioToothFindingWhereInput! = {}): Int
+  prescription(where: PrescriptionWhereUniqueInput!): Prescription
+  prescriptions(where: PrescriptionWhereInput! = {}, orderBy: [PrescriptionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PrescriptionWhereUniqueInput): [Prescription!]
+  prescriptionsCount(where: PrescriptionWhereInput! = {}): Int
+  vitalsReading(where: VitalsReadingWhereUniqueInput!): VitalsReading
+  vitalsReadings(where: VitalsReadingWhereInput! = {}, orderBy: [VitalsReadingOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: VitalsReadingWhereUniqueInput): [VitalsReading!]
+  vitalsReadingsCount(where: VitalsReadingWhereInput! = {}): Int
+  consentAction(where: ConsentActionWhereUniqueInput!): ConsentAction
+  consentActions(where: ConsentActionWhereInput! = {}, orderBy: [ConsentActionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ConsentActionWhereUniqueInput): [ConsentAction!]
+  consentActionsCount(where: ConsentActionWhereInput! = {}): Int
+  consentRecord(where: ConsentRecordWhereUniqueInput!): ConsentRecord
+  consentRecords(where: ConsentRecordWhereInput! = {}, orderBy: [ConsentRecordOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: ConsentRecordWhereUniqueInput): [ConsentRecord!]
+  consentRecordsCount(where: ConsentRecordWhereInput! = {}): Int
+  formRequest(where: FormRequestWhereUniqueInput!): FormRequest
+  formRequests(where: FormRequestWhereInput! = {}, orderBy: [FormRequestOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FormRequestWhereUniqueInput): [FormRequest!]
+  formRequestsCount(where: FormRequestWhereInput! = {}): Int
+  formSubmission(where: FormSubmissionWhereUniqueInput!): FormSubmission
+  formSubmissions(where: FormSubmissionWhereInput! = {}, orderBy: [FormSubmissionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FormSubmissionWhereUniqueInput): [FormSubmission!]
+  formSubmissionsCount(where: FormSubmissionWhereInput! = {}): Int
+  formTemplate(where: FormTemplateWhereUniqueInput!): FormTemplate
+  formTemplates(where: FormTemplateWhereInput! = {}, orderBy: [FormTemplateOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FormTemplateWhereUniqueInput): [FormTemplate!]
+  formTemplatesCount(where: FormTemplateWhereInput! = {}): Int
+  formTemplateVersion(where: FormTemplateVersionWhereUniqueInput!): FormTemplateVersion
+  formTemplateVersions(where: FormTemplateVersionWhereInput! = {}, orderBy: [FormTemplateVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: FormTemplateVersionWhereUniqueInput): [FormTemplateVersion!]
+  formTemplateVersionsCount(where: FormTemplateVersionWhereInput! = {}): Int
+  goodFaithEstimate(where: GoodFaithEstimateWhereUniqueInput!): GoodFaithEstimate
+  goodFaithEstimates(where: GoodFaithEstimateWhereInput! = {}, orderBy: [GoodFaithEstimateOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: GoodFaithEstimateWhereUniqueInput): [GoodFaithEstimate!]
+  goodFaithEstimatesCount(where: GoodFaithEstimateWhereInput! = {}): Int
+  planAcceptance(where: PlanAcceptanceWhereUniqueInput!): PlanAcceptance
+  planAcceptances(where: PlanAcceptanceWhereInput! = {}, orderBy: [PlanAcceptanceOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PlanAcceptanceWhereUniqueInput): [PlanAcceptance!]
+  planAcceptancesCount(where: PlanAcceptanceWhereInput! = {}): Int
+  planPresentation(where: PlanPresentationWhereUniqueInput!): PlanPresentation
+  planPresentations(where: PlanPresentationWhereInput! = {}, orderBy: [PlanPresentationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PlanPresentationWhereUniqueInput): [PlanPresentation!]
+  planPresentationsCount(where: PlanPresentationWhereInput! = {}): Int
+  treatmentPlan(where: TreatmentPlanWhereUniqueInput!): TreatmentPlan
+  treatmentPlans(where: TreatmentPlanWhereInput! = {}, orderBy: [TreatmentPlanOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TreatmentPlanWhereUniqueInput): [TreatmentPlan!]
+  treatmentPlansCount(where: TreatmentPlanWhereInput! = {}): Int
+  treatmentPlanItem(where: TreatmentPlanItemWhereUniqueInput!): TreatmentPlanItem
+  treatmentPlanItems(where: TreatmentPlanItemWhereInput! = {}, orderBy: [TreatmentPlanItemOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TreatmentPlanItemWhereUniqueInput): [TreatmentPlanItem!]
+  treatmentPlanItemsCount(where: TreatmentPlanItemWhereInput! = {}): Int
+  treatmentPlanVersion(where: TreatmentPlanVersionWhereUniqueInput!): TreatmentPlanVersion
+  treatmentPlanVersions(where: TreatmentPlanVersionWhereInput! = {}, orderBy: [TreatmentPlanVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TreatmentPlanVersionWhereUniqueInput): [TreatmentPlanVersion!]
+  treatmentPlanVersionsCount(where: TreatmentPlanVersionWhereInput! = {}): Int
   keystone: KeystoneMeta!
   authenticatedItem: AuthenticatedItem
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult

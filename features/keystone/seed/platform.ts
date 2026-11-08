@@ -1,4 +1,5 @@
 import { seedPhase1 } from './schedule'
+import { seedPhase2 } from './clinical'
 import { NEVER_DEFAULT, permissionNames } from '../access'
 import { auditCreate } from '../lib/cas'
 import { PACKS } from '../lib/jurisdiction'
@@ -103,5 +104,6 @@ export async function seedPracticePlatform(uow: UnitOfWork, actor: Actor) {
 
   // Phase 1: chairs, visit types, templates, patients and a schedule (seed/schedule.ts).
   Object.assign(created, await seedPhase1(uow, actor))
+  Object.assign(created, await seedPhase2(uow, actor))
   return created
 }

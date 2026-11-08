@@ -36,7 +36,7 @@ module.exports = __toCommonJS(keystone_exports);
 
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
-var import_core14 = require("@keystone-6/core");
+var import_core17 = require("@keystone-6/core");
 var import_config = require("dotenv/config");
 
 // features/keystone/models/User.ts
@@ -2079,6 +2079,746 @@ var IntakeSession = (0, import_core12.list)({
   }
 });
 
+// features/keystone/models/catalogue.ts
+var catalogue_exports = {};
+__export(catalogue_exports, {
+  AREA_RULES: () => AREA_RULES,
+  CODE_CATEGORIES: () => CODE_CATEGORIES,
+  CodeImportBatch: () => CodeImportBatch,
+  CodeSystem: () => CodeSystem,
+  ExplosionCode: () => ExplosionCode,
+  FEE_KINDS: () => FEE_KINDS,
+  Fee: () => Fee,
+  FeeSchedule: () => FeeSchedule,
+  FeeScheduleVersion: () => FeeScheduleVersion,
+  GuarantorAccount: () => GuarantorAccount,
+  IMPORT_STATUSES: () => IMPORT_STATUSES,
+  LEDGER_KINDS: () => LEDGER_KINDS,
+  LICENCE_TYPES: () => LICENCE_TYPES,
+  LedgerEntry: () => LedgerEntry,
+  ProcedureCode: () => ProcedureCode,
+  ProcedureCodeCrosswalk: () => ProcedureCodeCrosswalk
+});
+var import_core13 = require("@keystone-6/core");
+var import_fields13 = require("@keystone-6/core/fields");
+var CODE_CATEGORIES = ["diagnostic", "preventive", "restorative", "endodontics", "periodontics", "prosth_removable", "maxillofacial", "implant", "prosth_fixed", "oral_surgery", "orthodontics", "adjunctive", "other"];
+var AREA_RULES = ["none", "tooth", "tooth_surface", "quadrant", "arch", "mouth", "sextant"];
+var IMPORT_STATUSES = ["uploaded", "validated", "attested", "active", "superseded", "rejected"];
+var LICENCE_TYPES = ["practice_end_user", "vendor_licence", "hosted_licence_adapter"];
+var FEE_KINDS = ["office_ucr", "ppo", "medicaid", "membership", "sliding", "dhmo_copay"];
+var CodeSystem = (0, import_core13.list)({
+  access: governed("signedIn"),
+  ui: { labelField: "key", listView: { initialColumns: ["key", "name", "isLicensed", "activeImport"] } },
+  fields: {
+    key: (0, import_fields13.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    name: systemText({ required: true }),
+    isLicensed: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    activeImport: (0, import_fields13.relationship)({ ref: "CodeImportBatch", ...readOnly }),
+    ...trackingFields
+  }
+});
+var CodeImportBatch = (0, import_core13.list)({
+  access: governed(["canImportCodes", "canApproveCodeImport"]),
+  ui: { labelField: "label", listView: { initialColumns: ["label", "editionYear", "rowCount", "status", "attestedAt"] } },
+  fields: {
+    label: systemText({ required: true }),
+    codeSystem: (0, import_fields13.relationship)({ ref: "CodeSystem", ...readOnly }),
+    editionYear: (0, import_fields13.integer)({ ...readOnly }),
+    fileName: systemText(),
+    fileSha256: systemText(),
+    rows: (0, import_fields13.json)({ defaultValue: [], ...readOnly, ui: { ...readOnly.ui, description: "Rows as uploaded, held until the batch is activated. Licensed text stays in the database." } }),
+    columnMap: (0, import_fields13.json)({ defaultValue: {}, ...readOnly }),
+    rowCount: (0, import_fields13.integer)({ defaultValue: 0, ...readOnly }),
+    validationReport: (0, import_fields13.json)({ defaultValue: {}, ...readOnly }),
+    attestation: (0, import_fields13.json)({ defaultValue: {}, ...readOnly }),
+    attestedBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
+    attestedAt: (0, import_fields13.timestamp)({ ...readOnly }),
+    status: lifecycle(IMPORT_STATUSES),
+    approval: (0, import_fields13.relationship)({ ref: "ApprovalRequest", ...readOnly }),
+    uploadedBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ProcedureCode = (0, import_core13.list)({
+  access: governed(["canReadClinical", "canChart", "canManageFees", "canImportCodes", "canManageTreatmentPlans", "canReadSchedule"]),
+  ui: { labelField: "code", listView: { initialColumns: ["code", "patientFriendlyName", "category", "areaRule", "effectiveFrom"], initialSort: { field: "code", direction: "ASC" } } },
+  fields: {
+    codeSystem: (0, import_fields13.relationship)({ ref: "CodeSystem", ...readOnly }),
+    code: systemText({ required: true, indexed: true }),
+    nomenclature: systemText(),
+    patientFriendlyName: systemText(),
+    category: fixedChoice(CODE_CATEGORIES),
+    estimatingCategory: systemText(),
+    areaRule: fixedChoice(AREA_RULES),
+    requiresSurfaces: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    maxSurfaces: (0, import_fields13.integer)({ ...readOnly }),
+    isLabMade: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    isPreventiveRecallTrigger: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    defaultUnitsMinutes: (0, import_fields13.integer)({ ...readOnly }),
+    effectiveFrom: (0, import_fields13.calendarDay)({ ...readOnly }),
+    effectiveTo: (0, import_fields13.calendarDay)({ ...readOnly }),
+    importBatch: (0, import_fields13.relationship)({ ref: "CodeImportBatch", ...readOnly }),
+    isSynthetic: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var ProcedureCodeCrosswalk = (0, import_core13.list)({
+  access: governed(["canImportCodes", "canManageFees", "canChart"]),
+  fields: {
+    localCode: (0, import_fields13.relationship)({ ref: "ProcedureCode", ...readOnly }),
+    targetCode: (0, import_fields13.relationship)({ ref: "ProcedureCode", ...readOnly }),
+    status: lifecycle(["proposed", "confirmed", "rejected"]),
+    proposedBasis: systemText(),
+    createdBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
+    confirmedBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var FeeSchedule = (0, import_core13.list)({
+  access: governed(["canManageFees", "canChart", "canReadSchedule", "canManageTreatmentPlans"]),
+  ui: { labelField: "name", listView: { initialColumns: ["name", "kind", "isDefault"] } },
+  fields: {
+    name: systemText({ required: true }),
+    kind: fixedChoice(FEE_KINDS),
+    isDefault: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    versions: (0, import_fields13.relationship)({ ref: "FeeScheduleVersion.schedule", many: true, ...readOnly }),
+    isSynthetic: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var FeeScheduleVersion = (0, import_core13.list)({
+  access: governed(["canManageFees", "canChart", "canReadSchedule", "canManageTreatmentPlans"]),
+  ui: { labelField: "label", listView: { initialColumns: ["label", "schedule", "effectiveFrom", "status"] } },
+  fields: {
+    label: systemText({ required: true }),
+    schedule: (0, import_fields13.relationship)({ ref: "FeeSchedule.versions", ...readOnly }),
+    effectiveFrom: (0, import_fields13.calendarDay)({ ...readOnly }),
+    effectiveTo: (0, import_fields13.calendarDay)({ ...readOnly }),
+    status: lifecycle(["draft", "published", "retired"]),
+    publishedBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
+    publishedAt: (0, import_fields13.timestamp)({ ...readOnly }),
+    approval: (0, import_fields13.relationship)({ ref: "ApprovalRequest", ...readOnly }),
+    fees: (0, import_fields13.relationship)({ ref: "Fee.feeVersion", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var Fee = (0, import_core13.list)({
+  access: governed(["canManageFees", "canChart", "canReadSchedule", "canManageTreatmentPlans"]),
+  fields: {
+    feeVersion: (0, import_fields13.relationship)({ ref: "FeeScheduleVersion.fees", ...readOnly }),
+    code: (0, import_fields13.relationship)({ ref: "ProcedureCode", ...readOnly }),
+    amountMinor: minor({ required: true }),
+    copayMinor: minor(),
+    ...trackingFields
+  }
+});
+var ExplosionCode = (0, import_core13.list)({
+  access: governed(["canManageFees", "canChart"]),
+  ui: { labelField: "name" },
+  fields: {
+    name: systemText({ required: true }),
+    items: (0, import_fields13.json)({ defaultValue: [], ...readOnly }),
+    isActive: (0, import_fields13.checkbox)({ defaultValue: true, ...readOnly }),
+    ...trackingFields
+  }
+});
+var LEDGER_KINDS = ["charge", "insurance_payment", "insurance_writeoff", "insurance_adjustment", "patient_payment", "patient_adjustment", "refund", "transfer_out", "transfer_in", "finance_charge", "reversal"];
+var GuarantorAccount = (0, import_core13.list)({
+  access: governed(["canReadLedger", "canManagePatients"]),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "guarantor", "balanceRebuiltAt"] } },
+  fields: {
+    ref: systemText({ indexed: "unique", required: true }),
+    guarantor: (0, import_fields13.relationship)({ ref: "Guarantor", ...readOnly }),
+    balanceCache: (0, import_fields13.json)({ defaultValue: {}, ...readOnly }),
+    balanceRebuiltAt: (0, import_fields13.timestamp)({ ...readOnly }),
+    isSynthetic: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var LedgerEntry = (0, import_core13.list)({
+  access: governed(["canReadLedger"]),
+  ui: { labelField: "id", listView: { initialColumns: ["kind", "patient", "amountMinor", "businessDate", "provider", "postedAt"], initialSort: { field: "postedAt", direction: "DESC" } } },
+  fields: {
+    account: (0, import_fields13.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    patient: (0, import_fields13.relationship)({ ref: "Patient", ...readOnly }),
+    kind: fixedChoice(LEDGER_KINDS),
+    amountMinor: minor({ required: true, description: "Signed: debits are positive, credits negative." }),
+    currencyCode: systemText(),
+    businessDate: (0, import_fields13.calendarDay)({ ...readOnly }),
+    originalBusinessDate: (0, import_fields13.calendarDay)({ ...readOnly }),
+    location: (0, import_fields13.relationship)({ ref: "Location", ...readOnly }),
+    provider: (0, import_fields13.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    chartEntry: (0, import_fields13.relationship)({ ref: "ChartEntry", ...readOnly }),
+    reverses: (0, import_fields13.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    memo: systemText(),
+    postedBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
+    postedAt: (0, import_fields13.timestamp)({ ...readOnly }),
+    isSynthetic: (0, import_fields13.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+
+// features/keystone/models/clinical.ts
+var clinical_exports = {};
+__export(clinical_exports, {
+  AREAS: () => AREAS,
+  AnestheticLog: () => AnestheticLog,
+  CHART_KINDS: () => CHART_KINDS,
+  CHART_READ: () => CHART_READ,
+  CHART_STATUSES: () => CHART_STATUSES,
+  CONDITION_STATUSES: () => CONDITION_STATUSES,
+  ChartEntry: () => ChartEntry,
+  ClinicalNote: () => ClinicalNote,
+  ConditionType: () => ConditionType,
+  ExternalFinding: () => ExternalFinding,
+  ImagingStudy: () => ImagingStudy,
+  InformedRefusal: () => InformedRefusal,
+  MedicalHistoryForm: () => MedicalHistoryForm,
+  MedicalHistoryResponse: () => MedicalHistoryResponse,
+  MedicalHistoryReview: () => MedicalHistoryReview,
+  MedicationEntry: () => MedicationEntry,
+  NoteTemplate: () => NoteTemplate,
+  NoteTemplateVersion: () => NoteTemplateVersion,
+  PERIO_SITES: () => PERIO_SITES,
+  PerioClassification: () => PerioClassification,
+  PerioExam: () => PerioExam,
+  PerioSiteMeasurement: () => PerioSiteMeasurement,
+  PerioToothFinding: () => PerioToothFinding,
+  Prescription: () => Prescription,
+  VitalsReading: () => VitalsReading
+});
+var import_core14 = require("@keystone-6/core");
+var import_fields14 = require("@keystone-6/core/fields");
+var CHART_READ = ["canReadClinical", "canChart", "canManagePerio", "canSignClinicalNotes", "canPrescribe", "canCompleteProcedures"];
+var chartRead = (path = ["patient"]) => scopedGoverned(CHART_READ, patientFilter(path));
+var CHART_KINDS = ["procedure", "condition"];
+var AREAS = ["tooth", "surface", "quadrant", "sextant", "arch", "mouth"];
+var CHART_STATUSES = ["diagnosed", "planned", "accepted", "scheduled", "completed", "posted", "existing_current", "existing_other", "referred_out", "refused", "deleted_in_error", "corrected"];
+var CONDITION_STATUSES = ["active", "watch", "resolved", "entered_in_error"];
+var PERIO_SITES = ["MB", "B", "DB", "ML", "L", "DL"];
+var ConditionType = (0, import_core14.list)({
+  access: governed("signedIn"),
+  ui: { labelField: "label", listView: { initialColumns: ["code", "label", "areaRule", "chartSymbol"] } },
+  fields: {
+    code: systemText({ indexed: "unique", required: true }),
+    label: systemText({ required: true }),
+    chartSymbol: systemText(),
+    areaRule: fixedChoice(["tooth", "tooth_surface", "quadrant", "arch", "mouth"]),
+    isActive: (0, import_fields14.checkbox)({ defaultValue: true, ...readOnly }),
+    ...trackingFields
+  }
+});
+var ChartEntry = (0, import_core14.list)({
+  access: chartRead(),
+  ui: { labelField: "id", listView: { initialColumns: ["patient", "kind", "code", "tooth", "surfaces", "status", "dateOfService"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    kind: fixedChoice(CHART_KINDS),
+    code: (0, import_fields14.relationship)({ ref: "ProcedureCode", ...readOnly }),
+    condition: (0, import_fields14.relationship)({ ref: "ConditionType", ...readOnly }),
+    tooth: systemText(),
+    surfaces: systemText(),
+    area: fixedChoice(AREAS),
+    quadrant: systemText(),
+    sextant: (0, import_fields14.integer)({ ...readOnly }),
+    arch: systemText(),
+    status: lifecycle(CHART_STATUSES, "diagnosed"),
+    conditionStatus: systemText(),
+    dateOfService: (0, import_fields14.calendarDay)({ ...readOnly }),
+    originalServiceDate: (0, import_fields14.calendarDay)({ ...readOnly }),
+    provider: (0, import_fields14.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    location: (0, import_fields14.relationship)({ ref: "Location", ...readOnly }),
+    appointment: (0, import_fields14.relationship)({ ref: "Appointment", ...readOnly }),
+    feeMinor: minor(),
+    feeScheduleVersion: (0, import_fields14.relationship)({ ref: "FeeScheduleVersion", ...readOnly }),
+    units: (0, import_fields14.integer)({ defaultValue: 1, ...readOnly }),
+    ledgerEntry: (0, import_fields14.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    correctedBy: (0, import_fields14.relationship)({ ref: "ChartEntry", ...readOnly }),
+    corrects: (0, import_fields14.relationship)({ ref: "ChartEntry", ...readOnly }),
+    diagnosisCodes: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    note: (0, import_fields14.relationship)({ ref: "ClinicalNote", ...readOnly }),
+    externalFinding: (0, import_fields14.relationship)({ ref: "ExternalFinding", ...readOnly }),
+    source: fixedChoice(["staff", "import", "proposal"]),
+    acceptedVia: systemText(),
+    deletedReason: systemText(),
+    isSynthetic: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PerioExam = (0, import_core14.list)({
+  access: chartRead(),
+  ui: { labelField: "id", listView: { initialColumns: ["patient", "examDate", "examiner", "revision", "status"], initialSort: { field: "examDate", direction: "DESC" } } },
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    examDate: (0, import_fields14.calendarDay)({ ...readOnly }),
+    examiner: (0, import_fields14.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    revision: (0, import_fields14.integer)({ defaultValue: 1, ...readOnly }),
+    revisionOf: (0, import_fields14.relationship)({ ref: "PerioExam", ...readOnly }),
+    status: lifecycle(["in_progress", "completed", "revised"]),
+    location: (0, import_fields14.relationship)({ ref: "Location", ...readOnly }),
+    signedAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    signedBy: (0, import_fields14.relationship)({ ref: "User", ...readOnly }),
+    signatureHash: systemText(),
+    measurements: (0, import_fields14.relationship)({ ref: "PerioSiteMeasurement.exam", many: true, ...readOnly }),
+    findings: (0, import_fields14.relationship)({ ref: "PerioToothFinding.exam", many: true, ...readOnly }),
+    classifications: (0, import_fields14.relationship)({ ref: "PerioClassification.exam", many: true, ...readOnly }),
+    isSynthetic: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PerioSiteMeasurement = (0, import_core14.list)({
+  access: chartRead(["exam", "patient"]),
+  ui: { listView: { initialColumns: ["exam", "tooth", "site", "probingDepthMm", "gingivalMarginMm", "bleeding"] } },
+  fields: {
+    exam: (0, import_fields14.relationship)({ ref: "PerioExam.measurements", ...readOnly }),
+    tooth: systemText({ required: true }),
+    site: fixedChoice(PERIO_SITES),
+    probingDepthMm: (0, import_fields14.integer)({ ...readOnly }),
+    gingivalMarginMm: (0, import_fields14.integer)({ ...readOnly }),
+    bleeding: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    suppuration: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    plaque: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var PerioToothFinding = (0, import_core14.list)({
+  access: chartRead(["exam", "patient"]),
+  fields: {
+    exam: (0, import_fields14.relationship)({ ref: "PerioExam.findings", ...readOnly }),
+    tooth: systemText({ required: true }),
+    mobility: (0, import_fields14.integer)({ ...readOnly }),
+    furcation: (0, import_fields14.json)({ defaultValue: {}, ...readOnly }),
+    missing: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    implant: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var PerioClassification = (0, import_core14.list)({
+  access: chartRead(["exam", "patient"]),
+  fields: {
+    exam: (0, import_fields14.relationship)({ ref: "PerioExam.classifications", ...readOnly }),
+    suggestedStage: systemText(),
+    suggestedGrade: systemText(),
+    extent: systemText(),
+    inputs: (0, import_fields14.json)({ defaultValue: {}, ...readOnly }),
+    confirmedStage: systemText(),
+    confirmedGrade: systemText(),
+    status: lifecycle(["suggested", "confirmed", "overridden"]),
+    signedBy: (0, import_fields14.relationship)({ ref: "User", ...readOnly }),
+    signedAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var NoteTemplate = (0, import_core14.list)({
+  access: governed(["canChart", "canSignClinicalNotes", "canReadClinical"]),
+  ui: { labelField: "name", listView: { initialColumns: ["name", "status", "currentVersion"] } },
+  fields: {
+    name: systemText({ required: true }),
+    appliesToCategories: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    status: lifecycle(["draft", "published", "retired"], "published"),
+    versions: (0, import_fields14.relationship)({ ref: "NoteTemplateVersion.template", many: true, ...readOnly }),
+    isSynthetic: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var NoteTemplateVersion = (0, import_core14.list)({
+  access: governed(["canChart", "canSignClinicalNotes", "canReadClinical"]),
+  ui: { labelField: "id" },
+  fields: {
+    template: (0, import_fields14.relationship)({ ref: "NoteTemplate.versions", ...readOnly }),
+    number: (0, import_fields14.integer)({ defaultValue: 1, ...readOnly }),
+    body: (0, import_fields14.text)({ ...readOnly, ui: { displayMode: "textarea" } }),
+    prompts: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    status: lifecycle(["draft", "published", "retired"], "published"),
+    ...trackingFields
+  }
+});
+var ClinicalNote = (0, import_core14.list)({
+  access: chartRead(),
+  ui: { labelField: "id", listView: { initialColumns: ["patient", "author", "status", "signedAt", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    appointment: (0, import_fields14.relationship)({ ref: "Appointment", ...readOnly }),
+    author: (0, import_fields14.relationship)({ ref: "User", ...readOnly }),
+    provider: (0, import_fields14.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    template: (0, import_fields14.relationship)({ ref: "NoteTemplateVersion", ...readOnly }),
+    title: systemText(),
+    body: (0, import_fields14.text)({ ...readOnly, ui: { ...readOnly.ui, displayMode: "textarea" } }),
+    bodyHash: systemText(),
+    status: lifecycle(["draft", "signed", "entered_in_error"]),
+    amends: (0, import_fields14.relationship)({ ref: "ClinicalNote", ...readOnly }),
+    isLateEntry: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    refersToAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    signedAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    signatureMethod: systemText(),
+    errorReason: systemText(),
+    draftedByProposal: (0, import_fields14.relationship)({ ref: "Proposal", ...readOnly }),
+    isSynthetic: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var AnestheticLog = (0, import_core14.list)({
+  access: chartRead(),
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    appointment: (0, import_fields14.relationship)({ ref: "Appointment", ...readOnly }),
+    drug: systemText({ required: true }),
+    concentration: systemText(),
+    vasoconstrictor: systemText(),
+    carpules: (0, import_fields14.decimal)({ precision: 6, scale: 2, ...readOnly }),
+    injectionSites: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    administeredBy: (0, import_fields14.relationship)({ ref: "User", ...readOnly }),
+    at: (0, import_fields14.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var VitalsReading = (0, import_core14.list)({
+  access: chartRead(),
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    appointment: (0, import_fields14.relationship)({ ref: "Appointment", ...readOnly }),
+    systolic: (0, import_fields14.integer)({ ...readOnly }),
+    diastolic: (0, import_fields14.integer)({ ...readOnly }),
+    pulse: (0, import_fields14.integer)({ ...readOnly }),
+    asaClass: systemText(),
+    takenBy: (0, import_fields14.relationship)({ ref: "User", ...readOnly }),
+    at: (0, import_fields14.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var MedicalHistoryForm = (0, import_core14.list)({
+  access: governed(["canChart", "canReadClinical", "canManagePatients"]),
+  ui: { labelField: "name", listView: { initialColumns: ["name", "formVersion", "status"] } },
+  fields: {
+    name: systemText({ required: true }),
+    formVersion: (0, import_fields14.integer)({ defaultValue: 1, ...readOnly }),
+    questions: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    jurisdictionTags: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    status: lifecycle(["draft", "published", "retired"], "published"),
+    isSynthetic: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var MedicalHistoryResponse = (0, import_core14.list)({
+  access: chartRead(),
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    form: (0, import_fields14.relationship)({ ref: "MedicalHistoryForm", ...readOnly }),
+    answers: (0, import_fields14.json)({ defaultValue: {}, ...readOnly }),
+    submittedVia: fixedChoice(["portal_api", "tablet", "staff", "import"]),
+    submittedAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    status: lifecycle(["submitted", "reviewed", "superseded"]),
+    isSynthetic: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var MedicalHistoryReview = (0, import_core14.list)({
+  access: chartRead(["response", "patient"]),
+  fields: {
+    response: (0, import_fields14.relationship)({ ref: "MedicalHistoryResponse", ...readOnly }),
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    reviewedBy: (0, import_fields14.relationship)({ ref: "User", ...readOnly }),
+    reviewedAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    changesAcknowledged: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    alertsCreated: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    signatureHash: systemText(),
+    overrideReason: systemText(),
+    ...trackingFields
+  }
+});
+var MedicationEntry = (0, import_core14.list)({
+  access: chartRead(),
+  ui: { labelField: "name" },
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    name: systemText({ required: true }),
+    dose: systemText(),
+    frequency: systemText(),
+    source: fixedChoice(["history", "staff", "import", "prescription"]),
+    activeFrom: (0, import_fields14.calendarDay)({ ...readOnly }),
+    endedAt: (0, import_fields14.calendarDay)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var Prescription = (0, import_core14.list)({
+  access: chartRead(),
+  ui: { labelField: "drug", listView: { initialColumns: ["patient", "drug", "sig", "mode", "status"] } },
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    prescriber: (0, import_fields14.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    drug: systemText({ required: true }),
+    strength: systemText(),
+    form: systemText(),
+    sig: systemText(),
+    quantity: (0, import_fields14.decimal)({ precision: 10, scale: 3, ...readOnly }),
+    refills: (0, import_fields14.integer)({ defaultValue: 0, ...readOnly }),
+    isControlled: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    schedule: fixedChoice(["none", "II", "III", "IV", "V"]),
+    pharmacy: (0, import_fields14.json)({ defaultValue: {}, ...readOnly }),
+    mode: fixedChoice(["print", "erx"]),
+    status: lifecycle(["draft", "signed", "printed", "transmitted_pending", "transmitted", "transmit_failed", "transmit_unknown", "cancelled"]),
+    signedAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    cancelReason: systemText(),
+    isSynthetic: (0, import_fields14.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ImagingStudy = (0, import_core14.list)({
+  access: chartRead(),
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    modality: fixedChoice(["bitewing", "periapical", "fmx", "panoramic", "ceph", "cbct", "intraoral_photo", "extraoral_photo", "scan_stl"]),
+    teeth: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
+    acquiredAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    source: fixedChoice(["bridge", "upload", "import"]),
+    bridgeRef: systemText(),
+    status: lifecycle(["requested", "acquired", "entered_in_error"]),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ExternalFinding = (0, import_core14.list)({
+  access: chartRead(),
+  fields: {
+    study: (0, import_fields14.relationship)({ ref: "ImagingStudy", ...readOnly }),
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    vendor: systemText(),
+    device: systemText({ required: true }),
+    modelVersion: systemText({ required: true }),
+    clearanceRef: systemText(),
+    findingType: systemText(),
+    tooth: systemText(),
+    surfaces: systemText(),
+    confidence: (0, import_fields14.decimal)({ precision: 9, scale: 4, ...readOnly }),
+    status: lifecycle(["received", "shown", "accepted", "dismissed"]),
+    decidedBy: (0, import_fields14.relationship)({ ref: "User", ...readOnly }),
+    dismissReason: systemText(),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var InformedRefusal = (0, import_core14.list)({
+  access: chartRead(),
+  fields: {
+    patient: (0, import_fields14.relationship)({ ref: "Patient", ...readOnly }),
+    planVersion: (0, import_fields14.relationship)({ ref: "TreatmentPlanVersion", ...readOnly }),
+    items: (0, import_fields14.relationship)({ ref: "TreatmentPlanItem", many: true, ...readOnly }),
+    risksExplained: (0, import_fields14.text)({ ...readOnly, ui: { ...readOnly.ui, displayMode: "textarea" } }),
+    signedBy: fixedChoice(["patient", "guardian"]),
+    signerName: systemText(),
+    signatureEvidence: (0, import_fields14.json)({ defaultValue: {}, ...readOnly }),
+    witness: (0, import_fields14.relationship)({ ref: "User", ...readOnly }),
+    signedAt: (0, import_fields14.timestamp)({ ...readOnly }),
+    status: lifecycle(["draft", "signed", "withdrawn"]),
+    withdrawnReason: systemText(),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+
+// features/keystone/models/treatment.ts
+var treatment_exports = {};
+__export(treatment_exports, {
+  ConsentAction: () => ConsentAction,
+  ConsentRecord: () => ConsentRecord,
+  FORM_KINDS: () => FORM_KINDS,
+  FormRequest: () => FormRequest,
+  FormSubmission: () => FormSubmission,
+  FormTemplate: () => FormTemplate,
+  FormTemplateVersion: () => FormTemplateVersion,
+  GoodFaithEstimate: () => GoodFaithEstimate,
+  PLAN_PRIORITIES: () => PLAN_PRIORITIES,
+  PLAN_STATUSES: () => PLAN_STATUSES,
+  PlanAcceptance: () => PlanAcceptance,
+  PlanPresentation: () => PlanPresentation,
+  TreatmentPlan: () => TreatmentPlan,
+  TreatmentPlanItem: () => TreatmentPlanItem,
+  TreatmentPlanVersion: () => TreatmentPlanVersion
+});
+var import_core15 = require("@keystone-6/core");
+var import_fields15 = require("@keystone-6/core/fields");
+var PLAN_STATUSES = ["draft", "presented", "partially_accepted", "accepted", "declined", "in_progress", "completed", "superseded", "archived"];
+var PLAN_PRIORITIES = ["urgent", "recommended_necessary", "recommended", "elective"];
+var FORM_KINDS = ["consent_treatment", "consent_sedation", "hipaa_npp_ack", "financial_policy", "photo_consent", "informed_refusal", "membership_terms", "payment_plan_terms", "intake", "medical_history", "other"];
+var PLAN_READ = ["canManageTreatmentPlans", "canPresentPlans", "canReadClinical", "canChart", "canReadLedger"];
+var planRead = (path = ["patient"]) => scopedGoverned(PLAN_READ, patientFilter(path));
+var TreatmentPlan = (0, import_core15.list)({
+  access: planRead(),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "patient", "title", "status", "currentVersion"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    patient: (0, import_fields15.relationship)({ ref: "Patient", ...readOnly }),
+    ref: systemText({ indexed: "unique", required: true }),
+    title: systemText({ required: true }),
+    status: lifecycle(PLAN_STATUSES),
+    currentVersion: (0, import_fields15.relationship)({ ref: "TreatmentPlanVersion", ...readOnly }),
+    versions: (0, import_fields15.relationship)({ ref: "TreatmentPlanVersion.plan", many: true, ...readOnly }),
+    coordinator: (0, import_fields15.relationship)({ ref: "User", ...readOnly }),
+    isSynthetic: (0, import_fields15.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var TreatmentPlanVersion = (0, import_core15.list)({
+  access: planRead(["plan", "patient"]),
+  ui: { labelField: "id", listView: { initialColumns: ["plan", "number", "frozenAt", "contentHash"] } },
+  fields: {
+    plan: (0, import_fields15.relationship)({ ref: "TreatmentPlan.versions", ...readOnly }),
+    number: (0, import_fields15.integer)({ defaultValue: 1, ...readOnly }),
+    phases: (0, import_fields15.json)({ defaultValue: [], ...readOnly }),
+    items: (0, import_fields15.relationship)({ ref: "TreatmentPlanItem.planVersion", many: true, ...readOnly }),
+    totalsMinor: (0, import_fields15.json)({ defaultValue: {}, ...readOnly }),
+    contentHash: systemText(),
+    frozenAt: (0, import_fields15.timestamp)({ ...readOnly }),
+    presentedBy: (0, import_fields15.relationship)({ ref: "User", ...readOnly }),
+    ...trackingFields
+  }
+});
+var TreatmentPlanItem = (0, import_core15.list)({
+  access: planRead(["planVersion", "plan", "patient"]),
+  ui: { labelField: "id", listView: { initialColumns: ["planVersion", "chartEntry", "phaseKey", "priority", "feeMinor"] } },
+  fields: {
+    planVersion: (0, import_fields15.relationship)({ ref: "TreatmentPlanVersion.items", ...readOnly }),
+    chartEntry: (0, import_fields15.relationship)({ ref: "ChartEntry", ...readOnly }),
+    phaseKey: systemText(),
+    alternateGroup: systemText(),
+    priority: fixedChoice(PLAN_PRIORITIES),
+    feeMinor: minor({ required: true }),
+    selected: (0, import_fields15.checkbox)({ defaultValue: false, ...readOnly }),
+    refused: (0, import_fields15.checkbox)({ defaultValue: false, ...readOnly }),
+    sortOrder: (0, import_fields15.integer)({ defaultValue: 0, ...readOnly }),
+    ...trackingFields
+  }
+});
+var PlanPresentation = (0, import_core15.list)({
+  access: planRead(["planVersion", "plan", "patient"]),
+  fields: {
+    planVersion: (0, import_fields15.relationship)({ ref: "TreatmentPlanVersion", ...readOnly }),
+    presentedBy: (0, import_fields15.relationship)({ ref: "User", ...readOnly }),
+    channel: fixedChoice(["chairside", "portal_api", "email_link"]),
+    at: (0, import_fields15.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var PlanAcceptance = (0, import_core15.list)({
+  access: planRead(["planVersion", "plan", "patient"]),
+  fields: {
+    planVersion: (0, import_fields15.relationship)({ ref: "TreatmentPlanVersion", ...readOnly }),
+    versionHash: systemText({ required: true }),
+    selectedItems: (0, import_fields15.relationship)({ ref: "TreatmentPlanItem", many: true, ...readOnly }),
+    signer: fixedChoice(["patient", "guardian"]),
+    signerName: systemText(),
+    signatureEvidence: (0, import_fields15.json)({ defaultValue: {}, ...readOnly }),
+    estimateSnapshot: (0, import_fields15.json)({ defaultValue: {}, ...readOnly }),
+    financingSelection: (0, import_fields15.json)({ defaultValue: {}, ...readOnly }),
+    at: (0, import_fields15.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var GoodFaithEstimate = (0, import_core15.list)({
+  access: planRead(),
+  fields: {
+    patient: (0, import_fields15.relationship)({ ref: "Patient", ...readOnly }),
+    planVersion: (0, import_fields15.relationship)({ ref: "TreatmentPlanVersion", ...readOnly }),
+    status: lifecycle(["required", "generated", "delivered", "superseded", "not_required"]),
+    dueBy: (0, import_fields15.timestamp)({ ...readOnly }),
+    deliveredVia: systemText(),
+    deliveredAt: (0, import_fields15.timestamp)({ ...readOnly }),
+    itemsSnapshot: (0, import_fields15.json)({ defaultValue: [], ...readOnly }),
+    totalMinor: minor(),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var FormTemplate = (0, import_core15.list)({
+  access: governed(["canChart", "canManagePatients", "canReadClinical", "canPresentPlans"]),
+  ui: { labelField: "key", listView: { initialColumns: ["key", "kind", "title"] } },
+  fields: {
+    key: systemText({ indexed: "unique", required: true }),
+    kind: fixedChoice(FORM_KINDS),
+    title: systemText({ required: true }),
+    versions: (0, import_fields15.relationship)({ ref: "FormTemplateVersion.template", many: true, ...readOnly }),
+    isSynthetic: (0, import_fields15.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var FormTemplateVersion = (0, import_core15.list)({
+  access: governed(["canChart", "canManagePatients", "canReadClinical", "canPresentPlans"]),
+  ui: { labelField: "id", listView: { initialColumns: ["template", "number", "status", "contentHash"] } },
+  fields: {
+    template: (0, import_fields15.relationship)({ ref: "FormTemplate.versions", ...readOnly }),
+    number: (0, import_fields15.integer)({ defaultValue: 1, ...readOnly }),
+    body: (0, import_fields15.text)({ ...readOnly, ui: { ...readOnly.ui, displayMode: "textarea" } }),
+    fields: (0, import_fields15.json)({ defaultValue: [], ...readOnly }),
+    jurisdictionTags: (0, import_fields15.json)({ defaultValue: [], ...readOnly }),
+    requiresWitness: (0, import_fields15.checkbox)({ defaultValue: false, ...readOnly }),
+    contentHash: systemText(),
+    status: lifecycle(["draft", "published", "retired"], "published"),
+    ...trackingFields
+  }
+});
+var FormRequest = (0, import_core15.list)({
+  access: scopedGoverned(["canChart", "canManagePatients", "canReadClinical"], patientFilter(["patient"])),
+  fields: {
+    patient: (0, import_fields15.relationship)({ ref: "Patient", ...readOnly }),
+    template: (0, import_fields15.relationship)({ ref: "FormTemplateVersion", ...readOnly }),
+    medicalHistoryForm: (0, import_fields15.relationship)({ ref: "MedicalHistoryForm", ...readOnly }),
+    channel: fixedChoice(["portal_api", "tablet", "email_link", "sms_link"]),
+    expiresAt: (0, import_fields15.timestamp)({ ...readOnly }),
+    status: lifecycle(["requested", "opened", "submitted", "expired"]),
+    requestedBy: (0, import_fields15.relationship)({ ref: "User", ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var FormSubmission = (0, import_core15.list)({
+  access: scopedGoverned(["canChart", "canReadClinical"], patientFilter(["request", "patient"])),
+  fields: {
+    request: (0, import_fields15.relationship)({ ref: "FormRequest", ...readOnly }),
+    data: (0, import_fields15.json)({ defaultValue: {}, ...readOnly }),
+    submittedAt: (0, import_fields15.timestamp)({ ...readOnly }),
+    submitterRole: fixedChoice(["patient", "guardian", "staff"]),
+    ...trackingFields
+  }
+});
+var ConsentRecord = (0, import_core15.list)({
+  access: scopedGoverned(["canChart", "canReadClinical", "canManagePatients"], patientFilter(["patient"])),
+  ui: { labelField: "id", listView: { initialColumns: ["patient", "templateVersion", "signerName", "signedAt"] } },
+  fields: {
+    patient: (0, import_fields15.relationship)({ ref: "Patient", ...readOnly }),
+    templateVersion: (0, import_fields15.relationship)({ ref: "FormTemplateVersion", ...readOnly }),
+    signerName: systemText(),
+    signerRole: fixedChoice(["patient", "guardian"]),
+    signatureEvidence: (0, import_fields15.json)({ defaultValue: {}, ...readOnly }),
+    witness: (0, import_fields15.relationship)({ ref: "User", ...readOnly }),
+    signedAt: (0, import_fields15.timestamp)({ ...readOnly }),
+    scope: (0, import_fields15.json)({ defaultValue: {}, ...readOnly }),
+    effectiveUntil: (0, import_fields15.calendarDay)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var ConsentAction = (0, import_core15.list)({
+  access: scopedGoverned(["canChart", "canReadClinical", "canManagePatients"], patientFilter(["record", "patient"])),
+  fields: {
+    record: (0, import_fields15.relationship)({ ref: "ConsentRecord", ...readOnly }),
+    kind: fixedChoice(["withdraw", "expire"]),
+    at: (0, import_fields15.timestamp)({ ...readOnly }),
+    by: (0, import_fields15.relationship)({ ref: "User", ...readOnly }),
+    reason: systemText(),
+    ...trackingFields
+  }
+});
+
 // features/keystone/security/phiFields.ts
 var TIER_PERMISSION = {
   dem: "canReadDemographics",
@@ -2132,17 +2872,41 @@ var PHI_FIELDS = {
   ConsentGrant: { evidence: "dem" },
   Message: { toAddress: "dem", subject: "dem", body: "dem" },
   PublicBookingRequest: { contact: "dem", intake: "dem", insuranceCapture: "ins", reviewNote: "dem" },
-  PortalAccount: { email: "dem" }
+  PortalAccount: { email: "dem" },
+  // Phase 2: clinical record, plans, forms (SCHEMA §5–§7, §15)
+  ChartEntry: { tooth: "clin", surfaces: "clin", diagnosisCodes: "clin", deletedReason: "clin" },
+  PerioExam: { signatureHash: "clin" },
+  PerioSiteMeasurement: { tooth: "clin", probingDepthMm: "clin", gingivalMarginMm: "clin", bleeding: "clin", suppuration: "clin", plaque: "clin" },
+  PerioToothFinding: { tooth: "clin", mobility: "clin", furcation: "clin" },
+  PerioClassification: { suggestedStage: "clin", suggestedGrade: "clin", confirmedStage: "clin", confirmedGrade: "clin", inputs: "clin" },
+  ClinicalNote: { title: "clin", body: "clin", errorReason: "clin" },
+  AnestheticLog: { drug: "clin", concentration: "clin", vasoconstrictor: "clin", carpules: "clin", injectionSites: "clin" },
+  VitalsReading: { systolic: "clin", diastolic: "clin", pulse: "clin", asaClass: "clin" },
+  MedicalHistoryResponse: { answers: "sens" },
+  MedicalHistoryReview: { changesAcknowledged: "sens", overrideReason: "clin" },
+  MedicationEntry: { name: "clin", dose: "clin", frequency: "clin" },
+  Prescription: { drug: "clin", strength: "clin", sig: "clin", quantity: "clin", pharmacy: "clin", cancelReason: "clin" },
+  ImagingStudy: { teeth: "clin" },
+  ExternalFinding: { findingType: "clin", tooth: "clin", surfaces: "clin", dismissReason: "clin" },
+  InformedRefusal: { risksExplained: "clin", signerName: "dem", signatureEvidence: "clin", withdrawnReason: "clin" },
+  TreatmentPlan: { title: "clin" },
+  PlanAcceptance: { signerName: "dem", signatureEvidence: "clin", estimateSnapshot: "fin", financingSelection: "fin" },
+  GoodFaithEstimate: { itemsSnapshot: "fin", totalMinor: "fin" },
+  FormSubmission: { data: "sens" },
+  ConsentRecord: { signerName: "dem", signatureEvidence: "clin", scope: "clin" },
+  ConsentAction: { reason: "clin" },
+  LedgerEntry: { amountMinor: "fin", memo: "fin" },
+  GuarantorAccount: { balanceCache: "fin" }
 };
 var PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap((fields) => Object.keys(fields)));
 function applyPhiTiers(models2) {
-  for (const [listKey, list11] of Object.entries(models2)) {
+  for (const [listKey, list14] of Object.entries(models2)) {
     const tiers = PHI_FIELDS[listKey];
     if (!tiers) continue;
     for (const [fieldKey, tier] of Object.entries(tiers)) {
-      const original = list11.fields?.[fieldKey];
+      const original = list14.fields?.[fieldKey];
       if (typeof original !== "function") throw new Error(`PHI_FIELDS names ${listKey}.${fieldKey}, which does not exist.`);
-      list11.fields[fieldKey] = (args) => {
+      list14.fields[fieldKey] = (args) => {
         const field = original(args);
         const access = field.access;
         const baseRead = typeof access === "function" ? access : access?.read;
@@ -2179,7 +2943,10 @@ var models = hideRefusedActions(applyPhiTiers({
   ...listsOf(patients_exports),
   ...listsOf(scheduling_exports),
   ...listsOf(messaging_exports),
-  ...listsOf(portal_exports)
+  ...listsOf(portal_exports),
+  ...listsOf(catalogue_exports),
+  ...listsOf(clinical_exports),
+  ...listsOf(treatment_exports)
 }));
 
 // features/keystone/mutations/index.ts
@@ -2317,9 +3084,9 @@ function dec(value) {
     if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
     return new Decimal(value);
   }
-  const text12 = String(value).trim();
-  if (!DECIMAL_TEXT.test(text12)) throw new Error(`Not a decimal number: ${JSON.stringify(text12).slice(0, 40)}`);
-  return new Decimal(text12);
+  const text15 = String(value).trim();
+  if (!DECIMAL_TEXT.test(text15)) throw new Error(`Not a decimal number: ${JSON.stringify(text15).slice(0, 40)}`);
+  return new Decimal(text15);
 }
 var plain = (value) => dec(value).toFixed();
 var ZERO = new Decimal(0);
@@ -2347,7 +3114,7 @@ function canonicalize(value) {
   throw new Error(`Canonical JSON cannot hold a ${typeof value}`);
 }
 var canonicalJson = (value) => JSON.stringify(canonicalize(value));
-var sha256 = (text12) => (0, import_node_crypto2.createHash)("sha256").update(text12).digest("hex");
+var sha256 = (text15) => (0, import_node_crypto2.createHash)("sha256").update(text15).digest("hex");
 var payloadHash = (value) => sha256(canonicalJson(value));
 var toJsonValue = (value) => canonicalize(value);
 
@@ -2818,9 +3585,9 @@ var APPOINTMENT_TYPES = [
   { id: "seed_apt_np", code: "NEW_PATIENT", name: "New patient exam and cleaning", publicName: "New patient visit", category: "new_patient", pattern: [H(5), E(1), H(3)], onlineBookable: true, newPatientOnly: true, requiresDentistOnSite: true, production: 32500n, colour: "#0ea5e9" },
   { id: "seed_apt_recall", code: "RECALL", name: "Recall exam and cleaning", publicName: "Cleaning and check-up", category: "recall_hygiene", pattern: [H(4), E(1), H(1)], onlineBookable: true, newPatientOnly: false, requiresDentistOnSite: true, production: 21000n, colour: "#10b981" },
   { id: "seed_apt_perio", code: "PERIO_MAINT", name: "Periodontal maintenance", publicName: "Gum maintenance visit", category: "perio_maintenance", pattern: [H(5), E(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: true, production: 19500n, colour: "#14b8a6" },
-  { id: "seed_apt_filling", code: "FILLING", name: "Filling(s)", publicName: "", category: "restorative", pattern: [A(1), P(4), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 38000n, colour: "#6366f1" },
-  { id: "seed_apt_crown_prep", code: "CROWN_PREP", name: "Crown preparation", publicName: "", category: "crown_prep", pattern: [A(2), P(6), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 125000n, colour: "#8b5cf6" },
-  { id: "seed_apt_crown_seat", code: "CROWN_SEAT", name: "Crown seat", publicName: "", category: "crown_seat", pattern: [A(1), P(2), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 0n, colour: "#a855f7" },
+  { id: "seed_apt_filling", code: "FILLING", name: "Filling(s)", publicName: "", category: "restorative", pattern: [A(1), P(4), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 38000n, colour: "#eab308" },
+  { id: "seed_apt_crown_prep", code: "CROWN_PREP", name: "Crown preparation", publicName: "", category: "crown_prep", pattern: [A(2), P(6), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 125000n, colour: "#a16207" },
+  { id: "seed_apt_crown_seat", code: "CROWN_SEAT", name: "Crown seat", publicName: "", category: "crown_seat", pattern: [A(1), P(2), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 0n, colour: "#0369a1" },
   { id: "seed_apt_endo", code: "ENDO", name: "Root canal treatment", publicName: "", category: "endo", pattern: [A(1), P(8), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 110000n, colour: "#ec4899" },
   { id: "seed_apt_ext", code: "EXTRACTION", name: "Extraction", publicName: "", category: "extraction", pattern: [A(1), P(3), A(1)], onlineBookable: false, newPatientOnly: false, requiresDentistOnSite: false, production: 29000n, colour: "#f97316" },
   { id: "seed_apt_emerg", code: "EMERGENCY", name: "Emergency visit", publicName: "Tooth pain or emergency", category: "emergency", pattern: [A(1), P(2)], onlineBookable: true, newPatientOnly: false, requiresDentistOnSite: false, production: 15500n, colour: "#ef4444" },
@@ -2868,7 +3635,7 @@ function rng(seed) {
 }
 function samplePatients(today2) {
   const rand = rng(20261107);
-  const pick = (list11) => list11[Math.floor(rand() * list11.length)];
+  const pick = (list14) => list14[Math.floor(rand() * list14.length)];
   const year = Number(today2.slice(0, 4));
   const dobFor = (age) => {
     const month = 1 + Math.floor(rand() * 12);
@@ -3330,7 +4097,7 @@ var ROLES = [
 ];
 var STAFF = [
   { id: "seed_user_okafor", name: "Dr. Maya Okafor", email: "maya.okafor@bayviewfamilydental.com", title: "Owner dentist", roleId: "seed_role_owner", kind: "staff", locations: ["seed_loc_tpa", "seed_loc_stp"], provider: { id: "seed_prov_okafor", abbreviation: "MOK", type: "dentist", npi: "1999000015", colour: "#2563eb", supervisionClass: "dentist" } },
-  { id: "seed_user_reyes", name: "Dr. Daniel Reyes", email: "daniel.reyes@bayviewfamilydental.com", title: "Associate dentist", roleId: "seed_role_associate", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_reyes", abbreviation: "DRE", type: "dentist", npi: "1999000023", colour: "#7c3aed", supervisionClass: "dentist" } },
+  { id: "seed_user_reyes", name: "Dr. Daniel Reyes", email: "daniel.reyes@bayviewfamilydental.com", title: "Associate dentist", roleId: "seed_role_associate", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_reyes", abbreviation: "DRE", type: "dentist", npi: "1999000023", colour: "#be123c", supervisionClass: "dentist" } },
   { id: "seed_user_natarajan", name: "Dr. Priya Natarajan", email: "priya.natarajan@bayviewfamilydental.com", title: "Associate dentist", roleId: "seed_role_associate", kind: "staff", locations: ["seed_loc_stp"], provider: { id: "seed_prov_natarajan", abbreviation: "PNA", type: "dentist", npi: "1999000031", colour: "#0891b2", supervisionClass: "dentist" } },
   { id: "seed_user_hale", name: "Jenna Hale, RDH", email: "jenna.hale@bayviewfamilydental.com", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_hale", abbreviation: "JHA", type: "hygienist", npi: "1999000049", colour: "#059669", supervisionClass: "rdh_general" } },
   { id: "seed_user_brandt", name: "Marcus Brandt, RDH", email: "marcus.brandt@bayviewfamilydental.com", title: "Hygienist", roleId: "seed_role_hygienist", kind: "staff", locations: ["seed_loc_tpa"], provider: { id: "seed_prov_brandt", abbreviation: "MBR", type: "hygienist", npi: "1999000056", colour: "#16a34a", supervisionClass: "rdh_general" } },
@@ -3651,9 +4418,9 @@ var import_graphql2 = require("graphql");
 var import_node_crypto4 = require("node:crypto");
 var SECRET_KEY_VERSION = 1;
 function decodeKey(value) {
-  const text12 = String(value || "").trim();
-  if (!text12) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
-  const key = /^[a-f0-9]{64}$/i.test(text12) ? Buffer.from(text12, "hex") : Buffer.from(text12, "base64");
+  const text15 = String(value || "").trim();
+  if (!text15) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
+  const key = /^[a-f0-9]{64}$/i.test(text15) ? Buffer.from(text15, "hex") : Buffer.from(text15, "base64");
   if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
   return key;
 }
@@ -4187,10 +4954,10 @@ var toDate = (value, field) => {
   return date;
 };
 var requireText = (value, field, max = 500) => {
-  const text12 = String(value ?? "").trim();
-  if (!text12) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-  if (text12.length > max) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
-  return text12;
+  const text15 = String(value ?? "").trim();
+  if (!text15) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+  if (text15.length > max) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+  return text15;
 };
 var optionalText = (value, max = 2e3) => String(value ?? "").trim().slice(0, max);
 function normalizeContact(kind, value) {
@@ -4921,11 +5688,11 @@ async function addPatientAlert(_root, args, context) {
   requirePermission(actor2, "canManagePatients", "canChart");
   if (!ALERT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown alert kind.", { field: "kind" });
   if (!["info", "caution", "critical"].includes(args.severity)) throw new DomainError(Codes.INVALID_INPUT, "Choose info, caution or critical.", { field: "severity" });
-  const text12 = requireText(args.text, "alert text", 500);
+  const text15 = requireText(args.text, "alert text", 500);
   const { idempotencyKey, ...params } = args;
   const result = await command(context.prisma, { name: "patient.alert_add", actor: actor2, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text12, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
+    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text15, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
     auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
     return { alertId: alert.id };
   });
@@ -5057,21 +5824,21 @@ async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
   let seq = 0;
   const entries = [];
   const survivorPrimary = new Set((await uow.tx.contactPoint.findMany({ where: { patientId: survivorId, isPrimary: true, isActive: true }, select: { kind: true } })).map((c) => c.kind));
-  for (const { list: list11, field } of MERGE_CHILDREN) {
-    const rows = await delegateOf(uow.tx, list11).findMany({ where: { [field]: mergedId }, select: { id: true, ...list11 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
+  for (const { list: list14, field } of MERGE_CHILDREN) {
+    const rows = await delegateOf(uow.tx, list14).findMany({ where: { [field]: mergedId }, select: { id: true, ...list14 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
     for (const row of rows) {
-      if (list11 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
+      if (list14 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
         await uow.tx.contactPoint.update({ where: { id: row.id }, data: { isPrimary: false } });
-        entries.push({ listKey: list11, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
+        entries.push({ listKey: list14, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
       }
       try {
-        await delegateOf(uow.tx, list11).update({ where: { id: row.id }, data: { [field]: survivorId } });
+        await delegateOf(uow.tx, list14).update({ where: { id: row.id }, data: { [field]: survivorId } });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list11 === "Appointment" ? "overlapping appointments" : list11} rows. Resolve them before merging.`);
+        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list14 === "Appointment" ? "overlapping appointments" : list14} rows. Resolve them before merging.`);
         throw error;
       }
-      entries.push({ listKey: list11, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
+      entries.push({ listKey: list14, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
     }
   }
   if (entries.length) await uow.tx.mergeMap.createMany({ data: entries.map((e) => ({ ...e, mergeCaseId })) });
@@ -5141,12 +5908,12 @@ function verifiedInternalIdentity(headers, socketAddress, secret4, now) {
   const loopback = /^(?:127\.|::1$|::ffff:127\.)/.test(String(socketAddress || ""));
   if (!loopback || secret4.length < 32) return null;
   const identity = String(headers["x-openfront-client-identity"] || "");
-  const timestamp10 = String(headers["x-openfront-client-timestamp"] || "");
+  const timestamp13 = String(headers["x-openfront-client-timestamp"] || "");
   const signature = String(headers["x-openfront-client-signature"] || "");
-  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp10) || !/^[a-f0-9]{64}$/.test(signature)) return null;
-  const age = Math.abs(now - Number(timestamp10) * 1e3);
+  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp13) || !/^[a-f0-9]{64}$/.test(signature)) return null;
+  const age = Math.abs(now - Number(timestamp13) * 1e3);
   if (!Number.isFinite(age) || age > INTERNAL_IDENTITY_MAX_AGE_MS) return null;
-  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp10}:${identity}`).digest("hex");
+  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp13}:${identity}`).digest("hex");
   return safeEqual(signature, expected) ? `forwarded:${identity}` : null;
 }
 
@@ -5190,8 +5957,8 @@ var keyHash = (value) => (0, import_node_crypto10.createHash)("sha256").update(v
 var secret2 = () => process.env.SESSION_SECRET || "local-development-session-secret-change-me-now";
 var clientFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(clientKey(req, secret2())).digest("hex").slice(0, 32);
 var userAgentFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(String(req?.headers?.["user-agent"] ?? "")).digest("hex").slice(0, 32);
-function limitsFrom(json9) {
-  const value = json9 && typeof json9 === "object" ? json9 : {};
+function limitsFrom(json12) {
+  const value = json12 && typeof json12 === "object" ? json12 : {};
   const pick = (n, fallback, max) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max) : fallback;
   return {
     perClientPerHour: pick(value.perClientPerHour, DEFAULT_PUBLIC_LIMITS.perClientPerHour, 1e3),
@@ -5492,9 +6259,9 @@ var import_node_crypto13 = require("node:crypto");
 // features/keystone/security/phiReadAudit.ts
 var import_node_crypto12 = require("node:crypto");
 var import_graphql4 = require("graphql");
-function referenceToken(secret4, list11, id) {
+function referenceToken(secret4, list14, id) {
   if (!secret4 || secret4.length < 32) throw new Error("A strong PHI audit reference secret (SESSION_SECRET) is required.");
-  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list11}\0${id}`).digest("hex");
+  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list14}\0${id}`).digest("hex");
 }
 async function recordPhiReadAudit(prisma, actor2, descriptor) {
   await prisma.phiReadAudit.create({
@@ -5645,8 +6412,8 @@ function assertPortalScope(principal, patientId, capability) {
   if (!scope || !scope.capabilities.includes(capability)) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
   return scope;
 }
-async function auditPortalRead(context, principal, operationName, list11, ids, fields) {
-  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list11, ids, fields, tiers: ["dem"] });
+async function auditPortalRead(context, principal, operationName, list14, ids, fields) {
+  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list14, ids, fields, tiers: ["dem"] });
 }
 async function portalMe(_root, _args, context) {
   const principal = await portalPrincipal(context);
@@ -6058,6 +6825,21 @@ var COMPOUND_UNIQUES = {
   AppointmentSegment: ['@@index([providerId, startsAt], map: "AppointmentSegment_provider_start_idx")'],
   BookingHold: ['@@index([status, expiresAt], map: "BookingHold_status_expiry_idx")'],
   ConfirmationAttempt: ['@@index([status, scheduledFor], map: "ConfirmationAttempt_status_due_idx")'],
+  // Phase 2 (SCHEMA §5–§7)
+  ProcedureCode: ['@@unique([codeSystemId, code, effectiveFrom], map: "ProcedureCode_system_code_from_key")'],
+  ProcedureCodeCrosswalk: ['@@unique([localCodeId, targetCodeId], map: "ProcedureCodeCrosswalk_pair_key")'],
+  Fee: ['@@unique([feeVersionId, codeId], map: "Fee_version_code_key")'],
+  PerioExam: ['@@unique([patientId, examDate, examinerId, revision], map: "PerioExam_patient_date_examiner_rev_key")'],
+  PerioSiteMeasurement: ['@@unique([examId, tooth, site], map: "PerioSiteMeasurement_exam_tooth_site_key")'],
+  PerioToothFinding: ['@@unique([examId, tooth], map: "PerioToothFinding_exam_tooth_key")'],
+  TreatmentPlanVersion: ['@@unique([planId, number], map: "TreatmentPlanVersion_plan_number_key")'],
+  TreatmentPlanItem: ['@@unique([planVersionId, chartEntryId], map: "TreatmentPlanItem_version_entry_key")'],
+  ChartEntry: [
+    '@@index([patientId, status], map: "ChartEntry_patient_status_idx")',
+    '@@index([patientId, tooth], map: "ChartEntry_patient_tooth_idx")',
+    '@@index([dateOfService, locationId], map: "ChartEntry_service_location_idx")'
+  ],
+  ClinicalNote: ['@@index([patientId, status], map: "ClinicalNote_patient_status_idx")'],
   Message: ['@@index([conversationId, createdAt], map: "Message_conversation_created_idx")']
 };
 function addDatabaseConstraints(schema) {
@@ -6187,7 +6969,7 @@ var { withAuth } = (0, import_auth.createAuth)({
   `
 });
 var keystone_default = withAuth(
-  (0, import_core14.config)({
+  (0, import_core17.config)({
     db: {
       provider: "postgresql",
       url: databaseURL,
