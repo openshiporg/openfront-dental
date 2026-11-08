@@ -4,7 +4,7 @@ import { canonicalJson, sha256 } from '../lib/canonical'
 import { auditCreate, lockRow, transition } from '../lib/cas'
 import { command } from '../lib/command'
 import type { Tx } from '../lib/db'
-import { Decimal, dec } from '../lib/decimal'
+import { Decimal, dec, toScale } from '../lib/decimal'
 import { DomainError, Codes } from '../lib/errors'
 import { categoryOf, groupOf, loadCoverageForEstimate } from '../lib/estimateInputs'
 import { estimate, ESTIMATOR_VERSION, type EstimatorLine } from '../lib/estimator'
@@ -270,7 +270,7 @@ function factValue(args: Record<string, any>): { appliesTo: Record<string, unkno
     case 'coverage_pct': {
       const pct = dec(String(args.pct ?? '').trim() || 'x' as never)
       if (!pct.isFinite() || pct.lt(0) || pct.gt(100)) throw new DomainError(Codes.INVALID_INPUT, 'Enter the plan’s percentage from 0 to 100.', { field: 'pct' })
-      return { appliesTo: { category: needCategory() }, value: { pct: pct.toFixed(4) } }
+      return { appliesTo: { category: needCategory() }, value: { pct: toScale(pct, 4) } }
     }
     case 'frequency_limit': {
       const count = Number(args.count), months = Number(args.months)

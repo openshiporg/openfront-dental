@@ -1,5 +1,5 @@
 import {
-  Activity, BookOpenCheck, CalendarCheck2, CalendarClock, CalendarDays, ClipboardCheck, FileSignature, Inbox, ListChecks, Receipt, KeyRound, LucideIcon, MapPin, Settings, ShieldCheck, Users,
+  Activity, BookOpenCheck, CalendarCheck2, CalendarClock, CalendarDays, ClipboardCheck, FileSignature, Inbox, Landmark, BadgeCheck, ListChecks, Receipt, KeyRound, LucideIcon, MapPin, Settings, ShieldCheck, Users,
 } from 'lucide-react'
 
 export interface PlatformNavItem {
@@ -31,6 +31,8 @@ export const platformNavItems: PlatformNavItem[] = [
   { title: 'Procedure codes', href: '/platform/codes', color: 'sky', description: 'Practice codes, licensed code imports and approvals.', icon: ListChecks, group: 'clinical' },
   { title: 'Fee schedules', href: '/platform/fees', color: 'lime', description: 'Fee versions: draft, second-person publish.', icon: Receipt, group: 'clinical' },
 
+  { title: 'Insurance plans', href: '/platform/insurance', color: 'sky', description: 'Payers, plans, fee schedules and coordination rules.', icon: Landmark, group: 'front-desk' },
+  { title: 'Verification', href: '/platform/verifications', color: 'teal', description: 'Benefit checks, failed checks and questions still to ask.', icon: BadgeCheck, group: 'front-desk' },
   { title: 'ASAP list', href: '/platform/schedule/asap', color: 'cyan', description: 'Patients who want an earlier appointment.', icon: CalendarClock, group: 'front-desk' },
   { title: 'Confirmations', href: '/platform/schedule/confirmations', color: 'green', description: 'Tomorrow and the next two days: who has confirmed.', icon: CalendarCheck2, group: 'front-desk' },
   { title: 'Booking requests', href: '/platform/schedule/booking-requests', color: 'orange', description: 'Online booking requests waiting for review.', icon: Inbox, group: 'front-desk' },
@@ -50,6 +52,8 @@ export const SHIPPED_ROUTES = new Set<string>([
   '/platform/schedule', '/platform/patients', '/platform/schedule/asap', '/platform/schedule/confirmations', '/platform/schedule/booking-requests', '/platform/settings/locations',
   // Phase 2
   '/platform/forms', '/platform/codes', '/platform/fees',
+  // Phase 3
+  '/platform/insurance', '/platform/verifications',
 ])
 
 const shipped = () => platformNavItems.filter(item => SHIPPED_ROUTES.has(item.href))

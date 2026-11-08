@@ -1,5 +1,5 @@
 import { canonicalJson, sha256 } from '../../keystone/lib/canonical'
-import { dec } from '../../keystone/lib/decimal'
+import { dec, toScale } from '../../keystone/lib/decimal'
 import type { EligibilityRequest, RawBenefit } from './types'
 
 /** The request hash: same member, payer, provider, date-of-birth and service type give the same hash (the cache and duplicate guard key). */
@@ -20,14 +20,14 @@ const CATEGORY_BY_SERVICE: Record<string, string> = { '23': 'diagnostic', '35': 
 /** Percent as the payer sends it ("0.2" or "20") to a percentage with scale 4. */
 export function percentText(value: string): string {
   const n = dec(value)
-  return (n.lte(1) ? n.times(100) : n).toFixed(4)
+  return toScale(n.lte(1) ? n.times(100) : n, 4)
 }
 
 /** Whole minor units from a decimal dollar string. A fractional cent is refused. */
 export function dollarsToMinor(value: string): bigint {
   const n = dec(value).times(100)
   if (!n.isInteger()) throw new Error('A fractional cent in a payer amount')
-  return BigInt(n.toFixed(0))
+  return BigInt(toScale(n, 0))
 }
 
 /**
@@ -47,7 +47,7 @@ export function mapBenefits(benefits: RawBenefit[], inNetwork: boolean): MappedF
       case 'A': {
         // EB01 A is the patient's co-insurance share; the plan pays the rest.
         if (b.percent === undefined || !category) break
-        facts.push({ field: 'coverage_pct', appliesTo: { category }, value: { pct: dec(100).minus(percentText(b.percent)).toFixed(4) } })
+        facts.push({ field: 'coverage_pct', appliesTo: { category }, value: { pct: toScale(dec(100).minus(percentText(b.percent)), 4) } })
         break
       }
       case 'C':

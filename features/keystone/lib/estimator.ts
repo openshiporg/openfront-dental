@@ -91,7 +91,7 @@ const weakest = (a: Confidence, b: Confidence) => (RANK[a] <= RANK[b] ? a : b)
 
 /** Percentage of an amount, rounded once to whole minor units, half-even. */
 export function pctOf(amount: bigint, pct: string): bigint {
-  return BigInt(dec(amount).times(dec(pct)).div(100).toDecimalPlaces(0, Decimal.ROUND_HALF_EVEN).toFixed(0))
+  return BigInt(dec(amount).times(dec(pct)).div(100).toDecimalPlaces(0, Decimal.ROUND_HALF_EVEN).toString())
 }
 
 export function addMonths(isoDate: string, months: number): string {
