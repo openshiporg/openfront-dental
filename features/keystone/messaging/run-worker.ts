@@ -8,9 +8,15 @@ async function main() {
   const loop = process.argv.includes('--loop')
   try {
     do {
-      const summary = await runWorkerTick(db)
-      log.info('worker tick', summary)
-      if (loop) await new Promise(resolve => setTimeout(resolve, 30_000))
+      try {
+        const summary = await runWorkerTick(db)
+        log.info('worker tick', summary)
+      } catch (error) {
+        // A failed tick must not stop the loop; the next one retries under the same leases.
+        log.error('worker tick failed', { error })
+        if (!loop) throw error
+      }
+      if (loop) await new Promise(resolve => setTimeout(resolve, Math.max(2_000, Number(process.env.WORKER_INTERVAL_MS) || 10_000)))
     } while (loop)
   } finally {
     await db.$disconnect()

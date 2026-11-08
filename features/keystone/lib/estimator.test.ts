@@ -38,7 +38,7 @@ function toInput(c: Record<string, string>): EstimateInput {
 }
 
 describe('estimator golden workbook', () => {
-  it('has 40 cases', () => expect(cases).toHaveLength(40))
+  it('has 44 cases', () => expect(cases).toHaveLength(44))
   for (const c of cases) {
     it(`#${c.id} ${c.scenario}`, () => {
       const result = estimate(toInput(c))

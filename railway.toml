@@ -4,4 +4,4 @@
 buildCommand = "keystone build --no-ui && next build"
 
 [deploy]
-startCommand = "npm run migrate && next start"
+startCommand = "sh scripts/start.sh"

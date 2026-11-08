@@ -145,6 +145,28 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     await expect(prisma.workTask.create({ data: { kind: 'verification_checklist', title: 'dup', taskKey: 'cob_method', subjectType: 'Coverage', subjectId: coverage.id } }).then(() => prisma.workTask.create({ data: { kind: 'verification_checklist', title: 'dup', taskKey: 'cob_method', subjectType: 'Coverage', subjectId: coverage.id } }))).rejects.toThrow(/Unique constraint/)
   })
 
+  it('ending a coverage closes its verification, tasks and check, and the database refuses new facts on it', async () => {
+    const coverage = await coverageOf('SUM-4406-F')
+    const started = await run('requestVerification', { coverageId: coverage.id }, owner)
+    expect(await prisma.eligibilityCheck.count({ where: { coverageId: coverage.id, status: 'queued' } })).toBe(1)
+    const fresh = await prisma.coverage.findUniqueOrThrow({ where: { id: coverage.id } })
+    await run('terminateCoverage', { coverageId: coverage.id, expectedVersion: fresh.version, endedOn: '2026-11-01', reason: 'Patient changed employer.' }, owner)
+    expect((await prisma.benefitVerification.findUniqueOrThrow({ where: { id: started.verificationId } })).status).toBe('failed')
+    expect(await prisma.eligibilityCheck.count({ where: { coverageId: coverage.id, status: { in: ['queued', 'sent', 'unknown'] } } })).toBe(0)
+    expect(await prisma.workTask.count({ where: { subjectType: 'Coverage', subjectId: coverage.id, status: { in: ['open', 'in_progress'] } } })).toBe(0)
+    await expect(prisma.benefitFact.create({ data: { coverageId: coverage.id, field: 'coverage_pct', source: 'payer_phone', observedAt: new Date(), valueJson: { pct: 80 }, appliesTo: { category: 'basic' } } })).rejects.toThrow(/coverage has ended/)
+  })
+
+  it('the database refuses a second claim of a check, a bad percent, and any edit of outside history', async () => {
+    const coverage = await coverageOf('SUM-4401-A')
+    const check = await prisma.eligibilityCheck.findFirstOrThrow({ where: { status: 'responded' } })
+    await expect(prisma.$executeRaw`UPDATE "EligibilityCheck" SET "status" = 'sent' WHERE id = ${check.id}`).rejects.toThrow(/claimed only from queued/)
+    await expect(prisma.benefitFact.create({ data: { coverageId: coverage.id, field: 'coverage_pct', source: 'payer_phone', observedAt: new Date(), valueJson: { pct: 180 }, appliesTo: { category: 'basic' } } })).rejects.toThrow(/BenefitFact_pct_bounds/)
+    const row = await prisma.outsideHistory.create({ data: { patientId: coverage.patientId!, codeText: 'Cleaning', dateOfService: new Date('2026-01-10'), source: 'patient_reported' } })
+    await expect(prisma.$executeRaw`UPDATE "OutsideHistory" SET "codeText" = 'x' WHERE id = ${row.id}`).rejects.toThrow()
+    await expect(prisma.outsideHistory.create({ data: { patientId: coverage.patientId!, codeText: 'Future', dateOfService: new Date('2031-01-10'), source: 'patient_reported' } })).rejects.toThrow(/OutsideHistory_not_future/)
+  })
+
   it('keeps the audit chain intact', async () => {
     const chain = await verifyAuditChain(prisma)
     expect(chain.ok).toBe(true)

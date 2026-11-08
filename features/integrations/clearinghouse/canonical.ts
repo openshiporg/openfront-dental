@@ -17,6 +17,21 @@ export type MappedFact = {
 /** Service type codes the dental mapper understands (X12 EB03). Anything else is ignored, not guessed. */
 const CATEGORY_BY_SERVICE: Record<string, string> = { '23': 'diagnostic', '35': 'dental', '36': 'major', '37': 'major', '38': 'orthodontic', '39': 'major', '40': 'oral_surgery', '41': 'preventive', '24': 'basic', '25': 'basic', '26': 'basic' }
 
+/** "2" + "Two cleanings per calendar year" → 2 per 12 months. Only preventive recall visits are mapped (the group the estimator counts). */
+export function frequencyOf(quantity: string | undefined, message: string | undefined, category: string | undefined): { count: number; months: number; group: string } | null {
+  if (!quantity || !message || category !== 'preventive') return null
+  if (!/^\d{1,2}$/.test(quantity.trim())) return null
+  const count = parseInt(quantity, 10)
+  if (count < 1 || count > 12) return null
+  const text = message.toLowerCase()
+  let months: number | null = null
+  if (/(per|each|every|a)\s+(calendar\s+|benefit\s+|contract\s+)?year|annually|\byearly\b/.test(text)) months = 12
+  else if (/(per|each|every)\s+(\d+|six|twelve)\s+months?/.test(text)) { const m = text.match(/(\d+|six|twelve)\s+months?/)![1]; months = m === 'six' ? 6 : m === 'twelve' ? 12 : parseInt(m, 10) }
+  else if (/per\s+(six|6)\s+months/.test(text)) months = 6
+  if (!months) return null
+  return { count, months, group: 'recall' }
+}
+
 /** Percent as the payer sends it ("0.2" or "20") to a percentage with scale 4. */
 export function percentText(value: string): string {
   const n = dec(value)
@@ -62,7 +77,9 @@ export function mapBenefits(benefits: RawBenefit[], inNetwork: boolean): MappedF
         break
       case 'J': case 'K': break
       default:
-        if (b.quantity && b.message) facts.push({ field: 'frequency_limit', appliesTo: { category: category ?? 'unspecified' }, value: { quantity: b.quantity, text: b.message.slice(0, 300) } })
+        // A frequency becomes a limit only when the payer's own words give the count and the period; otherwise it stays unrecorded and a person is asked.
+        const limit = frequencyOf(b.quantity, b.message, category)
+        if (limit) facts.push({ field: 'frequency_limit', appliesTo: { group: limit.group }, value: { ...limit, text: (b.message ?? '').slice(0, 300) } })
     }
   }
   return facts

@@ -14,7 +14,7 @@ export const ESTIMATOR_VERSION = 'est-1.0.0'
 
 export const BENEFIT_SOURCES = ['eligibility_271', 'payer_portal', 'payer_phone', 'fax_breakdown', 'prior_eob', 'patient_reported', 'practice_default'] as const
 export type BenefitSource = (typeof BENEFIT_SOURCES)[number]
-export type CobMethod = 'standard' | 'non_duplication' | 'carve_out' | 'unknown'
+export type CobMethod = 'standard' | 'non_duplication' | 'carve_out' | 'maintenance_of_benefits' | 'unknown'
 export type Confidence = 'verified' | 'partially_verified' | 'assumed'
 export type LineStatus = 'covered' | 'not_covered' | 'unknown'
 
@@ -32,6 +32,8 @@ export type EstimatorPlan = {
   missingTooth: string[]
   downgrade: string[]
   deductibleCategories: string[]
+  /** A frequency limit exists but was not given in a form that can be counted: recall lines are only partly verified. */
+  frequencyUnknown?: boolean
 }
 
 export type EstimatorUsage = {
@@ -53,10 +55,13 @@ export type EstimatorLine = {
   group?: string
   missingTooth?: boolean
   downgradeAllowedMinor?: bigint | null
+  /** The plan downgrades this category but no alternate-benefit amount is known: the estimate says so and is only partly verified. */
+  downgradeUnknown?: boolean
   secondaryAllowedMinor?: bigint | null
 }
 
-export type EstimatorSecondary = { method: CobMethod; coveragePct: PctRule[] }
+/** The secondary plan's own COB method and benefits. `confidence` is how well *its* benefits are verified. */
+export type EstimatorSecondary = { method: CobMethod; coveragePct: PctRule[]; confidence?: Confidence }
 
 export type EstimateInput = {
   plan: EstimatorPlan
@@ -161,6 +166,10 @@ export function estimate(input: EstimateInput): Estimate {
       const cutoff = addMonths(line.date, -freq.months)
       const used = [...usage.history, ...consumed].filter(h => h.group === freq.group && h.date > cutoff && h.date <= line.date).length
       if (used >= freq.count) { block('frequency_exceeded', `frequency ${freq.count} per ${freq.months} months already used (${used})`); continue }
+    } else if (line.group && plan.frequencyUnknown) {
+      reasons.push('frequency_unknown')
+      partial = true
+      trace.push('the plan has a frequency limit that is not known in numbers: not applied, a person must ask')
     }
     const age = plan.ageLimits.find(a => a.category === line.category)
     if (age && ((age.min !== null && input.patientAgeYears < age.min) || (age.max !== null && input.patientAgeYears > age.max))) {
@@ -173,6 +182,11 @@ export function estimate(input: EstimateInput): Estimate {
     if (line.missingTooth && plan.missingTooth.includes(line.category)) { block('missing_tooth', 'missing-tooth clause applies'); continue }
 
     let basis = allowed
+    if (plan.downgrade.includes(line.category) && line.downgradeUnknown && line.downgradeAllowedMinor === undefined) {
+      reasons.push('downgrade_amount_unknown')
+      partial = true
+      trace.push('plan downgrades this category but the alternate benefit is unknown: the full allowed amount is used')
+    }
     if (plan.downgrade.includes(line.category) && line.downgradeAllowedMinor !== null && line.downgradeAllowedMinor !== undefined && line.downgradeAllowedMinor < basis) {
       basis = line.downgradeAllowedMinor
       reasons.push('downgraded')
@@ -225,11 +239,21 @@ export function estimate(input: EstimateInput): Estimate {
         result.trace.push('secondary: benefit or COB method unknown, nothing assumed')
         continue
       }
-      const secAllowed = input.secondary.method === 'non_duplication' ? result.allowedMinor : line.secondaryAllowedMinor ?? result.allowedMinor
+      const method = input.secondary.method
+      const secAllowed = method === 'non_duplication' ? result.allowedMinor : line.secondaryAllowedMinor ?? result.allowedMinor
       const normal = pctOf(secAllowed, rule.pct)
-      const raw = input.secondary.method === 'standard' ? normal : max(0n, normal - result.insuranceMinor)
-      result.secondaryInsuranceMinor = min(raw, result.patientMinor)
-      result.trace.push(`secondary (${input.secondary.method}) pays ${result.secondaryInsuranceMinor}`)
+      // The patient portion left after the primary, and what the plan may pay in total (never more than the allowed amount).
+      const left = result.patientMinor
+      const room = max(0n, result.allowedMinor - result.insuranceMinor)
+      let raw: bigint
+      if (method === 'standard') raw = normal
+      else if (method === 'maintenance_of_benefits') raw = max(0n, left - max(0n, secAllowed - normal)) // the patient still owes the secondary's own cost share
+      else raw = max(0n, normal - result.insuranceMinor) // non-duplication and carve-out: its normal benefit less what the primary paid
+      const paid = min(raw, min(left, room))
+      result.secondaryInsuranceMinor = paid
+      result.patientMinor = left - paid
+      if (paid > 0n && input.secondary.confidence) result.confidence = weakest(result.confidence, input.secondary.confidence)
+      result.trace.push(`secondary (${method}) pays ${paid}; patient owes ${result.patientMinor}`)
     }
   }
 

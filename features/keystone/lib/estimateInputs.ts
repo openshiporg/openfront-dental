@@ -1,10 +1,10 @@
 import type { Tx } from './db'
-import type { BenefitSource, EstimateInput, EstimatorLine, EstimatorPlan, PctRule } from './estimator'
+import type { BenefitSource, CobMethod, EstimateInput, EstimatorLine, EstimatorPlan, PctRule } from './estimator'
 import { minorOf } from './money'
 
 /*
  * Builds the estimator's inputs from stored benefit facts (I-I1, I-I3). Rules:
- *   - the newest *known* fact for a field wins; an unknown fact only counts when no known one exists;
+ *   - the newest fact for a field wins, an unknown one included: a later "the payer could not say" retracts an older value;
  *   - a category with no fact (or only an unknown one) is unknown, never zero and never covered;
  *   - every fact used is listed by id so the estimate can be reproduced.
  */
@@ -19,17 +19,22 @@ type Fact = { id: string; field: string; appliesTo: any; valueJson: any; isUnkno
 
 const newestFirst = (a: Fact, b: Fact) => b.observedAt.getTime() - a.observedAt.getTime() || b.createdAt.getTime() - a.createdAt.getTime()
 
-/** The effective fact per (field, scope): newest known, else newest unknown. */
+/** Facts about the same thing share a key: an unknown answer (recorded with no scope) meets the known one it replaces. */
+export const factKey = (fact: Pick<Fact, 'field' | 'appliesTo'>) => {
+  const a = (fact.appliesTo ?? {}) as Record<string, unknown>
+  const category = a.category === 'all' || a.category === 'dental' ? '' : String(a.category ?? '')
+  const group = fact.field === 'frequency_limit' ? String(a.group ?? '') || 'recall' : String(a.group ?? '')
+  return `${fact.field}|${category}|${String(a.level ?? 'individual')}|${group}`
+}
+
+/** The effective fact per (field, scope): the newest answer wins, an unknown one included ("the payer could not say" retracts an older value). */
 export function effectiveFacts(facts: Fact[]): Fact[] {
   const groups = new Map<string, Fact[]>()
-  for (const fact of facts) {
-    const key = `${fact.field}|${JSON.stringify(fact.appliesTo ?? {})}`
-    groups.set(key, [...(groups.get(key) ?? []), fact])
-  }
-  return [...groups.values()].map(group => {
-    const sorted = [...group].sort(newestFirst)
-    return sorted.find(f => !f.isUnknown) ?? sorted[0]
-  })
+  for (const fact of facts) groups.set(factKey(fact), [...(groups.get(factKey(fact)) ?? []), fact])
+  const newest = [...groups.values()].map(group => [...group].sort(newestFirst)[0])
+  // An unknown answer with no scope ("could not say" about the whole field) also retracts every older scoped value of that field.
+  const wide = newest.filter(f => f.isUnknown && !Object.keys((f.appliesTo ?? {}) as object).length)
+  return newest.filter(f => f.isUnknown || !wide.some(w => w.field === f.field && newestFirst(w, f) < 0))
 }
 
 export type LoadedCoverage = {
@@ -38,11 +43,15 @@ export type LoadedCoverage = {
   plan: EstimatorPlan
   usage: EstimateInput['usage']
   effectiveFrom: string | null
-  cobMethod: 'standard' | 'non_duplication' | 'carve_out' | 'unknown'
+  cobMethod: CobMethod
   factIds: string[]
   feeScheduleVersionId: string | null
   usageNotes: string[]
   coveragePct: PctRule[]
+  /** How well this coverage's own benefits are verified (drives the confidence of a secondary payment). */
+  verificationLevel: string
+  /** A frequency limit was reported in words the estimator cannot read: a person must ask. */
+  frequencyUnreadable: boolean
 }
 
 export async function loadCoverageForEstimate(tx: Tx, coverageId: string, onDate: string): Promise<LoadedCoverage | null> {
@@ -72,6 +81,7 @@ export async function loadCoverageForEstimate(tx: Tx, coverageId: string, onDate
   else if (deductible !== null) usageNotes.push('Deductible met so far was not reported; none is assumed.')
 
   const frequency = known('frequency_limit').filter(f => (f.valueJson as any)?.count && (f.valueJson as any)?.months).map(f => ({ group: String((f.valueJson as any).group ?? (f.appliesTo as any)?.group ?? 'recall'), count: Number((f.valueJson as any).count), months: Number((f.valueJson as any).months), ref: f.id }))
+  const frequencyUnreadable = known('frequency_limit').some(f => !((f.valueJson as any)?.count && (f.valueJson as any)?.months))
   const ages = known('age_limit').map(f => ({ category: String((f.appliesTo as any).category), min: (f.valueJson as any).min ?? null, max: (f.valueJson as any).max ?? null }))
   const waiting = known('waiting_period').filter(f => (f.valueJson as any)?.months).map(f => ({ category: String((f.appliesTo as any).category), months: Number((f.valueJson as any).months) }))
   const missing = known('missing_tooth_clause').flatMap(f => ((f.valueJson as any)?.categories ?? []) as string[])
@@ -93,7 +103,7 @@ export async function loadCoverageForEstimate(tx: Tx, coverageId: string, onDate
   ]
   return {
     coverageId, ordinal: coverage.ordinal, effectiveFrom: coverage.effectiveFrom ? dayOf(coverage.effectiveFrom) : null, cobMethod,
-    factIds: facts.map(f => f.id), feeScheduleVersionId: version?.id ?? null, usageNotes, coveragePct: pct,
+    factIds: facts.map(f => f.id), feeScheduleVersionId: version?.id ?? null, usageNotes, coveragePct: pct, verificationLevel: coverage.verificationLevel, frequencyUnreadable,
     plan: { inNetwork: plan.networkStatus === 'in_network', annualMaxMinor: annualMax, deductibleMinor: deductible, coveragePct: pct, frequency, ageLimits: ages, waiting, missingTooth: missing, downgrade, deductibleCategories: ['basic', 'major'] },
     usage: { maxUsedMinor: maxUsed < 0n ? 0n : maxUsed, pendingMinor: 0n, deductibleMetMinor: dedMet < 0n ? 0n : dedMet, history: used },
   }

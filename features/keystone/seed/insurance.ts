@@ -23,6 +23,8 @@ const PLANS = [
 ]
 
 type FactSeed = [field: string, appliesTo: Record<string, unknown>, value: Record<string, unknown>, source?: string]
+const SEED_TASK_TITLES: Record<string, string> = { frequency_limit: 'Ask the payer for frequency limits', waiting_period: 'Ask about waiting periods', cob_method: 'Ask which coordination-of-benefits method applies' }
+
 const FULL_FACTS = (maxLeft: number, dedLeft: number): FactSeed[] => [
   ['coverage_active', {}, { active: true }],
   ['annual_max', { level: 'individual' }, { amountMinor: '150000' }],
@@ -76,7 +78,7 @@ export async function seedPhase3(uow: UnitOfWork, actor: Actor) {
     if (state === 'partial') {
       for (const field of ['frequency_limit', 'waiting_period', 'cob_method']) {
         rows.facts.push({ verificationId: vid, coverageId: cid, field, appliesTo: {}, valueJson: {}, isUnknown: true, source: 'payer_portal', observedAt: now })
-        rows.tasks.push({ kind: 'verification_checklist', title: `Ask the payer: ${field.replaceAll('_', ' ')}`, taskKey: field, subjectType: 'Coverage', subjectId: cid, verificationId: vid, dueAt: new Date(now.getTime() + 2 * 86_400_000), checklist: { field }, isSynthetic: true })
+        rows.tasks.push({ kind: 'verification_checklist', title: SEED_TASK_TITLES[field] ?? `Confirm ${field.replaceAll('_', ' ')}`, taskKey: field, subjectType: 'Coverage', subjectId: cid, verificationId: vid, dueAt: new Date(now.getTime() + 2 * 86_400_000), checklist: { field }, isSynthetic: true })
       }
     }
     rows.levels.push([cid, vid, state === 'full' ? 'verified_full' : 'verified_partial'])

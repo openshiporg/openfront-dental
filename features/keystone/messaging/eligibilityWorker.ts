@@ -11,7 +11,7 @@ import { openChecklist, CHECKLIST_BY_PLAN } from '../mutations/insurance'
 
 /*
  * The eligibility check job (INTEGRATIONS §2). Three steps, never one transaction:
- *   1. claim: queued → sent in a short transaction (a second delivery of the message finds it already claimed);
+ *   1. claim: queued → sent in a short transaction (a second delivery finds it already sent and skips; a database trigger refuses any other route to `sent`);
  *   2. call the clearinghouse, with no database transaction open;
  *   3. apply the outcome in a second transaction, guarded on status = sent.
  * A timeout leaves the check `unknown`: it may have reached the payer. A re-check reuses the same row and
@@ -38,7 +38,8 @@ export async function runEligibilityCheck(db: Db, checkId: string, deps: Eligibi
   // 1. claim
   const claimed = await db.$transaction(async tx => {
     const rows = await tx.$queryRaw<{ status: string }[]>`SELECT status FROM "EligibilityCheck" WHERE id = ${checkId} FOR UPDATE`
-    if (!rows[0] || !['queued', 'sent'].includes(rows[0].status)) return false
+    // Only a queued check is claimed. A `sent` one has already made its call (or is making it): a second delivery must not call again.
+    if (!rows[0] || rows[0].status !== 'queued') return false
     await tx.$executeRaw`UPDATE "EligibilityCheck" SET status = 'sent', attempts = attempts + 1, version = version + 1, "updatedAt" = now() WHERE id = ${checkId}`
     return true
   })
@@ -122,4 +123,16 @@ export function eligibilityHandlers(db: Db, deps: EligibilityDeps = {}): OutboxH
       await runEligibilityCheck(db, payload.checkId, deps)
     },
   }
+}
+
+/**
+ * A check left `sent` by a worker that died between claiming and applying may or may not have reached the
+ * payer, so it ends `unknown` (never retried silently, never assumed). Staff re-check it from the worklist.
+ */
+export async function settleStaleChecks(db: Db, now: Date, staleMs = 10 * 60_000) {
+  const cutoff = new Date(now.getTime() - staleMs)
+  const stale = await db.$queryRaw<{ id: string; verificationId: string | null }[]>`
+    UPDATE "EligibilityCheck" SET status = 'unknown', "resultNote" = 'The check was interrupted. It may have reached the payer; check again.', version = version + 1, "updatedAt" = now()
+    WHERE status = 'sent' AND "updatedAt" < ${cutoff} RETURNING id, verification AS "verificationId"`
+  return { settled: stale.length }
 }

@@ -139,6 +139,21 @@ const WORDS: Record<string, string> = {
   human_active: 'staff active', agent_active: 'agent active', rules_engine: 'rules engine', reviewed_ok: 'reviewed, fine', reviewed_violation: 'reviewed, policy breach',
   claim_attachment: 'claim attachment', clinical_attachment: 'clinical attachment', insurance_directory: 'insurance directory', report_received: 'report received',
   break_glass: 'emergency access', code_licence: 'code licence',
+  // insurance: payers, plans, coordination, benefits, sources, checks
+  commercial: 'commercial', medicaid: 'Medicaid', chip: 'CHIP', medicare_advantage: 'Medicare Advantage', tricare: 'TRICARE', discount: 'discount plan',
+  indemnity: 'indemnity', dhmo: 'DHMO', ma_dental: 'Medicare Advantage dental', in_network: 'in network', out_of_network: 'out of network',
+  standard: 'standard', non_duplication: 'non-duplication', carve_out: 'carve-out', maintenance_of_benefits: 'maintenance of benefits',
+  primary: 'primary', secondary: 'secondary', tertiary: 'tertiary', child: 'child',
+  pending_verification: 'waiting to be verified', terminated: 'ended', invalid: 'invalid', unverified: 'not verified', verified_partial: 'partly verified', verified_full: 'fully verified',
+  verified: 'verified', partially_verified: 'partly verified', assumed: 'assumed',
+  eligibility_271: 'electronic check', payer_portal: 'payer portal', payer_phone: 'payer phone call', fax_breakdown: 'faxed breakdown', prior_eob: 'earlier EOB', patient_reported: 'told by the patient', practice_default: 'practice assumption',
+  coverage_active: 'coverage', annual_max: 'annual maximum', annual_max_used: 'maximum left this year', deductible: 'deductible', deductible_met: 'deductible left this year', coverage_pct: 'plan pays',
+  frequency_limit: 'frequency limit', frequency_used: 'frequency used', history_procedure: 'treatment elsewhere', waiting_period: 'waiting period', missing_tooth_clause: 'missing-tooth clause',
+  downgrade: 'downgrade rule', cob_method: 'coordination of benefits', ortho_max: 'orthodontic maximum', ortho_used: 'orthodontic used', non_covered: 'not covered', age_limit: 'age limit',
+  preventive: 'preventive', basic: 'basic', major: 'major', orthodontic: 'orthodontic', all: 'all categories',
+  responded: 'answered', error_retryable: 'try again', not_covered: 'not covered', covered: 'covered', plan_year: 'new plan year', signal: 'signal', proposal: 'proposal', staff: 'staff',
+  verification_checklist: 'verification question', note_sign: 'note to sign', unsigned_plan_follow_up: 'unsigned plan follow-up', lab_follow_up: 'lab follow-up', rejection_fix: 'rejection to fix', credit_review: 'credit review',
+  complete: 'complete', partial: 'partial', done: 'done', plan_item: 'treatment plan item', claim_line: 'claim line', appointment: 'appointment',
   incumbent_dentrix: 'Dentrix', incumbent_eaglesoft: 'Eaglesoft', incumbent_opendental: 'Open Dental', incumbent_other: 'another system', state_medicaid: 'state Medicaid',
 }
 

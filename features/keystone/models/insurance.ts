@@ -16,7 +16,7 @@ import { trackingFields } from './trackingFields'
 
 export const PAYER_KINDS = ['commercial', 'medicaid', 'chip', 'medicare_advantage', 'tricare', 'other'] as const
 export const PLAN_TYPES = ['ppo', 'indemnity', 'dhmo', 'medicaid', 'ma_dental', 'discount', 'other'] as const
-export const COB_METHODS = ['standard', 'non_duplication', 'carve_out', 'unknown'] as const
+export const COB_METHODS = ['standard', 'non_duplication', 'carve_out', 'maintenance_of_benefits', 'unknown'] as const
 export const ORDINALS = ['primary', 'secondary', 'tertiary'] as const
 export const RELATIONSHIPS = ['self', 'spouse', 'child', 'other'] as const
 export const COVERAGE_STATUSES = ['pending_verification', 'active', 'terminated', 'invalid'] as const

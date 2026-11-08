@@ -3,6 +3,7 @@ import { requirePermission, systemActor, type Actor } from '../lib/actor'
 import { canonicalJson, sha256 } from '../lib/canonical'
 import { auditCreate, lockRow, transition } from '../lib/cas'
 import { command } from '../lib/command'
+import type { UnitOfWork } from '../lib/unitOfWork'
 import type { Tx } from '../lib/db'
 import { Decimal, dec, toScale } from '../lib/decimal'
 import { DomainError, Codes } from '../lib/errors'
@@ -178,10 +179,41 @@ export async function terminateCoverage(_root: unknown, args: { coverageId: stri
   const result = await command(context.prisma, { name: 'coverage.terminate', actor, idempotencyKey, params }, async uow => {
     const coverage = await lockRow<any>(uow.tx, 'Coverage', args.coverageId)
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId)
+    if (!['pending_verification', 'active'].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, 'This coverage has already ended.')
+    // Close the open verification, tasks and checks first (each leaves its own audit line), then end the coverage.
+    const closed = await closeCoverageWork(uow, actor, coverage.id, 'The coverage ended.')
     await transition<any>(uow, { model: 'Coverage', id: coverage.id, from: ['pending_verification', 'active'], to: 'terminated', expectedVersion: args.expectedVersion, actor, eventType: 'coverage.terminated', reason, data: { effectiveTo: dayOf(args.endedOn) } })
+    const estimated = await reestimatePatient(uow, actor, coverage.patientId)
+    return { coverageId: coverage.id, ...closed, reestimatedItems: estimated }
     return { coverageId: coverage.id }
   })
   return { replay: result.replay, ...result.value }
+}
+
+
+/** An ended coverage has nothing left to verify: its open verification, checklist tasks and electronic checks are closed. */
+export async function closeCoverageWork(uow: UnitOfWork, actor: Actor, coverageId: string, note: string) {
+  const { tx } = uow
+  const verifications = await tx.benefitVerification.findMany({ where: { coverageId, status: { in: ['requested', 'in_progress'] } }, select: { id: true } })
+  for (const v of verifications) {
+    await transition<any>(uow, { model: 'BenefitVerification', id: v.id, from: ['requested', 'in_progress'], to: 'failed', actor, eventType: 'verification.failed', reason: note, data: { failureNote: note } })
+  }
+  const tasks = await tx.workTask.updateMany({ where: { subjectType: 'Coverage', subjectId: coverageId, status: { in: ['open', 'in_progress'] } }, data: { status: 'cancelled', result: { reason: note } as never, version: { increment: 1 } } })
+  const checks = await tx.eligibilityCheck.updateMany({ where: { coverageId, status: { in: ['unknown', 'queued', 'sent'] } }, data: { status: 'error_retryable', resultNote: note, version: { increment: 1 } } })
+  return { closedVerifications: verifications.length, closedTasks: tasks.count, closedChecks: checks.count }
+}
+
+/** Re-estimate every plan of a patient that has been estimated before, so an ended or changed coverage never leaves a stale "Plan pays" line current. */
+export async function reestimatePatient(uow: UnitOfWork, actor: Actor, patientId: string): Promise<number> {
+  const plans = await uow.tx.treatmentPlan.findMany({ where: { patientId, currentVersionId: { not: null } }, select: { id: true } })
+  let lines = 0
+  for (const plan of plans) {
+    const seen = await uow.tx.estimate.count({ where: { patientId, planItem: { planVersion: { planId: plan.id } } } })
+    if (!seen) continue
+    const out = await estimatePlanInTx(uow, actor, plan.id, null)
+    lines += Number(out.estimated ?? 0)
+  }
+  return lines
 }
 
 // ── Verification ─────────────────────────────────────────────────────────────────────────────────
@@ -211,6 +243,13 @@ export async function openVerification(uow: { tx: Tx; now: Date; emit: (m: any) 
   const payerId = (plan.payer?.adapterPayerIds as Record<string, string> | null)?.stedi
   let checkId: string | null = null
   let mode = 'manual'
+  const inFlight = await tx.eligibilityCheck.findFirst({ where: { coverageId, status: { in: ['queued', 'sent', 'unknown'] } } })
+  if (inFlight) {
+    // One check in flight per coverage: this verification waits on it instead of asking the payer twice.
+    await tx.eligibilityCheck.update({ where: { id: inFlight.id }, data: { verificationId: verification.id } })
+    auditCreate(uow as never, actor, 'BenefitVerification', verification.id, 'verification.requested', { coverageId, trigger: options.trigger, mode: inFlight.mode, reusedCheck: inFlight.id })
+    return { verificationId: verification.id, existing: false, checkId: inFlight.id, mode: inFlight.mode as string }
+  }
   if (installation && payerId && installation.mode && installation.mode !== 'live') {
     mode = installation.mode
     const requestHash = sha256(canonicalJson({ coverage: coverage.id, subscriber: coverage.subscriber.memberIdHash, payer: payerId, serviceType: '35' }))
@@ -245,8 +284,9 @@ export async function recheckEligibility(_root: unknown, args: { checkId: string
   const { idempotencyKey, ...params } = args
   const result = await command(context.prisma, { name: 'eligibility.recheck', actor, idempotencyKey, params }, async uow => {
     const check = await lockRow<any>(uow.tx, 'EligibilityCheck', args.checkId)
-    const coverage = await uow.tx.coverage.findUnique({ where: { id: check.coverageId }, select: { patientId: true } })
+    const coverage = await uow.tx.coverage.findUnique({ where: { id: check.coverageId }, select: { patientId: true, status: true } })
     await assertPatientInScope(uow.tx, locationIds, coverage!.patientId!)
+    if (!['pending_verification', 'active'].includes(coverage!.status)) throw new DomainError(Codes.INVALID_TRANSITION, 'This coverage has ended, so there is nothing to check.')
     await transition<any>(uow, { model: 'EligibilityCheck', id: check.id, from: ['unknown', 'error_retryable', 'rejected'], to: 'queued', actor, eventType: 'eligibility.requeued', data: { resultNote: '' } })
     uow.emit({ topic: 'eligibility.check', aggregateType: 'EligibilityCheck', aggregateId: check.id, payload: { checkId: check.id, attempt: Number(check.attempts) + 1 }, dedupeKey: `eligibility.check:${check.id}:${Number(check.attempts) + 1}` })
     return { checkId: check.id }
@@ -302,8 +342,9 @@ export async function recordBenefitFact(_root: unknown, args: { verificationId: 
   const { idempotencyKey, ...params } = args
   const result = await command(context.prisma, { name: 'verification.record_fact', actor, idempotencyKey, params }, async uow => {
     const verification = await lockRow<any>(uow.tx, 'BenefitVerification', args.verificationId)
-    const coverage = await uow.tx.coverage.findUniqueOrThrow({ where: { id: verification.coverageId }, select: { patientId: true } })
+    const coverage = await uow.tx.coverage.findUniqueOrThrow({ where: { id: verification.coverageId }, select: { patientId: true, status: true } })
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId!)
+    if (!['pending_verification', 'active'].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, 'This coverage has ended; benefits are not recorded for it.')
     if (verification.status !== 'in_progress') throw new DomainError(Codes.INVALID_TRANSITION, 'This verification is not open.')
     const value = args.note ? { ...shaped.value, note: optionalText(args.note, 300) } : shaped.value
     const fact = await uow.tx.benefitFact.create({
@@ -334,9 +375,11 @@ export async function completeVerification(_root: unknown, args: { verificationI
     await transition<any>(uow, { model: 'BenefitVerification', id: verification.id, from: ['in_progress'], to: 'completed', expectedVersion: args.expectedVersion, actor, eventType: 'verification.completed', metadata: { complete, missing: missing.map(m => m.category ? `${m.field}:${m.category}` : m.field) }, data: { completeness: complete ? 'complete' : 'partial', completedById: actor.kind === 'user' ? actor.userId : null, completedAt: uow.now } })
     const level = complete ? 'verified_full' : facts.some(f => !f.isUnknown) ? 'verified_partial' : 'unverified'
     const inactive = active && (active.valueJson as any)?.active === false
-    await uow.tx.$executeRaw`UPDATE "Coverage" SET "verificationLevel" = ${level}, "lastVerification" = ${verification.id}, "status" = ${inactive ? 'terminated' : coverage.status === 'pending_verification' && active ? 'active' : coverage.status}, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id}`
+    await uow.tx.$executeRaw`UPDATE "Coverage" SET "verificationLevel" = ${level}, "lastVerification" = ${verification.id}, "status" = ${inactive ? 'terminated' : coverage.status === 'pending_verification' && active ? 'active' : coverage.status}, "effectiveTo" = CASE WHEN ${!!inactive} THEN COALESCE("effectiveTo", CURRENT_DATE) ELSE "effectiveTo" END, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id}`
     await uow.tx.workTask.updateMany({ where: { verificationId: verification.id, status: { in: ['open', 'in_progress'] } }, data: { status: 'cancelled', result: { reason: 'verification completed' } as never, version: { increment: 1 } } })
     await uow.tx.eligibilityCheck.updateMany({ where: { verificationId: verification.id, status: { in: ['unknown', 'queued', 'sent'] } }, data: { status: 'error_retryable', resultNote: 'Closed with the verification.' } })
+    // A coverage the payer reports inactive has ended: its other work closes and the estimates go to self-pay.
+    if (inactive) { await closeCoverageWork(uow, actor, coverage.id, 'The payer reports the coverage inactive.'); await reestimatePatient(uow, actor, coverage.patientId) }
     return { verificationId: verification.id, completeness: complete ? 'complete' : 'partial', level, missing: missing.length }
   })
   return { replay: result.replay, ...result.value }
@@ -378,70 +421,119 @@ export async function addOutsideHistory(_root: unknown, args: { patientId: strin
 
 // ── Estimates ────────────────────────────────────────────────────────────────────────────────────
 
-/** Estimate the current version of a plan. Snapshots are immutable; the same inputs add nothing new (I-I3). */
-export async function estimateTreatmentPlan(_root: unknown, args: { planId: string; idempotencyKey: string }, context: Ctx) {
-  const { actor, locationIds } = staff(context)
-  requirePermission(actor, 'canManageTreatmentPlans', 'canPresentPlans', ...WRITE)
-  const { idempotencyKey, ...params } = args
-  const result = await command(context.prisma, { name: 'estimate.plan', actor, idempotencyKey, params }, async uow => {
-    const { tx } = uow
-    const plan = await tx.treatmentPlan.findUnique({ where: { id: args.planId } })
-    if (!plan) throw new DomainError(Codes.NOT_FOUND, 'Plan not found.')
-    const patient = await assertPatientInScope(tx, locationIds, plan.patientId!)
-    const patientRow = await tx.patient.findUniqueOrThrow({ where: { id: patient.id }, select: { dateOfBirth: true, homeLocationId: true } })
-    const coverages = await tx.coverage.findMany({ where: { patientId: patient.id, status: { in: ['pending_verification', 'active'] } }, orderBy: { ordinal: 'asc' } })
-    const primary = coverages.find(c => c.ordinal === 'primary')
-    if (!primary) return { estimated: 0, noCoverage: true }
-    const version = await tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId! }, include: { items: { orderBy: { sortOrder: 'asc' }, include: { chartEntry: { include: { code: true } } } } } })
-    if (!version?.items.length) return { estimated: 0, noCoverage: false }
-    const tz = patientRow.homeLocationId ? (await tx.location.findUnique({ where: { id: patientRow.homeLocationId }, select: { timeZone: true } }))?.timeZone : null
-    const today = localDate(tz ?? 'America/New_York', uow.now)
-    const loaded = await loadCoverageForEstimate(tx, primary.id, today)
-    if (!loaded) return { estimated: 0, noCoverage: true }
-    const secondaryCoverage = coverages.find(c => c.ordinal === 'secondary')
-    const secondary = secondaryCoverage ? await loadCoverageForEstimate(tx, secondaryCoverage.id, today) : null
-    const planRow = await tx.coverage.findUniqueOrThrow({ where: { id: primary.id }, include: { subscriber: { include: { plan: true } } } })
-    const teeth = version.items.map(i => i.chartEntry?.tooth).filter(Boolean) as string[]
-    const missingRows = teeth.length ? await tx.chartEntry.findMany({ where: { patientId: patient.id, kind: 'condition', tooth: { in: teeth }, condition: { code: 'missing' } }, select: { tooth: true } }) : []
-    const missingTeeth = new Set(missingRows.map(m => m.tooth))
-    const age = patientRow.dateOfBirth ? Math.floor((uow.now.getTime() - patientRow.dateOfBirth.getTime()) / (365.2425 * 86_400_000)) : 40
-    const lines: EstimatorLine[] = []
-    for (const item of version.items) {
-      const code = item.chartEntry?.code
-      let allowed: bigint | null = null
-      if (loaded.feeScheduleVersionId && code) {
-        const fee = await tx.fee.findUnique({ where: { feeVersionId_codeId: { feeVersionId: loaded.feeScheduleVersionId, codeId: code.id } } })
-        allowed = fee ? fee.amountMinor : null
-      }
-      lines.push({ id: item.id, code: String(code?.code ?? ''), category: categoryOf(code as never), date: today, feeMinor: item.feeMinor, allowedMinor: allowed, group: code?.isPreventiveRecallTrigger ? 'recall' : undefined, missingTooth: !!item.chartEntry?.tooth && missingTeeth.has(item.chartEntry.tooth) })
-    }
-    const out = estimate({
-      plan: loaded.plan, usage: loaded.usage, patientAgeYears: age, coverageEffectiveFrom: loaded.effectiveFrom, lines,
-      secondary: secondary ? { method: loaded.cobMethod, coveragePct: secondary.coveragePct } : null,
-    })
+/** Posterior composites are paid at the amalgam allowance when the plan has a downgrade (alternate benefit) clause. */
+export const DOWNGRADE_TO: Record<string, string> = { 'OF-R010': 'OF-R001', 'OF-R011': 'OF-R002', 'OF-R012': 'OF-R003' }
+
+const CONFIDENCE_OF_LEVEL: Record<string, 'verified' | 'partially_verified' | 'assumed'> = { verified_full: 'verified', verified_partial: 'partially_verified', unverified: 'assumed' }
+
+/**
+ * Estimate the current version of a plan inside a transaction. Snapshots are immutable; the same inputs add nothing new (I-I3).
+ * With no current coverage every fee is self-pay: a new snapshot is appended so no older "Plan pays" line is current.
+ */
+export async function estimatePlanInTx(uow: UnitOfWork, actor: Actor, planId: string, locationIds: string[] | null) {
+  const { tx } = uow
+  const plan = await tx.treatmentPlan.findUnique({ where: { id: planId } })
+  if (!plan) throw new DomainError(Codes.NOT_FOUND, 'Plan not found.')
+  const patient = locationIds ? await assertPatientInScope(tx, locationIds, plan.patientId!) : { id: plan.patientId! }
+  const patientRow = await tx.patient.findUniqueOrThrow({ where: { id: patient.id }, select: { dateOfBirth: true, homeLocationId: true } })
+  const coverages = await tx.coverage.findMany({ where: { patientId: patient.id, status: { in: ['pending_verification', 'active'] } }, orderBy: { ordinal: 'asc' } })
+  const primary = coverages.find(c => c.ordinal === 'primary')
+  const version = plan.currentVersionId ? await tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: { orderBy: { sortOrder: 'asc' }, include: { chartEntry: { include: { code: true } } } } } }) : null
+  if (!version?.items.length) return { estimated: 0, noCoverage: !primary }
+  const actorId = actor.kind === 'user' ? actor.userId : null
+
+  if (!primary) {
     let created = 0
-    for (const line of out.lines) {
-      const inputs = {
-        estimatorVersion: ESTIMATOR_VERSION, feeScheduleVersionId: loaded.feeScheduleVersionId, factIds: [...loaded.factIds].sort(), secondaryFactIds: secondary ? [...secondary.factIds].sort() : [],
-        cobMethod: loaded.cobMethod, planId: planRow.subscriber?.planId, usage: { maxUsedMinor: loaded.usage.maxUsedMinor.toString(), pendingMinor: loaded.usage.pendingMinor.toString(), deductibleMetMinor: loaded.usage.deductibleMetMinor.toString(), history: loaded.usage.history.length }, notes: loaded.usageNotes,
-        line: lines.find(l => l.id === line.id)?.date, trace: line.trace,
-      }
-      const hash = createHash('sha256').update(canonicalJson({ inputs: { ...inputs, trace: undefined }, line: { fee: line.feeMinor, ins: line.insuranceMinor, pat: line.patientMinor, status: line.status, sec: line.secondaryInsuranceMinor } })).digest('hex')
-      const last = await tx.estimate.findFirst({ where: { planItemId: line.id }, orderBy: { computedAt: 'desc' } })
-      if ((last?.inputs as any)?.hash === hash) continue
+    for (const item of version.items) {
+      const last = await tx.estimate.findFirst({ where: { planItemId: item.id }, orderBy: [{ computedAt: 'desc' }, { createdAt: 'desc' }] })
+      if (last && (last.inputs as any)?.hash === 'self_pay' && last.feeMinor === item.feeMinor) continue
       await tx.estimate.create({
         data: {
-          patientId: patient.id, subjectKind: 'plan_item', planItemId: line.id, coverageId: primary.id, ordinal: 'primary', inputs: { ...inputs, hash } as never,
-          feeMinor: line.feeMinor, allowedMinor: line.allowedMinor, writeOffMinor: line.writeOffMinor, insuranceMinor: line.insuranceMinor, patientMinor: line.patientMinor,
-          deductibleAppliedMinor: line.deductibleAppliedMinor, maxAppliedMinor: line.maxAppliedMinor, secondaryInsuranceMinor: line.secondaryInsuranceMinor,
-          coverageStatus: line.status, confidence: line.confidence, reasons: line.reasons as never, estimatorVersion: ESTIMATOR_VERSION, computedAt: uow.now,
+          patientId: patient.id, subjectKind: 'plan_item', planItemId: item.id, coverageId: null, ordinal: 'primary', inputs: { hash: 'self_pay', estimatorVersion: ESTIMATOR_VERSION, noCoverage: true } as never,
+          feeMinor: item.feeMinor, allowedMinor: item.feeMinor, writeOffMinor: 0n, insuranceMinor: 0n, patientMinor: item.feeMinor, deductibleAppliedMinor: 0n, maxAppliedMinor: 0n, secondaryInsuranceMinor: 0n,
+          coverageStatus: 'not_covered', confidence: 'assumed', reasons: ['no_coverage'] as never, estimatorVersion: ESTIMATOR_VERSION, computedAt: uow.now,
         },
       })
       created += 1
     }
-    uow.audit({ eventType: 'estimate.computed', entityType: 'TreatmentPlan', entityId: plan.id, actorUserId: actor.kind === 'user' ? actor.userId : null, after: { lines: out.lines.length, created, confidence: out.confidence } })
-    return { estimated: out.lines.length, created, confidence: out.confidence, insuranceMinor: out.totals.insuranceMinor.toString(), patientMinor: out.totals.patientMinor.toString() }
-  })
+    uow.audit({ eventType: 'estimate.computed', entityType: 'TreatmentPlan', entityId: plan.id, actorUserId: actorId, after: { lines: version.items.length, created, selfPay: true } })
+    return { estimated: version.items.length, created, noCoverage: true, confidence: 'assumed', insuranceMinor: '0', patientMinor: version.items.reduce((sum, i) => sum + i.feeMinor, 0n).toString() }
+  }
+
+  const tz = patientRow.homeLocationId ? (await tx.location.findUnique({ where: { id: patientRow.homeLocationId }, select: { timeZone: true } }))?.timeZone : null
+  const today = localDate(tz ?? 'America/New_York', uow.now)
+  const loaded = await loadCoverageForEstimate(tx, primary.id, today)
+  if (!loaded) return { estimated: 0, noCoverage: true }
+  const secondaryCoverage = coverages.find(c => c.ordinal === 'secondary')
+  const secondary = secondaryCoverage ? await loadCoverageForEstimate(tx, secondaryCoverage.id, today) : null
+  const planRow = await tx.coverage.findUniqueOrThrow({ where: { id: primary.id }, include: { subscriber: { include: { plan: true } } } })
+  const teeth = version.items.map(i => i.chartEntry?.tooth).filter(Boolean) as string[]
+  const missingRows = teeth.length ? await tx.chartEntry.findMany({ where: { patientId: patient.id, kind: 'condition', tooth: { in: teeth }, condition: { code: 'missing' } }, select: { tooth: true } }) : []
+  const missingTeeth = new Set(missingRows.map(m => m.tooth))
+  const age = patientRow.dateOfBirth ? Math.floor((uow.now.getTime() - patientRow.dateOfBirth.getTime()) / (365.2425 * 86_400_000)) : 40
+  const feeOf = async (versionId: string | null, codeId: string | undefined) => {
+    if (!versionId || !codeId) return null
+    const fee = await tx.fee.findUnique({ where: { feeVersionId_codeId: { feeVersionId: versionId, codeId } } })
+    return fee ? fee.amountMinor : null
+  }
+  const lines: EstimatorLine[] = []
+  for (const item of version.items) {
+    const code = item.chartEntry?.code
+    const allowed = await feeOf(loaded.feeScheduleVersionId, code?.id)
+    const category = categoryOf(code as never)
+    const line: EstimatorLine = { id: item.id, code: String(code?.code ?? ''), category, date: today, feeMinor: item.feeMinor, allowedMinor: allowed, group: code?.isPreventiveRecallTrigger ? 'recall' : undefined, missingTooth: !!item.chartEntry?.tooth && missingTeeth.has(item.chartEntry.tooth) }
+    const alternate = code ? DOWNGRADE_TO[String(code.code)] : undefined
+    if (alternate && loaded.plan.downgrade.includes(category)) {
+      const alt = await tx.procedureCode.findFirst({ where: { code: alternate }, select: { id: true } })
+      const altAllowed = await feeOf(loaded.feeScheduleVersionId, alt?.id)
+      if (altAllowed !== null) line.downgradeAllowedMinor = altAllowed
+      else line.downgradeUnknown = true
+    }
+    if (secondary) {
+      const secAllowed = await feeOf(secondary.feeScheduleVersionId, code?.id)
+      if (secAllowed !== null) line.secondaryAllowedMinor = secAllowed
+    }
+    lines.push(line)
+  }
+  const secondaryInput = secondary ? { method: secondary.cobMethod, coveragePct: secondary.coveragePct, confidence: CONFIDENCE_OF_LEVEL[secondary.verificationLevel] ?? 'assumed' } : null
+  const out = estimate({ plan: { ...loaded.plan, frequencyUnknown: loaded.frequencyUnreadable }, usage: loaded.usage, patientAgeYears: age, coverageEffectiveFrom: loaded.effectiveFrom, lines, secondary: secondaryInput })
+
+  if (loaded.frequencyUnreadable) {
+    const latest = await tx.benefitVerification.findFirst({ where: { coverageId: primary.id }, orderBy: { createdAt: 'desc' }, select: { id: true } })
+    if (latest) await openChecklist(tx, latest.id, primary.id, planRow.subscriber?.plan?.planType ?? 'other', uow.now, false, ['frequency_limit'])
+  }
+
+  let created = 0
+  for (const line of out.lines) {
+    const inputs = {
+      estimatorVersion: ESTIMATOR_VERSION, feeScheduleVersionId: loaded.feeScheduleVersionId, factIds: [...loaded.factIds].sort(), secondaryFactIds: secondary ? [...secondary.factIds].sort() : [],
+      secondaryCoverageId: secondary?.coverageId ?? null, secondaryCobMethod: secondary?.cobMethod ?? null, cobMethod: loaded.cobMethod, planId: planRow.subscriber?.planId,
+      usage: { maxUsedMinor: loaded.usage.maxUsedMinor.toString(), pendingMinor: loaded.usage.pendingMinor.toString(), deductibleMetMinor: loaded.usage.deductibleMetMinor.toString(), history: loaded.usage.history.length }, notes: loaded.usageNotes,
+      line: lines.find(l => l.id === line.id)?.date, trace: line.trace,
+    }
+    const hash = createHash('sha256').update(canonicalJson({ inputs: { ...inputs, trace: undefined }, line: { fee: line.feeMinor, ins: line.insuranceMinor, pat: line.patientMinor, status: line.status, sec: line.secondaryInsuranceMinor, reasons: line.reasons, confidence: line.confidence } })).digest('hex')
+    const last = await tx.estimate.findFirst({ where: { planItemId: line.id }, orderBy: [{ computedAt: 'desc' }, { createdAt: 'desc' }] })
+    if ((last?.inputs as any)?.hash === hash && last?.coverageId === primary.id) continue
+    await tx.estimate.create({
+      data: {
+        patientId: patient.id, subjectKind: 'plan_item', planItemId: line.id, coverageId: primary.id, ordinal: 'primary', inputs: { ...inputs, hash } as never,
+        feeMinor: line.feeMinor, allowedMinor: line.allowedMinor, writeOffMinor: line.writeOffMinor, insuranceMinor: line.insuranceMinor, patientMinor: line.patientMinor,
+        deductibleAppliedMinor: line.deductibleAppliedMinor, maxAppliedMinor: line.maxAppliedMinor, secondaryInsuranceMinor: line.secondaryInsuranceMinor,
+        coverageStatus: line.status, confidence: line.confidence, reasons: line.reasons as never, estimatorVersion: ESTIMATOR_VERSION, computedAt: uow.now,
+      },
+    })
+    created += 1
+  }
+  uow.audit({ eventType: 'estimate.computed', entityType: 'TreatmentPlan', entityId: plan.id, actorUserId: actorId, after: { lines: out.lines.length, created, confidence: out.confidence } })
+  return { estimated: out.lines.length, created, confidence: out.confidence, insuranceMinor: out.totals.insuranceMinor.toString(), patientMinor: out.totals.patientMinor.toString() }
+}
+
+/** Estimate the current version of a plan (the staff command). */
+export async function estimateTreatmentPlan(_root: unknown, args: { planId: string; idempotencyKey: string }, context: Ctx) {
+  const { actor, locationIds } = staff(context)
+  requirePermission(actor, 'canManageTreatmentPlans', 'canPresentPlans', ...WRITE)
+  const { idempotencyKey, ...params } = args
+  const result = await command(context.prisma, { name: 'estimate.plan', actor, idempotencyKey, params }, uow => estimatePlanInTx(uow, actor, args.planId, locationIds))
   return { replay: result.replay, ...result.value }
 }
 
