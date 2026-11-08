@@ -10,6 +10,9 @@ const SOURCES = ['payer_portal', 'payer_phone', 'fax_breakdown', 'prior_eob', 'p
 const FIELDS = ['coverage_active', 'annual_max', 'annual_max_used', 'deductible', 'deductible_met', 'coverage_pct', 'frequency_limit', 'waiting_period', 'missing_tooth_clause', 'downgrade', 'cob_method', 'age_limit', 'non_covered'];
 const CATEGORIES = ['preventive', 'basic', 'major', 'orthodontic'];
 
+const FIELD_NAMES: Record<string, string> = { cob_method: 'Coordination of benefits', coverage_pct: 'Plan pays', coverage_active: 'Coverage', annual_max: 'Annual maximum', annual_max_used: 'Maximum left this year', deductible_met: 'Deductible left this year', frequency_limit: 'Frequency limit', waiting_period: 'Waiting period', missing_tooth_clause: 'Missing-tooth clause', downgrade: 'Downgrade rule', age_limit: 'Age limit', non_covered: 'Not covered' };
+const fieldName = (f: string) => FIELD_NAMES[f] ?? title(f);
+
 /** Plain words for a stored fact. An unknown fact says so; it is never shown as a benefit. */
 function factText(f: any): string {
   if (f.isUnknown) return 'Not known';
@@ -74,7 +77,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
         const rows = [...latest.values()].sort((a, b) => a.field.localeCompare(b.field));
         return (
           <Section key={c.id} title={`${title(c.ordinal)} · ${c.subscriber?.plan?.payer?.name ?? ''}`} aside={<TitleLine status={c.verificationLevel}>{null}</TitleLine>}>
-            <div className="grid grid-cols-2 gap-4 rounded-lg border p-4 sm:grid-cols-4">
+            <div className="grid min-w-0 grid-cols-2 gap-4 break-words rounded-lg border p-4 sm:grid-cols-4">
               <Stat name="Group" value={c.subscriber?.plan?.groupName ?? '—'} />
               <Stat name="Member ID" value={c.subscriber?.memberIdLast4 ? `•••• ${c.subscriber.memberIdLast4}` : '—'} />
               <Stat name="Plan type" value={title(c.subscriber?.plan?.planType)} />
@@ -83,11 +86,11 @@ export default async function PatientInsurancePage({ params }: { params: Promise
             {v?.eligibilityChecks?.length ? <Meta>Electronic check: {title(v.eligibilityChecks[0].status)}{v.eligibilityChecks[0].resultNote ? ` · ${v.eligibilityChecks[0].resultNote}` : ''}</Meta> : null}
             {rows.length ? rows.map((f) => (
               <Row key={f.id} className="flex-nowrap items-start">
-                <span className="min-w-0 flex-1"><span className="font-medium">{title(f.field)}</span>{f.appliesTo?.category ? <Meta> · {f.appliesTo.category}</Meta> : null}</span>
-                <span className="shrink-0 text-right"><span className={f.isUnknown ? 'text-amber-700' : ''}>{factText(f)}</span><br /><Meta>{title(f.source)} · {calendarDate(f.observedAt)}</Meta></span>
+                <span className="min-w-0 flex-1"><span className="font-medium">{fieldName(f.field)}</span>{f.appliesTo?.category ? <Meta> · {f.appliesTo.category}</Meta> : null}</span>
+                <span className="min-w-0 max-w-[55%] shrink-0 text-right"><span className={f.isUnknown ? 'text-amber-700' : ''}>{factText(f)}</span><br /><Meta>{title(f.source)} · {calendarDate(f.observedAt)}</Meta></span>
               </Row>
             )) : <Empty>No benefits recorded. Insurance is not assumed to pay anything.</Empty>}
-            {v?.tasks?.length ? <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Still to ask: {v.tasks.map((t: any) => t.title.replace(/^Ask (the payer )?(about |for |if |which |what )?/i, '')).join('; ')}</div> : null}
+            {v?.tasks?.length ? <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Still to ask: {v.tasks.map((t: any) => t.title.replace(/^Ask the payer: /i, '')).join('; ')}</div> : null}
             <div className="flex flex-wrap gap-2">
               {v && ['in_progress'].includes(v.status) ? <ActionButton op="completeVerification" vars={{ verificationId: v.id, expectedVersion: v.version }} paths={paths}>Finish verification</ActionButton> : <ActionButton op="requestVerification" vars={{ coverageId: c.id }} paths={paths}>Verify benefits</ActionButton>}
               {c.ordinal !== 'primary' ? <ActionButton op="setCoverageOrder" vars={{ coverageId: c.id, ordinal: 'primary' }} ask="Why is this now the primary plan?" paths={paths}>Make primary</ActionButton> : null}
