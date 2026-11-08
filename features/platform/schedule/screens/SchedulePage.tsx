@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { chartLabel } from '../../lib/format';
 import { q } from '../../lib/server';
 import { money, when, zoneLabel } from '../../lib/format';
 import { Page, Section, Stat, Tabs, Empty, Meta, Row, TitleLine } from '../../components/ui';
@@ -147,7 +148,7 @@ async function DayView({ location, date, unitMinutes, selected, link }: { locati
             {visible.length ? visible.map((a) => (
               <Row key={a.id} href={link({ appt: a.id })}>
                 <div className="min-w-0">
-                  <TitleLine status={a.status}><span className="font-medium">{nameOf(a.patient)}</span><span className="font-mono text-xs text-muted-foreground">{a.patient?.chartNumber}</span></TitleLine>
+                  <TitleLine status={a.status}><span className="font-medium">{nameOf(a.patient)}</span><span className="font-mono text-xs text-muted-foreground">{chartLabel(a.patient?.chartNumber)}</span></TitleLine>
                   <Meta>{when(a.startsAt, tz, 'time')} · {a.type?.name} · {a.primaryProvider?.abbreviation}</Meta>
                 </div>
               </Row>

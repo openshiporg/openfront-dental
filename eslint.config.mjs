@@ -79,7 +79,7 @@ export default defineConfig([
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [
-          { group: ["@prisma/client", "@/features/keystone/lib/*", "@/features/keystone/mutations/*"], message: "Screens go through GraphQL (keystoneClient) so access rules and commands apply." },
+          { group: ["@prisma/client", "@/features/keystone/lib/*", "@/features/keystone/mutations/*", "!@/features/keystone/lib/teeth", "!@/features/keystone/lib/perio", "!@/features/keystone/mutations/phase2Args"], message: "Screens go through GraphQL (keystoneClient) so access rules and commands apply." },
         ],
       }],
     },

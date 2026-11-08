@@ -1,3 +1,4 @@
+import { ScrollX } from '../components/ui';
 import Link from 'next/link';
 import { PERMANENT, PRIMARY, toFdi, toPalmer } from '@/features/keystone/lib/teeth';
 
@@ -79,8 +80,8 @@ export function Odontogram({ marks, numbering, dentition, selected, hrefFor }: {
   const width = cols * W + 8;
   const offset = ((16 - cols) * W) / 2;
   return (
-    <div className="max-w-full overflow-x-auto">
-      <svg role="img" aria-label="Tooth chart" viewBox={`0 0 ${width} 170`} width={width} height={170} className="mx-auto block min-w-[560px]">
+    <ScrollX hint="Swipe sideways to see all teeth">
+      <svg role="img" aria-label="Tooth chart" viewBox={`0 0 ${width} 170`} width={width} height={170} className="mx-auto block min-w-[640px]">
         <Arch teeth={upper} y={22} marks={byTooth} numbering={numbering} hrefFor={hrefFor} selected={selected} upper />
         <line x1={width / 2} x2={width / 2} y1="14" y2="156" stroke="#cbd5e1" strokeDasharray="3 3" />
         <Arch teeth={lower} y={100} marks={byTooth} numbering={numbering} hrefFor={hrefFor} selected={selected} upper={false} />
@@ -88,7 +89,7 @@ export function Odontogram({ marks, numbering, dentition, selected, hrefFor }: {
         <text x={width - 2} y="165" textAnchor="end" fontSize="10" fill="#94a3b8">Patient’s left</text>
       </svg>
       {offset ? null : null}
-    </div>
+    </ScrollX>
   );
 }
 

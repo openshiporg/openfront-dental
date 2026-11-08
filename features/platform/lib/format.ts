@@ -99,6 +99,7 @@ const WORDS: Record<string, string> = {
   // acronyms
   sms: 'SMS', mms: 'MMS', api: 'API', ai: 'AI', mcp: 'MCP', baa: 'BAA', dea: 'DEA', npi: 'NPI', erx: 'e-prescribing', eob: 'EOB', era: 'ERA', llm_agent: 'LLM agent',
   ai_text_outbound: 'AI text (outbound)', ai_voice_outbound: 'AI voice (outbound)', external_mcp_client: 'external MCP client', cpr_bls: 'CPR / BLS',
+  ppo: 'PPO', office_ucr: 'Office (UCR)',
   // patients
   merged_into: 'merged into another chart', deceased: 'deceased', prospect: 'prospect', inactive: 'inactive', archived: 'archived',
   female: 'female', male: 'male', unknown: 'unknown', self: 'self', spouse: 'spouse', parent: 'parent', guardian: 'guardian', personal_representative: 'personal representative',
@@ -175,3 +176,6 @@ export function languageName(code: string | null | undefined) {
   if (!code) return '—'
   try { return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) ?? code } catch { return code }
 }
+
+/** Chart numbers are plain numbers; screens show them as "Chart #1001". */
+export const chartLabel = (n: string | null | undefined) => (n ? `Chart #${n}` : '')

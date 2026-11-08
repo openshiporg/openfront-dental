@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { chartLabel } from '../../lib/format';
 import { q, practiceTimeZone } from '../../lib/server';
 import { when, calendarDate } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
@@ -38,7 +39,7 @@ export default async function AsapPage({ searchParams }: { searchParams?: Promis
         {data.asapEntries.length ? data.asapEntries.map((e: any) => (
           <Row key={e.id}>
             <div className="min-w-0 flex-1 space-y-0.5">
-              <TitleLine status={e.status}><Link href={`/dashboard/platform/patients/${e.patient?.id}`} className="font-medium hover:underline">{e.patient ? `${e.patient.preferredName || e.patient.firstName} ${e.patient.lastName}` : 'Patient'}</Link><span className="font-mono text-xs text-muted-foreground">{e.patient?.chartNumber}</span></TitleLine>
+              <TitleLine status={e.status}><Link href={`/dashboard/platform/patients/${e.patient?.id}`} className="font-medium hover:underline">{e.patient ? `${e.patient.preferredName || e.patient.firstName} ${e.patient.lastName}` : 'Patient'}</Link><span className="font-mono text-xs text-muted-foreground">{chartLabel(e.patient?.chartNumber)}</span></TitleLine>
               <div><Meta>{e.location?.code} · {e.appointmentType?.name ?? 'Any visit'}{e.provider ? ` · ${e.provider.abbreviation}` : ''} · priority {e.priority ?? 0} · added {when(e.createdAt, tz, 'day')}</Meta></div>
               <div><Meta>{(Array.isArray(e.preferredWindows) ? e.preferredWindows : []).map((w: any) => `${DAYS[w.weekday] ?? '?'} ${w.from}–${w.to}`).join(', ') || 'Any time'}{e.earliestDate ? ` · from ${calendarDate(e.earliestDate)}` : ''}</Meta></div>
               {e.note ? <p className="text-sm">{e.note}</p> : null}
@@ -62,7 +63,7 @@ export default async function AsapPage({ searchParams }: { searchParams?: Promis
           columns={3}
           paths={['/dashboard/platform/schedule/asap']}
           fields={[
-            { name: 'chart', label: 'Patient chart number', kind: 'text', required: true, placeholder: 'PT-…', hint: 'Find the chart number on the patient page.' },
+            { name: 'chart', label: 'Patient chart number', kind: 'text', required: true, placeholder: '1001', hint: 'Find the chart number on the patient page.' },
             { name: 'locationId', label: 'Location', kind: 'select', required: true, options: data.locations.map((l: any) => ({ value: l.id, label: l.code })) },
             { name: 'appointmentTypeId', label: 'Visit type', kind: 'select', options: [{ value: '', label: 'Any' }, ...data.appointmentTypes.map((t: any) => ({ value: t.id, label: t.name }))] },
             { name: 'weekday', label: 'Preferred day', kind: 'select', options: [{ value: '', label: 'Any day' }, ...[1, 2, 3, 4, 5].map((d) => ({ value: String(d), label: DAYS[d] }))] },

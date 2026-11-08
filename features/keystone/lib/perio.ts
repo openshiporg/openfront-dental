@@ -19,7 +19,7 @@ export type Measurement = { tooth: string; site: Site; probingDepthMm?: number |
 
 const whole = (value: unknown, field: string, min: number, max: number) => {
   if (value === null || value === undefined || value === '') return null
-  const n = typeof value === 'number' ? value : Number(value)
+  const n = typeof value === 'number' ? value : /^-?\d+$/.test(String(value).trim()) ? parseInt(String(value).trim(), 10) : Number.NaN
   if (!Number.isInteger(n)) throw new DomainError(Codes.INVALID_INPUT, `${field} must be a whole number of millimetres.`, { field })
   if (n < min || n > max) throw new DomainError(Codes.INVALID_INPUT, `${field} must be between ${min} and ${max} mm.`, { field })
   return n

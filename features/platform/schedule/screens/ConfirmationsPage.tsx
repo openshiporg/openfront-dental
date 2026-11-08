@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { chartLabel } from '../../lib/format';
 import { q } from '../../lib/server';
 import { when, label, title } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
@@ -59,7 +60,7 @@ function ConfirmRow({ a, tz }: { a: any; tz: string }) {
   return (
     <Row>
       <div className="min-w-0 flex-1 space-y-0.5">
-        <TitleLine status={a.status}><Link href={`/dashboard/platform/schedule?date=${a.startsAt.slice(0, 10)}&appt=${a.id}`} className="font-medium hover:underline">{name}</Link><span className="font-mono text-xs text-muted-foreground">{a.patient?.chartNumber}</span></TitleLine>
+        <TitleLine status={a.status}><Link href={`/dashboard/platform/schedule?date=${a.startsAt.slice(0, 10)}&appt=${a.id}`} className="font-medium hover:underline">{name}</Link><span className="font-mono text-xs text-muted-foreground">{chartLabel(a.patient?.chartNumber)}</span></TitleLine>
         <div><Meta>{when(a.startsAt, tz, 'day')}, {when(a.startsAt, tz, 'time')} · {a.type?.name} · {a.operatory?.code}</Meta></div>
         <div><Meta>
           {phones.length ? `Call ${phones[0].value}` : 'No phone on file'} · reminders by {consents.size ? [...consents].map((c) => label(String(c))).join(', ') : 'nobody (no consent)'}

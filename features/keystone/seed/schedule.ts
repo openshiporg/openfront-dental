@@ -142,7 +142,7 @@ export function samplePatients(today: string): SeedPatient[] {
       if (isAdult && rand() < 0.07) alerts.push({ kind: 'anticoagulant', severity: 'caution', text: 'Takes an anticoagulant; check the latest INR before extractions.' })
       if (rand() < 0.04) alerts.push({ kind: 'latex', severity: 'critical', text: 'Latex allergy: use nitrile gloves and latex-free dam.' })
       out.push({
-        id, chart: `PT-SEED-${String(n).padStart(4, '0')}`, familyId, first, last, preferred: '', dob: dobFor(age), sex, language, homeLocationId,
+        id, chart: String(1000 + n), familyId, first, last, preferred: '', dob: dobFor(age), sex, language, homeLocationId,
         status: rand() < 0.08 ? 'inactive' : 'active',
         email: isAdult ? personalEmail(slug, rand) : undefined, mobile: isAdult ? phone() : undefined,
         guarantorOf: m === 0 ? null : head, relationship: m === 0 ? 'self' : isAdult ? 'spouse' : 'parent', alerts,
@@ -154,7 +154,7 @@ export function samplePatients(today: string): SeedPatient[] {
   const dupSource = [out[4], out[40]]
   dupSource.forEach((p, i) => {
     n += 1
-    out.push({ ...p, id: `seed_pt_${String(n).padStart(4, '0')}`, chart: `PT-SEED-${String(n).padStart(4, '0')}`, first: i === 0 ? p.first.slice(0, Math.max(3, p.first.length - 1)) : p.first, status: 'prospect', guarantorOf: null, relationship: 'self', alerts: [], email: p.email, mobile: undefined })
+    out.push({ ...p, id: `seed_pt_${String(n).padStart(4, '0')}`, chart: String(1000 + n), first: i === 0 ? p.first.slice(0, Math.max(3, p.first.length - 1)) : p.first, status: 'prospect', guarantorOf: null, relationship: 'self', alerts: [], email: p.email, mobile: undefined })
   })
   // One deceased patient (outreach stops; future visits cancelled).
   const deceased = out.find(p => p.relationship === 'self' && Number(p.dob.slice(0, 4)) < year - 75)
@@ -357,7 +357,7 @@ async function seedAppointments(uow: UnitOfWork, people: SeedPatient[], today: s
           const brokenKind = status === 'broken' ? (rand() < 0.6 ? 'no_show' : 'late_cancel') : ''
           const active = ['scheduled', 'confirmed', 'arrived', 'seated', 'ready_for_checkout'].includes(status)
           appointments.push({
-            id, ref: `APT-SEED-${String(count).padStart(5, '0')}`, patientId: patient.id, locationId: `seed_loc_${loc}`, operatoryId: w.operatoryId, typeId, startsAt: new Date(at), endsAt: new Date(endMs),
+            id, ref: `APT-${new Date().getUTCFullYear()}-${String(count).padStart(6, '0')}`, patientId: patient.id, locationId: `seed_loc_${loc}`, operatoryId: w.operatoryId, typeId, startsAt: new Date(at), endsAt: new Date(endMs),
             localDate: new Date(`${date}T00:00:00Z`), status, brokenKind,
             confirmedAt: status === 'confirmed' ? new Date(at - 86_400_000) : null, confirmationMethod: status === 'confirmed' ? (rand() < 0.6 ? 'sms_reply' : 'phone') : '',
             arrivedAt: ['arrived', 'completed'].includes(status) ? new Date(at - 5 * MS_PER_MINUTE) : null, completedAt: status === 'completed' ? new Date(endMs) : null,

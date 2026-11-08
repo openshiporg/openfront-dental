@@ -139,7 +139,7 @@ export async function seedPhase2(uow: UnitOfWork, actor: Actor) {
   for (const l of links) if (l.patientId && l.guarantorId && !guarantorOf.has(l.patientId)) guarantorOf.set(l.patientId, l.guarantorId)
   const haveAccounts = await tx.guarantorAccount.findMany({ where: { guarantorId: { in: [...new Set(guarantorOf.values())] } } })
   const accountOf = new Map(haveAccounts.map(a => [a.guarantorId as string, a.id]))
-  const newAccounts = [...new Set(guarantorOf.values())].filter(g => !accountOf.has(g)).map((g, i) => ({ id: `seed_acc_${g}`, guarantorId: g, ref: `ACC-SEED-${String(i + 1).padStart(4, '0')}`, isSynthetic: true }))
+  const newAccounts = [...new Set(guarantorOf.values())].filter(g => !accountOf.has(g)).map((g, i) => ({ id: `seed_acc_${g}`, guarantorId: g, ref: `ACC-${new Date().getUTCFullYear()}-${String(i + 1).padStart(6, '0')}`, isSynthetic: true }))
   if (newAccounts.length) {
     await tx.guarantorAccount.createMany({ data: newAccounts })
     for (const a of newAccounts) accountOf.set(a.guarantorId, a.id)
@@ -188,7 +188,7 @@ export async function seedPhase2(uow: UnitOfWork, actor: Actor) {
       if (index % 5 === 0) X.push({ id: nid('ce'), patientId: patient.id, locationId: loc, kind: 'condition', conditionId: 'seed_cond_missing', tooth: '1', area: 'tooth', status: 'existing_current', conditionStatus: 'active', source: 'staff', isSynthetic: true })
     }
     if (adult && rows.length && index % 3 === 0) {
-      const ref = `TP-SEED-${String(index + 1).padStart(4, '0')}`
+      const ref = `TP-${new Date().getUTCFullYear()}-${String(index + 1).padStart(6, '0')}`
       const planId = nid('tp'), versionId = nid('tv')
       PL.push({ id: planId, patientId: patient.id, ref, title: 'Restore and protect the lower right', status: 'presented', isSynthetic: true })
       PV.push({ id: versionId, planId, number: 1, phases: [{ key: 'phase_1', label: 'Phase 1' }] })
@@ -255,5 +255,13 @@ export async function seedPhase2(uow: UnitOfWork, actor: Actor) {
     await tx.perioClassification.createMany({ data: completedExams.map(e => ({ examId: e.id, suggestedStage: 'II', suggestedGrade: 'B', extent: 'localized', inputs: { teethPresent: 28, reasons: ['Interdental CAL of 3 mm'] } as never, status: 'suggested' })) })
   }
   created.chartEntries = E.length + X.length
+  const top = await tx.$queryRawUnsafe<{ n: number | null }[]>(`SELECT MAX("chartNumber"::int) AS n FROM "Patient" WHERE "chartNumber" ~ '^[0-9]+$'`)
+  await tx.sequence.upsert({ where: { key: 'chart' }, create: { key: 'chart', nextValue: (top[0]?.n ?? 1000) + 1 }, update: { nextValue: (top[0]?.n ?? 1000) + 1 } })
+  for (const [table, prefix] of [['TreatmentPlan', 'TP'], ['Appointment', 'APT'], ['GuarantorAccount', 'ACC']] as const) {
+    const rows = await tx.$queryRawUnsafe<{ n: number | null }[]>(`SELECT MAX(substring("ref" from '[0-9]+$')::int) AS n FROM "${table}" WHERE "ref" ~ '^${prefix}-[0-9]{4}-[0-9]+$'`)
+    const key = `${prefix}-${now.getUTCFullYear()}`
+    const next = (rows[0]?.n ?? 0) + 1
+    await tx.sequence.upsert({ where: { key }, create: { key, nextValue: next }, update: { nextValue: next } })
+  }
   return created
 }

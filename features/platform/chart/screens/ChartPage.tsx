@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { q } from '../../lib/server';
-import { money, calendarDate, title, options, when } from '../../lib/format';
+import { money, calendarDate, title, options, when, chartLabel} from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Stat, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton, PillTrack } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
@@ -42,7 +42,7 @@ export default async function ChartPage({ params, searchParams }: { params: Prom
   return (
     <Page title={`${name} · Clinical record`} crumbs={[{ label: 'Patients', href: '/dashboard/platform/patients' }, { label: name, href: `/dashboard/platform/patients/${id}` }]}>
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="font-mono text-muted-foreground">{p.chartNumber}</span>
+        <span className="font-mono text-muted-foreground">{chartLabel(p.chartNumber)}</span>
         <span className="text-muted-foreground">Born {calendarDate(p.dateOfBirth, 'date')}</span>
         <Link className="hover:underline" href={`/dashboard/platform/patients/${id}`}>Back to overview</Link>
       </div>

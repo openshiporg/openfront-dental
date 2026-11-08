@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { q } from '../../lib/server';
-import { calendarDate, label, title, languageName } from '../../lib/format';
+import { calendarDate, label, title, languageName, chartLabel} from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { NewPatientForm } from '../components/NewPatientForm';
 
@@ -64,7 +64,7 @@ export default async function PatientsPage({ searchParams }: { searchParams?: Pr
           <Row key={p.id} href={`/dashboard/platform/patients/${p.id}`}>
             <div className="min-w-0">
               <TitleLine status={p.status}><span className="font-medium">{p.lastName}, {p.preferredName || p.firstName}{p.alertsCount ? <span className="ml-1 text-red-600" title="Medical alerts">⚠</span> : null}</span></TitleLine>
-              <Meta>{p.chartNumber} · born {calendarDate(p.dateOfBirth, 'date')} · {p.homeLocation?.code}{p.family ? ` · ${p.family.name}` : ''}{p.preferredLanguage && p.preferredLanguage !== 'en' ? ` · ${languageName(p.preferredLanguage)}` : ''}</Meta>
+              <Meta>{chartLabel(p.chartNumber)} · born {calendarDate(p.dateOfBirth, 'date')} · {p.homeLocation?.code}{p.family ? ` · ${p.family.name}` : ''}{p.preferredLanguage && p.preferredLanguage !== 'en' ? ` · ${languageName(p.preferredLanguage)}` : ''}</Meta>
             </div>
             <Meta>{p.lastVisitOn ? `Last visit ${calendarDate(p.lastVisitOn)}` : 'No visits yet'}</Meta>
           </Row>

@@ -5,7 +5,7 @@ import { auditCreate, lockRow, transition } from '../lib/cas'
 import { command } from '../lib/command'
 import { advisoryLock, delegateOf, type Tx } from '../lib/db'
 import { DomainError, Codes } from '../lib/errors'
-import { nextReference } from '../lib/sequence'
+import { nextChartNumber, nextReference } from '../lib/sequence'
 import { localDate } from '../lib/time'
 import type { UnitOfWork } from '../lib/unitOfWork'
 import { CONSENT_CHANNELS, CONSENT_PURPOSES } from '../models/messaging'
@@ -94,7 +94,7 @@ export async function createPatientIn(uow: UnitOfWork, actor: Actor, input: Pati
     if (!(CONTACT_KINDS as readonly string[]).includes(c.kind)) throw new DomainError(Codes.INVALID_INPUT, 'Unknown contact kind.', { field: 'contacts' })
     return { kind: c.kind, isPrimary: c.isPrimary ?? true, ...normalizeContact(c.kind, c.value) }
   })
-  const chartNumber = await nextReference(uow.tx, 'PT', uow.now)
+  const chartNumber = await nextChartNumber(uow.tx)
   const patient = await uow.tx.patient.create({
     data: {
       ...clean, chartNumber, status: input.status ?? 'prospect', homeLocationId: input.homeLocationId, primaryProviderId: input.primaryProviderId ?? null,

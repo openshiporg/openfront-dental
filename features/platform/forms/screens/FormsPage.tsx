@@ -1,5 +1,5 @@
 import { q } from '../../lib/server';
-import { when, title } from '../../lib/format';
+import { when, title, chartLabel} from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
@@ -31,7 +31,7 @@ export default async function FormsPage({ searchParams }: { searchParams?: Promi
           <Section title="Send a form">
             <CommandForm op="requestForm" submitLabel="Send form" paths={paths} columns={2}
               fields={[
-                { name: 'patientId', label: 'Patient', kind: 'select', options: (d.patients as any[]).map((p) => ({ value: p.id, label: `${who(p)} · ${p.chartNumber}` })), required: true },
+                { name: 'patientId', label: 'Patient', kind: 'select', options: (d.patients as any[]).map((p) => ({ value: p.id, label: `${who(p)} · ${chartLabel(p.chartNumber)}` })), required: true },
                 { name: 'templateVersionId', label: 'Form', kind: 'select', options: published, required: true },
                 { name: 'channel', label: 'How it is signed', kind: 'select', options: [{ value: 'in_office', label: 'In the office, on a tablet' }, { value: 'portal', label: 'Patient portal' }] },
               ]} />
@@ -39,7 +39,7 @@ export default async function FormsPage({ searchParams }: { searchParams?: Promi
           <Section title="Waiting to be signed">
             {(d.formRequests as any[]).length ? (d.formRequests as any[]).map((r) => (
               <div key={r.id} className="space-y-2 border-b py-3 text-sm last:border-b-0">
-                <div className="flex flex-wrap items-center justify-between gap-2"><TitleLine status={r.status}><span className="font-medium">{r.template?.template?.title}</span><Meta>{who(r.patient)} · {r.patient.chartNumber}</Meta></TitleLine><Meta>{when(r.createdAt, undefined, 'dayTime')}</Meta></div>
+                <div className="flex flex-wrap items-center justify-between gap-2"><TitleLine status={r.status}><span className="font-medium">{r.template?.template?.title}</span><Meta>{who(r.patient)} · {chartLabel(r.patient.chartNumber)}</Meta></TitleLine><Meta>{when(r.createdAt, undefined, 'dayTime')}</Meta></div>
                 <details><summary className="cursor-pointer font-medium">Record signature</summary>
                   <div className="pt-3"><CommandForm op="submitForm" shape="signForm" submitLabel="Record signed form" paths={paths} columns={2} fixed={{ requestId: r.id, expectedVersion: r.version }}
                     fields={[
@@ -74,7 +74,6 @@ export default async function FormsPage({ searchParams }: { searchParams?: Promi
                 <div key={v.id} className="space-y-1 border-b py-2 text-sm last:border-b-0">
                   <TitleLine status={v.status}><span className="font-medium">Version {v.number}</span>{v.requiresWitness ? <Meta>needs a witness</Meta> : null}</TitleLine>
                   <p className="break-words text-muted-foreground">{v.body}</p>
-                  <Meta>Hash {String(v.contentHash).slice(0, 16)}…</Meta>
                 </div>
               ))}
               <details><summary className="cursor-pointer text-sm font-medium">Publish a new version</summary>

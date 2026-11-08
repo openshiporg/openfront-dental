@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { q, practiceTimeZone } from '../../lib/server';
-import { money, when, label, title, options, calendarDate, languageName } from '../../lib/format';
+import { money, when, label, title, options, calendarDate, languageName, chartLabel} from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Stat, TitleLine } from '../../components/ui';
 import { ActionButton, PillTrack } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
@@ -48,9 +48,9 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
   return (
     <Page title={name} status={p.status} crumbs={[{ label: 'Patients', href: '/dashboard/platform/patients' }]}>
       <div className="flex flex-wrap items-center gap-3">
-        <span className="font-mono text-sm text-muted-foreground">{p.chartNumber}</span>
+        <span className="font-mono text-sm text-muted-foreground">{chartLabel(p.chartNumber)}</span>
         <Link className="text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/chart`}>Open clinical record</Link>
-        {p.mergedInto ? <Link className="text-sm underline" href={`/dashboard/platform/patients/${p.mergedInto.id}`}>Merged into {p.mergedInto.chartNumber}</Link> : null}
+        {p.mergedInto ? <Link className="text-sm underline" href={`/dashboard/platform/patients/${p.mergedInto.id}`}>Merged into {chartLabel(p.mergedInto.chartNumber)}</Link> : null}
       </div>
       {activeAlerts.length ? (
         <div className="space-y-1 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
@@ -91,7 +91,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
               {(p.family.members as any[]).map((m) => (
                 <Row key={m.id} href={m.id === p.id ? undefined : `/dashboard/platform/patients/${m.id}`}>
                   <TitleLine status={m.status}><span className={m.id === p.id ? 'font-semibold' : ''}>{m.preferredName || m.firstName} {m.lastName}</span></TitleLine>
-                  <Meta>{m.chartNumber} · born {calendarDate(m.dateOfBirth, 'date')}</Meta>
+                  <Meta>{chartLabel(m.chartNumber)} · born {calendarDate(m.dateOfBirth, 'date')}</Meta>
                 </Row>
               ))}
             </>
@@ -165,7 +165,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           ))}
           {(data.mergeCases as any[]).map((m) => (
             <Row key={m.id}>
-              <span className="min-w-0"><TitleLine status={m.status}><span>{m.merged?.chartNumber} → {m.survivor?.chartNumber}</span></TitleLine><Meta>{m.reason}</Meta></span>
+              <span className="min-w-0"><TitleLine status={m.status}><span>{chartLabel(m.merged?.chartNumber)} → {chartLabel(m.survivor?.chartNumber)}</span></TitleLine><Meta>{m.reason}</Meta></span>
               <span className="flex items-center gap-2">
                 {m.status === 'applied' && m.revertibleUntil && new Date(m.revertibleUntil).getTime() > Date.now() ? <ActionButton op="revertMerge" vars={{ mergeCaseId: m.id, expectedVersion: m.version }} ask="Why undo this merge?" paths={path}>Undo merge</ActionButton> : null}
               </span>
@@ -176,7 +176,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             <summary className="cursor-pointer text-sm font-medium">Same person as another chart?</summary>
             <div className="pt-3">
               <CommandForm op="proposeMerge" submitLabel="Propose merge" columns={2} paths={path} fixed={{ survivorId: p.id }}
-                fields={[{ name: 'mergedId', label: 'Chart to merge into this one', kind: 'text', required: true, placeholder: 'PT-…' }, { name: 'reason', label: 'Why they are the same person', kind: 'textarea', required: true }]}
+                fields={[{ name: 'mergedId', label: 'Chart to merge into this one', kind: 'text', required: true, placeholder: '1001' }, { name: 'reason', label: 'Why they are the same person', kind: 'textarea', required: true }]}
                 shape="mergeByChart" />
               <p className="pt-2 text-xs text-muted-foreground">A second person approves the merge in Approvals. It can be undone during the practice merge window.</p>
             </div>

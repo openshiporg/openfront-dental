@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { chartLabel } from '../../lib/format';
 import { q } from '../../lib/server';
 import { money, when, label, title } from '../../lib/format';
 import { Section, Status, Meta, Row, TitleLine } from '../../components/ui';
@@ -33,7 +34,7 @@ export async function AppointmentDrawer({ id, timeZone, closeHref }: { id: strin
       <div className="space-y-3 text-sm">
         <div className="min-w-0">
           <TitleLine status={a.status}>{a.patient ? <Link href={`/dashboard/platform/patients/${a.patient.id}`} className="text-base font-semibold hover:underline">{name}</Link> : <span className="font-semibold">{name}</span>}</TitleLine>
-          <div className="text-xs text-muted-foreground"><span className="font-mono">{a.patient?.chartNumber}</span> · {label(a.patient?.status)} patient</div>
+          <div className="text-xs text-muted-foreground"><span className="font-mono">{chartLabel(a.patient?.chartNumber)}</span> · {label(a.patient?.status)} patient</div>
         </div>
         <div className="space-y-0.5">
           <div>{when(a.startsAt, timeZone, 'day')} · {when(a.startsAt, timeZone, 'time')} – {when(a.endsAt, timeZone, 'time')}</div>

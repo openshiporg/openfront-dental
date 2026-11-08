@@ -24,3 +24,10 @@ export function publicCode(prefix: string, groups = 2) {
   const parts = Array.from({ length: groups }, (_, i) => chars.slice(i * 4, i * 4 + 4).join(''))
   return `${prefix}-${parts.join('-')}`
 }
+
+/** Plain chart numbers for patients: 1001, 1002, … (one counter for the whole practice). */
+export async function nextChartNumber(tx: Tx) {
+  await advisoryLock(tx, 'sequence:chart')
+  const row = await tx.sequence.upsert({ where: { key: 'chart' }, create: { key: 'chart', nextValue: 1002 }, update: { nextValue: { increment: 1 } } })
+  return String(row.nextValue - 1)
+}

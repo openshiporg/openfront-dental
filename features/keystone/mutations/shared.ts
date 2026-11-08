@@ -43,7 +43,7 @@ export async function assertPatientInScope(tx: Tx, locationIds: string[] | null,
 export async function resolvePatientRef(tx: Tx, ref: string) {
   const value = String(ref ?? '').trim()
   if (!value.startsWith('chart:')) return value
-  const chartNumber = value.slice(6).trim().toUpperCase()
+  const chartNumber = value.slice(6).trim().replace(/^(chart\s*)?#?/i, '')
   const patient = chartNumber ? await tx.patient.findUnique({ where: { chartNumber }, select: { id: true } }) : null
   if (!patient) throw new DomainError(Codes.NOT_FOUND, 'No patient has that chart number.', { field: 'patientId' })
   return patient.id

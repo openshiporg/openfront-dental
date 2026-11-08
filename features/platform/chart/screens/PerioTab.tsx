@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { q } from '../../lib/server';
 import { calendarDate, title } from '../../lib/format';
-import { Section, Row, Empty, Meta, Stat, TitleLine } from '../../components/ui';
+import { Section, Row, Empty, Meta, Stat, TitleLine, ScrollX } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 import { cal, compareExams, summarize } from '@/features/keystone/lib/perio';
@@ -44,7 +44,7 @@ export async function PerioTab({ id, p, providers, examId, href, paths }: { id: 
   const Row16 = ({ teeth, label }: { teeth: string[]; label: string }) => (
     <div>
       <div className="pb-1 text-xs text-muted-foreground">{label}</div>
-      <div className="overflow-x-auto">
+      <ScrollX hint="Swipe sideways to see all teeth">
       <table className="w-full min-w-[720px] border-collapse text-center font-mono text-xs">
         <thead><tr><th className="w-10 text-left">Tooth</th>{teeth.map((t) => <th key={t} colSpan={3} className="border-l px-0.5 font-semibold">{t}{mobility.get(t)?.mobility ? <span className="text-amber-700"> M{mobility.get(t).mobility}</span> : null}{mobility.get(t)?.missing ? ' ✕' : ''}</th>)}</tr></thead>
         <tbody>
@@ -65,7 +65,7 @@ export async function PerioTab({ id, p, providers, examId, href, paths }: { id: 
           ))}
         </tbody>
       </table>
-      </div>
+      </ScrollX>
     </div>
   );
 

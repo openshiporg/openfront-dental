@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { q, practiceTimeZone } from '../../lib/server';
-import { when, label, calendarDate } from '../../lib/format';
+import { when, label, calendarDate, chartLabel} from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
@@ -49,8 +49,8 @@ export default async function BookingRequestsPage({ searchParams }: { searchPara
                 <div className={r.matchStatus === 'possible_duplicate' ? 'text-sm text-amber-800' : 'text-sm text-muted-foreground'}>{r.matchStatus === 'new_patient' ? 'New patient' : r.matchStatus === 'matched' ? 'Matched an existing patient' : 'Possible existing patient'}</div>
                 <Meta>{r.location?.code} · {r.appointment?.type?.name ?? 'Visit'} · {r.appointment ? when(r.appointment.startsAt, tz, 'dayTime') : 'no visit'} · sent {when(r.createdAt, tz)} · captcha {label(r.captchaScore || 'not_configured')}</Meta>
                 <div><Meta>{[c.email, c.phone, c.dateOfBirth ? `born ${calendarDate(c.dateOfBirth, 'date')}` : ''].filter(Boolean).join(' · ')}</Meta></div>
-                {r.patientMatch ? <div><Link className="text-sm underline-offset-2 hover:underline" href={`/dashboard/platform/patients/${r.patientMatch.id}`}>Booked on {r.patientMatch.chartNumber} ({label(r.patientMatch.status)})</Link>{r.appointment ? <> · <Link className="text-sm underline-offset-2 hover:underline" href={`/dashboard/platform/schedule?date=${r.appointment.startsAt.slice(0, 10)}&appt=${r.appointment.id}`}>{r.appointment.ref} ({label(r.appointment.status)})</Link></> : null}</div> : null}
-                {candidates.length ? <div className="text-sm text-amber-800">Possible existing patient: {candidates.map((x) => `${x.chartNumber} (${x.evidence.map(label).join(', ')})`).join('; ')}</div> : null}
+                {r.patientMatch ? <div><Link className="text-sm underline-offset-2 hover:underline" href={`/dashboard/platform/patients/${r.patientMatch.id}`}>Booked on {chartLabel(r.patientMatch.chartNumber)} ({label(r.patientMatch.status)})</Link>{r.appointment ? <> · <Link className="text-sm underline-offset-2 hover:underline" href={`/dashboard/platform/schedule?date=${r.appointment.startsAt.slice(0, 10)}&appt=${r.appointment.id}`}>{r.appointment.ref} ({label(r.appointment.status)})</Link></> : null}</div> : null}
+                {candidates.length ? <div className="text-sm text-amber-800">Possible existing patient: {candidates.map((x) => `${chartLabel(x.chartNumber)} (${x.evidence.map(label).join(', ')})`).join('; ')}</div> : null}
                 {r.reviewedAt ? <Meta>Reviewed by {r.reviewedBy?.name ?? 'staff'} · {when(r.reviewedAt, tz)}{r.reviewNote ? ` · ${r.reviewNote}` : ''}</Meta> : null}
               </div>
               <div className="flex min-w-0 flex-col items-end gap-2">
@@ -62,7 +62,7 @@ export default async function BookingRequestsPage({ searchParams }: { searchPara
                 ) : null}
                 {!r.reviewedAt && candidates.length ? (
                   <CommandForm op="reviewBookingRequest" submitLabel="Same person: propose merge" columns={1} paths={PATHS} fixed={{ requestId: r.id, decision: 'link', expectedVersion: r.version }}
-                    fields={[{ name: 'existingPatientId', label: 'Existing chart', kind: 'select', options: candidates.map((x) => ({ value: `chart:${x.chartNumber}`, label: x.chartNumber })) }]} />
+                    fields={[{ name: 'existingPatientId', label: 'Existing chart', kind: 'select', options: candidates.map((x) => ({ value: `chart:${chartLabel(x.chartNumber)}`, label: chartLabel(x.chartNumber) })) }]} />
                 ) : null}
               </div>
             </Row>

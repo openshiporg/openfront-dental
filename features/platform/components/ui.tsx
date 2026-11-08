@@ -41,14 +41,25 @@ export function TitleLine({ children, status, className }: { children: React.Rea
 
 export function Tabs({ items, active }: { items: { key: string; label: string; href: string; count?: number }[]; active: string }) {
   return (
-    <div className="max-w-full overflow-x-auto">
-      <div className="inline-flex gap-1 rounded-lg bg-muted p-1">
-        {items.map((i) => (
-          <Link key={i.key} href={i.href} className={cn('whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium', i.key === active ? 'bg-background shadow-sm' : 'text-muted-foreground')}>
-            {i.label}{i.count !== undefined ? <span className="ml-1.5 font-mono text-xs text-muted-foreground">{i.count}</span> : null}
-          </Link>
-        ))}
+    <div className="flex max-w-full flex-wrap gap-1 rounded-lg bg-muted p-1">
+      {items.map((i) => (
+        <Link key={i.key} href={i.href} className={cn('whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium', i.key === active ? 'bg-background shadow-sm' : 'text-muted-foreground')}>
+          {i.label}{i.count !== undefined ? <span className="ml-1.5 font-mono text-xs text-muted-foreground">{i.count}</span> : null}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+/** Wide content that scrolls sideways on a phone, with a visible cue (edge fade and a hint line). */
+export function ScrollX({ children, hint = 'Swipe sideways to see the rest' }: { children: React.ReactNode; hint?: string }) {
+  return (
+    <div>
+      <div className="relative">
+        <div className="max-w-full overflow-x-auto pb-1">{children}</div>
+        <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent md:hidden" />
       </div>
+      <div className="pt-1 text-xs text-muted-foreground md:hidden">{hint} →</div>
     </div>
   );
 }

@@ -30,7 +30,7 @@ export async function PlansTab({ id, paths }: { id: string; paths: string[] }) {
               <Stat name="Total fee" value={money(total.toString())} />
               <Stat name="State" value={frozen ? 'Frozen' : 'Editable'} />
             </div>
-            {v?.contentHash ? <Meta>Content hash {v.contentHash.slice(0, 16)}… · presented {when(v.frozenAt, undefined, 'dayTime')}. A presented version never changes; revising makes a new one.</Meta> : null}
+            {v?.contentHash ? <Meta>Presented {when(v.frozenAt, undefined, 'dayTime')}. A presented version never changes; revising makes a new one.</Meta> : null}
             {items.map((i) => (
               <Row key={i.id}>
                 <span className="min-w-0"><TitleLine status={i.chartEntry?.status}><span className="font-medium">{i.chartEntry?.code?.patientFriendlyName || i.chartEntry?.code?.nomenclature}</span></TitleLine><Meta>{i.chartEntry?.code?.code}{i.chartEntry?.tooth ? ` · tooth ${i.chartEntry.tooth}${i.chartEntry.surfaces ? ` ${i.chartEntry.surfaces}` : ''}` : ''} · {title(i.phaseKey)} · {title(i.priority)}</Meta></span>
