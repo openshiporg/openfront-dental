@@ -76,7 +76,8 @@ export default async function PatientInsurancePage({ params }: { params: Promise
         for (const f of facts) { const key = `${f.field}|${JSON.stringify(f.appliesTo)}`; const have = latest.get(key); if (!have || (have.isUnknown && !f.isUnknown)) latest.set(key, f); }
         const rows = [...latest.values()].sort((a, b) => a.field.localeCompare(b.field));
         return (
-          <Section key={c.id} title={`${title(c.ordinal)} · ${c.subscriber?.plan?.payer?.name ?? ''}`} aside={<TitleLine status={c.verificationLevel}>{null}</TitleLine>}>
+          <Section key={c.id} title={`${title(c.ordinal)} · ${c.subscriber?.plan?.payer?.name ?? ''}`}>
+            <TitleLine status={c.verificationLevel}>{null}</TitleLine>
             <div className="grid min-w-0 grid-cols-2 gap-4 break-words rounded-lg border p-4 sm:grid-cols-4">
               <Stat name="Group" value={c.subscriber?.plan?.groupName ?? '—'} />
               <Stat name="Member ID" value={c.subscriber?.memberIdLast4 ? `•••• ${c.subscriber.memberIdLast4}` : '—'} />
