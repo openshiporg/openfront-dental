@@ -64,12 +64,12 @@ export function ScrollX({ children, hint = 'Swipe sideways to see the rest' }: {
   );
 }
 
-export function Section({ title, aside, children }: { title: string; aside?: React.ReactNode; children: React.ReactNode }) {
+export function Section({ title, aside, keepTitleOnOneLine, children }: { title: string; aside?: React.ReactNode; keepTitleOnOneLine?: boolean; children: React.ReactNode }) {
   return (
     <section className="min-w-0 space-y-3">
-      <div className="flex items-center justify-between gap-3 border-b pb-2">
-        <h2 className="font-mono text-xs uppercase tracking-wide text-muted-foreground">{title}</h2>
-        {aside}
+      <div className="flex items-start justify-between gap-3 border-b pb-2">
+        <h2 className={cn('font-mono text-xs uppercase tracking-wide text-muted-foreground', keepTitleOnOneLine && 'shrink-0 whitespace-nowrap')}>{title}</h2>
+        {aside ? <div className="flex min-w-0 justify-end text-right">{aside}</div> : null}
       </div>
       {children}
     </section>

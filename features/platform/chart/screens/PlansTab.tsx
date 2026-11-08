@@ -23,7 +23,7 @@ export async function PlansTab({ id, paths }: { id: string; paths: string[] }) {
         const total = items.reduce((s, i) => s + BigInt(i.feeMinor ?? 0), 0n);
         const frozen = !!v?.frozenAt;
         return (
-          <Section key={plan.id} title={plan.ref} aside={<TitleLine status={plan.status}><span className="text-sm font-medium">{plan.title}</span></TitleLine>}>
+          <Section key={plan.id} title={plan.ref} keepTitleOnOneLine aside={<TitleLine status={plan.status}><span className="text-sm font-medium">{plan.title}</span></TitleLine>}>
             <div className="grid grid-cols-2 gap-4 rounded-lg border p-4 sm:grid-cols-4">
               <Stat name="Version" value={v?.number ?? '—'} />
               <Stat name="Items" value={items.length} />

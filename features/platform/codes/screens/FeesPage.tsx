@@ -42,7 +42,7 @@ export default async function FeesPage({ searchParams }: { searchParams?: Promis
                 fields={[{ name: 'codeId', label: 'Procedure', kind: 'select', options: (d.procedureCodes as any[]).map((c) => ({ value: c.id, label: `${c.code} · ${c.nomenclature}` })), required: true }, { name: 'dollars', label: 'Fee (dollars)', kind: 'text', required: true, placeholder: '215.00' }]} />
             </>
           ) : selected ? <Meta>Published versions are read-only. Start a new version to change fees.</Meta> : null}
-          {fees.length ? fees.map((f) => <Row key={f.id}><span className="min-w-0"><span className="font-mono text-xs text-muted-foreground">{f.code.code}</span> {f.code.nomenclature}</span><span className="font-medium">{money(f.amountMinor)}</span></Row>) : <Empty>{selected ? 'No fees in this version yet.' : 'Create a schedule to begin.'}</Empty>}
+          {fees.length ? fees.map((f) => <Row key={f.id} className="flex-nowrap items-start"><span className="min-w-0 flex-1"><span className="font-mono text-xs text-muted-foreground">{f.code.code}</span> {f.code.nomenclature}</span><span className="shrink-0 whitespace-nowrap text-right font-medium">{money(f.amountMinor)}</span></Row>) : <Empty>{selected ? 'No fees in this version yet.' : 'Create a schedule to begin.'}</Empty>}
         </Section>
       </div>
     </Page>
