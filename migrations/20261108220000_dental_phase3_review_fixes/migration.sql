@@ -6,8 +6,22 @@
 
 -- Two review estimates charged the patient the secondary's share twice (fee ≠ write-off + insurance + secondary + patient).
 -- Estimates are append-only, so the corrected rows are written with the trigger paused inside this migration only.
+-- `patientMinor` now means what the patient owes after BOTH plans (it used to be the amount before the secondary).
+-- The old rule "secondary <= patient" is restated for that meaning: the secondary fits inside what the primary left.
+ALTER TABLE "Estimate" DROP CONSTRAINT "Estimate_amounts";
+ALTER TABLE "Estimate" ADD CONSTRAINT "Estimate_amounts" CHECK (
+  "feeMinor" >= 0 AND "allowedMinor" >= 0 AND "writeOffMinor" >= 0 AND "insuranceMinor" >= 0 AND "patientMinor" >= 0
+  AND "deductibleAppliedMinor" >= 0 AND "maxAppliedMinor" >= 0 AND "secondaryInsuranceMinor" >= 0
+  AND "allowedMinor" <= "feeMinor" AND "writeOffMinor" <= "feeMinor" AND "insuranceMinor" <= "feeMinor" AND "patientMinor" <= "feeMinor"
+  AND "secondaryInsuranceMinor" <= "feeMinor" - "writeOffMinor" - "insuranceMinor");
+
+-- Two review estimates charged the secondary's share twice (fee != write-off + insurance + secondary + patient).
+-- Estimates are append-only, so the corrected rows are written with the trigger paused inside this migration only.
+-- The secondary is capped to what the allowed amount can hold, and the patient owes the rest.
 ALTER TABLE "Estimate" DISABLE TRIGGER "Estimate_append_only";
-UPDATE "Estimate" SET "patientMinor" = "feeMinor" - "writeOffMinor" - "insuranceMinor" - "secondaryInsuranceMinor"
+UPDATE "Estimate" SET
+  "secondaryInsuranceMinor" = LEAST("secondaryInsuranceMinor", GREATEST("allowedMinor" - "insuranceMinor", 0)),
+  "patientMinor" = "feeMinor" - "writeOffMinor" - "insuranceMinor" - LEAST("secondaryInsuranceMinor", GREATEST("allowedMinor" - "insuranceMinor", 0))
 WHERE "feeMinor" <> "writeOffMinor" + "insuranceMinor" + "secondaryInsuranceMinor" + "patientMinor";
 ALTER TABLE "Estimate" ENABLE TRIGGER "Estimate_append_only";
 
