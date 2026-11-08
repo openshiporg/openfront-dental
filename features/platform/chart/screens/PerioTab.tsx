@@ -88,7 +88,8 @@ export async function PerioTab({ id, p, providers, examId, href, paths }: { id: 
         <Stat name="Worst CAL" value={summary.maxCal === null ? '—' : `${summary.maxCal} mm`} />
       </div>
       <Section title={`Exam ${calendarDate(exam.examDate, 'date')}`}>
-        <Row16 teeth={UPPER} label="Upper, patient’s right to left (probing depth in mm; • bleeding; hover for gingival margin and CAL)" />
+        <p className="max-w-full whitespace-normal break-words text-xs text-muted-foreground">Probing depth in mm. A dot marks bleeding. Hover a number for gingival margin and CAL.</p>
+        <Row16 teeth={UPPER} label="Upper, patient’s right to left" />
         <Row16 teeth={LOWER} label="Lower, patient’s right to left" />
         {editable ? (
           <details open className="pt-2">
