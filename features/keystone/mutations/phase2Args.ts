@@ -49,4 +49,17 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   createFeeVersion: { scheduleId: 'ID!', label: 'String!', effectiveFrom: 'String!' },
   setFee: { versionId: 'ID!', codeId: 'ID!', amountMinor: 'String!', copayMinor: 'String' },
   requestFeePublish: { versionId: 'ID!', expectedVersion: 'Int!' },
+  // Phase 3: insurance
+  savePayer: { payerId: 'ID', name: 'String!', kind: 'String!', stediPayerId: 'String', phone: 'String', timelyFilingDays: 'Int' },
+  saveInsurancePlan: { planId: 'ID', payerId: 'ID!', groupName: 'String!', groupNumber: 'String', planType: 'String!', networkStatus: 'String!', feeScheduleId: 'ID', cobMethod: 'String', annualMax: 'String', deductible: 'String', deductibleFamily: 'String', benefitYearStartMonth: 'Int' },
+  addCoverage: { patientId: 'ID!', planId: 'ID!', memberId: 'String!', relationship: 'String!', ordinal: 'String!', effectiveFrom: 'String!', subscriberFirstName: 'String', subscriberLastName: 'String', subscriberDateOfBirth: 'String' },
+  setCoverageOrder: { coverageId: 'ID!', ordinal: 'String!', reason: 'String!' },
+  terminateCoverage: { coverageId: 'ID!', expectedVersion: 'Int!', endedOn: 'String!', reason: 'String!' },
+  requestVerification: { coverageId: 'ID!' },
+  recheckEligibility: { checkId: 'ID!' },
+  recordBenefitFact: { verificationId: 'ID!', field: 'String!', category: 'String', level: 'String', dollars: 'String', pct: 'String', count: 'Int', months: 'Int', group: 'String', method: 'String', flag: 'String', ageMin: 'String', ageMax: 'String', isUnknown: 'Boolean', source: 'String!', note: 'String' },
+  completeVerification: { verificationId: 'ID!', expectedVersion: 'Int!' },
+  failVerification: { verificationId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
+  addOutsideHistory: { patientId: 'ID!', codeId: 'ID', codeText: 'String', frequencyGroup: 'String', tooth: 'String', dateOfService: 'String!', providerName: 'String', source: 'String!' },
+  estimateTreatmentPlan: { planId: 'ID!' },
 }

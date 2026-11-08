@@ -11,6 +11,7 @@ import * as portal from './portal'
 import * as catalogue from './catalogue'
 import * as clinical from './clinical'
 import * as treatment from './treatment'
+import * as insurance from './insurance'
 import { applyPhiTiers } from '../security/phiFields'
 import { sys } from '../access'
 
@@ -48,6 +49,7 @@ export const models = hideRefusedActions(applyPhiTiers({
   ...listsOf(catalogue),
   ...listsOf(clinical),
   ...listsOf(treatment),
+  ...listsOf(insurance),
 }))
 
 export default models

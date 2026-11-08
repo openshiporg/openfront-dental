@@ -94,6 +94,15 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   FormSubmission: { data: 'sens' },
   ConsentRecord: { signerName: 'dem', signatureEvidence: 'clin', scope: 'clin' },
   ConsentAction: { reason: 'clin' },
+  // Phase 3: insurance, benefits, estimates (SCHEMA §8)
+  InsurancePlan: { groupNumber: 'ins', annualMaxMinor: 'ins', deductibleIndividualMinor: 'ins', deductibleFamilyMinor: 'ins' },
+  Subscriber: { personName: 'ins', dateOfBirth: 'ins', memberIdHash: 'ins', memberIdLast4: 'ins' },
+  BenefitFact: { valueJson: 'ins' },
+  EligibilityCheck: { rejectionCodes: 'ins', resultNote: 'ins' },
+  BenefitVerification: { failureNote: 'ins' },
+  OutsideHistory: { codeText: 'clin', tooth: 'clin', surfaces: 'clin', providerName: 'dem' },
+  Estimate: { inputs: 'ins', feeMinor: 'ins', allowedMinor: 'ins', writeOffMinor: 'ins', insuranceMinor: 'ins', patientMinor: 'ins', deductibleAppliedMinor: 'ins', maxAppliedMinor: 'ins', secondaryInsuranceMinor: 'ins', reasons: 'ins' },
+  BenefitUsage: { maxUsedMinor: 'ins', deductibleUsedMinor: 'ins', pendingMinor: 'ins', frequencyUse: 'ins' },
   LedgerEntry: { amountMinor: 'fin', memo: 'fin' },
   GuarantorAccount: { balanceCache: 'fin' },
 }

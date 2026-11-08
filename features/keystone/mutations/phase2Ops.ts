@@ -3,6 +3,7 @@ import * as chart from './chart'
 import * as clinical from './clinical'
 import * as forms from './forms'
 import * as plans from './plans'
+import * as insurance from './insurance'
 import { PHASE2_ARGS } from './phase2Args'
 
 /* Every Phase 2 command's resolver. index.ts builds the GraphQL schema from this table and PHASE2_ARGS. */
@@ -51,6 +52,18 @@ const RESOLVERS: Record<string, Resolver> = {
   createFeeVersion: catalogue.createFeeVersion,
   setFee: catalogue.setFee,
   requestFeePublish: catalogue.requestFeePublish,
+  savePayer: insurance.savePayer,
+  saveInsurancePlan: insurance.saveInsurancePlan,
+  addCoverage: insurance.addCoverage,
+  setCoverageOrder: insurance.setCoverageOrder,
+  terminateCoverage: insurance.terminateCoverage,
+  requestVerification: insurance.requestVerification,
+  recheckEligibility: insurance.recheckEligibility,
+  recordBenefitFact: insurance.recordBenefitFact,
+  completeVerification: insurance.completeVerification,
+  failVerification: insurance.failVerification,
+  addOutsideHistory: insurance.addOutsideHistory,
+  estimateTreatmentPlan: insurance.estimateTreatmentPlan,
 }
 
 export const PHASE2_OPS = Object.fromEntries(Object.entries(PHASE2_ARGS).map(([name, args]) => [name, { args, fn: RESOLVERS[name] }]))

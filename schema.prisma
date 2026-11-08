@@ -84,6 +84,11 @@ model User {
   from_PlanPresentation_presentedBy       PlanPresentation[]       @relation("PlanPresentation_presentedBy")
   from_TreatmentPlan_coordinator          TreatmentPlan[]          @relation("TreatmentPlan_coordinator")
   from_TreatmentPlanVersion_presentedBy   TreatmentPlanVersion[]   @relation("TreatmentPlanVersion_presentedBy")
+  from_BenefitFact_observedBy             BenefitFact[]            @relation("BenefitFact_observedBy")
+  from_BenefitRule_observedBy             BenefitRule[]            @relation("BenefitRule_observedBy")
+  from_BenefitVerification_requestedBy    BenefitVerification[]    @relation("BenefitVerification_requestedBy")
+  from_BenefitVerification_completedBy    BenefitVerification[]    @relation("BenefitVerification_completedBy")
+  from_WorkTask_assignee                  WorkTask[]               @relation("WorkTask_assignee")
 
   @@index([roleId])
 }
@@ -450,26 +455,31 @@ model Document {
   from_Document_supersedes           Document[]           @relation("Document_supersedes")
   from_InboundObservation_raw        InboundObservation[] @relation("InboundObservation_raw")
   from_Referral_letter               Referral[]           @relation("Referral_letter")
+  from_BenefitFact_evidence          BenefitFact[]        @relation("BenefitFact_evidence")
+  from_BenefitRule_evidence          BenefitRule[]        @relation("BenefitRule_evidence")
+  from_OutsideHistory_evidence       OutsideHistory[]     @relation("OutsideHistory_evidence")
 
   @@index([supersedesId])
   @@index([uploadedById])
 }
 
 model InboundObservation {
-  id          String    @id @default(cuid())
-  source      String    @default("")
-  kind        String
-  externalId  String    @default("")
-  contentHash String    @default("")
-  raw         Document? @relation("InboundObservation_raw", fields: [rawId], references: [id])
-  rawId       String?   @map("raw")
-  rawSecretId String    @default("")
-  receivedAt  DateTime? @default(now())
-  appliedAt   DateTime?
-  applyResult Json?
-  isSynthetic Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @default(now()) @updatedAt
+  id                                String             @id @default(cuid())
+  source                            String             @default("")
+  kind                              String
+  externalId                        String             @default("")
+  contentHash                       String             @default("")
+  raw                               Document?          @relation("InboundObservation_raw", fields: [rawId], references: [id])
+  rawId                             String?            @map("raw")
+  rawSecretId                       String             @default("")
+  receivedAt                        DateTime?          @default(now())
+  appliedAt                         DateTime?
+  applyResult                       Json?
+  isSynthetic                       Boolean            @default(false)
+  createdAt                         DateTime           @default(now())
+  updatedAt                         DateTime           @default(now()) @updatedAt
+  from_BenefitFact_rawObservation   BenefitFact[]      @relation("BenefitFact_rawObservation")
+  from_EligibilityCheck_observation EligibilityCheck[] @relation("EligibilityCheck_observation")
 
   @@index([source])
   @@index([rawId])
@@ -615,25 +625,26 @@ model Notification {
 }
 
 model OutboxEvent {
-  id             String    @id @default(cuid())
-  topic          String    @default("")
-  aggregateType  String    @default("")
-  aggregateId    String    @default("")
-  dedupeKey      String    @unique @default("")
-  payload        Json?
-  adapterKey     String    @default("")
-  mode           String?   @default("manual_export")
-  isSynthetic    Boolean   @default(false)
-  status         String    @default("pending")
-  attempts       Int?      @default(0)
-  nextAttemptAt  DateTime? @default(now())
-  leaseOwner     String    @default("")
-  leaseExpiresAt DateTime?
-  fencingToken   Int?      @default(0)
-  lastError      String    @default("")
-  deliveredAt    DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now()) @updatedAt
+  id                                String             @id @default(cuid())
+  topic                             String             @default("")
+  aggregateType                     String             @default("")
+  aggregateId                       String             @default("")
+  dedupeKey                         String             @unique @default("")
+  payload                           Json?
+  adapterKey                        String             @default("")
+  mode                              String?            @default("manual_export")
+  isSynthetic                       Boolean            @default(false)
+  status                            String             @default("pending")
+  attempts                          Int?               @default(0)
+  nextAttemptAt                     DateTime?          @default(now())
+  leaseOwner                        String             @default("")
+  leaseExpiresAt                    DateTime?
+  fencingToken                      Int?               @default(0)
+  lastError                         String             @default("")
+  deliveredAt                       DateTime?
+  createdAt                         DateTime           @default(now())
+  updatedAt                         DateTime           @default(now()) @updatedAt
+  from_EligibilityCheck_outboxEvent EligibilityCheck[] @relation("EligibilityCheck_outboxEvent")
 
   @@index([topic])
   @@index([aggregateId])
@@ -752,6 +763,7 @@ model SecretBox {
   updatedAt                       DateTime              @default(now()) @updatedAt
   from_AdapterInstallation_secret AdapterInstallation[] @relation("AdapterInstallation_secret")
   from_InferenceProvider_secret   InferenceProvider[]   @relation("InferenceProvider_secret")
+  from_Subscriber_memberIdSecret  Subscriber[]          @relation("Subscriber_memberIdSecret")
 }
 
 model Sequence {
@@ -1070,6 +1082,10 @@ model Patient {
   from_FormRequest_patient               FormRequest[]            @relation("FormRequest_patient")
   from_GoodFaithEstimate_patient         GoodFaithEstimate[]      @relation("GoodFaithEstimate_patient")
   from_TreatmentPlan_patient             TreatmentPlan[]          @relation("TreatmentPlan_patient")
+  from_Coverage_patient                  Coverage[]               @relation("Coverage_patient")
+  from_Estimate_patient                  Estimate[]               @relation("Estimate_patient")
+  from_OutsideHistory_patient            OutsideHistory[]         @relation("OutsideHistory_patient")
+  from_Subscriber_patient                Subscriber[]             @relation("Subscriber_patient")
 
   @@index([mergedIntoId])
   @@index([familyId])
@@ -1203,6 +1219,7 @@ model Appointment {
   from_ChartEntry_appointment             ChartEntry[]             @relation("ChartEntry_appointment")
   from_ClinicalNote_appointment           ClinicalNote[]           @relation("ClinicalNote_appointment")
   from_VitalsReading_appointment          VitalsReading[]          @relation("VitalsReading_appointment")
+  from_Estimate_appointment               Estimate[]               @relation("Estimate_appointment")
 
   @@index([patientId])
   @@index([locationId])
@@ -1789,14 +1806,16 @@ model Fee {
 }
 
 model FeeSchedule {
-  id          String               @id @default(cuid())
-  name        String               @default("")
-  kind        String
-  isDefault   Boolean              @default(false)
-  versions    FeeScheduleVersion[] @relation("FeeScheduleVersion_schedule")
-  isSynthetic Boolean              @default(false)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @default(now()) @updatedAt
+  id                             String               @id @default(cuid())
+  name                           String               @default("")
+  kind                           String
+  isDefault                      Boolean              @default(false)
+  versions                       FeeScheduleVersion[] @relation("FeeScheduleVersion_schedule")
+  isSynthetic                    Boolean              @default(false)
+  createdAt                      DateTime             @default(now())
+  updatedAt                      DateTime             @default(now()) @updatedAt
+  from_InsurancePlan_feeSchedule InsurancePlan[]      @relation("InsurancePlan_feeSchedule")
+  from_InsurancePlan_ucrSchedule InsurancePlan[]      @relation("InsurancePlan_ucrSchedule")
 }
 
 model FeeScheduleVersion {
@@ -1903,6 +1922,8 @@ model ProcedureCode {
   from_ProcedureCodeCrosswalk_localCode  ProcedureCodeCrosswalk[] @relation("ProcedureCodeCrosswalk_localCode")
   from_ProcedureCodeCrosswalk_targetCode ProcedureCodeCrosswalk[] @relation("ProcedureCodeCrosswalk_targetCode")
   from_ChartEntry_code                   ChartEntry[]             @relation("ChartEntry_code")
+  from_BenefitRule_downgradeToCode       BenefitRule[]            @relation("BenefitRule_downgradeToCode")
+  from_OutsideHistory_code               OutsideHistory[]         @relation("OutsideHistory_code")
 
   @@unique([codeSystemId, code, effectiveFrom], map: "ProcedureCode_system_code_from_key")
   @@index([codeSystemId])
@@ -2584,6 +2605,7 @@ model TreatmentPlanItem {
   updatedAt                         DateTime              @default(now()) @updatedAt
   from_InformedRefusal_items        InformedRefusal[]     @relation("InformedRefusal_items")
   from_PlanAcceptance_selectedItems PlanAcceptance[]      @relation("PlanAcceptance_selectedItems")
+  from_Estimate_planItem            Estimate[]            @relation("Estimate_planItem")
 
   @@unique([planVersionId, chartEntryId], map: "TreatmentPlanItem_version_entry_key")
   @@index([planVersionId])
@@ -2613,6 +2635,343 @@ model TreatmentPlanVersion {
   @@unique([planId, number], map: "TreatmentPlanVersion_plan_number_key")
   @@index([planId])
   @@index([presentedById])
+}
+
+model BenefitFact {
+  id               String               @id @default(cuid())
+  verification     BenefitVerification? @relation("BenefitFact_verification", fields: [verificationId], references: [id])
+  verificationId   String?              @map("verification")
+  coverage         Coverage?            @relation("BenefitFact_coverage", fields: [coverageId], references: [id])
+  coverageId       String?              @map("coverage")
+  field            String
+  appliesTo        Json?                @default("{}")
+  valueJson        Json?                @default("{}")
+  isUnknown        Boolean              @default(false)
+  source           String
+  observedAt       DateTime?
+  observedBy       User?                @relation("BenefitFact_observedBy", fields: [observedById], references: [id])
+  observedById     String?              @map("observedBy")
+  evidence         Document?            @relation("BenefitFact_evidence", fields: [evidenceId], references: [id])
+  evidenceId       String?              @map("evidence")
+  rawObservation   InboundObservation?  @relation("BenefitFact_rawObservation", fields: [rawObservationId], references: [id])
+  rawObservationId String?              @map("rawObservation")
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @default(now()) @updatedAt
+
+  @@index([verificationId])
+  @@index([coverageId])
+  @@index([observedById])
+  @@index([evidenceId])
+  @@index([rawObservationId])
+}
+
+model BenefitRule {
+  id                            String         @id @default(cuid())
+  plan                          InsurancePlan? @relation("BenefitRule_plan", fields: [planId], references: [id])
+  planId                        String?        @map("plan")
+  kind                          String
+  appliesTo                     Json?          @default("{}")
+  pct                           Decimal?       @postgresql.Decimal(9, 4)
+  frequency                     Json?
+  ageMin                        Int?
+  ageMax                        Int?
+  waitingMonths                 Int?
+  downgradeToCode               ProcedureCode? @relation("BenefitRule_downgradeToCode", fields: [downgradeToCodeId], references: [id])
+  downgradeToCodeId             String?        @map("downgradeToCode")
+  note                          String         @default("")
+  source                        String
+  observedAt                    DateTime?
+  observedBy                    User?          @relation("BenefitRule_observedBy", fields: [observedById], references: [id])
+  observedById                  String?        @map("observedBy")
+  evidence                      Document?      @relation("BenefitRule_evidence", fields: [evidenceId], references: [id])
+  evidenceId                    String?        @map("evidence")
+  supersededBy                  BenefitRule?   @relation("BenefitRule_supersededBy", fields: [supersededById], references: [id])
+  supersededById                String?        @map("supersededBy")
+  createdAt                     DateTime       @default(now())
+  updatedAt                     DateTime       @default(now()) @updatedAt
+  from_BenefitRule_supersededBy BenefitRule[]  @relation("BenefitRule_supersededBy")
+
+  @@index([planId])
+  @@index([downgradeToCodeId])
+  @@index([observedById])
+  @@index([evidenceId])
+  @@index([supersededById])
+}
+
+model BenefitUsage {
+  id                  String    @id @default(cuid())
+  coverage            Coverage? @relation("BenefitUsage_coverage", fields: [coverageId], references: [id])
+  coverageId          String?   @map("coverage")
+  benefitYear         String    @default("")
+  maxUsedMinor        BigInt    @default(0)
+  deductibleUsedMinor BigInt    @default(0)
+  pendingMinor        BigInt    @default(0)
+  frequencyUse        Json?     @default("[]")
+  rebuiltAt           DateTime?
+  sourceHash          String    @default("")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
+
+  @@index([coverageId])
+}
+
+model BenefitVerification {
+  id                             String             @id @default(cuid())
+  coverage                       Coverage?          @relation("BenefitVerification_coverage", fields: [coverageId], references: [id])
+  coverageId                     String?            @map("coverage")
+  trigger                        String
+  status                         String             @default("requested")
+  completeness                   String?
+  eligibilityChecks              EligibilityCheck[] @relation("EligibilityCheck_verification")
+  facts                          BenefitFact[]      @relation("BenefitFact_verification")
+  tasks                          WorkTask[]         @relation("WorkTask_verification")
+  failureNote                    String             @default("")
+  requestedBy                    User?              @relation("BenefitVerification_requestedBy", fields: [requestedById], references: [id])
+  requestedById                  String?            @map("requestedBy")
+  completedBy                    User?              @relation("BenefitVerification_completedBy", fields: [completedById], references: [id])
+  completedById                  String?            @map("completedBy")
+  completedAt                    DateTime?
+  isSynthetic                    Boolean            @default(false)
+  version                        Int                @default(0)
+  createdAt                      DateTime           @default(now())
+  updatedAt                      DateTime           @default(now()) @updatedAt
+  from_Coverage_lastVerification Coverage[]         @relation("Coverage_lastVerification")
+
+  @@index([coverageId])
+  @@index([requestedById])
+  @@index([completedById])
+}
+
+model Coverage {
+  id                             String                @id @default(cuid())
+  patient                        Patient?              @relation("Coverage_patient", fields: [patientId], references: [id])
+  patientId                      String?               @map("patient")
+  subscriber                     Subscriber?           @relation("Coverage_subscriber", fields: [subscriberId], references: [id])
+  subscriberId                   String?               @map("subscriber")
+  ordinal                        String
+  relationship                   String
+  status                         String                @default("pending_verification")
+  verificationLevel              String                @default("unverified")
+  effectiveFrom                  DateTime?             @postgresql.Date
+  effectiveTo                    DateTime?             @postgresql.Date
+  lastVerification               BenefitVerification?  @relation("Coverage_lastVerification", fields: [lastVerificationId], references: [id])
+  lastVerificationId             String?               @map("lastVerification")
+  verifications                  BenefitVerification[] @relation("BenefitVerification_coverage")
+  isSynthetic                    Boolean               @default(false)
+  version                        Int                   @default(0)
+  createdAt                      DateTime              @default(now())
+  updatedAt                      DateTime              @default(now()) @updatedAt
+  from_BenefitFact_coverage      BenefitFact[]         @relation("BenefitFact_coverage")
+  from_BenefitUsage_coverage     BenefitUsage[]        @relation("BenefitUsage_coverage")
+  from_EligibilityCheck_coverage EligibilityCheck[]    @relation("EligibilityCheck_coverage")
+  from_Estimate_coverage         Estimate[]            @relation("Estimate_coverage")
+
+  @@index([patientId])
+  @@index([subscriberId])
+  @@index([lastVerificationId])
+}
+
+model EligibilityCheck {
+  id             String               @id @default(cuid())
+  verification   BenefitVerification? @relation("EligibilityCheck_verification", fields: [verificationId], references: [id])
+  verificationId String?              @map("verification")
+  coverage       Coverage?            @relation("EligibilityCheck_coverage", fields: [coverageId], references: [id])
+  coverageId     String?              @map("coverage")
+  adapterKey     String               @default("")
+  mode           String
+  requestHash    String               @default("")
+  status         String               @default("queued")
+  rejectionCodes Json?                @default("[]")
+  resultNote     String               @default("")
+  attempts       Int                  @default(0)
+  observation    InboundObservation?  @relation("EligibilityCheck_observation", fields: [observationId], references: [id])
+  observationId  String?              @map("observation")
+  respondedAt    DateTime?
+  outboxEvent    OutboxEvent?         @relation("EligibilityCheck_outboxEvent", fields: [outboxEventId], references: [id])
+  outboxEventId  String?              @map("outboxEvent")
+  isSynthetic    Boolean              @default(false)
+  version        Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @default(now()) @updatedAt
+
+  @@index([verificationId])
+  @@index([coverageId])
+  @@index([requestHash])
+  @@index([observationId])
+  @@index([outboxEventId])
+}
+
+model Employer {
+  id                          String          @id @default(cuid())
+  name                        String          @default("")
+  address                     Json?           @default("{}")
+  isSynthetic                 Boolean         @default(false)
+  createdAt                   DateTime        @default(now())
+  updatedAt                   DateTime        @default(now()) @updatedAt
+  from_InsurancePlan_employer InsurancePlan[] @relation("InsurancePlan_employer")
+  from_Subscriber_employer    Subscriber[]    @relation("Subscriber_employer")
+}
+
+model Estimate {
+  id                      String             @id @default(cuid())
+  patient                 Patient?           @relation("Estimate_patient", fields: [patientId], references: [id])
+  patientId               String?            @map("patient")
+  subjectKind             String
+  planItem                TreatmentPlanItem? @relation("Estimate_planItem", fields: [planItemId], references: [id])
+  planItemId              String?            @map("planItem")
+  appointment             Appointment?       @relation("Estimate_appointment", fields: [appointmentId], references: [id])
+  appointmentId           String?            @map("appointment")
+  coverage                Coverage?          @relation("Estimate_coverage", fields: [coverageId], references: [id])
+  coverageId              String?            @map("coverage")
+  ordinal                 String
+  inputs                  Json?              @default("{}")
+  feeMinor                BigInt
+  allowedMinor            BigInt
+  writeOffMinor           BigInt
+  insuranceMinor          BigInt
+  patientMinor            BigInt
+  deductibleAppliedMinor  BigInt
+  maxAppliedMinor         BigInt
+  secondaryInsuranceMinor BigInt
+  coverageStatus          String
+  confidence              String
+  reasons                 Json?              @default("[]")
+  estimatorVersion        String             @default("")
+  computedAt              DateTime?          @default(now())
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([planItemId])
+  @@index([appointmentId])
+  @@index([coverageId])
+}
+
+model InsurancePlan {
+  id                        String        @id @default(cuid())
+  payer                     Payer?        @relation("InsurancePlan_payer", fields: [payerId], references: [id])
+  payerId                   String?       @map("payer")
+  employer                  Employer?     @relation("InsurancePlan_employer", fields: [employerId], references: [id])
+  employerId                String?       @map("employer")
+  groupName                 String        @default("")
+  groupNumber               String        @default("")
+  planType                  String
+  networkStatus             String
+  feeSchedule               FeeSchedule?  @relation("InsurancePlan_feeSchedule", fields: [feeScheduleId], references: [id])
+  feeScheduleId             String?       @map("feeSchedule")
+  ucrSchedule               FeeSchedule?  @relation("InsurancePlan_ucrSchedule", fields: [ucrScheduleId], references: [id])
+  ucrScheduleId             String?       @map("ucrSchedule")
+  benefitYearStartMonth     Int           @default(1)
+  annualMaxMinor            BigInt?
+  orthoLifetimeMaxMinor     BigInt?
+  deductibleIndividualMinor BigInt?
+  deductibleFamilyMinor     BigInt?
+  currencyCode              String        @default("USD")
+  cobMethod                 String
+  benefitRules              BenefitRule[] @relation("BenefitRule_plan")
+  isSynthetic               Boolean       @default(false)
+  version                   Int           @default(0)
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @default(now()) @updatedAt
+  from_Subscriber_plan      Subscriber[]  @relation("Subscriber_plan")
+
+  @@index([payerId])
+  @@index([employerId])
+  @@index([groupNumber])
+  @@index([feeScheduleId])
+  @@index([ucrScheduleId])
+}
+
+model OutsideHistory {
+  id             String         @id @default(cuid())
+  patient        Patient?       @relation("OutsideHistory_patient", fields: [patientId], references: [id])
+  patientId      String?        @map("patient")
+  code           ProcedureCode? @relation("OutsideHistory_code", fields: [codeId], references: [id])
+  codeId         String?        @map("code")
+  codeText       String         @default("")
+  frequencyGroup String         @default("")
+  tooth          String         @default("")
+  surfaces       String         @default("")
+  dateOfService  DateTime?      @postgresql.Date
+  providerName   String         @default("")
+  source         String
+  evidence       Document?      @relation("OutsideHistory_evidence", fields: [evidenceId], references: [id])
+  evidenceId     String?        @map("evidence")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([codeId])
+  @@index([evidenceId])
+}
+
+model Payer {
+  id                       String          @id @default(cuid())
+  name                     String          @default("")
+  kind                     String
+  adapterPayerIds          Json?           @default("{}")
+  phone                    String          @default("")
+  portalUrl                String          @default("")
+  timelyFilingDays         Int?            @default(365)
+  attachmentNetwork        String          @default("")
+  notes                    String          @default("")
+  isSynthetic              Boolean         @default(false)
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @default(now()) @updatedAt
+  from_InsurancePlan_payer InsurancePlan[] @relation("InsurancePlan_payer")
+}
+
+model Subscriber {
+  id                       String         @id @default(cuid())
+  patient                  Patient?       @relation("Subscriber_patient", fields: [patientId], references: [id])
+  patientId                String?        @map("patient")
+  personName               Json?          @default("{}")
+  dateOfBirth              DateTime?      @postgresql.Date
+  plan                     InsurancePlan? @relation("Subscriber_plan", fields: [planId], references: [id])
+  planId                   String?        @map("plan")
+  memberIdSecret           SecretBox?     @relation("Subscriber_memberIdSecret", fields: [memberIdSecretId], references: [id])
+  memberIdSecretId         String?        @map("memberIdSecret")
+  memberIdHash             String         @default("")
+  memberIdLast4            String         @default("")
+  employer                 Employer?      @relation("Subscriber_employer", fields: [employerId], references: [id])
+  employerId               String?        @map("employer")
+  effectiveFrom            DateTime?      @postgresql.Date
+  effectiveTo              DateTime?      @postgresql.Date
+  isSynthetic              Boolean        @default(false)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @default(now()) @updatedAt
+  from_Coverage_subscriber Coverage[]     @relation("Coverage_subscriber")
+
+  @@index([patientId])
+  @@index([planId])
+  @@index([memberIdSecretId])
+  @@index([memberIdHash])
+  @@index([employerId])
+}
+
+model WorkTask {
+  id             String               @id @default(cuid())
+  kind           String
+  title          String               @default("")
+  taskKey        String               @default("")
+  subjectType    String               @default("")
+  subjectId      String               @default("")
+  verification   BenefitVerification? @relation("WorkTask_verification", fields: [verificationId], references: [id])
+  verificationId String?              @map("verification")
+  assignee       User?                @relation("WorkTask_assignee", fields: [assigneeId], references: [id])
+  assigneeId     String?              @map("assignee")
+  dueAt          DateTime?
+  status         String               @default("open")
+  checklist      Json?                @default("{}")
+  result         Json?                @default("{}")
+  isSynthetic    Boolean              @default(false)
+  version        Int                  @default(0)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @default(now()) @updatedAt
+
+  @@index([subjectId])
+  @@index([verificationId])
+  @@index([assigneeId])
 }
 
 enum UserKindType {

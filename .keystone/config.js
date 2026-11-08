@@ -36,7 +36,7 @@ module.exports = __toCommonJS(keystone_exports);
 
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
-var import_core17 = require("@keystone-6/core");
+var import_core18 = require("@keystone-6/core");
 var import_config = require("dotenv/config");
 
 // features/keystone/models/User.ts
@@ -175,8 +175,8 @@ var today = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 function sessionLocationIds(session) {
   if (!isSignedIn({ session })) return [];
   if (session.data.role?.canAccessAllLocations) return null;
-  const day2 = today();
-  return (session.data.assignments ?? []).filter((a) => a.location?.id && (!a.startsOn || a.startsOn <= day2) && (!a.endsOn || a.endsOn >= day2)).map((a) => a.location.id);
+  const day3 = today();
+  return (session.data.assignments ?? []).filter((a) => a.location?.id && (!a.startsOn || a.startsOn <= day3) && (!a.endsOn || a.endsOn >= day3)).map((a) => a.location.id);
 }
 var rules = {
   canReadPeople: ({ session }) => !isSignedIn({ session }) ? false : session.data.role?.canSeeOtherPeople || session.data.role?.canManagePeople ? true : { id: { equals: session.itemId } },
@@ -627,6 +627,7 @@ var minor = (options = {}) => (0, import_fields6.bigInt)({
   validation: { isRequired: options.required ?? options.defaultValue !== void 0 },
   ...options.description ? { ui: { description: options.description } } : {}
 });
+var ccy = () => (0, import_fields6.text)({ defaultValue: "USD", validation: { isRequired: true, match: { regex: /^[A-Z]{3}$/, explanation: "ISO 4217 currency code required" } } });
 var exact = (precision, scale) => (options = {}) => (0, import_fields6.decimal)({
   precision,
   scale,
@@ -2819,6 +2820,310 @@ var ConsentAction = (0, import_core15.list)({
   }
 });
 
+// features/keystone/models/insurance.ts
+var insurance_exports = {};
+__export(insurance_exports, {
+  BENEFIT_SOURCES: () => BENEFIT_SOURCES,
+  BenefitFact: () => BenefitFact,
+  BenefitRule: () => BenefitRule,
+  BenefitUsage: () => BenefitUsage,
+  BenefitVerification: () => BenefitVerification,
+  CHECK_STATUSES: () => CHECK_STATUSES,
+  COB_METHODS: () => COB_METHODS,
+  COVERAGE_STATUSES: () => COVERAGE_STATUSES,
+  Coverage: () => Coverage,
+  ESTIMATE_CONFIDENCE: () => ESTIMATE_CONFIDENCE,
+  EligibilityCheck: () => EligibilityCheck,
+  Employer: () => Employer,
+  Estimate: () => Estimate,
+  FACT_FIELDS: () => FACT_FIELDS,
+  InsurancePlan: () => InsurancePlan,
+  ORDINALS: () => ORDINALS,
+  OutsideHistory: () => OutsideHistory,
+  PAYER_KINDS: () => PAYER_KINDS,
+  PLAN_TYPES: () => PLAN_TYPES,
+  Payer: () => Payer,
+  RELATIONSHIPS: () => RELATIONSHIPS,
+  RULE_KINDS: () => RULE_KINDS,
+  Subscriber: () => Subscriber,
+  TASK_KINDS: () => TASK_KINDS,
+  VERIFICATION_LEVELS: () => VERIFICATION_LEVELS,
+  VERIFICATION_STATUSES: () => VERIFICATION_STATUSES,
+  WorkTask: () => WorkTask
+});
+var import_core16 = require("@keystone-6/core");
+var import_fields16 = require("@keystone-6/core/fields");
+var import_access13 = require("@keystone-6/core/access");
+var PAYER_KINDS = ["commercial", "medicaid", "chip", "medicare_advantage", "tricare", "other"];
+var PLAN_TYPES = ["ppo", "indemnity", "dhmo", "medicaid", "ma_dental", "discount", "other"];
+var COB_METHODS = ["standard", "non_duplication", "carve_out", "unknown"];
+var ORDINALS = ["primary", "secondary", "tertiary"];
+var RELATIONSHIPS = ["self", "spouse", "child", "other"];
+var COVERAGE_STATUSES = ["pending_verification", "active", "terminated", "invalid"];
+var VERIFICATION_LEVELS = ["unverified", "verified_partial", "verified_full"];
+var VERIFICATION_STATUSES = ["requested", "in_progress", "completed", "failed"];
+var CHECK_STATUSES = ["queued", "sent", "responded", "rejected", "error_retryable", "unknown"];
+var RULE_KINDS = ["coverage_pct", "deductible_applies", "frequency", "age_limit", "waiting_period", "missing_tooth", "downgrade", "not_covered", "requires_preauth", "requires_attachment"];
+var BENEFIT_SOURCES = ["eligibility_271", "payer_portal", "payer_phone", "fax_breakdown", "prior_eob", "patient_reported", "practice_default"];
+var FACT_FIELDS = ["coverage_active", "annual_max", "annual_max_used", "deductible", "deductible_met", "coverage_pct", "frequency_limit", "frequency_used", "history_procedure", "waiting_period", "missing_tooth_clause", "downgrade", "cob_method", "ortho_max", "ortho_used", "non_covered", "age_limit", "other"];
+var TASK_KINDS = ["verification_checklist", "note_sign", "unsigned_plan_follow_up", "lab_follow_up", "rejection_fix", "credit_review", "other"];
+var ESTIMATE_CONFIDENCE = ["verified", "partially_verified", "assumed"];
+var INS_READ = ["canReadInsurance", "canVerifyBenefits", "canManageInsurance"];
+var PLAN_READ2 = [...INS_READ, "canManageTreatmentPlans", "canPresentPlans", "canReadLedger"];
+var insRead = (path = ["patient"]) => scopedGoverned(INS_READ, patientFilter(path));
+var Payer = (0, import_core16.list)({
+  access: governed([...INS_READ, "canManageClaims", "canManageAdapters"]),
+  ui: { labelField: "name", listView: { initialColumns: ["name", "kind", "phone", "timelyFilingDays"] } },
+  fields: {
+    name: systemText({ required: true }),
+    kind: fixedChoice(PAYER_KINDS),
+    adapterPayerIds: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    phone: systemText(),
+    portalUrl: systemText(),
+    timelyFilingDays: (0, import_fields16.integer)({ defaultValue: 365, ...readOnly }),
+    attachmentNetwork: systemText(),
+    notes: systemText(),
+    isSynthetic: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var Employer = (0, import_core16.list)({
+  access: governed(INS_READ),
+  ui: { labelField: "name" },
+  fields: {
+    name: systemText({ required: true }),
+    address: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    isSynthetic: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var InsurancePlan = (0, import_core16.list)({
+  access: governed(PLAN_READ2),
+  ui: { labelField: "groupName", listView: { initialColumns: ["groupName", "payer", "planType", "networkStatus", "cobMethod"] } },
+  fields: {
+    payer: (0, import_fields16.relationship)({ ref: "Payer", ...readOnly }),
+    employer: (0, import_fields16.relationship)({ ref: "Employer", ...readOnly }),
+    groupName: systemText({ required: true }),
+    groupNumber: systemText({ indexed: true }),
+    planType: fixedChoice(PLAN_TYPES),
+    networkStatus: fixedChoice(["in_network", "out_of_network"]),
+    feeSchedule: (0, import_fields16.relationship)({ ref: "FeeSchedule", ...readOnly }),
+    ucrSchedule: (0, import_fields16.relationship)({ ref: "FeeSchedule", ...readOnly }),
+    benefitYearStartMonth: (0, import_fields16.integer)({ defaultValue: 1, validation: { isRequired: true }, ...readOnly }),
+    annualMaxMinor: minor(),
+    orthoLifetimeMaxMinor: minor(),
+    deductibleIndividualMinor: minor(),
+    deductibleFamilyMinor: minor(),
+    currencyCode: ccy(),
+    cobMethod: fixedChoice(COB_METHODS),
+    benefitRules: (0, import_fields16.relationship)({ ref: "BenefitRule.plan", many: true, ...readOnly }),
+    isSynthetic: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var BenefitRule = (0, import_core16.list)({
+  access: governed(PLAN_READ2),
+  ui: { labelField: "kind", listView: { initialColumns: ["plan", "kind", "appliesTo", "pct", "source", "observedAt"] } },
+  fields: {
+    plan: (0, import_fields16.relationship)({ ref: "InsurancePlan.benefitRules", ...readOnly }),
+    kind: fixedChoice(RULE_KINDS),
+    appliesTo: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    pct: pct(),
+    frequency: (0, import_fields16.json)({ ...readOnly }),
+    ageMin: (0, import_fields16.integer)({ ...readOnly }),
+    ageMax: (0, import_fields16.integer)({ ...readOnly }),
+    waitingMonths: (0, import_fields16.integer)({ ...readOnly }),
+    downgradeToCode: (0, import_fields16.relationship)({ ref: "ProcedureCode", ...readOnly }),
+    note: systemText(),
+    source: fixedChoice(BENEFIT_SOURCES),
+    observedAt: (0, import_fields16.timestamp)({ ...readOnly }),
+    observedBy: (0, import_fields16.relationship)({ ref: "User", ...readOnly }),
+    evidence: (0, import_fields16.relationship)({ ref: "Document", ...readOnly }),
+    supersededBy: (0, import_fields16.relationship)({ ref: "BenefitRule", ...readOnly }),
+    ...trackingFields
+  }
+});
+var Subscriber = (0, import_core16.list)({
+  access: governed(INS_READ),
+  ui: { labelField: "memberIdLast4", listView: { initialColumns: ["plan", "memberIdLast4", "effectiveFrom", "effectiveTo"] } },
+  fields: {
+    patient: (0, import_fields16.relationship)({ ref: "Patient", ...readOnly }),
+    personName: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    dateOfBirth: (0, import_fields16.calendarDay)({ ...readOnly }),
+    plan: (0, import_fields16.relationship)({ ref: "InsurancePlan", ...readOnly }),
+    memberIdSecret: (0, import_fields16.relationship)({ ref: "SecretBox", access: { read: import_access13.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
+    memberIdHash: systemText({ indexed: true }),
+    memberIdLast4: systemText(),
+    employer: (0, import_fields16.relationship)({ ref: "Employer", ...readOnly }),
+    effectiveFrom: (0, import_fields16.calendarDay)({ ...readOnly }),
+    effectiveTo: (0, import_fields16.calendarDay)({ ...readOnly }),
+    isSynthetic: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var Coverage = (0, import_core16.list)({
+  access: insRead(),
+  ui: { labelField: "id", listView: { initialColumns: ["patient", "ordinal", "status", "verificationLevel", "effectiveFrom"] } },
+  fields: {
+    patient: (0, import_fields16.relationship)({ ref: "Patient", ...readOnly }),
+    subscriber: (0, import_fields16.relationship)({ ref: "Subscriber", ...readOnly }),
+    ordinal: fixedChoice(ORDINALS),
+    relationship: fixedChoice(RELATIONSHIPS),
+    status: lifecycle(COVERAGE_STATUSES),
+    verificationLevel: lifecycle(VERIFICATION_LEVELS),
+    effectiveFrom: (0, import_fields16.calendarDay)({ ...readOnly }),
+    effectiveTo: (0, import_fields16.calendarDay)({ ...readOnly }),
+    lastVerification: (0, import_fields16.relationship)({ ref: "BenefitVerification", ...readOnly }),
+    verifications: (0, import_fields16.relationship)({ ref: "BenefitVerification.coverage", many: true, ...readOnly }),
+    isSynthetic: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var BenefitVerification = (0, import_core16.list)({
+  access: insRead(["coverage", "patient"]),
+  ui: { labelField: "status", listView: { initialColumns: ["coverage", "trigger", "status", "completeness", "completedAt"] } },
+  fields: {
+    coverage: (0, import_fields16.relationship)({ ref: "Coverage.verifications", ...readOnly }),
+    trigger: fixedChoice(["signal", "proposal", "staff", "online_booking", "plan_year"]),
+    status: lifecycle(VERIFICATION_STATUSES),
+    completeness: select22(["complete", "partial"]),
+    eligibilityChecks: (0, import_fields16.relationship)({ ref: "EligibilityCheck.verification", many: true, ...readOnly }),
+    facts: (0, import_fields16.relationship)({ ref: "BenefitFact.verification", many: true, ...readOnly }),
+    tasks: (0, import_fields16.relationship)({ ref: "WorkTask.verification", many: true, ...readOnly }),
+    failureNote: systemText(),
+    requestedBy: (0, import_fields16.relationship)({ ref: "User", ...readOnly }),
+    completedBy: (0, import_fields16.relationship)({ ref: "User", ...readOnly }),
+    completedAt: (0, import_fields16.timestamp)({ ...readOnly }),
+    isSynthetic: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+function select22(values) {
+  return (0, import_fields16.select)({ type: "string", options: values.map((value) => ({ label: value.replaceAll("_", " "), value })), ...readOnly });
+}
+var BenefitFact = (0, import_core16.list)({
+  access: insRead(["coverage", "patient"]),
+  ui: { labelField: "field", listView: { initialColumns: ["coverage", "field", "appliesTo", "isUnknown", "source", "observedAt"] } },
+  fields: {
+    verification: (0, import_fields16.relationship)({ ref: "BenefitVerification.facts", ...readOnly }),
+    coverage: (0, import_fields16.relationship)({ ref: "Coverage", ...readOnly }),
+    field: fixedChoice(FACT_FIELDS),
+    appliesTo: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    valueJson: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    isUnknown: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    source: fixedChoice(BENEFIT_SOURCES),
+    observedAt: (0, import_fields16.timestamp)({ ...readOnly }),
+    observedBy: (0, import_fields16.relationship)({ ref: "User", ...readOnly }),
+    evidence: (0, import_fields16.relationship)({ ref: "Document", ...readOnly }),
+    rawObservation: (0, import_fields16.relationship)({ ref: "InboundObservation", ...readOnly }),
+    ...trackingFields
+  }
+});
+var EligibilityCheck = (0, import_core16.list)({
+  access: insRead(["coverage", "patient"]),
+  ui: { labelField: "status", listView: { initialColumns: ["coverage", "adapterKey", "mode", "status", "respondedAt"] } },
+  fields: {
+    verification: (0, import_fields16.relationship)({ ref: "BenefitVerification.eligibilityChecks", ...readOnly }),
+    coverage: (0, import_fields16.relationship)({ ref: "Coverage", ...readOnly }),
+    adapterKey: systemText({ required: true }),
+    mode: fixedChoice(["manual_export", "sandbox", "live"]),
+    requestHash: systemText({ indexed: true, required: true }),
+    status: lifecycle(CHECK_STATUSES),
+    rejectionCodes: (0, import_fields16.json)({ defaultValue: [], ...readOnly }),
+    resultNote: systemText(),
+    attempts: (0, import_fields16.integer)({ defaultValue: 0, validation: { isRequired: true }, ...readOnly }),
+    observation: (0, import_fields16.relationship)({ ref: "InboundObservation", ...readOnly }),
+    respondedAt: (0, import_fields16.timestamp)({ ...readOnly }),
+    outboxEvent: (0, import_fields16.relationship)({ ref: "OutboxEvent", ...readOnly }),
+    isSynthetic: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var OutsideHistory = (0, import_core16.list)({
+  access: scopedGoverned([...INS_READ, "canReadClinical"], patientFilter(["patient"])),
+  ui: { labelField: "codeText", listView: { initialColumns: ["patient", "codeText", "tooth", "dateOfService", "source"] } },
+  fields: {
+    patient: (0, import_fields16.relationship)({ ref: "Patient", ...readOnly }),
+    code: (0, import_fields16.relationship)({ ref: "ProcedureCode", ...readOnly }),
+    codeText: systemText(),
+    frequencyGroup: systemText(),
+    tooth: systemText(),
+    surfaces: systemText(),
+    dateOfService: (0, import_fields16.calendarDay)({ ...readOnly }),
+    providerName: systemText(),
+    source: fixedChoice(BENEFIT_SOURCES),
+    evidence: (0, import_fields16.relationship)({ ref: "Document", ...readOnly }),
+    ...trackingFields
+  }
+});
+var Estimate = (0, import_core16.list)({
+  access: scopedGoverned(PLAN_READ2, patientFilter(["patient"])),
+  ui: { labelField: "subjectKind", listView: { initialColumns: ["patient", "subjectKind", "ordinal", "insuranceMinor", "patientMinor", "confidence", "computedAt"] } },
+  fields: {
+    patient: (0, import_fields16.relationship)({ ref: "Patient", ...readOnly }),
+    subjectKind: fixedChoice(["plan_item", "appointment", "claim_line"]),
+    planItem: (0, import_fields16.relationship)({ ref: "TreatmentPlanItem", ...readOnly }),
+    appointment: (0, import_fields16.relationship)({ ref: "Appointment", ...readOnly }),
+    coverage: (0, import_fields16.relationship)({ ref: "Coverage", ...readOnly }),
+    ordinal: fixedChoice(ORDINALS),
+    inputs: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    feeMinor: minor({ required: true }),
+    allowedMinor: minor({ required: true }),
+    writeOffMinor: minor({ required: true }),
+    insuranceMinor: minor({ required: true }),
+    patientMinor: minor({ required: true }),
+    deductibleAppliedMinor: minor({ required: true }),
+    maxAppliedMinor: minor({ required: true }),
+    secondaryInsuranceMinor: minor({ required: true }),
+    coverageStatus: fixedChoice(["covered", "not_covered", "unknown"]),
+    confidence: fixedChoice(ESTIMATE_CONFIDENCE),
+    reasons: (0, import_fields16.json)({ defaultValue: [], ...readOnly }),
+    estimatorVersion: systemText({ required: true }),
+    computedAt: (0, import_fields16.timestamp)({ defaultValue: { kind: "now" }, ...readOnly }),
+    ...trackingFields
+  }
+});
+var BenefitUsage = (0, import_core16.list)({
+  access: insRead(["coverage", "patient"]),
+  ui: { labelField: "benefitYear", listView: { initialColumns: ["coverage", "benefitYear", "maxUsedMinor", "deductibleUsedMinor", "rebuiltAt"] } },
+  fields: {
+    coverage: (0, import_fields16.relationship)({ ref: "Coverage", ...readOnly }),
+    benefitYear: systemText({ required: true }),
+    maxUsedMinor: minor({ defaultValue: 0n }),
+    deductibleUsedMinor: minor({ defaultValue: 0n }),
+    pendingMinor: minor({ defaultValue: 0n }),
+    frequencyUse: (0, import_fields16.json)({ defaultValue: [], ...readOnly }),
+    rebuiltAt: (0, import_fields16.timestamp)({ ...readOnly }),
+    sourceHash: systemText(),
+    ...trackingFields
+  }
+});
+var WorkTask = (0, import_core16.list)({
+  access: governed(["canAccessDashboard"]),
+  ui: { labelField: "title", listView: { initialColumns: ["title", "kind", "status", "dueAt", "assignee"] } },
+  fields: {
+    kind: fixedChoice(TASK_KINDS),
+    title: systemText({ required: true }),
+    /** Dedupes open tasks: one open task per (kind, subject, key). */
+    taskKey: systemText({ required: true }),
+    subjectType: systemText({ required: true }),
+    subjectId: systemText({ required: true, indexed: true }),
+    verification: (0, import_fields16.relationship)({ ref: "BenefitVerification.tasks", ...readOnly }),
+    assignee: (0, import_fields16.relationship)({ ref: "User", ...readOnly }),
+    dueAt: (0, import_fields16.timestamp)({ ...readOnly }),
+    status: lifecycle(["open", "in_progress", "done", "cancelled"]),
+    checklist: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    result: (0, import_fields16.json)({ defaultValue: {}, ...readOnly }),
+    isSynthetic: (0, import_fields16.checkbox)({ defaultValue: false, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+
 // features/keystone/security/phiFields.ts
 var TIER_PERMISSION = {
   dem: "canReadDemographics",
@@ -2895,18 +3200,27 @@ var PHI_FIELDS = {
   FormSubmission: { data: "sens" },
   ConsentRecord: { signerName: "dem", signatureEvidence: "clin", scope: "clin" },
   ConsentAction: { reason: "clin" },
+  // Phase 3: insurance, benefits, estimates (SCHEMA §8)
+  InsurancePlan: { groupNumber: "ins", annualMaxMinor: "ins", deductibleIndividualMinor: "ins", deductibleFamilyMinor: "ins" },
+  Subscriber: { personName: "ins", dateOfBirth: "ins", memberIdHash: "ins", memberIdLast4: "ins" },
+  BenefitFact: { valueJson: "ins" },
+  EligibilityCheck: { rejectionCodes: "ins", resultNote: "ins" },
+  BenefitVerification: { failureNote: "ins" },
+  OutsideHistory: { codeText: "clin", tooth: "clin", surfaces: "clin", providerName: "dem" },
+  Estimate: { inputs: "ins", feeMinor: "ins", allowedMinor: "ins", writeOffMinor: "ins", insuranceMinor: "ins", patientMinor: "ins", deductibleAppliedMinor: "ins", maxAppliedMinor: "ins", secondaryInsuranceMinor: "ins", reasons: "ins" },
+  BenefitUsage: { maxUsedMinor: "ins", deductibleUsedMinor: "ins", pendingMinor: "ins", frequencyUse: "ins" },
   LedgerEntry: { amountMinor: "fin", memo: "fin" },
   GuarantorAccount: { balanceCache: "fin" }
 };
 var PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap((fields) => Object.keys(fields)));
 function applyPhiTiers(models2) {
-  for (const [listKey, list14] of Object.entries(models2)) {
+  for (const [listKey, list15] of Object.entries(models2)) {
     const tiers = PHI_FIELDS[listKey];
     if (!tiers) continue;
     for (const [fieldKey, tier] of Object.entries(tiers)) {
-      const original = list14.fields?.[fieldKey];
+      const original = list15.fields?.[fieldKey];
       if (typeof original !== "function") throw new Error(`PHI_FIELDS names ${listKey}.${fieldKey}, which does not exist.`);
-      list14.fields[fieldKey] = (args) => {
+      list15.fields[fieldKey] = (args) => {
         const field = original(args);
         const access = field.access;
         const baseRead = typeof access === "function" ? access : access?.read;
@@ -2946,7 +3260,8 @@ var models = hideRefusedActions(applyPhiTiers({
   ...listsOf(portal_exports),
   ...listsOf(catalogue_exports),
   ...listsOf(clinical_exports),
-  ...listsOf(treatment_exports)
+  ...listsOf(treatment_exports),
+  ...listsOf(insurance_exports)
 }));
 
 // features/keystone/mutations/index.ts
@@ -3635,12 +3950,12 @@ function rng(seed) {
 }
 function samplePatients(today2) {
   const rand = rng(20261107);
-  const pick = (list14) => list14[Math.floor(rand() * list14.length)];
+  const pick = (list15) => list15[Math.floor(rand() * list15.length)];
   const year = Number(today2.slice(0, 4));
   const dobFor = (age) => {
     const month = 1 + Math.floor(rand() * 12);
-    const dayOf = 1 + Math.floor(rand() * 28);
-    return `${year - age}-${String(month).padStart(2, "0")}-${String(dayOf).padStart(2, "0")}`;
+    const dayOf2 = 1 + Math.floor(rand() * 28);
+    return `${year - age}-${String(month).padStart(2, "0")}-${String(dayOf2).padStart(2, "0")}`;
   };
   const out = [];
   let n = 0;
@@ -3667,7 +3982,7 @@ function samplePatients(today2) {
       if (rand() < 0.04) alerts.push({ kind: "latex", severity: "critical", text: "Latex allergy: use nitrile gloves and latex-free dam." });
       out.push({
         id,
-        chart: `PT-SEED-${String(n).padStart(4, "0")}`,
+        chart: String(1e3 + n),
         familyId,
         first,
         last,
@@ -3689,7 +4004,7 @@ function samplePatients(today2) {
   const dupSource = [out[4], out[40]];
   dupSource.forEach((p, i) => {
     n += 1;
-    out.push({ ...p, id: `seed_pt_${String(n).padStart(4, "0")}`, chart: `PT-SEED-${String(n).padStart(4, "0")}`, first: i === 0 ? p.first.slice(0, Math.max(3, p.first.length - 1)) : p.first, status: "prospect", guarantorOf: null, relationship: "self", alerts: [], email: p.email, mobile: void 0 });
+    out.push({ ...p, id: `seed_pt_${String(n).padStart(4, "0")}`, chart: String(1e3 + n), first: i === 0 ? p.first.slice(0, Math.max(3, p.first.length - 1)) : p.first, status: "prospect", guarantorOf: null, relationship: "self", alerts: [], email: p.email, mobile: void 0 });
   });
   const deceased = out.find((p) => p.relationship === "self" && Number(p.dob.slice(0, 4)) < year - 75);
   if (deceased) {
@@ -3891,7 +4206,7 @@ async function seedAppointments(uow, people, today2) {
           const active = ["scheduled", "confirmed", "arrived", "seated", "ready_for_checkout"].includes(status);
           appointments.push({
             id,
-            ref: `APT-SEED-${String(count).padStart(5, "0")}`,
+            ref: `APT-${(/* @__PURE__ */ new Date()).getUTCFullYear()}-${String(count).padStart(6, "0")}`,
             patientId: patient.id,
             locationId: `seed_loc_${loc}`,
             operatoryId: w.operatoryId,
@@ -3970,6 +4285,267 @@ function nextPatient(people, w, startMs, endMs, busy, next) {
     return p;
   }
   return null;
+}
+
+// features/keystone/seed/clinical.ts
+var day = (d) => /* @__PURE__ */ new Date(`${d}T00:00:00Z`);
+var TZ2 = "America/New_York";
+var OF_CODES = [
+  { code: "OF-D001", name: "Periodic oral evaluation", friendly: "Check-up exam", category: "diagnostic", rule: "mouth", fee: 6500 },
+  { code: "OF-D002", name: "Comprehensive oral evaluation, new patient", friendly: "New patient exam", category: "diagnostic", rule: "mouth", fee: 11500 },
+  { code: "OF-D003", name: "Limited problem-focused evaluation", friendly: "Emergency exam", category: "diagnostic", rule: "mouth", fee: 8e3 },
+  { code: "OF-D010", name: "Bitewing radiographs, two images", friendly: "Two bitewing X-rays", category: "diagnostic", rule: "mouth", fee: 4500 },
+  { code: "OF-D011", name: "Periapical radiograph, single image", friendly: "Single X-ray", category: "diagnostic", rule: "tooth", fee: 3e3 },
+  { code: "OF-D012", name: "Full-mouth radiographic series", friendly: "Full-mouth X-rays", category: "diagnostic", rule: "mouth", fee: 14500 },
+  { code: "OF-P001", name: "Prophylaxis, adult", friendly: "Cleaning", category: "preventive", rule: "mouth", fee: 12e3, recall: true },
+  { code: "OF-P002", name: "Prophylaxis, child", friendly: "Child cleaning", category: "preventive", rule: "mouth", fee: 8500, recall: true },
+  { code: "OF-P003", name: "Topical fluoride varnish", friendly: "Fluoride treatment", category: "preventive", rule: "mouth", fee: 4e3 },
+  { code: "OF-P004", name: "Sealant, per tooth", friendly: "Sealant", category: "preventive", rule: "tooth", fee: 5500 },
+  { code: "OF-R010", name: "Resin composite, one surface, posterior", friendly: "Tooth-coloured filling (1 surface)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 1, fee: 21500 },
+  { code: "OF-R011", name: "Resin composite, two surfaces, posterior", friendly: "Tooth-coloured filling (2 surfaces)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 2, fee: 27500 },
+  { code: "OF-R012", name: "Resin composite, three surfaces, posterior", friendly: "Tooth-coloured filling (3 surfaces)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 3, fee: 34e3 },
+  { code: "OF-R020", name: "Resin composite, anterior", friendly: "Front tooth filling", category: "restorative", rule: "tooth_surface", surfaces: true, max: 4, fee: 25500 },
+  { code: "OF-R030", name: "Crown, full-coverage ceramic", friendly: "Porcelain crown", category: "prosth_fixed", rule: "tooth", fee: 138e3 },
+  { code: "OF-R031", name: "Core build-up", friendly: "Build-up under a crown", category: "restorative", rule: "tooth", fee: 29500 },
+  { code: "OF-E010", name: "Root canal therapy, anterior", friendly: "Root canal (front tooth)", category: "endodontics", rule: "tooth", fee: 78e3 },
+  { code: "OF-E011", name: "Root canal therapy, molar", friendly: "Root canal (molar)", category: "endodontics", rule: "tooth", fee: 118e3 },
+  { code: "OF-G001", name: "Scaling and root planing, per quadrant", friendly: "Deep cleaning (one quarter of the mouth)", category: "periodontics", rule: "quadrant", fee: 26500 },
+  { code: "OF-G002", name: "Periodontal maintenance", friendly: "Gum maintenance visit", category: "periodontics", rule: "mouth", fee: 14500, recall: true },
+  { code: "OF-S010", name: "Extraction, erupted tooth", friendly: "Tooth removal", category: "oral_surgery", rule: "tooth", fee: 22500 },
+  { code: "OF-S011", name: "Extraction, surgical", friendly: "Surgical tooth removal", category: "oral_surgery", rule: "tooth", fee: 38500 },
+  { code: "OF-I001", name: "Implant body placement", friendly: "Dental implant", category: "implant", rule: "tooth", fee: 175e3 },
+  { code: "OF-A001", name: "Occlusal guard, hard acrylic", friendly: "Night guard", category: "adjunctive", rule: "arch", fee: 52e3 }
+];
+var CONDITIONS = [
+  ["caries", "Caries", "tooth_surface"],
+  ["fracture", "Fracture", "tooth"],
+  ["missing", "Missing tooth", "tooth"],
+  ["recession", "Gingival recession", "tooth"],
+  ["mobility", "Mobility", "tooth"],
+  ["watch", "Area to watch", "tooth"],
+  ["periapical", "Periapical lesion", "tooth"],
+  ["impacted", "Impacted tooth", "tooth"],
+  ["wear", "Occlusal wear", "arch"]
+];
+var HISTORY_QUESTIONS = [
+  ["allergy_latex", "Are you allergic to latex?"],
+  ["allergy_penicillin", "Are you allergic to penicillin or other antibiotics?"],
+  ["allergy_other", "Any other allergies?"],
+  ["on_blood_thinner", "Do you take a blood thinner?"],
+  ["on_bisphosphonate", "Do you take a bisphosphonate (for bone density)?"],
+  ["heart_condition", "Do you have a heart condition?"],
+  ["needs_premedication", "Has a doctor told you to take antibiotics before dental visits?"],
+  ["diabetes", "Do you have diabetes?"],
+  ["high_blood_pressure", "Do you have high blood pressure?"],
+  ["pregnant", "Are you pregnant?"],
+  ["medications", "List your current medications."]
+].map(([key, label]) => ({ key, label, type: key === "medications" ? "list" : "yes_no" }));
+var FORMS = [
+  { key: "treatment_consent", kind: "consent_treatment", title: "Consent to dental treatment", body: "I consent to the examination and treatment my dentist recommends. I understand I may ask questions and decline any treatment, and that no result is guaranteed. I have had the chance to ask about risks, benefits and alternatives." },
+  { key: "privacy_notice_ack", kind: "hipaa_npp_ack", title: "Notice of privacy practices: acknowledgement", body: "I have received the practice\u2019s notice of privacy practices, which explains how my health information is used and shared and what rights I have over it." },
+  { key: "financial_policy", kind: "financial_policy", title: "Financial policy", body: "Payment is due at the time of service unless other arrangements are made in writing. I understand insurance is a contract between me and my plan, and I am responsible for any balance my plan does not pay." },
+  { key: "sedation_consent", kind: "consent_sedation", title: "Consent to sedation", body: "I understand the purpose, risks and alternatives of the sedation my dentist has explained. I will follow the instructions given before and after the visit and arrange an adult to take me home." }
+];
+async function seedPhase2(uow, actor2) {
+  const { tx, now } = uow;
+  const today2 = localDate(TZ2, now);
+  const meta2 = { metadata: { seed: true, synthetic: true } };
+  const created = { codes: 0, feeVersions: 0, conditions: 0, forms: 0, chartEntries: 0, notes: 0, perioExams: 0, plans: 0, histories: 0, charges: 0 };
+  const system = await tx.codeSystem.findUnique({ where: { key: "OF" } }) ?? await tx.codeSystem.create({ data: { key: "OF", name: "Practice codes", isLicensed: false } });
+  if (!await tx.codeSystem.findUnique({ where: { key: "CDT" } })) await tx.codeSystem.create({ data: { key: "CDT", name: "CDT (imported under the practice\u2019s own licence)", isLicensed: true } });
+  const codeIds = /* @__PURE__ */ new Map();
+  for (const c of OF_CODES) {
+    const id = `seed_code_${c.code.toLowerCase().replace("-", "_")}`;
+    codeIds.set(c.code, id);
+    if (await tx.procedureCode.findUnique({ where: { id } })) continue;
+    await tx.procedureCode.create({ data: { id, codeSystemId: system.id, code: c.code, nomenclature: c.name, patientFriendlyName: c.friendly, category: c.category, areaRule: c.rule, requiresSurfaces: !!c.surfaces, maxSurfaces: c.max ?? null, isPreventiveRecallTrigger: !!c.recall, effectiveFrom: day("2026-01-01"), isSynthetic: true } });
+    created.codes += 1;
+  }
+  let schedule = await tx.feeSchedule.findFirst({ where: { isDefault: true } });
+  if (!schedule) {
+    schedule = await tx.feeSchedule.create({ data: { id: "seed_fee_office", name: "Office fees", kind: "office_ucr", isDefault: true, isSynthetic: true } });
+    const version = await tx.feeScheduleVersion.create({ data: { id: "seed_fee_office_2026", label: "2026 office fees", scheduleId: schedule.id, effectiveFrom: day("2026-01-01"), status: "draft" } });
+    await tx.fee.createMany({ data: OF_CODES.map((c) => ({ feeVersionId: version.id, codeId: codeIds.get(c.code), amountMinor: BigInt(c.fee) })) });
+    await tx.feeScheduleVersion.update({ where: { id: version.id }, data: { status: "published", publishedAt: now } });
+    auditCreate(uow, actor2, "FeeScheduleVersion", version.id, "fee_schedule.published", { fees: OF_CODES.length }, meta2);
+    created.feeVersions += 1;
+    const membership = await tx.feeSchedule.create({ data: { id: "seed_fee_ppo", name: "In-network plan fees", kind: "ppo", isSynthetic: true } });
+    const ppo = await tx.feeScheduleVersion.create({ data: { id: "seed_fee_ppo_2026", label: "2026 plan fees", scheduleId: membership.id, effectiveFrom: day("2026-01-01"), status: "draft" } });
+    await tx.fee.createMany({ data: OF_CODES.map((c) => ({ feeVersionId: ppo.id, codeId: codeIds.get(c.code), amountMinor: BigInt(Math.round(c.fee * 0.78 / 100) * 100) })) });
+    await tx.feeScheduleVersion.update({ where: { id: ppo.id }, data: { status: "published", publishedAt: now } });
+    created.feeVersions += 1;
+  }
+  const feeVersion = await tx.feeScheduleVersion.findUniqueOrThrow({ where: { id: "seed_fee_office_2026" } });
+  const feeOf = (code) => BigInt(OF_CODES.find((c) => c.code === code).fee);
+  for (const [code, label, rule3] of CONDITIONS) {
+    const id = `seed_cond_${code}`;
+    if (await tx.conditionType.findUnique({ where: { id } })) continue;
+    await tx.conditionType.create({ data: { id, code, label, areaRule: rule3, chartSymbol: code.slice(0, 2).toUpperCase() } });
+    created.conditions += 1;
+  }
+  if (!await tx.noteTemplate.findUnique({ where: { id: "seed_nt_exam" } })) {
+    for (const [id, name, body] of [
+      ["seed_nt_exam", "Periodic exam", "Medical history reviewed and updated.\nExtra- and intra-oral soft tissue: \nOcclusion: \nRadiographs: \nFindings: \nPlan and recommendations: \nPatient questions answered."],
+      ["seed_nt_restorative", "Restorative visit", "Anaesthetic: \nIsolation: \nPreparation and caries removal: \nMaterial and shade: \nOcclusion checked and adjusted.\nPost-operative instructions given."],
+      ["seed_nt_hygiene", "Hygiene visit", "Medical history reviewed.\nPerio status: \nCalculus and plaque: \nTreatment: \nHome-care instruction: \nRecall interval: "]
+    ]) {
+      await tx.noteTemplate.create({ data: { id, name, status: "published", isSynthetic: true } });
+      await tx.noteTemplateVersion.create({ data: { id: `${id}_v1`, templateId: id, number: 1, body, status: "published" } });
+    }
+  }
+  if (!await tx.medicalHistoryForm.findUnique({ where: { id: "seed_mh_form" } })) {
+    await tx.medicalHistoryForm.create({ data: { id: "seed_mh_form", name: "Health history", formVersion: 1, questions: HISTORY_QUESTIONS, jurisdictionTags: ["US-FL"], status: "published", isSynthetic: true } });
+  }
+  for (const f of FORMS) {
+    const id = `seed_form_${f.key}`;
+    if (await tx.formTemplate.findUnique({ where: { id } })) continue;
+    await tx.formTemplate.create({ data: { id, key: f.key, kind: f.kind, title: f.title, isSynthetic: true } });
+    await tx.formTemplateVersion.create({ data: { id: `${id}_v1`, templateId: id, number: 1, body: f.body, requiresWitness: f.key === "sedation_consent", contentHash: sha256(canonicalJson({ key: f.key, number: 1, body: f.body, fields: [] })), status: "published" } });
+    created.forms += 1;
+  }
+  const ids = Array.from({ length: 14 }, (_, i) => `seed_pt_${String(i + 1).padStart(4, "0")}`);
+  const all = await tx.patient.findMany({ where: { id: { in: ids }, status: "active" }, orderBy: { id: "asc" } });
+  const charted = new Set((await tx.chartEntry.findMany({ where: { patientId: { in: ids } }, select: { patientId: true }, distinct: ["patientId"] })).map((r) => r.patientId));
+  const patients = all.filter((p) => !charted.has(p.id));
+  if (!patients.length) return created;
+  const links = await tx.guarantorLink.findMany({ where: { patientId: { in: patients.map((p) => p.id) }, status: "active" }, orderBy: { createdAt: "asc" } });
+  const guarantorOf = /* @__PURE__ */ new Map();
+  for (const l of links) if (l.patientId && l.guarantorId && !guarantorOf.has(l.patientId)) guarantorOf.set(l.patientId, l.guarantorId);
+  const haveAccounts = await tx.guarantorAccount.findMany({ where: { guarantorId: { in: [...new Set(guarantorOf.values())] } } });
+  const accountOf = new Map(haveAccounts.map((a) => [a.guarantorId, a.id]));
+  const newAccounts = [...new Set(guarantorOf.values())].filter((g) => !accountOf.has(g)).map((g, i) => ({ id: `seed_acc_${g}`, guarantorId: g, ref: `ACC-${(/* @__PURE__ */ new Date()).getUTCFullYear()}-${String(i + 1).padStart(6, "0")}`, isSynthetic: true }));
+  if (newAccounts.length) {
+    await tx.guarantorAccount.createMany({ data: newAccounts });
+    for (const a of newAccounts) accountOf.set(a.guarantorId, a.id);
+  }
+  const dentists = ["seed_prov_okafor", "seed_prov_reyes"];
+  const hygienist = "seed_prov_hale";
+  const E2 = [], L = [], N = [], PL = [], PV = [], PI = [], PP = [], H2 = [], HR = [], V = [];
+  const X = [], PM = [], PF = [], PC = [];
+  const frozen = [];
+  const completedExams = [];
+  let seq = 0;
+  const nid = (kind) => `seed_${kind}_${String(++seq).padStart(5, "0")}`;
+  for (const [index, patient] of patients.entries()) {
+    const loc = patient.homeLocationId ?? "seed_loc_tpa";
+    const dentist = loc === "seed_loc_stp" ? "seed_prov_natarajan" : dentists[index % 2];
+    const author = dentist === "seed_prov_reyes" ? "seed_user_reyes" : dentist === "seed_prov_natarajan" ? "seed_user_natarajan" : "seed_user_okafor";
+    const adult = patient.dateOfBirth <= day(`${Number(today2.slice(0, 4)) - 18}-01-01`);
+    const base = (code, tooth, surfaces, status, extra = {}) => ({
+      id: nid("ce"),
+      patientId: patient.id,
+      locationId: loc,
+      kind: "procedure",
+      codeId: codeIds.get(code),
+      tooth,
+      surfaces,
+      area: tooth ? surfaces ? "surface" : "tooth" : "mouth",
+      status,
+      source: "staff",
+      isSynthetic: true,
+      ...extra
+    });
+    const accountId = accountOf.get(guarantorOf.get(patient.id) ?? "");
+    const complete = (code, tooth, surfaces, daysAgo, providerId) => {
+      const date = addDays(today2, -daysAgo);
+      const row = base(code, tooth, surfaces, "posted", { providerId, dateOfService: day(date), originalServiceDate: day(date), feeMinor: feeOf(code), feeScheduleVersionId: feeVersion.id });
+      E2.push(row);
+      if (accountId) {
+        const lid = nid("le");
+        L.push({ id: lid, accountId, patientId: patient.id, kind: "charge", amountMinor: feeOf(code), currencyCode: "USD", businessDate: day(date), originalBusinessDate: day(date), locationId: loc, providerId, chartEntryId: row.id, memo: `${code} ${tooth}${surfaces ? ` ${surfaces}` : ""}`.trim(), postedAt: now, isSynthetic: true });
+        created.charges += 1;
+      }
+      return row;
+    };
+    complete(adult ? "OF-D002" : "OF-D001", "", "", 210, dentist);
+    complete("OF-D010", "", "", 210, dentist);
+    complete(adult ? "OF-P001" : "OF-P002", "", "", 205, hygienist);
+    if (index % 2 === 0) complete("OF-R010", String(3 + index % 5), "O", 120, dentist);
+    const open = adult ? [base("OF-R011", "30", "MO", "planned"), base("OF-R030", "19", "", "planned"), base("OF-R031", "19", "", "planned")] : [];
+    if (adult && index % 3 === 0) open.push(base("OF-G001", "", "", "planned", { area: "quadrant", quadrant: "LR" }));
+    const rows = adult && index % 4 === 3 ? open.slice(0, 1) : open;
+    E2.push(...rows);
+    if (adult) {
+      X.push({ id: nid("ce"), patientId: patient.id, locationId: loc, kind: "condition", conditionId: "seed_cond_caries", tooth: "30", surfaces: "MO", area: "surface", status: "existing_current", conditionStatus: "active", source: "staff", isSynthetic: true });
+      if (index % 5 === 0) X.push({ id: nid("ce"), patientId: patient.id, locationId: loc, kind: "condition", conditionId: "seed_cond_missing", tooth: "1", area: "tooth", status: "existing_current", conditionStatus: "active", source: "staff", isSynthetic: true });
+    }
+    if (adult && rows.length && index % 3 === 0) {
+      const ref = `TP-${(/* @__PURE__ */ new Date()).getUTCFullYear()}-${String(index + 1).padStart(6, "0")}`;
+      const planId = nid("tp"), versionId = nid("tv");
+      PL.push({ id: planId, patientId: patient.id, ref, title: "Restore and protect the lower right", status: "presented", isSynthetic: true });
+      PV.push({ id: versionId, planId, number: 1, phases: [{ key: "phase_1", label: "Phase 1" }] });
+      let total = 0n;
+      const items = rows.slice(0, 3);
+      items.forEach((row, order) => {
+        const code = OF_CODES.find((c) => codeIds.get(c.code) === row.codeId);
+        total += BigInt(code.fee);
+        PI.push({ id: nid("ti"), planVersionId: versionId, chartEntryId: row.id, phaseKey: "phase_1", priority: order === 0 ? "recommended_necessary" : "recommended", feeMinor: BigInt(code.fee), sortOrder: order });
+      });
+      frozen.push({ id: versionId, planId, hash: sha256(canonicalJson({ plan: ref, number: 1, items: items.map((r) => [r.id, String(OF_CODES.find((c) => codeIds.get(c.code) === r.codeId).fee)]) })), total, count: items.length });
+      PP.push({ id: nid("pp"), planVersionId: versionId, channel: "chairside", at: now });
+      created.plans += 1;
+    }
+    const answers = { allergy_latex: "no", allergy_penicillin: index % 6 === 1 ? "yes" : "no", on_blood_thinner: index % 7 === 2 ? "yes" : "no", high_blood_pressure: index % 4 === 0 ? "yes" : "no", diabetes: index % 9 === 4 ? "yes" : "no", medications: index % 4 === 0 ? [{ name: "Lisinopril", dose: "10 mg", frequency: "daily" }] : [] };
+    const respId = nid("hr"), at = new Date(now.getTime() - 200 * 864e5);
+    H2.push({ id: respId, patientId: patient.id, formId: "seed_mh_form", answers, submittedVia: "tablet", submittedAt: at, status: "reviewed", isSynthetic: true });
+    HR.push({ id: nid("hv"), responseId: respId, patientId: patient.id, reviewedAt: at, changesAcknowledged: [], alertsCreated: [], signatureHash: sha256(canonicalJson(answers)) });
+    created.histories += 1;
+    const body = "Medical history reviewed and updated. Soft tissues within normal limits. Bitewings taken and reviewed. Caries noted and discussed. Plan presented; questions answered.";
+    N.push({ id: nid("cn"), patientId: patient.id, authorId: author, providerId: dentist, title: "Periodic exam", body, bodyHash: sha256(canonicalJson({ patientId: patient.id, title: "Periodic exam", body, amends: null })), status: "signed", signedAt: new Date(now.getTime() - 205 * 864e5), signatureMethod: "password_reauth", isSynthetic: true });
+    created.notes += 1;
+    if (adult && index % 3 === 1) {
+      const examId = nid("px");
+      PC.push({ id: examId, patientId: patient.id, locationId: loc, examinerId: hygienist, examDate: day(addDays(today2, -60)), revision: 1, status: "in_progress", isSynthetic: true });
+      const teeth = ["2", "3", "4", "5", "12", "13", "14", "15", "18", "19", "30", "31"];
+      teeth.forEach((tooth, t) => {
+        ;
+        ["MB", "B", "DB", "ML", "L", "DL"].forEach((site, si) => {
+          const depth = 2 + (t + si + index) % 3 + (tooth === "30" || tooth === "31" ? 2 : 0);
+          PM.push({ examId, tooth, site, probingDepthMm: depth, gingivalMarginMm: (t + si) % 5 === 0 ? 1 : 0, bleeding: depth >= 4 || (t + si) % 7 === 0, plaque: (t * 3 + si) % 6 === 0 });
+        });
+        PF.push({ examId, tooth, mobility: tooth === "31" ? 1 : 0 });
+      });
+      completedExams.push({ id: examId, at: new Date(now.getTime() - 60 * 864e5) });
+      created.perioExams += 1;
+    }
+    V.push({ patientId: patient.id, systolic: 118 + index % 5 * 4, diastolic: 74 + index % 4 * 3, pulse: 64 + index % 6 * 3, asaClass: index % 4 === 0 ? "II" : "I", takenById: "seed_user_dupree", at: new Date(now.getTime() - 205 * 864e5) });
+  }
+  await tx.chartEntry.createMany({ data: [...E2, ...X] });
+  if (L.length) {
+    await tx.ledgerEntry.createMany({ data: L });
+    await tx.$executeRawUnsafe(`UPDATE "ChartEntry" c SET "ledgerEntry" = l.id FROM "LedgerEntry" l WHERE l."chartEntry" = c.id AND c."ledgerEntry" IS NULL AND c.id = ANY($1::text[])`, E2.map((e) => e.id));
+  }
+  if (PL.length) {
+    await tx.treatmentPlan.createMany({ data: PL });
+    await tx.treatmentPlanVersion.createMany({ data: PV });
+    await tx.treatmentPlanItem.createMany({ data: PI });
+    await tx.planPresentation.createMany({ data: PP });
+    for (const f of frozen) {
+      await tx.treatmentPlanVersion.update({ where: { id: f.id }, data: { frozenAt: now, contentHash: f.hash, totalsMinor: { totalMinor: f.total.toString(), itemCount: f.count } } });
+      await tx.treatmentPlan.update({ where: { id: f.planId }, data: { currentVersionId: f.id } });
+    }
+  }
+  await tx.medicalHistoryResponse.createMany({ data: H2 });
+  await tx.medicalHistoryReview.createMany({ data: HR });
+  await tx.clinicalNote.createMany({ data: N });
+  await tx.vitalsReading.createMany({ data: V });
+  if (PC.length) {
+    await tx.perioExam.createMany({ data: PC });
+    await tx.perioSiteMeasurement.createMany({ data: PM });
+    await tx.perioToothFinding.createMany({ data: PF });
+    for (const e of completedExams) await tx.perioExam.update({ where: { id: e.id }, data: { status: "completed", signedAt: e.at, signatureHash: sha256(`seed:${e.id}`) } });
+    await tx.perioClassification.createMany({ data: completedExams.map((e) => ({ examId: e.id, suggestedStage: "II", suggestedGrade: "B", extent: "localized", inputs: { teethPresent: 28, reasons: ["Interdental CAL of 3 mm"] }, status: "suggested" })) });
+  }
+  created.chartEntries = E2.length + X.length;
+  const top = await tx.$queryRawUnsafe(`SELECT MAX("chartNumber"::int) AS n FROM "Patient" WHERE "chartNumber" ~ '^[0-9]+$'`);
+  await tx.sequence.upsert({ where: { key: "chart" }, create: { key: "chart", nextValue: (top[0]?.n ?? 1e3) + 1 }, update: { nextValue: (top[0]?.n ?? 1e3) + 1 } });
+  for (const [table, prefix] of [["TreatmentPlan", "TP"], ["Appointment", "APT"], ["GuarantorAccount", "ACC"]]) {
+    const rows = await tx.$queryRawUnsafe(`SELECT MAX(substring("ref" from '[0-9]+$')::int) AS n FROM "${table}" WHERE "ref" ~ '^${prefix}-[0-9]{4}-[0-9]+$'`);
+    const key = `${prefix}-${now.getUTCFullYear()}`;
+    const next = (rows[0]?.n ?? 0) + 1;
+    await tx.sequence.upsert({ where: { key }, create: { key, nextValue: next }, update: { nextValue: next } });
+  }
+  return created;
 }
 
 // features/keystone/lib/jurisdiction.ts
@@ -4136,7 +4712,7 @@ var APPROVAL_POLICIES = [
 
 // features/keystone/seed/platform.ts
 var UNUSABLE_PASSWORD_HASH = "$2a$10$3dITCbIvf5zFA.1U8KZDhOHC3EEexi3KYy5ysZK1cRF6LHMm0H.ya";
-var day = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
+var day2 = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
 async function seedPracticePlatform(uow, actor2) {
   if (process.env.NODE_ENV === "production" && process.env.DENTAL_ALLOW_SAMPLE_PRACTICE !== "true") {
     throw new Error("The sample practice cannot be loaded into a production deployment (I-G3). Set DENTAL_ALLOW_SAMPLE_PRACTICE=true only on a QA deployment.");
@@ -4188,7 +4764,7 @@ async function seedPracticePlatform(uow, actor2) {
     });
     for (const person of newStaff) auditCreate(uow, actor2, "User", person.id, "user.created", { name: person.name, title: person.title, role: person.roleId, kind: person.kind }, meta2);
     created.staff = newStaff.length;
-    const assignments = newStaff.flatMap((person) => person.locations.map((locationId) => ({ id: `seed_asg_${person.id.slice(10)}_${locationId.slice(9)}`, userId: person.id, locationId, startsOn: day("2024-01-02") })));
+    const assignments = newStaff.flatMap((person) => person.locations.map((locationId) => ({ id: `seed_asg_${person.id.slice(10)}_${locationId.slice(9)}`, userId: person.id, locationId, startsOn: day2("2024-01-02") })));
     if (assignments.length) {
       await tx.staffAssignment.createMany({ data: assignments });
       created.assignments = assignments.length;
@@ -4208,6 +4784,7 @@ async function seedPracticePlatform(uow, actor2) {
     created.approvalPolicies += 1;
   }
   Object.assign(created, await seedPhase1(uow, actor2));
+  Object.assign(created, await seedPhase2(uow, actor2));
   return created;
 }
 
@@ -4725,6 +5302,11 @@ function publicCode(prefix, groups = 2) {
   const parts = Array.from({ length: groups }, (_, i) => chars.slice(i * 4, i * 4 + 4).join(""));
   return `${prefix}-${parts.join("-")}`;
 }
+async function nextChartNumber(tx) {
+  await advisoryLock(tx, "sequence:chart");
+  const row = await tx.sequence.upsert({ where: { key: "chart" }, create: { key: "chart", nextValue: 1002 }, update: { nextValue: { increment: 1 } } });
+  return String(row.nextValue - 1);
+}
 
 // features/keystone/scheduling/service.ts
 var ACTIVE = [...ACTIVE_APPOINTMENT_STATUSES];
@@ -4752,13 +5334,13 @@ async function loadLocationDay(tx, locationId, date) {
   const location = await tx.location.findUnique({ where: { id: locationId }, select: { id: true, timeZone: true, name: true, isActive: true, jurisdiction: { select: { rules: true } } } });
   if (!location || !location.isActive) throw new DomainError(Codes.NOT_FOUND, "That location does not exist or is closed.");
   const practice = await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } });
-  const day2 = /* @__PURE__ */ new Date(`${date}T00:00:00.000Z`);
+  const day3 = /* @__PURE__ */ new Date(`${date}T00:00:00.000Z`);
   const template = await tx.scheduleTemplate.findFirst({
-    where: { locationId, status: "active", effectiveFrom: { lte: day2 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day2 } }] },
+    where: { locationId, status: "active", effectiveFrom: { lte: day3 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day3 } }] },
     orderBy: { effectiveFrom: "desc" },
     select: { blocks: { select: { id: true, weekday: true, operatoryId: true, providerId: true, startLocal: true, endLocal: true, onlineBookable: true, allowedTypes: { select: { id: true } }, provider: { select: { providerType: true } }, operatory: { select: { isActive: true } } } } }
   });
-  const closures = await tx.closureDay.findMany({ where: { date: day2, OR: [{ locationId }, { locationId: null }] } });
+  const closures = await tx.closureDay.findMany({ where: { date: day3, OR: [{ locationId }, { locationId: null }] } });
   const blocks = (template?.blocks ?? []).filter((b) => b.operatoryId && b.operatory?.isActive !== false).map((b) => ({
     id: b.id,
     weekday: b.weekday,
@@ -4834,9 +5416,9 @@ async function checkSlot(tx, now, req) {
   const chair = await loadChairBusy(tx, [req.operatoryId], startMs, endMs, now, req.ignore);
   if (chairClash(startMs, endMs, bufferAfterMinutes, chair[req.operatoryId] ?? [])) throw new DomainError(Codes.SLOT_TAKEN, "That chair is already booked or held for this time.");
   const date = localDate(operatory.location.timeZone, req.startsAt);
-  const day2 = await loadLocationDay(tx, req.locationId, date);
+  const day3 = await loadLocationDay(tx, req.locationId, date);
   const warnings = [];
-  const window = templateWindowFor(day2.windows, req.operatoryId, req.typeId, startMs, endMs, { onlineOnly: req.onlineOnly });
+  const window = templateWindowFor(day3.windows, req.operatoryId, req.typeId, startMs, endMs, { onlineOnly: req.onlineOnly });
   if (!window) {
     if (!req.overrideTemplate || req.onlineOnly) throw new DomainError(Codes.OUTSIDE_TEMPLATE, "That time is outside the schedule template for this chair and appointment type.");
     warnings.push("outside_template");
@@ -4850,7 +5432,7 @@ async function checkSlot(tx, now, req) {
     if (patientBusy.length) throw new DomainError(Codes.PATIENT_UNAVAILABLE, "The patient already has an appointment at this time.");
   }
   const providerBusy = await loadProviderBusy(tx, startMs, endMs, now, req.ignore);
-  const plan = planSegments({ pattern, unitMinutes, startMs, providerId, windows: day2.windows, providerBusy });
+  const plan = planSegments({ pattern, unitMinutes, startMs, providerId, windows: day3.windows, providerBusy });
   if (plan.clashes.length) {
     if (!req.overrideProviderClash) throw new DomainError(Codes.PROVIDER_UNAVAILABLE, "The provider is already committed for part of this time.");
     for (const c of plan.clashes) c.segment.concurrencyKind = "approved_override";
@@ -4858,11 +5440,11 @@ async function checkSlot(tx, now, req) {
   }
   let supervisingDentistId = plan.examProviderId;
   if (type.requiresDentistOnSite) {
-    const onSite = dentistsOnSite(day2.windows, startMs, endMs);
+    const onSite = dentistsOnSite(day3.windows, startMs, endMs);
     supervisingDentistId = supervisingDentistId && onSite.includes(supervisingDentistId) ? supervisingDentistId : onSite[0] ?? null;
-    if (!supervisingDentistId && day2.supervision.hygieneGeneralAllowed) warnings.push("general_supervision");
+    if (!supervisingDentistId && day3.supervision.hygieneGeneralAllowed) warnings.push("general_supervision");
     else if (!supervisingDentistId) {
-      if (day2.supervision.enforcement === "hard" || req.onlineOnly) throw new DomainError(Codes.SUPERVISION_REQUIRED, "No dentist is scheduled on site for this hygiene visit, and this location\u2019s jurisdiction pack requires one.");
+      if (day3.supervision.enforcement === "hard" || req.onlineOnly) throw new DomainError(Codes.SUPERVISION_REQUIRED, "No dentist is scheduled on site for this hygiene visit, and this location\u2019s jurisdiction pack requires one.");
       warnings.push("no_dentist_on_site");
     }
   }
@@ -4894,10 +5476,10 @@ async function preflight(tx, req) {
   }
   const startMs = req.startsAt.getTime();
   const endMs = startMs + patternUnits(pattern) * (practice?.scheduleUnitMinutes ?? 10) * MS_PER_MINUTE;
-  const day2 = await loadLocationDay(tx, req.locationId, localDate(operatory.location.timeZone, req.startsAt));
-  const window = day2.windows.find((w) => w.operatoryId === req.operatoryId && w.startMs <= startMs && endMs <= w.endMs);
+  const day3 = await loadLocationDay(tx, req.locationId, localDate(operatory.location.timeZone, req.startsAt));
+  const window = day3.windows.find((w) => w.operatoryId === req.operatoryId && w.startMs <= startMs && endMs <= w.endMs);
   const providerIds = [req.providerId ?? window?.providerId ?? null];
-  if (pattern.some((u) => u.role === "exam")) providerIds.push(...dentistsOnSite(day2.windows, startMs, endMs));
+  if (pattern.some((u) => u.role === "exam")) providerIds.push(...dentistsOnSite(day3.windows, startMs, endMs));
   return { providerIds: providerIds.filter((id) => !!id) };
 }
 async function labGate(_tx, _appointmentId) {
@@ -4937,7 +5519,7 @@ async function assertPatientInScope(tx, locationIds, patientId) {
 async function resolvePatientRef(tx, ref) {
   const value = String(ref ?? "").trim();
   if (!value.startsWith("chart:")) return value;
-  const chartNumber = value.slice(6).trim().toUpperCase();
+  const chartNumber = value.slice(6).trim().replace(/^(chart\s*)?#?/i, "");
   const patient = chartNumber ? await tx.patient.findUnique({ where: { chartNumber }, select: { id: true } }) : null;
   if (!patient) throw new DomainError(Codes.NOT_FOUND, "No patient has that chart number.", { field: "patientId" });
   return patient.id;
@@ -4996,18 +5578,18 @@ async function availability(db, args) {
   const slots = [];
   for (let i = 0; i < days && slots.length < limit; i += 1) {
     const date = addDays(args.fromDate, i);
-    const day2 = await loadLocationDay(db, args.locationId, date);
-    if (!day2.windows.length) continue;
-    const from = Math.min(...day2.windows.map((w) => w.startMs));
-    const to = Math.max(...day2.windows.map((w) => w.endMs));
-    const operatoryIds = [...new Set(day2.windows.map((w) => w.operatoryId))];
+    const day3 = await loadLocationDay(db, args.locationId, date);
+    if (!day3.windows.length) continue;
+    const from = Math.min(...day3.windows.map((w) => w.startMs));
+    const to = Math.max(...day3.windows.map((w) => w.endMs));
+    const operatoryIds = [...new Set(day3.windows.map((w) => w.operatoryId))];
     const [chairBusy, providerBusy, patientBusy] = await Promise.all([
       loadChairBusy(db, operatoryIds, from, to, now),
       loadProviderBusy(db, from, to, now),
       args.patientId ? db.appointment.findMany({ where: { patientId: args.patientId, status: { in: ACTIVE2 }, startsAt: { lt: new Date(to) }, endsAt: { gt: new Date(from) } }, select: { startsAt: true, endsAt: true } }) : Promise.resolve([])
     ]);
     const found = findSlots({
-      windows: day2.windows,
+      windows: day3.windows,
       typeId: type.id,
       durationMinutes: patternUnits(pattern) * unitMinutes,
       unitMinutes,
@@ -5023,7 +5605,7 @@ async function availability(db, args) {
       providerId: args.providerId ?? null,
       limit: limit - slots.length
     });
-    const usable = type.requiresDentistOnSite && (day2.supervision.enforcement === "hard" || args.onlineOnly) && !day2.supervision.hygieneGeneralAllowed ? found.filter((s) => day2.windows.some((w) => w.providerType === "dentist" && w.startMs <= s.startMs && s.endMs <= w.endMs)) : found;
+    const usable = type.requiresDentistOnSite && (day3.supervision.enforcement === "hard" || args.onlineOnly) && !day3.supervision.hygieneGeneralAllowed ? found.filter((s) => day3.windows.some((w) => w.providerType === "dentist" && w.startMs <= s.startMs && s.endMs <= w.endMs)) : found;
     for (const s of usable) slots.push({ operatoryId: s.operatoryId, providerId: s.providerId, startsAt: new Date(s.startMs).toISOString(), endsAt: new Date(s.endMs).toISOString(), localDate: date });
   }
   return { typeId: type.id, unitMinutes, durationMinutes: patternUnits(pattern) * unitMinutes, slots };
@@ -5471,8 +6053,8 @@ async function publishScheduleTemplate(_root, args, context) {
     for (const a of upcoming) {
       const date = localDate(location.timeZone, a.startsAt);
       if (!cache.has(date)) cache.set(date, await loadLocationDay(uow.tx, template.locationId, date));
-      const day2 = cache.get(date);
-      const fits = day2.windows.some((w) => w.operatoryId === a.operatoryId && w.startMs <= a.startsAt.getTime() && a.endsAt.getTime() <= w.endMs && (!w.allowedTypeIds.length || w.allowedTypeIds.includes(a.typeId)));
+      const day3 = cache.get(date);
+      const fits = day3.windows.some((w) => w.operatoryId === a.operatoryId && w.startMs <= a.startsAt.getTime() && a.endsAt.getTime() <= w.endMs && (!w.allowedTypeIds.length || w.allowedTypeIds.includes(a.typeId)));
       if (!fits) outside.push(a.ref);
     }
     return { templateId: published.id, status: published.status, appointmentsOutsideTemplate: outside };
@@ -5534,7 +6116,7 @@ async function createPatientIn(uow, actor2, input) {
     if (!CONTACT_KINDS.includes(c.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown contact kind.", { field: "contacts" });
     return { kind: c.kind, isPrimary: c.isPrimary ?? true, ...normalizeContact(c.kind, c.value) };
   });
-  const chartNumber = await nextReference(uow.tx, "PT", uow.now);
+  const chartNumber = await nextChartNumber(uow.tx);
   const patient = await uow.tx.patient.create({
     data: {
       ...clean,
@@ -5824,21 +6406,21 @@ async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
   let seq = 0;
   const entries = [];
   const survivorPrimary = new Set((await uow.tx.contactPoint.findMany({ where: { patientId: survivorId, isPrimary: true, isActive: true }, select: { kind: true } })).map((c) => c.kind));
-  for (const { list: list14, field } of MERGE_CHILDREN) {
-    const rows = await delegateOf(uow.tx, list14).findMany({ where: { [field]: mergedId }, select: { id: true, ...list14 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
+  for (const { list: list15, field } of MERGE_CHILDREN) {
+    const rows = await delegateOf(uow.tx, list15).findMany({ where: { [field]: mergedId }, select: { id: true, ...list15 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
     for (const row of rows) {
-      if (list14 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
+      if (list15 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
         await uow.tx.contactPoint.update({ where: { id: row.id }, data: { isPrimary: false } });
-        entries.push({ listKey: list14, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
+        entries.push({ listKey: list15, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
       }
       try {
-        await delegateOf(uow.tx, list14).update({ where: { id: row.id }, data: { [field]: survivorId } });
+        await delegateOf(uow.tx, list15).update({ where: { id: row.id }, data: { [field]: survivorId } });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list14 === "Appointment" ? "overlapping appointments" : list14} rows. Resolve them before merging.`);
+        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list15 === "Appointment" ? "overlapping appointments" : list15} rows. Resolve them before merging.`);
         throw error;
       }
-      entries.push({ listKey: list14, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
+      entries.push({ listKey: list15, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
     }
   }
   if (entries.length) await uow.tx.mergeMap.createMany({ data: entries.map((e) => ({ ...e, mergeCaseId })) });
@@ -5908,13 +6490,13 @@ function verifiedInternalIdentity(headers, socketAddress, secret4, now) {
   const loopback = /^(?:127\.|::1$|::ffff:127\.)/.test(String(socketAddress || ""));
   if (!loopback || secret4.length < 32) return null;
   const identity = String(headers["x-openfront-client-identity"] || "");
-  const timestamp13 = String(headers["x-openfront-client-timestamp"] || "");
-  const signature = String(headers["x-openfront-client-signature"] || "");
-  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp13) || !/^[a-f0-9]{64}$/.test(signature)) return null;
-  const age = Math.abs(now - Number(timestamp13) * 1e3);
+  const timestamp14 = String(headers["x-openfront-client-timestamp"] || "");
+  const signature2 = String(headers["x-openfront-client-signature"] || "");
+  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp14) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
+  const age = Math.abs(now - Number(timestamp14) * 1e3);
   if (!Number.isFinite(age) || age > INTERNAL_IDENTITY_MAX_AGE_MS) return null;
-  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp13}:${identity}`).digest("hex");
-  return safeEqual(signature, expected) ? `forwarded:${identity}` : null;
+  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp14}:${identity}`).digest("hex");
+  return safeEqual(signature2, expected) ? `forwarded:${identity}` : null;
 }
 
 // features/keystone/security/rateLimit.ts
@@ -5957,8 +6539,8 @@ var keyHash = (value) => (0, import_node_crypto10.createHash)("sha256").update(v
 var secret2 = () => process.env.SESSION_SECRET || "local-development-session-secret-change-me-now";
 var clientFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(clientKey(req, secret2())).digest("hex").slice(0, 32);
 var userAgentFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(String(req?.headers?.["user-agent"] ?? "")).digest("hex").slice(0, 32);
-function limitsFrom(json12) {
-  const value = json12 && typeof json12 === "object" ? json12 : {};
+function limitsFrom(json13) {
+  const value = json13 && typeof json13 === "object" ? json13 : {};
   const pick = (n, fallback, max) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max) : fallback;
   return {
     perClientPerHour: pick(value.perClientPerHour, DEFAULT_PUBLIC_LIMITS.perClientPerHour, 1e3),
@@ -6259,9 +6841,9 @@ var import_node_crypto13 = require("node:crypto");
 // features/keystone/security/phiReadAudit.ts
 var import_node_crypto12 = require("node:crypto");
 var import_graphql4 = require("graphql");
-function referenceToken(secret4, list14, id) {
+function referenceToken(secret4, list15, id) {
   if (!secret4 || secret4.length < 32) throw new Error("A strong PHI audit reference secret (SESSION_SECRET) is required.");
-  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list14}\0${id}`).digest("hex");
+  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list15}\0${id}`).digest("hex");
 }
 async function recordPhiReadAudit(prisma, actor2, descriptor) {
   await prisma.phiReadAudit.create({
@@ -6368,8 +6950,8 @@ function signPortalToken(claims, now = /* @__PURE__ */ new Date()) {
   return `pt1.${body}.${mac("portal-token", body)}`;
 }
 function readToken(token, now = Date.now()) {
-  const [prefix, body, signature] = String(token ?? "").split(".");
-  if (prefix !== "pt1" || !body || !signature || !equal(mac("portal-token", body), signature)) return null;
+  const [prefix, body, signature2] = String(token ?? "").split(".");
+  if (prefix !== "pt1" || !body || !signature2 || !equal(mac("portal-token", body), signature2)) return null;
   try {
     const claims = JSON.parse(Buffer.from(body, "base64url").toString("utf8"));
     if (!claims.a || !Number.isFinite(claims.e) || claims.e <= now) return null;
@@ -6412,8 +6994,8 @@ function assertPortalScope(principal, patientId, capability) {
   if (!scope || !scope.capabilities.includes(capability)) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
   return scope;
 }
-async function auditPortalRead(context, principal, operationName, list14, ids, fields) {
-  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list14, ids, fields, tiers: ["dem"] });
+async function auditPortalRead(context, principal, operationName, list15, ids, fields) {
+  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list15, ids, fields, tiers: ["dem"] });
 }
 async function portalMe(_root, _args, context) {
   const principal = await portalPrincipal(context);
@@ -6583,6 +7165,1281 @@ async function suspendPortalAccount(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 
+// features/keystone/mutations/clinicalShared.ts
+var dayOf = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
+async function locationToday(tx, locationId, now) {
+  const location = await tx.location.findUnique({ where: { id: locationId }, select: { timeZone: true } });
+  return localDate(location?.timeZone ?? "America/New_York", now);
+}
+async function feeFor(tx, codeId, onDate) {
+  const day3 = dayOf(onDate);
+  const schedule = await tx.feeSchedule.findFirst({ where: { isDefault: true } });
+  if (!schedule) return null;
+  const version = await tx.feeScheduleVersion.findFirst({
+    where: { scheduleId: schedule.id, status: "published", effectiveFrom: { lte: day3 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day3 } }] },
+    orderBy: { effectiveFrom: "desc" }
+  });
+  if (!version) return null;
+  const fee = await tx.fee.findUnique({ where: { feeVersionId_codeId: { feeVersionId: version.id, codeId } } });
+  return fee ? { amountMinor: fee.amountMinor, versionId: version.id } : null;
+}
+async function accountFor(uow, patientId) {
+  const { tx } = uow;
+  const link = await tx.guarantorLink.findFirst({ where: { patientId, status: "active" }, orderBy: { createdAt: "asc" } });
+  let guarantorId = link?.guarantorId ?? null;
+  if (!guarantorId) {
+    const own = await tx.guarantor.findFirst({ where: { patientId } });
+    const guarantor = own ?? await tx.guarantor.create({ data: { patientId } });
+    guarantorId = guarantor.id;
+    await tx.guarantorLink.create({ data: { patientId, guarantorId, relationship: "self", status: "active" } });
+  }
+  const existing = await tx.guarantorAccount.findFirst({ where: { guarantorId } });
+  if (existing) return existing;
+  const ref = await nextReference(tx, "ACC", uow.now);
+  return tx.guarantorAccount.create({ data: { guarantorId, ref } });
+}
+function requireReason(value, what = "reason") {
+  const text15 = String(value ?? "").trim();
+  if (text15.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
+  return text15.slice(0, 1e3);
+}
+var oneOf = (value, allowed, field) => {
+  if (!allowed.includes(String(value))) throw new DomainError(Codes.INVALID_INPUT, `Unknown ${field}.`, { field });
+  return String(value);
+};
+async function verifyPassword(context, userId, password2) {
+  const user = await context.prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
+  const field = context.graphql?.schema?.getType("User")?.getFields()?.password?.extensions?.keystoneSecretField;
+  if (!user || !field?.compare || typeof password2 !== "string" || password2.length > 1e3 || !await field.compare(password2, user.password)) {
+    throw new DomainError(Codes.NOT_AUTHORIZED, "Enter your password to sign.");
+  }
+}
+
+// features/keystone/mutations/catalogue.ts
+var MAX_ROWS = 5e3;
+function cleanRow(raw, index) {
+  const code = String(raw.code ?? "").trim().toUpperCase();
+  if (!/^[A-Z0-9][A-Z0-9-]{1,15}$/.test(code)) return { row: null, problem: `Row ${index + 1}: \u201C${code.slice(0, 20)}\u201D is not a valid code.` };
+  const category = String(raw.category ?? "diagnostic");
+  const areaRule = String(raw.areaRule ?? "tooth");
+  if (!CODE_CATEGORIES.includes(category)) return { row: null, problem: `Row ${index + 1}: unknown category \u201C${category.slice(0, 30)}\u201D.` };
+  if (!AREA_RULES.includes(areaRule)) return { row: null, problem: `Row ${index + 1}: unknown area rule \u201C${areaRule.slice(0, 30)}\u201D.` };
+  const from = String(raw.effectiveFrom ?? "2026-01-01");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return { row: null, problem: `Row ${index + 1}: the start date must look like 2026-01-01.` };
+  return {
+    row: { code, nomenclature: String(raw.nomenclature ?? "").slice(0, 400), patientFriendlyName: String(raw.patientFriendlyName ?? "").slice(0, 200), category, areaRule, requiresSurfaces: raw.requiresSurfaces === true, maxSurfaces: raw.maxSurfaces == null ? null : Number(raw.maxSurfaces), effectiveFrom: from },
+    problem: null
+  };
+}
+async function uploadCodeImport(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canImportCodes");
+  const label = requireText(args.label, "label", 160);
+  if (!Array.isArray(args.rows) || !args.rows.length) throw new DomainError(Codes.INVALID_INPUT, "The file has no rows.", { field: "rows" });
+  if (args.rows.length > MAX_ROWS) throw new DomainError(Codes.INVALID_INPUT, `A batch holds at most ${MAX_ROWS} rows.`, { field: "rows" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "code_import.upload", actor: actor2, idempotencyKey, params: { ...params, rows: sha256(canonicalJson(args.rows)) } }, async (uow) => {
+    const system = await uow.tx.codeSystem.findUnique({ where: { key: args.systemKey } });
+    if (!system) throw new DomainError(Codes.NOT_FOUND, "Unknown code system.", { field: "systemKey" });
+    const cleaned = args.rows.map(cleanRow);
+    const problems = cleaned.map((c) => c.problem).filter((p) => !!p);
+    const rows = cleaned.map((c) => c.row).filter((r) => !!r);
+    const seen = /* @__PURE__ */ new Set();
+    for (const r of rows) {
+      const key = `${r.code}|${r.effectiveFrom}`;
+      if (seen.has(key)) problems.push(`${r.code} appears twice with the same start date.`);
+      seen.add(key);
+    }
+    const batch = await uow.tx.codeImportBatch.create({
+      data: { label, codeSystemId: system.id, editionYear: args.editionYear, fileName: optionalText(args.fileName, 200), fileSha256: sha256(canonicalJson(args.rows)), rows, rowCount: rows.length, validationReport: { ok: problems.length === 0, problems: problems.slice(0, 50), problemCount: problems.length }, status: problems.length ? "rejected" : "validated", uploadedById: actor2.kind === "user" ? actor2.userId : null }
+    });
+    auditCreate(uow, actor2, "CodeImportBatch", batch.id, "code_import.uploaded", { system: system.key, rows: rows.length, problems: problems.length });
+    return { batchId: batch.id, status: batch.status, rowCount: rows.length, problems: problems.slice(0, 50) };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function attestCodeLicence(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canImportCodes");
+  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "A person attests the licence.");
+  const licenceType = oneOf(args.licenceType, LICENCE_TYPES, "licence type");
+  const holder = requireText(args.licenceHolder, "licence holder", 160);
+  const agreementRef = requireText(args.agreementRef, "agreement reference", 120);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "code_import.attest", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await transition(uow, { model: "CodeImportBatch", id: args.batchId, from: ["validated"], to: "attested", expectedVersion: args.expectedVersion, actor: actor2, eventType: "code_import.attested", data: { attestation: { licenceType, holder, agreementRef, attestedBy: actor2.userId, at: uow.now.toISOString() }, attestedById: actor2.userId, attestedAt: uow.now } });
+    return { batchId: args.batchId };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function requestCodeActivation(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canImportCodes");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "code_import.request_activation", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const batch = await lockRow(uow.tx, "CodeImportBatch", args.batchId);
+    if (batch.status !== "attested") throw new DomainError(Codes.GUARD_FAILED, "Attest the licence before asking for activation.");
+    if (batch.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The batch changed since you loaded it.", { currentVersion: batch.version });
+    const approval = await requestApproval(uow, actor2, { action: "code_import.activate", targetList: "CodeImportBatch", targetId: batch.id, payload: { batchId: batch.id, fileSha256: batch.fileSha256, rowCount: batch.rowCount }, requiredPermission: "canApproveCodeImport", summary: `Activate ${batch.label} (${batch.rowCount} codes)` });
+    await uow.tx.codeImportBatch.update({ where: { id: batch.id }, data: { approvalId: approval.id, version: { increment: 1 } } });
+    return { approvalId: approval.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+registerApplier("code_import.activate", async (uow, actor2, request) => {
+  const batch = await lockRow(uow.tx, "CodeImportBatch", String(request.payload.batchId));
+  if (batch.status !== "attested") throw new DomainError(Codes.GUARD_FAILED, "This batch is no longer waiting for activation.");
+  const rows = batch.rows ?? [];
+  const system = await uow.tx.codeSystem.findUnique({ where: { id: batch.codeSystemId } });
+  if (!system) throw new DomainError(Codes.NOT_FOUND, "Code system not found.");
+  const previous = system.activeImportId;
+  if (previous) await uow.tx.codeImportBatch.update({ where: { id: previous }, data: { status: "superseded", version: { increment: 1 } } });
+  for (const row of rows) {
+    await uow.tx.procedureCode.upsert({
+      where: { codeSystemId_code_effectiveFrom: { codeSystemId: system.id, code: row.code, effectiveFrom: dayOf(row.effectiveFrom) } },
+      create: { codeSystemId: system.id, code: row.code, nomenclature: row.nomenclature ?? "", patientFriendlyName: row.patientFriendlyName ?? "", category: row.category, areaRule: row.areaRule, requiresSurfaces: row.requiresSurfaces === true, maxSurfaces: row.maxSurfaces ?? null, effectiveFrom: dayOf(row.effectiveFrom), importBatchId: batch.id },
+      update: { nomenclature: row.nomenclature ?? "", patientFriendlyName: row.patientFriendlyName ?? "", category: row.category, areaRule: row.areaRule, importBatchId: batch.id }
+    });
+  }
+  await uow.tx.codeSystem.update({ where: { id: system.id }, data: { activeImportId: batch.id } });
+  const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
+  await transition(uow, { model: "CodeImportBatch", id: batch.id, from: ["attested"], to: "active", actor: actor2, eventType: "code_import.activated", approverId: decision?.decidedById ?? null, metadata: { codes: rows.length, supersedes: previous }, data: { rows: [] } });
+  return { batchId: batch.id, codes: rows.length };
+}, { applyOnApprove: true });
+async function openFeeSchedule(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canManageFees");
+  const name = requireText(args.name, "schedule name", 120);
+  const kind = oneOf(args.kind, FEE_KINDS, "schedule kind");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "fee_schedule.create", actor: actor2, idempotencyKey, params }, async (uow) => {
+    if (args.isDefault) await uow.tx.feeSchedule.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
+    const schedule = await uow.tx.feeSchedule.create({ data: { name, kind, isDefault: args.isDefault === true } });
+    auditCreate(uow, actor2, "FeeSchedule", schedule.id, "fee_schedule.created", { name, kind });
+    return { scheduleId: schedule.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function createFeeVersion(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canManageFees");
+  const label = requireText(args.label, "version label", 120);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the start date as 2026-01-01.", { field: "effectiveFrom" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "fee_schedule.version_create", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const open = await uow.tx.feeScheduleVersion.findFirst({ where: { scheduleId: args.scheduleId, status: "draft" } });
+    if (open) throw new DomainError(Codes.GUARD_FAILED, "This schedule already has a draft version. Publish or discard it first.");
+    const last = await uow.tx.feeScheduleVersion.findFirst({ where: { scheduleId: args.scheduleId, status: "published" }, orderBy: { effectiveFrom: "desc" }, include: { fees: true } });
+    const version = await uow.tx.feeScheduleVersion.create({ data: { scheduleId: args.scheduleId, label, effectiveFrom: dayOf(args.effectiveFrom), status: "draft" } });
+    for (const fee of last?.fees ?? []) await uow.tx.fee.create({ data: { feeVersionId: version.id, codeId: fee.codeId, amountMinor: fee.amountMinor, copayMinor: fee.copayMinor } });
+    auditCreate(uow, actor2, "FeeScheduleVersion", version.id, "fee_schedule.version_created", { scheduleId: args.scheduleId, copied: last?.fees.length ?? 0 });
+    return { versionId: version.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function setFee(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canManageFees");
+  if (!/^\d{1,12}$/.test(String(args.amountMinor))) throw new DomainError(Codes.INVALID_INPUT, "Enter the fee in whole cents.", { field: "amountMinor" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "fee.set", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const version = await lockRow(uow.tx, "FeeScheduleVersion", args.versionId);
+    if (version.status !== "draft") throw new DomainError(Codes.INVALID_TRANSITION, "A published fee schedule cannot change. Start a new version.");
+    const amount = BigInt(String(args.amountMinor));
+    const copay = args.copayMinor ? BigInt(String(args.copayMinor)) : null;
+    const fee = await uow.tx.fee.upsert({ where: { feeVersionId_codeId: { feeVersionId: version.id, codeId: args.codeId } }, create: { feeVersionId: version.id, codeId: args.codeId, amountMinor: amount, copayMinor: copay }, update: { amountMinor: amount, copayMinor: copay } });
+    uow.audit({ eventType: "fee.set", entityType: "Fee", entityId: fee.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { amountMinor: amount.toString() } });
+    return { feeId: fee.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function requestFeePublish(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canManageFees");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "fee_schedule.request_publish", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const version = await lockRow(uow.tx, "FeeScheduleVersion", args.versionId);
+    if (version.status !== "draft") throw new DomainError(Codes.INVALID_TRANSITION, "Only a draft version can be published.");
+    if (version.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The version changed since you loaded it.", { currentVersion: version.version });
+    const fees = await uow.tx.fee.findMany({ where: { feeVersionId: version.id }, orderBy: { codeId: "asc" } });
+    if (!fees.length) throw new DomainError(Codes.GUARD_FAILED, "Add fees before publishing.");
+    const digest = sha256(canonicalJson(fees.map((f) => [f.codeId, f.amountMinor.toString(), f.copayMinor?.toString() ?? null])));
+    const approval = await requestApproval(uow, actor2, { action: "fee_schedule.publish", targetList: "FeeScheduleVersion", targetId: version.id, payload: { versionId: version.id, digest, count: fees.length }, requiredPermission: "canApproveFeePublish", summary: `Publish fee schedule ${version.label} (${fees.length} fees)` });
+    await uow.tx.feeScheduleVersion.update({ where: { id: version.id }, data: { approvalId: approval.id, version: { increment: 1 } } });
+    return { approvalId: approval.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+registerApplier("fee_schedule.publish", async (uow, actor2, request) => {
+  const version = await lockRow(uow.tx, "FeeScheduleVersion", String(request.payload.versionId));
+  const fees = await uow.tx.fee.findMany({ where: { feeVersionId: version.id }, orderBy: { codeId: "asc" } });
+  const digest = sha256(canonicalJson(fees.map((f) => [f.codeId, f.amountMinor.toString(), f.copayMinor?.toString() ?? null])));
+  if (digest !== request.payload.digest) throw new DomainError(Codes.APPROVAL_MISMATCH, "The fees changed after approval was requested.");
+  const earlier = await uow.tx.feeScheduleVersion.findMany({ where: { scheduleId: version.scheduleId, status: "published", effectiveTo: null, id: { not: version.id } } });
+  for (const old of earlier) {
+    const end = new Date(version.effectiveFrom.getTime() - 864e5);
+    await uow.tx.feeScheduleVersion.update({ where: { id: old.id }, data: { effectiveTo: end, status: (old.effectiveFrom ?? /* @__PURE__ */ new Date(0)) >= version.effectiveFrom ? "retired" : "published", version: { increment: 1 } } });
+  }
+  const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
+  await transition(uow, { model: "FeeScheduleVersion", id: version.id, from: ["draft"], to: "published", actor: actor2, eventType: "fee_schedule.published", approverId: decision?.decidedById ?? null, metadata: { fees: fees.length, digest }, data: { publishedAt: uow.now, publishedById: decision?.decidedById ?? null } });
+  return { versionId: version.id };
+}, { applyOnApprove: true });
+
+// features/keystone/lib/teeth.ts
+var PERMANENT = Array.from({ length: 32 }, (_, i) => String(i + 1));
+var PRIMARY = "ABCDEFGHIJKLMNOPQRST".split("");
+var SUPERNUMERARY = [...Array.from({ length: 32 }, (_, i) => String(i + 51)), ...PRIMARY.map((letter) => `${letter}S`)];
+var VALID_TEETH = /* @__PURE__ */ new Set([...PERMANENT, ...PRIMARY, ...SUPERNUMERARY]);
+var SURFACE_ORDER = "MODBIFL5".split("");
+var SURFACE_SET = new Set(SURFACE_ORDER);
+var QUADRANTS = ["UR", "UL", "LR", "LL"];
+var isPrimary = (tooth) => /^[A-T]$/.test(tooth);
+function normalizeTooth(raw) {
+  const tooth = String(raw ?? "").trim().toUpperCase();
+  if (!VALID_TEETH.has(tooth)) throw new DomainError(Codes.INVALID_INPUT, "Choose a tooth from 1 to 32 or A to T.", { field: "tooth" });
+  return tooth;
+}
+function normalizeSurfaces(raw, max = 5) {
+  const letters = String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").split("");
+  const seen = /* @__PURE__ */ new Set();
+  for (const letter of letters) {
+    if (!SURFACE_SET.has(letter)) throw new DomainError(Codes.INVALID_INPUT, `"${letter}" is not a tooth surface. Use M, O, D, B, I, F, L or 5.`, { field: "surfaces" });
+    if (seen.has(letter)) throw new DomainError(Codes.INVALID_INPUT, `Surface ${letter} is listed twice.`, { field: "surfaces" });
+    seen.add(letter);
+  }
+  if (seen.size > max) throw new DomainError(Codes.INVALID_INPUT, `This code allows at most ${max} surfaces.`, { field: "surfaces" });
+  return SURFACE_ORDER.filter((letter) => seen.has(letter)).join("");
+}
+function quadrantOf(tooth) {
+  if (/^\d+$/.test(tooth)) {
+    const n = Number(tooth);
+    if (n >= 1 && n <= 8) return "UR";
+    if (n >= 9 && n <= 16) return "UL";
+    if (n >= 17 && n <= 24) return "LL";
+    if (n >= 25 && n <= 32) return "LR";
+    return null;
+  }
+  if (isPrimary(tooth)) {
+    const i = PRIMARY.indexOf(tooth);
+    return i < 5 ? "UR" : i < 10 ? "UL" : i < 15 ? "LL" : "LR";
+  }
+  return null;
+}
+function normalizeSite(rule3, input, options = {}) {
+  const empty = { tooth: "", surfaces: "", quadrant: "", arch: "", sextant: null };
+  switch (rule3) {
+    case "none":
+    case "mouth":
+      return { ...empty, area: "mouth" };
+    case "arch": {
+      const arch = String(input.arch ?? "").toUpperCase();
+      if (arch !== "U" && arch !== "L") throw new DomainError(Codes.INVALID_INPUT, "Choose the upper or lower arch.", { field: "arch" });
+      return { ...empty, area: "arch", arch };
+    }
+    case "quadrant": {
+      const quadrant = String(input.quadrant ?? "").toUpperCase();
+      if (!QUADRANTS.includes(quadrant)) throw new DomainError(Codes.INVALID_INPUT, "Choose a quadrant: UR, UL, LR or LL.", { field: "quadrant" });
+      return { ...empty, area: "quadrant", quadrant };
+    }
+    case "sextant": {
+      const sextant = Number(input.sextant);
+      if (!Number.isInteger(sextant) || sextant < 1 || sextant > 6) throw new DomainError(Codes.INVALID_INPUT, "Choose a sextant from 1 to 6.", { field: "sextant" });
+      return { ...empty, area: "sextant", sextant };
+    }
+    case "tooth": {
+      const tooth = normalizeTooth(input.tooth);
+      return { ...empty, area: "tooth", tooth, quadrant: quadrantOf(tooth) ?? "" };
+    }
+    case "tooth_surface": {
+      const tooth = normalizeTooth(input.tooth);
+      const surfaces = normalizeSurfaces(input.surfaces, options.maxSurfaces ?? 5);
+      if (options.requiresSurfaces !== false && !surfaces) throw new DomainError(Codes.INVALID_INPUT, "Choose at least one surface.", { field: "surfaces" });
+      return { ...empty, area: "surface", tooth, surfaces, quadrant: quadrantOf(tooth) ?? "" };
+    }
+  }
+}
+
+// features/keystone/mutations/chart.ts
+var PLANNING = ["diagnosed", "planned", "accepted"];
+var PLANNABLE = ["diagnosed", "planned"];
+async function codeFor(tx, codeId, onDate) {
+  const code = await tx.procedureCode.findUnique({ where: { id: codeId } });
+  if (!code) throw new DomainError(Codes.NOT_FOUND, "Procedure code not found.", { field: "codeId" });
+  const day3 = dayOf(onDate);
+  if (code.effectiveFrom && code.effectiveFrom > day3) throw new DomainError(Codes.GUARD_FAILED, `${code.code} is not in effect on that date.`, { field: "codeId" });
+  if (code.effectiveTo && code.effectiveTo < day3) throw new DomainError(Codes.GUARD_FAILED, `${code.code} was retired before that date.`, { field: "codeId" });
+  return code;
+}
+function siteData(code, site) {
+  const s = normalizeSite(code.areaRule, site, { requiresSurfaces: code.requiresSurfaces, maxSurfaces: code.maxSurfaces });
+  return { tooth: s.tooth, surfaces: s.surfaces, area: s.area, quadrant: s.quadrant, sextant: s.sextant, arch: s.arch };
+}
+async function addChartProcedure(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  assertLocation(locationIds, args.locationId);
+  const status = oneOf(args.status ?? "planned", ["diagnosed", "planned", "existing_current", "existing_other"], "status");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "chart.add_procedure", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const today2 = await locationToday(uow.tx, args.locationId, uow.now);
+    const code = await codeFor(uow.tx, args.codeId, today2);
+    const entry = await uow.tx.chartEntry.create({
+      data: {
+        patientId: args.patientId,
+        locationId: args.locationId,
+        kind: "procedure",
+        codeId: code.id,
+        status,
+        source: "staff",
+        providerId: args.providerId ?? null,
+        appointmentId: args.appointmentId ?? null,
+        diagnosisCodes: (args.diagnosisCodes ?? []).slice(0, 4),
+        ...siteData(code, args.site ?? {})
+      }
+    });
+    auditCreate(uow, actor2, "ChartEntry", entry.id, "chart.procedure_added", { patientId: args.patientId, code: code.code, tooth: entry.tooth, surfaces: entry.surfaces, status });
+    return { chartEntryId: entry.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function addChartCondition(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  assertLocation(locationIds, args.locationId);
+  const conditionStatus = oneOf(args.status ?? "active", CONDITION_STATUSES, "condition status");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "chart.add_condition", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const condition = await uow.tx.conditionType.findUnique({ where: { id: args.conditionId } });
+    if (!condition || !condition.isActive) throw new DomainError(Codes.NOT_FOUND, "Condition not found.", { field: "conditionId" });
+    const rule3 = condition.areaRule;
+    const site = normalizeSite(rule3, args.site ?? {}, { requiresSurfaces: false });
+    const entry = await uow.tx.chartEntry.create({
+      data: { patientId: args.patientId, locationId: args.locationId, kind: "condition", conditionId: condition.id, status: "existing_current", conditionStatus, source: "staff", tooth: site.tooth, surfaces: site.surfaces, area: site.area, quadrant: site.quadrant, sextant: site.sextant, arch: site.arch }
+    });
+    auditCreate(uow, actor2, "ChartEntry", entry.id, "chart.condition_added", { patientId: args.patientId, condition: condition.code, tooth: entry.tooth, surfaces: entry.surfaces });
+    return { chartEntryId: entry.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function setConditionStatus(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  const status = oneOf(args.status, CONDITION_STATUSES, "condition status");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "chart.condition_status", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
+    if (row.kind !== "condition") throw new DomainError(Codes.INVALID_TRANSITION, "Only findings have a condition status.");
+    assertLocation(locationIds, row.locationId);
+    if (status === "entered_in_error") requireReason(args.reason);
+    await transition(uow, { model: "ChartEntry", id: row.id, from: [row.status], to: row.status, expectedVersion: args.expectedVersion, actor: actor2, eventType: `chart.condition_${status}`, reason: args.reason ?? null, data: { conditionStatus: status } });
+    return { chartEntryId: row.id, conditionStatus: status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function removePlannedEntry(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "chart.remove_planned", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
+    assertLocation(locationIds, row.locationId);
+    await transition(uow, { model: "ChartEntry", id: row.id, from: [...PLANNING, "scheduled"], to: "deleted_in_error", expectedVersion: args.expectedVersion, actor: actor2, eventType: "chart.entry_removed", reason, data: { deletedReason: reason } });
+    return { chartEntryId: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function acceptChartEntry(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart", "canManageTreatmentPlans");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "chart.accept_entry", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
+    assertLocation(locationIds, row.locationId);
+    await transition(uow, { model: "ChartEntry", id: row.id, from: PLANNABLE, to: "accepted", expectedVersion: args.expectedVersion, actor: actor2, eventType: "chart.entry_accepted", data: { acceptedVia: "staff" } });
+    return { chartEntryId: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function completeProcedure(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canCompleteProcedures");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "chart.complete_procedure", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
+    assertLocation(locationIds, row.locationId);
+    if (row.kind !== "procedure") throw new DomainError(Codes.INVALID_TRANSITION, "Only procedures can be completed.");
+    const provider = await uow.tx.providerProfile.findUnique({ where: { id: args.providerId } });
+    if (!provider || !provider.isActive) throw new DomainError(Codes.INVALID_INPUT, "Choose the provider who did the work.", { field: "providerId" });
+    const settings = await uow.tx.practiceSettings.findFirst();
+    const today2 = await locationToday(uow.tx, row.locationId, uow.now);
+    const date = args.dateOfService || today2;
+    if (date > today2) throw new DomainError(Codes.INVALID_INPUT, "A procedure cannot be completed in the future.", { field: "dateOfService" });
+    const earliest = addDays(today2, -(settings?.backdateDays ?? 3));
+    if (date < earliest) throw new DomainError(Codes.GUARD_FAILED, `Work can be back-dated at most ${settings?.backdateDays ?? 3} days. A correction needs a reviewer.`, { field: "dateOfService" });
+    const code = await codeFor(uow.tx, row.codeId, date);
+    const manual = args.feeMinor !== void 0 && args.feeMinor !== null && args.feeMinor !== "";
+    let feeMinor;
+    let feeVersionId = null;
+    if (manual) {
+      if (!/^\d{1,12}$/.test(String(args.feeMinor))) throw new DomainError(Codes.INVALID_INPUT, "Enter the fee in whole cents.", { field: "feeMinor" });
+      feeMinor = BigInt(String(args.feeMinor));
+    } else {
+      const fee = await feeFor(uow.tx, row.codeId, date);
+      if (!fee) throw new DomainError(Codes.GUARD_FAILED, `No published fee for ${code.code} on ${date}. Publish a fee schedule first.`);
+      feeMinor = fee.amountMinor * BigInt(row.units ?? 1);
+      feeVersionId = fee.versionId;
+    }
+    const account = await accountFor(uow, row.patientId);
+    const settingsCurrency = settings?.currencyCode ?? "USD";
+    const entry = await transition(uow, {
+      model: "ChartEntry",
+      id: row.id,
+      from: ["accepted", "scheduled", "planned", "diagnosed"],
+      to: "posted",
+      expectedVersion: args.expectedVersion,
+      actor: actor2,
+      eventType: "chart.procedure_completed",
+      data: { providerId: provider.id, dateOfService: dayOf(date), originalServiceDate: dayOf(date), feeMinor, feeScheduleVersionId: feeVersionId }
+    });
+    const charge = await uow.tx.ledgerEntry.create({
+      data: { accountId: account.id, patientId: row.patientId, kind: "charge", amountMinor: feeMinor, currencyCode: settingsCurrency, businessDate: dayOf(date), originalBusinessDate: dayOf(date), locationId: row.locationId, providerId: provider.id, chartEntryId: row.id, memo: `${code.code} ${row.tooth}${row.surfaces ? ` ${row.surfaces}` : ""}`.trim(), postedById: actor2.kind === "user" ? actor2.userId : null, postedAt: uow.now }
+    });
+    await uow.tx.chartEntry.update({ where: { id: row.id }, data: { ledgerEntryId: charge.id } });
+    auditCreate(uow, actor2, "LedgerEntry", charge.id, "ledger.charge_posted", { chartEntryId: row.id, amountMinor: feeMinor.toString(), businessDate: date });
+    uow.emit({ topic: "ledger.charge_posted", aggregateType: "LedgerEntry", aggregateId: charge.id, payload: { chartEntryId: row.id, patientId: row.patientId }, dedupeKey: `ledger.charge_posted:${charge.id}` });
+    return { chartEntryId: entry.id, ledgerEntryId: charge.id, feeMinor: feeMinor.toString() };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function correctProcedure(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canApproveClinicalCorrections");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "chart.correct_procedure", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
+    assertLocation(locationIds, row.locationId);
+    const charge = row.ledgerEntryId ? await uow.tx.ledgerEntry.findUnique({ where: { id: row.ledgerEntryId } }) : null;
+    await transition(uow, { model: "ChartEntry", id: row.id, from: ["completed", "posted"], to: "corrected", expectedVersion: args.expectedVersion, actor: actor2, eventType: "chart.procedure_corrected", reason });
+    let reversalId = null;
+    if (charge) {
+      const today2 = await locationToday(uow.tx, row.locationId, uow.now);
+      const reversal = await uow.tx.ledgerEntry.create({
+        data: { accountId: charge.accountId, patientId: charge.patientId, kind: "reversal", amountMinor: -charge.amountMinor, currencyCode: charge.currencyCode, businessDate: dayOf(today2), originalBusinessDate: charge.originalBusinessDate, locationId: charge.locationId, providerId: charge.providerId, chartEntryId: row.id, reversesId: charge.id, memo: `Reversal: ${reason}`.slice(0, 200), postedById: actor2.kind === "user" ? actor2.userId : null, postedAt: uow.now }
+      });
+      reversalId = reversal.id;
+      auditCreate(uow, actor2, "LedgerEntry", reversal.id, "ledger.charge_reversed", { reverses: charge.id, amountMinor: (-charge.amountMinor).toString() }, { reason });
+    }
+    let replacementId = null;
+    if (args.replacement?.codeId) {
+      const today2 = await locationToday(uow.tx, row.locationId, uow.now);
+      const code = await codeFor(uow.tx, args.replacement.codeId, today2);
+      const created = await uow.tx.chartEntry.create({
+        data: { patientId: row.patientId, locationId: row.locationId, kind: "procedure", codeId: code.id, status: "planned", source: "staff", correctsId: row.id, ...siteData(code, args.replacement.site ?? {}) }
+      });
+      replacementId = created.id;
+      await uow.tx.chartEntry.update({ where: { id: row.id }, data: { correctedById: created.id } });
+      auditCreate(uow, actor2, "ChartEntry", created.id, "chart.replacement_planned", { corrects: row.id });
+    }
+    return { chartEntryId: row.id, reversalId, replacementId };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function scheduleChartEntry(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart", "canManageSchedule");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "chart.schedule_entry", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
+    assertLocation(locationIds, row.locationId);
+    const appointment = await uow.tx.appointment.findUnique({ where: { id: args.appointmentId } });
+    if (!appointment || appointment.patientId !== row.patientId) throw new DomainError(Codes.INVALID_INPUT, "Choose one of this patient\u2019s appointments.", { field: "appointmentId" });
+    await transition(uow, { model: "ChartEntry", id: row.id, from: ["accepted"], to: "scheduled", expectedVersion: args.expectedVersion, actor: actor2, eventType: "chart.entry_scheduled", data: { appointmentId: appointment.id } });
+    return { chartEntryId: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/lib/perio.ts
+var SITES = ["MB", "B", "DB", "ML", "L", "DL"];
+var PD_MIN = 0;
+var PD_MAX = 15;
+var GM_MIN = -10;
+var GM_MAX = 15;
+var whole = (value, field, min, max) => {
+  if (value === null || value === void 0 || value === "") return null;
+  const n = typeof value === "number" ? value : /^-?\d+$/.test(String(value).trim()) ? parseInt(String(value).trim(), 10) : Number.NaN;
+  if (!Number.isInteger(n)) throw new DomainError(Codes.INVALID_INPUT, `${field} must be a whole number of millimetres.`, { field });
+  if (n < min || n > max) throw new DomainError(Codes.INVALID_INPUT, `${field} must be between ${min} and ${max} mm.`, { field });
+  return n;
+};
+function validateMeasurement(input) {
+  const site = String(input.site ?? "").toUpperCase();
+  if (!SITES.includes(site)) throw new DomainError(Codes.INVALID_INPUT, "Site must be MB, B, DB, ML, L or DL.", { field: "site" });
+  return {
+    tooth: normalizeTooth(input.tooth),
+    site,
+    probingDepthMm: whole(input.probingDepthMm, "Probing depth", PD_MIN, PD_MAX),
+    gingivalMarginMm: whole(input.gingivalMarginMm, "Gingival margin", GM_MIN, GM_MAX),
+    bleeding: input.bleeding === true,
+    suppuration: input.suppuration === true,
+    plaque: input.plaque === true
+  };
+}
+function cal(probingDepthMm, gingivalMarginMm) {
+  if (probingDepthMm === null || probingDepthMm === void 0 || gingivalMarginMm === null || gingivalMarginMm === void 0) return null;
+  return probingDepthMm + gingivalMarginMm;
+}
+function summarize(measurements) {
+  const recorded = measurements.filter((m) => m.probingDepthMm !== null && m.probingDepthMm !== void 0);
+  const n = recorded.length;
+  const pct2 = (count) => n ? Math.round(count / n * 1e3) / 10 : 0;
+  const cals = measurements.map((m) => cal(m.probingDepthMm, m.gingivalMarginMm)).filter((v) => v !== null);
+  const calByTooth = /* @__PURE__ */ new Map();
+  for (const m of measurements) {
+    const value = cal(m.probingDepthMm, m.gingivalMarginMm);
+    if (value !== null) calByTooth.set(m.tooth, Math.max(calByTooth.get(m.tooth) ?? -99, value));
+  }
+  return {
+    sites: n,
+    bleedingPct: pct2(recorded.filter((m) => m.bleeding).length),
+    plaquePct: pct2(recorded.filter((m) => m.plaque).length),
+    meanPd: n ? Math.round(recorded.reduce((sum, m) => sum + (m.probingDepthMm ?? 0), 0) / n * 10) / 10 : 0,
+    sitesGe4: recorded.filter((m) => (m.probingDepthMm ?? 0) >= 4).length,
+    sitesGe5: recorded.filter((m) => (m.probingDepthMm ?? 0) >= 5).length,
+    maxCal: cals.length ? Math.max(...cals) : null,
+    teethWithCalGe5: [...calByTooth.values()].filter((v) => v >= 5).length
+  };
+}
+function suggestClassification(input) {
+  const reasons = [];
+  const cal2 = input.maxCalMm ?? 0;
+  const pd = input.maxPdMm ?? 0;
+  let stage = "I";
+  if (cal2 >= 5 || pd >= 6 || (input.teethLostToPerio ?? 0) >= 1) {
+    stage = cal2 >= 5 ? "III" : "II";
+    if (cal2 >= 5) reasons.push(`Interdental CAL of ${cal2} mm`);
+  }
+  if (cal2 >= 3 && cal2 < 5 && stage === "I") {
+    stage = "II";
+    reasons.push(`Interdental CAL of ${cal2} mm`);
+  }
+  if (cal2 >= 1 && cal2 < 3 && stage === "I") reasons.push(`Interdental CAL of ${cal2} mm`);
+  if ((input.teethLostToPerio ?? 0) >= 5 || input.teethPresent < 20) {
+    stage = "IV";
+    reasons.push(input.teethPresent < 20 ? `Fewer than 20 teeth present (${input.teethPresent})` : `${input.teethLostToPerio} teeth lost to periodontitis`);
+  } else if ((input.teethLostToPerio ?? 0) >= 1) {
+    stage = "III";
+    reasons.push(`${input.teethLostToPerio} tooth lost to periodontitis`);
+  }
+  if (pd >= 6 && stage === "II") {
+    stage = "III";
+    reasons.push(`Probing depth of ${pd} mm`);
+  }
+  let grade = "B";
+  const progression = input.boneLossPctPerDecade;
+  if (progression !== null && progression !== void 0) {
+    grade = progression >= 1 ? "C" : progression > 0 ? "B" : "A";
+    reasons.push(`Progression ${progression} (bone loss % per decade)`);
+  }
+  if ((input.smokerCigarettesPerDay ?? 0) >= 10 || (input.hba1c ?? 0) >= 7) {
+    grade = "C";
+    reasons.push("Risk factors raise the grade (smoking \u2265 10/day or HbA1c \u2265 7%)");
+  } else if (((input.smokerCigarettesPerDay ?? 0) > 0 || (input.hba1c ?? 0) >= 6.5) && grade === "A") {
+    grade = "B";
+    reasons.push("Risk factors raise the grade");
+  }
+  const share = input.teethPresent ? input.teethWithCalGe5 / input.teethPresent : 0;
+  const extent = share >= 0.3 ? "generalized" : "localized";
+  return { stage, grade, extent, reasons };
+}
+
+// features/keystone/mutations/clinical.ts
+async function draftClinicalNote(_root, args, context) {
+  const { actor: actor2, locationIds, session } = staff(context);
+  requirePermission(actor2, "canChart", "canSignClinicalNotes");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "note.draft", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    let body = optionalText(args.body, 2e4);
+    if (args.templateVersionId && !body) {
+      const template = await uow.tx.noteTemplateVersion.findUnique({ where: { id: args.templateVersionId } });
+      if (!template || template.status !== "published") throw new DomainError(Codes.INVALID_INPUT, "That note template is not available.", { field: "templateVersionId" });
+      body = template.body;
+    }
+    if (args.amendsNoteId) {
+      const original = await uow.tx.clinicalNote.findUnique({ where: { id: args.amendsNoteId } });
+      if (!original || original.patientId !== args.patientId) throw new DomainError(Codes.NOT_FOUND, "The note to amend was not found on this chart.");
+      if (original.status !== "signed") throw new DomainError(Codes.INVALID_TRANSITION, "Only a signed note can be amended.");
+    }
+    const provider = await uow.tx.providerProfile.findFirst({ where: { userId: session.itemId } });
+    const note = await uow.tx.clinicalNote.create({
+      data: {
+        patientId: args.patientId,
+        appointmentId: args.appointmentId ?? null,
+        authorId: actor2.kind === "user" ? actor2.userId : null,
+        providerId: provider?.id ?? null,
+        templateId: args.templateVersionId ?? null,
+        title: optionalText(args.title, 200),
+        body,
+        status: "draft",
+        amendsId: args.amendsNoteId ?? null,
+        refersToAt: args.refersToAt ? new Date(args.refersToAt) : null
+      }
+    });
+    auditCreate(uow, actor2, "ClinicalNote", note.id, "note.drafted", { patientId: args.patientId, amends: args.amendsNoteId ?? null });
+    return { noteId: note.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function updateNoteDraft(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart", "canSignClinicalNotes");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "note.update_draft", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const note = await lockRow(uow.tx, "ClinicalNote", args.noteId);
+    await assertPatientInScope(uow.tx, locationIds, note.patientId);
+    if (note.status !== "draft") throw new DomainError(Codes.INVALID_TRANSITION, "A signed note cannot be edited. Add an amendment.");
+    if (note.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The note changed since you opened it.", { currentVersion: note.version });
+    await uow.tx.clinicalNote.update({ where: { id: note.id }, data: { body: optionalText(args.body, 2e4), title: optionalText(args.title ?? note.title, 200), version: { increment: 1 } } });
+    uow.audit({ eventType: "note.draft_saved", entityType: "ClinicalNote", entityId: note.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { bodyLength: String(args.body ?? "").length } });
+    return { noteId: note.id, version: note.version + 1 };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function signClinicalNote(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canSignClinicalNotes");
+  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician signs a note.");
+  await verifyPassword(context, actor2.userId, args.password);
+  const { idempotencyKey, password: _password, ...params } = args;
+  const result = await command(context.prisma, { name: "note.sign", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const note = await lockRow(uow.tx, "ClinicalNote", args.noteId);
+    await assertPatientInScope(uow.tx, locationIds, note.patientId);
+    if (!note.body.trim()) throw new DomainError(Codes.GUARD_FAILED, "Write the note before signing it.");
+    const settings = await uow.tx.practiceSettings.findFirst();
+    const hours = settings?.noteSignHours ?? 24;
+    const reference = note.refersToAt ?? note.createdAt;
+    const late = uow.now.getTime() - new Date(reference).getTime() > hours * 36e5;
+    const bodyHash = sha256(canonicalJson({ patientId: note.patientId, title: note.title, body: note.body, amends: note.amendsId }));
+    await transition(uow, { model: "ClinicalNote", id: note.id, from: ["draft"], to: "signed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "note.signed", metadata: { bodyHash, late }, data: { bodyHash, signedAt: uow.now, signatureMethod: "password_reauth", isLateEntry: late } });
+    return { noteId: note.id, bodyHash, isLateEntry: late };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function markNoteEnteredInError(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canApproveClinicalCorrections");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "note.entered_in_error", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const note = await lockRow(uow.tx, "ClinicalNote", args.noteId);
+    await assertPatientInScope(uow.tx, locationIds, note.patientId);
+    await transition(uow, { model: "ClinicalNote", id: note.id, from: ["signed"], to: "entered_in_error", expectedVersion: args.expectedVersion, actor: actor2, eventType: "note.entered_in_error", reason, data: { errorReason: reason } });
+    return { noteId: note.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function startPerioExam(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePerio");
+  assertLocation(locationIds, args.locationId);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "perio.start", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const examiner = await uow.tx.providerProfile.findUnique({ where: { id: args.examinerId } });
+    if (!examiner || !examiner.isActive) throw new DomainError(Codes.INVALID_INPUT, "Choose the examiner.", { field: "examinerId" });
+    const date = args.examDate || await locationToday(uow.tx, args.locationId, uow.now);
+    const clash = await uow.tx.perioExam.findFirst({ where: { patientId: args.patientId, examinerId: examiner.id, examDate: dayOf(date) }, orderBy: { revision: "desc" } });
+    if (clash && clash.status === "in_progress") throw new DomainError(Codes.GUARD_FAILED, "An exam by this examiner is already open for that day.");
+    if (clash) throw new DomainError(Codes.GUARD_FAILED, "A signed exam already exists for that day. Revise it instead.");
+    const exam = await uow.tx.perioExam.create({ data: { patientId: args.patientId, locationId: args.locationId, examinerId: examiner.id, examDate: dayOf(date), revision: 1, status: "in_progress" } });
+    auditCreate(uow, actor2, "PerioExam", exam.id, "perio.started", { patientId: args.patientId, examDate: date });
+    return { examId: exam.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function recordPerioMeasurements(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePerio");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "perio.record", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const exam = await lockRow(uow.tx, "PerioExam", args.examId);
+    assertLocation(locationIds, exam.locationId);
+    if (exam.status !== "in_progress") throw new DomainError(Codes.INVALID_TRANSITION, "This exam is signed. Record a revision to change it.");
+    if (exam.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The exam changed since you opened it.", { currentVersion: exam.version });
+    const measurements = (args.measurements ?? []).slice(0, 400).map(validateMeasurement);
+    for (const m of measurements) {
+      await uow.tx.perioSiteMeasurement.upsert({
+        where: { examId_tooth_site: { examId: exam.id, tooth: m.tooth, site: m.site } },
+        create: { examId: exam.id, ...m },
+        update: { probingDepthMm: m.probingDepthMm, gingivalMarginMm: m.gingivalMarginMm, bleeding: m.bleeding, suppuration: m.suppuration, plaque: m.plaque }
+      });
+    }
+    for (const f of (args.findings ?? []).slice(0, 40)) {
+      const tooth = normalizeTooth(f.tooth);
+      const mobility = f.mobility ?? null;
+      if (mobility !== null && (!Number.isInteger(mobility) || mobility < 0 || mobility > 3)) throw new DomainError(Codes.INVALID_INPUT, "Mobility is graded 0 to 3.", { field: "mobility" });
+      const data = { mobility, furcation: f.furcation ?? {}, missing: f.missing === true, implant: f.implant === true };
+      await uow.tx.perioToothFinding.upsert({ where: { examId_tooth: { examId: exam.id, tooth } }, create: { examId: exam.id, tooth, ...data }, update: data });
+    }
+    await uow.tx.perioExam.update({ where: { id: exam.id }, data: { version: { increment: 1 } } });
+    uow.audit({ eventType: "perio.recorded", entityType: "PerioExam", entityId: exam.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { sites: measurements.length, findings: (args.findings ?? []).length } });
+    return { examId: exam.id, version: exam.version + 1, recorded: measurements.length };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function completePerioExam(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePerio");
+  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician signs an exam.");
+  await verifyPassword(context, actor2.userId, args.password);
+  const { idempotencyKey, password: _password, ...params } = args;
+  const result = await command(context.prisma, { name: "perio.complete", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const exam = await lockRow(uow.tx, "PerioExam", args.examId);
+    assertLocation(locationIds, exam.locationId);
+    const sites = await uow.tx.perioSiteMeasurement.findMany({ where: { examId: exam.id } });
+    if (!sites.length) throw new DomainError(Codes.GUARD_FAILED, "Record at least one probing depth before signing.");
+    const findings = await uow.tx.perioToothFinding.findMany({ where: { examId: exam.id } });
+    const summary = summarize(sites.map((s) => ({ tooth: s.tooth, site: s.site, probingDepthMm: s.probingDepthMm, gingivalMarginMm: s.gingivalMarginMm, bleeding: s.bleeding, suppuration: s.suppuration, plaque: s.plaque })));
+    const signatureHash = sha256(canonicalJson({ examId: exam.id, sites: sites.map((s) => [s.tooth, s.site, s.probingDepthMm, s.gingivalMarginMm, s.bleeding]).sort(), findings: findings.map((f) => [f.tooth, f.mobility]).sort() }));
+    await transition(uow, { model: "PerioExam", id: exam.id, from: ["in_progress"], to: "completed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "perio.completed", metadata: { signatureHash, summary }, data: { signedAt: uow.now, signedById: actor2.userId, signatureHash } });
+    const missing = findings.filter((f) => f.missing).length;
+    const inputs = { teethPresent: 32 - missing, maxCalMm: summary.maxCal, maxPdMm: Math.max(0, ...sites.map((s) => s.probingDepthMm ?? 0)), sitesGe5: summary.sitesGe5, teethWithCalGe5: summary.teethWithCalGe5, ...args.classificationInputs ?? {} };
+    const suggestion = suggestClassification(inputs);
+    const classification = await uow.tx.perioClassification.create({ data: { examId: exam.id, suggestedStage: suggestion.stage, suggestedGrade: suggestion.grade, extent: suggestion.extent, inputs: { ...inputs, reasons: suggestion.reasons }, status: "suggested" } });
+    auditCreate(uow, actor2, "PerioClassification", classification.id, "perio.classification_suggested", { stage: suggestion.stage, grade: suggestion.grade });
+    return { examId: exam.id, classificationId: classification.id, signatureHash, summary };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function confirmPerioClassification(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canSignClinicalNotes");
+  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician confirms a diagnosis.");
+  const stage = oneOf(args.stage, ["I", "II", "III", "IV"], "stage");
+  const grade = oneOf(args.grade, ["A", "B", "C"], "grade");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "perio.classification_confirm", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "PerioClassification", args.classificationId);
+    const exam = await uow.tx.perioExam.findUnique({ where: { id: row.examId } });
+    assertLocation(locationIds, exam?.locationId);
+    const overridden = stage !== row.suggestedStage || grade !== row.suggestedGrade;
+    if (overridden) requireReason(args.reason, "reason for changing the suggestion");
+    await transition(uow, { model: "PerioClassification", id: row.id, from: ["suggested"], to: overridden ? "overridden" : "confirmed", expectedVersion: args.expectedVersion, actor: actor2, eventType: overridden ? "perio.classification_overridden" : "perio.classification_confirmed", reason: args.reason ?? null, data: { confirmedStage: stage, confirmedGrade: grade, signedById: actor2.userId, signedAt: uow.now } });
+    return { classificationId: row.id, stage, grade, overridden };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function reviseSignedPerioExam(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManagePerio", "canApproveClinicalCorrections");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "perio.revise", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const original = await lockRow(uow.tx, "PerioExam", args.examId);
+    assertLocation(locationIds, original.locationId);
+    if (original.status !== "completed") throw new DomainError(Codes.INVALID_TRANSITION, "Only a signed exam can be revised.");
+    const latest = await uow.tx.perioExam.findFirst({ where: { patientId: original.patientId, examinerId: original.examinerId, examDate: original.examDate }, orderBy: { revision: "desc" } });
+    const exam = await uow.tx.perioExam.create({ data: { patientId: original.patientId, locationId: original.locationId, examinerId: original.examinerId, examDate: original.examDate, revision: (latest?.revision ?? 1) + 1, revisionOfId: original.id, status: "in_progress" } });
+    const sites = await uow.tx.perioSiteMeasurement.findMany({ where: { examId: original.id } });
+    for (const s of sites) await uow.tx.perioSiteMeasurement.create({ data: { examId: exam.id, tooth: s.tooth, site: s.site, probingDepthMm: s.probingDepthMm, gingivalMarginMm: s.gingivalMarginMm, bleeding: s.bleeding, suppuration: s.suppuration, plaque: s.plaque } });
+    const findings = await uow.tx.perioToothFinding.findMany({ where: { examId: original.id } });
+    for (const f of findings) await uow.tx.perioToothFinding.create({ data: { examId: exam.id, tooth: f.tooth, mobility: f.mobility, furcation: f.furcation ?? {}, missing: f.missing, implant: f.implant } });
+    await transition(uow, { model: "PerioExam", id: original.id, from: ["completed"], to: "revised", expectedVersion: original.version, actor: actor2, eventType: "perio.revised", reason });
+    auditCreate(uow, actor2, "PerioExam", exam.id, "perio.revision_started", { revisionOf: original.id }, { reason });
+    return { examId: exam.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function logAnesthetic(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  const drug = requireText(args.drug, "anaesthetic", 120);
+  const carpules = Number(args.carpules);
+  if (!Number.isFinite(carpules) || carpules <= 0 || carpules > 10) throw new DomainError(Codes.INVALID_INPUT, "Carpules must be more than 0 and no more than 10.", { field: "carpules" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "anesthetic.log", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const row = await uow.tx.anestheticLog.create({ data: { patientId: args.patientId, appointmentId: args.appointmentId ?? null, drug, concentration: optionalText(args.concentration, 40), vasoconstrictor: optionalText(args.vasoconstrictor, 60), carpules: String(carpules), injectionSites: (args.injectionSites ?? []).slice(0, 8), administeredById: actor2.kind === "user" ? actor2.userId : null, at: uow.now } });
+    auditCreate(uow, actor2, "AnestheticLog", row.id, "anesthetic.logged", { patientId: args.patientId, drug, carpules });
+    return { logId: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function recordVitals(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  const within = (value, min, max, field) => {
+    if (value === null || value === void 0) return null;
+    if (!Number.isInteger(value) || value < min || value > max) throw new DomainError(Codes.INVALID_INPUT, `${field} must be a whole number from ${min} to ${max}.`, { field });
+    return value;
+  };
+  const systolic = within(args.systolic, 50, 300, "Systolic pressure");
+  const diastolic = within(args.diastolic, 30, 200, "Diastolic pressure");
+  const pulse = within(args.pulse, 20, 250, "Pulse");
+  if (systolic === null !== (diastolic === null)) throw new DomainError(Codes.INVALID_INPUT, "Enter both blood pressure numbers.", { field: "systolic" });
+  if (systolic !== null && diastolic !== null && diastolic >= systolic) throw new DomainError(Codes.INVALID_INPUT, "Diastolic pressure must be lower than systolic.", { field: "diastolic" });
+  const asa = args.asaClass ? oneOf(args.asaClass, ["I", "II", "III", "IV", "V", "VI"], "ASA class") : "";
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "vitals.record", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const row = await uow.tx.vitalsReading.create({ data: { patientId: args.patientId, appointmentId: args.appointmentId ?? null, systolic, diastolic, pulse, asaClass: asa, takenById: actor2.kind === "user" ? actor2.userId : null, at: uow.now } });
+    auditCreate(uow, actor2, "VitalsReading", row.id, "vitals.recorded", { patientId: args.patientId });
+    return { readingId: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+var ALERTING = {
+  allergy_latex: { kind: "latex", severity: "critical", text: () => "Latex allergy" },
+  allergy_penicillin: { kind: "allergy", severity: "critical", text: () => "Penicillin allergy" },
+  allergy_other: { kind: "allergy", severity: "critical", text: (a) => `Allergy: ${String(a?.detail ?? "see history")}` },
+  on_blood_thinner: { kind: "anticoagulant", severity: "caution", text: () => "Takes a blood thinner" },
+  on_bisphosphonate: { kind: "antiresorptive", severity: "critical", text: () => "Takes a bisphosphonate or antiresorptive" },
+  heart_condition: { kind: "cardiac", severity: "caution", text: () => "Heart condition reported" },
+  needs_premedication: { kind: "premedication", severity: "caution", text: () => "Needs antibiotic premedication" },
+  diabetes: { kind: "diabetes", severity: "caution", text: () => "Diabetes" },
+  high_blood_pressure: { kind: "hypertension", severity: "caution", text: () => "High blood pressure" },
+  pregnant: { kind: "pregnancy", severity: "caution", text: () => "Pregnant" }
+};
+var isYes = (answer) => answer === true || answer === "yes" || typeof answer === "object" && answer !== null && answer.value === "yes";
+async function submitMedicalHistory(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart", "canManagePatients");
+  const via = oneOf(args.via ?? "staff", ["staff", "tablet", "import"], "channel");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "history.submit", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const form = await uow.tx.medicalHistoryForm.findUnique({ where: { id: args.formId } });
+    if (!form || form.status !== "published") throw new DomainError(Codes.INVALID_INPUT, "That history form is not available.", { field: "formId" });
+    const prior = await uow.tx.medicalHistoryResponse.findFirst({ where: { patientId: args.patientId, status: { in: ["submitted", "reviewed"] } }, orderBy: { submittedAt: "desc" } });
+    const response = await uow.tx.medicalHistoryResponse.create({ data: { patientId: args.patientId, formId: form.id, answers: args.answers, submittedVia: via, submittedAt: uow.now, status: "submitted" } });
+    if (prior) await uow.tx.medicalHistoryResponse.update({ where: { id: prior.id }, data: { status: "superseded", version: { increment: 1 } } });
+    auditCreate(uow, actor2, "MedicalHistoryResponse", response.id, "history.submitted", { patientId: args.patientId, supersedes: prior?.id ?? null });
+    return { responseId: response.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function reviewMedicalHistory(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart", "canSignClinicalNotes");
+  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician reviews a medical history.");
+  await verifyPassword(context, actor2.userId, args.password);
+  const { idempotencyKey, password: _password, ...params } = args;
+  const result = await command(context.prisma, { name: "history.review", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const response = await lockRow(uow.tx, "MedicalHistoryResponse", args.responseId);
+    await assertPatientInScope(uow.tx, locationIds, response.patientId);
+    const answers = response.answers ?? {};
+    const priorReview = await uow.tx.medicalHistoryReview.findFirst({ where: { patientId: response.patientId }, orderBy: { reviewedAt: "desc" }, include: { response: true } });
+    const priorAnswers = priorReview?.response?.answers ?? {};
+    const changed = Object.keys({ ...answers, ...priorAnswers }).filter((key) => canonicalJson(answers[key] ?? null) !== canonicalJson(priorAnswers[key] ?? null)).filter((key) => key !== "medications");
+    const unacknowledged = changed.filter((key) => !args.acknowledgedChanges.includes(key));
+    const criticalSkipped = unacknowledged.filter((key) => ALERTING[key]?.severity === "critical" && isYes(answers[key]));
+    if (criticalSkipped.length && !String(args.overrideReason ?? "").trim()) {
+      throw new DomainError(Codes.GUARD_FAILED, `Acknowledge ${criticalSkipped.length === 1 ? "the change" : "each change"} to ${criticalSkipped.join(", ").replace(/_/g, " ")}, or give a reason for leaving it.`);
+    }
+    const existing = await uow.tx.patientAlert.findMany({ where: { patientId: response.patientId, source: "history_answer", endedAt: null } });
+    const created = [];
+    for (const [key, rule3] of Object.entries(ALERTING)) {
+      const yes = isYes(answers[key]);
+      const open = existing.find((a) => a.text === rule3.text(answers[key]));
+      if (yes && !open) {
+        const alert = await uow.tx.patientAlert.create({ data: { patientId: response.patientId, kind: rule3.kind, severity: rule3.severity, text: rule3.text(answers[key]), source: "history_answer", activeFrom: uow.now, recordedById: actor2.userId } });
+        created.push(alert.id);
+        auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: response.patientId, kind: rule3.kind, source: "history_answer" });
+      }
+      if (!yes && open && key in answers) await uow.tx.patientAlert.update({ where: { id: open.id }, data: { endedAt: uow.now, version: { increment: 1 } } });
+    }
+    const meds = Array.isArray(answers.medications) ? answers.medications.slice(0, 60) : [];
+    await uow.tx.medicationEntry.updateMany({ where: { patientId: response.patientId, source: "history", endedAt: null }, data: { endedAt: dayOf(uow.now.toISOString().slice(0, 10)) } });
+    for (const med of meds) {
+      const name = String(med?.name ?? "").trim().slice(0, 120);
+      if (name) await uow.tx.medicationEntry.create({ data: { patientId: response.patientId, name, dose: String(med.dose ?? "").slice(0, 60), frequency: String(med.frequency ?? "").slice(0, 60), source: "history", activeFrom: dayOf(uow.now.toISOString().slice(0, 10)) } });
+    }
+    const signatureHash = sha256(canonicalJson({ responseId: response.id, answers, acknowledged: args.acknowledgedChanges }));
+    const review = await uow.tx.medicalHistoryReview.create({ data: { responseId: response.id, patientId: response.patientId, reviewedById: actor2.userId, reviewedAt: uow.now, changesAcknowledged: args.acknowledgedChanges, alertsCreated: created, signatureHash, overrideReason: optionalText(args.overrideReason, 500) } });
+    await transition(uow, { model: "MedicalHistoryResponse", id: response.id, from: ["submitted"], to: "reviewed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "history.reviewed", metadata: { reviewId: review.id, changed: changed.length, alerts: created.length } });
+    return { reviewId: review.id, alertsCreated: created.length, changes: changed };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function addMedication(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  const name = requireText(args.name, "medication", 120);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "medication.add", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const today2 = dayOf(uow.now.toISOString().slice(0, 10));
+    const row = await uow.tx.medicationEntry.create({ data: { patientId: args.patientId, name, dose: optionalText(args.dose, 60), frequency: optionalText(args.frequency, 60), source: "staff", activeFrom: today2 } });
+    auditCreate(uow, actor2, "MedicationEntry", row.id, "medication.added", { patientId: args.patientId, name });
+    return { medicationId: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function endMedication(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "medication.end", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "MedicationEntry", args.medicationId);
+    await assertPatientInScope(uow.tx, locationIds, row.patientId);
+    if (row.endedAt) return { medicationId: row.id };
+    await uow.tx.medicationEntry.update({ where: { id: row.id }, data: { endedAt: dayOf(addDays(uow.now.toISOString().slice(0, 10), 0)) } });
+    uow.audit({ eventType: "medication.ended", entityType: "MedicationEntry", entityId: row.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { endedAt: uow.now.toISOString().slice(0, 10) } });
+    return { medicationId: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/mutations/forms.ts
+async function requestForm(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart", "canManagePatients");
+  const channel = oneOf(args.channel ?? "tablet", ["tablet", "email_link", "sms_link", "portal_api"], "channel");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "form.request", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const template = await uow.tx.formTemplateVersion.findUnique({ where: { id: args.templateVersionId } });
+    if (!template || template.status !== "published") throw new DomainError(Codes.INVALID_INPUT, "That form is not published.", { field: "templateVersionId" });
+    const request = await uow.tx.formRequest.create({ data: { patientId: args.patientId, templateId: template.id, channel, status: "requested", requestedById: actor2.kind === "user" ? actor2.userId : null, expiresAt: new Date(uow.now.getTime() + 7 * 864e5) } });
+    auditCreate(uow, actor2, "FormRequest", request.id, "form.requested", { patientId: args.patientId, template: template.id, channel });
+    return { requestId: request.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function submitForm(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart", "canManagePatients");
+  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only staff record a signed form.");
+  await verifyPassword(context, actor2.userId, args.password);
+  const signerName = requireText(args.signerName, "signer name", 120);
+  const signerRole = oneOf(args.signerRole, ["patient", "guardian"], "signer role");
+  const { idempotencyKey, password: _password, ...params } = args;
+  const result = await command(context.prisma, { name: "form.submit", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const request = await lockRow(uow.tx, "FormRequest", args.requestId);
+    await assertPatientInScope(uow.tx, locationIds, request.patientId);
+    if (request.expiresAt && new Date(request.expiresAt) < uow.now) throw new DomainError(Codes.GUARD_FAILED, "This form request has expired. Send a new one.");
+    const template = await uow.tx.formTemplateVersion.findUnique({ where: { id: request.templateId }, include: { template: true } });
+    if (!template) throw new DomainError(Codes.NOT_FOUND, "Form not found.");
+    if (template.requiresWitness && !args.witnessUserId) throw new DomainError(Codes.GUARD_FAILED, "This form needs a staff witness.", { field: "witnessUserId" });
+    if (args.witnessUserId === actor2.userId) throw new DomainError(Codes.SELF_APPROVAL, "The witness must be a different person from the one recording the form.");
+    await transition(uow, { model: "FormRequest", id: request.id, from: ["requested", "opened"], to: "submitted", expectedVersion: args.expectedVersion, actor: actor2, eventType: "form.submitted", metadata: { template: template.id } });
+    const submission = await uow.tx.formSubmission.create({ data: { requestId: request.id, data: args.data, submittedAt: uow.now, submitterRole: signerRole } });
+    let consentId = null;
+    if (template.template?.kind?.startsWith("consent") || ["hipaa_npp_ack", "financial_policy", "photo_consent"].includes(template.template?.kind ?? "")) {
+      const consent = await uow.tx.consentRecord.create({ data: { patientId: request.patientId, templateVersionId: template.id, signerName, signerRole, signatureEvidence: { method: "password_reauth", recordedBy: actor2.userId, at: uow.now.toISOString(), contentHash: template.contentHash }, witnessId: args.witnessUserId ?? null, signedAt: uow.now, scope: { submissionId: submission.id } } });
+      consentId = consent.id;
+      auditCreate(uow, actor2, "ConsentRecord", consent.id, "consent.recorded", { patientId: request.patientId, template: template.id, signerRole });
+    }
+    return { submissionId: submission.id, consentId };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function withdrawConsent(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart", "canManagePatients");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "consent.withdraw", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const record = await uow.tx.consentRecord.findUnique({ where: { id: args.consentId } });
+    if (!record) throw new DomainError(Codes.NOT_FOUND, "Consent record not found.");
+    await assertPatientInScope(uow.tx, locationIds, String(record.patientId));
+    const done = await uow.tx.consentAction.findFirst({ where: { recordId: record.id, kind: { in: ["withdraw", "expire"] } } });
+    if (done) throw new DomainError(Codes.INVALID_TRANSITION, "This consent was already withdrawn.");
+    const action = await uow.tx.consentAction.create({ data: { recordId: record.id, kind: "withdraw", at: uow.now, byId: actor2.kind === "user" ? actor2.userId : null, reason } });
+    auditCreate(uow, actor2, "ConsentAction", action.id, "consent.withdrawn", { consentId: record.id }, { reason });
+    return { actionId: action.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function publishFormVersion(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canManagePatients", "canManageTemplates");
+  const body = requireText(args.body, "form text", 2e4);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "form.publish_version", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const template = await uow.tx.formTemplate.findUnique({ where: { key: args.templateKey } });
+    if (!template) throw new DomainError(Codes.NOT_FOUND, "Unknown form.", { field: "templateKey" });
+    const last = await uow.tx.formTemplateVersion.findFirst({ where: { templateId: template.id }, orderBy: { number: "desc" } });
+    const number = (last?.number ?? 0) + 1;
+    const version = await uow.tx.formTemplateVersion.create({ data: { templateId: template.id, number, body, fields: args.fields ?? [], requiresWitness: args.requiresWitness === true, contentHash: sha256(canonicalJson({ key: template.key, number, body, fields: args.fields ?? [] })), status: "published" } });
+    if (last) await uow.tx.formTemplateVersion.update({ where: { id: last.id }, data: { status: "retired" } });
+    auditCreate(uow, actor2, "FormTemplateVersion", version.id, "form.version_published", { key: template.key, number });
+    return { versionId: version.id, number };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function recordImagingStudy(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canChart");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "imaging.record", actor: actor2, idempotencyKey, params }, async (uow) => {
+    await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const study = await uow.tx.imagingStudy.create({ data: { patientId: args.patientId, modality: args.modality, teeth: args.teeth ?? [], acquiredAt: args.acquiredAt ? new Date(args.acquiredAt) : uow.now, source: "upload", status: "acquired" } });
+    auditCreate(uow, actor2, "ImagingStudy", study.id, "imaging.recorded", { patientId: args.patientId, modality: args.modality });
+    return { studyId: study.id, day: dayOf(uow.now.toISOString().slice(0, 10)).toISOString().slice(0, 10) };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/mutations/plans.ts
+var PLAN_OPEN = ["draft", "presented", "partially_accepted", "accepted", "in_progress"];
+async function buildTreatmentPlan(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageTreatmentPlans");
+  const title = requireText(args.title, "plan title", 160);
+  if (!args.chartEntryIds?.length) throw new DomainError(Codes.INVALID_INPUT, "Choose the planned procedures for this plan.", { field: "chartEntryIds" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "plan.create", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const entries = await uow.tx.chartEntry.findMany({ where: { id: { in: args.chartEntryIds }, patientId: patient.id, kind: "procedure" }, include: { code: true } });
+    if (entries.length !== new Set(args.chartEntryIds).size) throw new DomainError(Codes.INVALID_INPUT, "Some procedures are not on this patient\u2019s chart.", { field: "chartEntryIds" });
+    const bad = entries.find((e) => !["diagnosed", "planned"].includes(e.status));
+    if (bad) throw new DomainError(Codes.GUARD_FAILED, "Only diagnosed or planned work can go on a plan.", { field: "chartEntryIds" });
+    const ref = await nextReference(uow.tx, "TP", uow.now);
+    const plan = await uow.tx.treatmentPlan.create({ data: { patientId: patient.id, ref, title, status: "draft", coordinatorId: actor2.kind === "user" ? actor2.userId : null } });
+    const version = await uow.tx.treatmentPlanVersion.create({ data: { planId: plan.id, number: 1, phases: [{ key: "phase_1", label: "Phase 1" }] } });
+    let order = 0;
+    for (const entry of entries) {
+      const today2 = await locationToday(uow.tx, String(entry.locationId), uow.now);
+      const fee = await feeFor(uow.tx, String(entry.codeId), today2);
+      await uow.tx.treatmentPlanItem.create({ data: { planVersionId: version.id, chartEntryId: entry.id, phaseKey: "phase_1", priority: "recommended", feeMinor: fee?.amountMinor ?? 0n, sortOrder: order++ } });
+      if (entry.status === "diagnosed") await uow.tx.chartEntry.update({ where: { id: entry.id }, data: { status: "planned", version: { increment: 1 } } });
+    }
+    await uow.tx.treatmentPlan.update({ where: { id: plan.id }, data: { currentVersionId: version.id } });
+    auditCreate(uow, actor2, "TreatmentPlan", plan.id, "plan.created", { patientId: patient.id, ref, items: entries.length });
+    return { planId: plan.id, versionId: version.id, ref };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function updatePlanItem(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageTreatmentPlans");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "plan.item_update", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const item = await lockRow(uow.tx, "TreatmentPlanItem", args.itemId);
+    const version = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: item.planVersionId }, include: { plan: true } });
+    if (!version) throw new DomainError(Codes.NOT_FOUND, "Plan version not found.");
+    await assertPatientInScope(uow.tx, locationIds, String(version.plan?.patientId));
+    if (version.frozenAt) throw new DomainError(Codes.INVALID_TRANSITION, "This version was presented and is frozen. Start a new version to change it.");
+    const data = {};
+    if (args.phaseKey) data.phaseKey = optionalText(args.phaseKey, 40);
+    if (args.priority) data.priority = oneOf(args.priority, PLAN_PRIORITIES, "priority");
+    if (args.alternateGroup !== void 0 && args.alternateGroup !== null) data.alternateGroup = optionalText(args.alternateGroup, 40);
+    if (args.feeMinor !== void 0 && args.feeMinor !== null && args.feeMinor !== "") {
+      if (!/^\d{1,12}$/.test(String(args.feeMinor))) throw new DomainError(Codes.INVALID_INPUT, "Enter the fee in whole cents.", { field: "feeMinor" });
+      data.feeMinor = BigInt(String(args.feeMinor));
+    }
+    await uow.tx.treatmentPlanItem.update({ where: { id: item.id }, data });
+    uow.audit({ eventType: "plan.item_updated", entityType: "TreatmentPlanItem", entityId: item.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { ...data, feeMinor: data.feeMinor?.toString() } });
+    return { itemId: item.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function presentTreatmentPlan(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canPresentPlans", "canManageTreatmentPlans");
+  const channel = oneOf(args.channel ?? "chairside", ["chairside", "portal_api", "email_link"], "channel");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "plan.present", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const plan = await lockRow(uow.tx, "TreatmentPlan", args.planId);
+    await assertPatientInScope(uow.tx, locationIds, plan.patientId);
+    const version = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: { orderBy: { sortOrder: "asc" } } } });
+    if (!version || version.frozenAt) throw new DomainError(Codes.INVALID_TRANSITION, "There is no draft version to present.");
+    if (!version.items.length) throw new DomainError(Codes.GUARD_FAILED, "Add at least one procedure before presenting the plan.");
+    const totals = version.items.reduce((sum, item) => sum + item.feeMinor, 0n);
+    const contentHash = sha256(canonicalJson({ plan: plan.ref, number: version.number, phases: version.phases, items: version.items.map((i) => [i.chartEntryId, i.phaseKey, i.priority, i.alternateGroup, i.feeMinor.toString()]) }));
+    await uow.tx.treatmentPlanVersion.update({ where: { id: version.id }, data: { frozenAt: uow.now, contentHash, presentedById: actor2.kind === "user" ? actor2.userId : null, totalsMinor: { totalMinor: totals.toString(), itemCount: version.items.length } } });
+    await uow.tx.planPresentation.create({ data: { planVersionId: version.id, presentedById: actor2.kind === "user" ? actor2.userId : null, channel, at: uow.now } });
+    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["draft", "presented", "declined"], to: "presented", expectedVersion: args.expectedVersion, actor: actor2, eventType: "plan.presented", metadata: { versionNumber: version.number, contentHash, totalMinor: totals.toString() } });
+    return { planId: plan.id, versionId: version.id, contentHash, totalMinor: totals.toString() };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function acceptTreatmentPlan(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canPresentPlans", "canManageTreatmentPlans");
+  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only staff record an acceptance.");
+  await verifyPassword(context, actor2.userId, args.password);
+  const signer = oneOf(args.signer, ["patient", "guardian"], "signer");
+  const signerName = requireText(args.signerName, "signer name", 120);
+  const { idempotencyKey, password: _password, ...params } = args;
+  const result = await command(context.prisma, { name: "plan.accept", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const plan = await lockRow(uow.tx, "TreatmentPlan", args.planId);
+    await assertPatientInScope(uow.tx, locationIds, plan.patientId);
+    const version = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: true } });
+    if (!version?.frozenAt) throw new DomainError(Codes.INVALID_TRANSITION, "Present the plan before recording an acceptance.");
+    if (version.contentHash !== args.versionHash) throw new DomainError(Codes.STALE_STATE, "The plan changed after it was shown. Present the current version.");
+    const ids = new Set(args.selectedItemIds ?? []);
+    if (!ids.size) throw new DomainError(Codes.INVALID_INPUT, "Choose at least one procedure to accept.", { field: "selectedItemIds" });
+    const selected = version.items.filter((i) => ids.has(i.id));
+    if (selected.length !== ids.size) throw new DomainError(Codes.INVALID_INPUT, "Some selected procedures are not in this version.", { field: "selectedItemIds" });
+    const groups = /* @__PURE__ */ new Map();
+    for (const item of selected) if (item.alternateGroup) groups.set(item.alternateGroup, (groups.get(item.alternateGroup) ?? 0) + 1);
+    const doubled = [...groups.entries()].find(([, n]) => n > 1);
+    if (doubled) throw new DomainError(Codes.GUARD_FAILED, `Choose only one option from the alternatives in \u201C${doubled[0]}\u201D.`, { field: "selectedItemIds" });
+    const total = selected.reduce((sum, i) => sum + i.feeMinor, 0n);
+    const acceptance = await uow.tx.planAcceptance.create({
+      data: {
+        planVersionId: version.id,
+        versionHash: version.contentHash,
+        selectedItems: { connect: selected.map((i) => ({ id: i.id })) },
+        signer,
+        signerName,
+        signatureEvidence: { method: "password_reauth", userId: actor2.userId, at: uow.now.toISOString() },
+        estimateSnapshot: { totalMinor: total.toString(), items: selected.map((i) => ({ id: i.id, feeMinor: i.feeMinor.toString() })) },
+        at: uow.now
+      }
+    });
+    for (const item of selected) {
+      await uow.tx.treatmentPlanItem.update({ where: { id: item.id }, data: { selected: true } });
+      await uow.tx.chartEntry.updateMany({ where: { id: item.chartEntryId, status: { in: ["planned", "diagnosed"] } }, data: { status: "accepted", acceptedVia: "plan_acceptance", version: { increment: 1 } } });
+    }
+    const all = selected.length === version.items.length;
+    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["presented", "partially_accepted"], to: all ? "accepted" : "partially_accepted", expectedVersion: args.expectedVersion, actor: actor2, eventType: "plan.accepted", metadata: { acceptanceId: acceptance.id, items: selected.length, totalMinor: total.toString() } });
+    return { acceptanceId: acceptance.id, totalMinor: total.toString(), status: all ? "accepted" : "partially_accepted" };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function declineTreatmentPlan(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canPresentPlans", "canManageTreatmentPlans");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "plan.decline", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const plan = await lockRow(uow.tx, "TreatmentPlan", args.planId);
+    await assertPatientInScope(uow.tx, locationIds, plan.patientId);
+    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["presented", "partially_accepted"], to: "declined", expectedVersion: args.expectedVersion, actor: actor2, eventType: "plan.declined", reason });
+    return { planId: plan.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function reviseTreatmentPlan(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageTreatmentPlans");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "plan.revise", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const plan = await lockRow(uow.tx, "TreatmentPlan", args.planId);
+    await assertPatientInScope(uow.tx, locationIds, plan.patientId);
+    if (!PLAN_OPEN.includes(plan.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This plan is closed.");
+    const current = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: true } });
+    if (!current?.frozenAt) throw new DomainError(Codes.INVALID_TRANSITION, "The current version has not been presented; edit it directly.");
+    const next = await uow.tx.treatmentPlanVersion.create({ data: { planId: plan.id, number: (current.number ?? 1) + 1, phases: current.phases } });
+    for (const item of current.items) {
+      await uow.tx.treatmentPlanItem.create({ data: { planVersionId: next.id, chartEntryId: item.chartEntryId, phaseKey: item.phaseKey, alternateGroup: item.alternateGroup, priority: item.priority, feeMinor: item.feeMinor, sortOrder: item.sortOrder } });
+    }
+    await uow.tx.treatmentPlan.update({ where: { id: plan.id }, data: { currentVersionId: next.id, status: "draft", version: { increment: 1 } } });
+    auditCreate(uow, actor2, "TreatmentPlanVersion", next.id, "plan.version_started", { planId: plan.id, number: next.number }, { reason });
+    return { planId: plan.id, versionId: next.id, number: next.number };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/mutations/phase2Args.ts
+var PHASE2_ARGS = {
+  // Chart
+  addChartProcedure: { patientId: "ID!", locationId: "ID!", codeId: "ID!", site: "JSON!", status: "String", providerId: "ID", appointmentId: "ID", diagnosisCodes: "[String!]" },
+  addChartCondition: { patientId: "ID!", locationId: "ID!", conditionId: "ID!", site: "JSON!", status: "String" },
+  setConditionStatus: { chartEntryId: "ID!", status: "String!", expectedVersion: "Int!", reason: "String" },
+  removePlannedEntry: { chartEntryId: "ID!", expectedVersion: "Int!", reason: "String!" },
+  acceptChartEntry: { chartEntryId: "ID!", expectedVersion: "Int!" },
+  scheduleChartEntry: { chartEntryId: "ID!", expectedVersion: "Int!", appointmentId: "ID!" },
+  completeProcedure: { chartEntryId: "ID!", expectedVersion: "Int!", providerId: "ID!", dateOfService: "String", feeMinor: "String" },
+  correctProcedure: { chartEntryId: "ID!", expectedVersion: "Int!", reason: "String!", replacement: "JSON" },
+  // Notes
+  draftClinicalNote: { patientId: "ID!", appointmentId: "ID", templateVersionId: "ID", title: "String", body: "String", amendsNoteId: "ID", refersToAt: "String" },
+  updateNoteDraft: { noteId: "ID!", expectedVersion: "Int!", title: "String", body: "String!" },
+  signClinicalNote: { noteId: "ID!", expectedVersion: "Int!", password: "String!" },
+  markNoteEnteredInError: { noteId: "ID!", expectedVersion: "Int!", reason: "String!" },
+  // Perio
+  startPerioExam: { patientId: "ID!", locationId: "ID!", examinerId: "ID!", examDate: "String" },
+  recordPerioMeasurements: { examId: "ID!", expectedVersion: "Int!", measurements: "[JSON!]", findings: "[JSON!]" },
+  completePerioExam: { examId: "ID!", expectedVersion: "Int!", password: "String!", classificationInputs: "JSON" },
+  confirmPerioClassification: { classificationId: "ID!", expectedVersion: "Int!", stage: "String!", grade: "String!", reason: "String" },
+  reviseSignedPerioExam: { examId: "ID!", reason: "String!" },
+  // Anaesthetic, vitals, history
+  logAnesthetic: { patientId: "ID!", appointmentId: "ID", drug: "String!", concentration: "String", vasoconstrictor: "String", carpules: "String!", injectionSites: "[String!]" },
+  recordVitals: { patientId: "ID!", appointmentId: "ID", systolic: "Int", diastolic: "Int", pulse: "Int", asaClass: "String" },
+  submitMedicalHistory: { patientId: "ID!", formId: "ID!", answers: "JSON!", via: "String" },
+  reviewMedicalHistory: { responseId: "ID!", expectedVersion: "Int!", acknowledgedChanges: "[String!]!", overrideReason: "String", password: "String!" },
+  addMedication: { patientId: "ID!", name: "String!", dose: "String", frequency: "String" },
+  endMedication: { medicationId: "ID!" },
+  // Treatment plans
+  buildTreatmentPlan: { patientId: "ID!", title: "String!", chartEntryIds: "[ID!]!" },
+  updatePlanItem: { itemId: "ID!", phaseKey: "String", priority: "String", alternateGroup: "String", feeMinor: "String" },
+  presentTreatmentPlan: { planId: "ID!", expectedVersion: "Int!", channel: "String" },
+  acceptTreatmentPlan: { planId: "ID!", expectedVersion: "Int!", versionHash: "String!", selectedItemIds: "[ID!]!", signer: "String!", signerName: "String!", password: "String!" },
+  declineTreatmentPlan: { planId: "ID!", expectedVersion: "Int!", reason: "String!" },
+  reviseTreatmentPlan: { planId: "ID!", reason: "String!" },
+  // Forms and consents
+  requestForm: { patientId: "ID!", templateVersionId: "ID!", channel: "String" },
+  submitForm: { requestId: "ID!", expectedVersion: "Int!", data: "JSON!", signerName: "String!", signerRole: "String!", password: "String!", witnessUserId: "ID" },
+  withdrawConsent: { consentId: "ID!", reason: "String!" },
+  publishFormVersion: { templateKey: "String!", body: "String!", fields: "[JSON!]", requiresWitness: "Boolean" },
+  recordImagingStudy: { patientId: "ID!", modality: "String!", teeth: "[String!]", acquiredAt: "String" },
+  // Codes and fees
+  uploadCodeImport: { systemKey: "String!", label: "String!", editionYear: "Int!", fileName: "String!", rows: "[JSON!]!" },
+  attestCodeLicence: { batchId: "ID!", expectedVersion: "Int!", licenceType: "String!", licenceHolder: "String!", agreementRef: "String!" },
+  requestCodeActivation: { batchId: "ID!", expectedVersion: "Int!" },
+  openFeeSchedule: { name: "String!", kind: "String!", isDefault: "Boolean" },
+  createFeeVersion: { scheduleId: "ID!", label: "String!", effectiveFrom: "String!" },
+  setFee: { versionId: "ID!", codeId: "ID!", amountMinor: "String!", copayMinor: "String" },
+  requestFeePublish: { versionId: "ID!", expectedVersion: "Int!" }
+};
+
+// features/keystone/mutations/phase2Ops.ts
+var RESOLVERS = {
+  addChartProcedure,
+  addChartCondition,
+  setConditionStatus,
+  removePlannedEntry,
+  acceptChartEntry,
+  scheduleChartEntry,
+  completeProcedure,
+  correctProcedure,
+  draftClinicalNote,
+  updateNoteDraft,
+  signClinicalNote,
+  markNoteEnteredInError,
+  startPerioExam,
+  recordPerioMeasurements,
+  completePerioExam,
+  confirmPerioClassification,
+  reviseSignedPerioExam,
+  logAnesthetic,
+  recordVitals,
+  submitMedicalHistory,
+  reviewMedicalHistory,
+  addMedication,
+  endMedication,
+  buildTreatmentPlan,
+  updatePlanItem,
+  presentTreatmentPlan,
+  acceptTreatmentPlan,
+  declineTreatmentPlan,
+  reviseTreatmentPlan,
+  requestForm,
+  submitForm,
+  withdrawConsent,
+  publishFormVersion,
+  recordImagingStudy,
+  uploadCodeImport,
+  attestCodeLicence,
+  requestCodeActivation,
+  openFeeSchedule,
+  createFeeVersion,
+  setFee,
+  requestFeePublish
+};
+var PHASE2_OPS = Object.fromEntries(Object.entries(PHASE2_ARGS).map(([name, args]) => [name, { args, fn: RESOLVERS[name] }]));
+var signature = (args) => [...Object.entries(args).map(([k, v]) => `${k}: ${v}`), "idempotencyKey: String!"].join(", ");
+var phase2TypeDefs = Object.entries(PHASE2_ARGS).map(([name, args]) => `        ${name}(${signature(args)}): JSON`).join("\n");
+
 // features/keystone/mutations/index.ts
 var graphql2 = String.raw;
 function extendGraphqlSchema(baseSchema) {
@@ -6615,6 +8472,7 @@ function extendGraphqlSchema(baseSchema) {
         addContactPoint(patientId: ID!, kind: String!, value: String!, isPrimary: Boolean, idempotencyKey: String!): JSON
         deactivateContactPoint(contactPointId: ID!, reason: String!, idempotencyKey: String!): JSON
         recordConsent(contactPointId: ID!, channel: String!, purpose: String!, granted: Boolean!, source: String, evidence: JSON, reason: String, idempotencyKey: String!): JSON
+${phase2TypeDefs}
         addPatientAlert(patientId: ID!, kind: String!, severity: String!, text: String!, idempotencyKey: String!): JSON
         endPatientAlert(alertId: ID!, reason: String!, idempotencyKey: String!): JSON
         linkGuarantor(patientId: ID!, guarantorPatientId: ID, personName: JSON, relationship: String!, idempotencyKey: String!): JSON
@@ -6682,6 +8540,7 @@ function extendGraphqlSchema(baseSchema) {
         setPatientStatus: op(setPatientStatus),
         proposeMerge: op(proposeMerge),
         revertMerge: op(revertMerge),
+        ...Object.fromEntries(Object.entries(PHASE2_OPS).map(([name, spec]) => [name, op(spec.fn)])),
         holdSlot: op(holdSlot),
         releaseHold: op(releaseHold),
         bookAppointment: op(bookAppointment),
@@ -6969,7 +8828,7 @@ var { withAuth } = (0, import_auth.createAuth)({
   `
 });
 var keystone_default = withAuth(
-  (0, import_core17.config)({
+  (0, import_core18.config)({
     db: {
       provider: "postgresql",
       url: databaseURL,

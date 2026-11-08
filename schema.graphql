@@ -10921,6 +10921,1443 @@ input TreatmentPlanRelateToOneForCreateInput {
   connect: TreatmentPlanWhereUniqueInput
 }
 
+type BenefitFact {
+  id: ID!
+  verification: BenefitVerification
+  coverage: Coverage
+  field: String
+  appliesTo: JSON
+  valueJson: JSON
+  isUnknown: Boolean
+  source: String
+  observedAt: DateTime
+  observedBy: User
+  evidence: Document
+  rawObservation: InboundObservation
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input BenefitFactWhereUniqueInput {
+  id: ID
+}
+
+input BenefitFactWhereInput {
+  AND: [BenefitFactWhereInput!]
+  OR: [BenefitFactWhereInput!]
+  NOT: [BenefitFactWhereInput!]
+  id: IDFilter
+  verification: BenefitVerificationWhereInput
+  coverage: CoverageWhereInput
+  field: StringFilter
+  isUnknown: BooleanFilter
+  source: StringFilter
+  observedAt: DateTimeNullableFilter
+  observedBy: UserWhereInput
+  evidence: DocumentWhereInput
+  rawObservation: InboundObservationWhereInput
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input BenefitFactOrderByInput {
+  id: OrderDirection
+  field: OrderDirection
+  isUnknown: OrderDirection
+  source: OrderDirection
+  observedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input BenefitFactUpdateInput {
+  verification: BenefitVerificationRelateToOneForUpdateInput
+  coverage: CoverageRelateToOneForUpdateInput
+  field: String
+  appliesTo: JSON
+  valueJson: JSON
+  isUnknown: Boolean
+  source: String
+  observedAt: DateTime
+  observedBy: UserRelateToOneForUpdateInput
+  evidence: DocumentRelateToOneForUpdateInput
+  rawObservation: InboundObservationRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input BenefitVerificationRelateToOneForUpdateInput {
+  create: BenefitVerificationCreateInput
+  connect: BenefitVerificationWhereUniqueInput
+  disconnect: Boolean
+}
+
+input CoverageRelateToOneForUpdateInput {
+  create: CoverageCreateInput
+  connect: CoverageWhereUniqueInput
+  disconnect: Boolean
+}
+
+input InboundObservationRelateToOneForUpdateInput {
+  create: InboundObservationCreateInput
+  connect: InboundObservationWhereUniqueInput
+  disconnect: Boolean
+}
+
+input BenefitFactUpdateArgs {
+  where: BenefitFactWhereUniqueInput!
+  data: BenefitFactUpdateInput!
+}
+
+input BenefitFactCreateInput {
+  verification: BenefitVerificationRelateToOneForCreateInput
+  coverage: CoverageRelateToOneForCreateInput
+  field: String
+  appliesTo: JSON
+  valueJson: JSON
+  isUnknown: Boolean
+  source: String
+  observedAt: DateTime
+  observedBy: UserRelateToOneForCreateInput
+  evidence: DocumentRelateToOneForCreateInput
+  rawObservation: InboundObservationRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input BenefitVerificationRelateToOneForCreateInput {
+  create: BenefitVerificationCreateInput
+  connect: BenefitVerificationWhereUniqueInput
+}
+
+input CoverageRelateToOneForCreateInput {
+  create: CoverageCreateInput
+  connect: CoverageWhereUniqueInput
+}
+
+input InboundObservationRelateToOneForCreateInput {
+  create: InboundObservationCreateInput
+  connect: InboundObservationWhereUniqueInput
+}
+
+type BenefitRule {
+  id: ID!
+  plan: InsurancePlan
+  kind: String
+  appliesTo: JSON
+  pct: Decimal
+  frequency: JSON
+  ageMin: Int
+  ageMax: Int
+  waitingMonths: Int
+  downgradeToCode: ProcedureCode
+  note: String
+  source: String
+  observedAt: DateTime
+  observedBy: User
+  evidence: Document
+  supersededBy: BenefitRule
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input BenefitRuleWhereUniqueInput {
+  id: ID
+}
+
+input BenefitRuleWhereInput {
+  AND: [BenefitRuleWhereInput!]
+  OR: [BenefitRuleWhereInput!]
+  NOT: [BenefitRuleWhereInput!]
+  id: IDFilter
+  plan: InsurancePlanWhereInput
+  kind: StringFilter
+  pct: DecimalNullableFilter
+  ageMin: IntNullableFilter
+  ageMax: IntNullableFilter
+  waitingMonths: IntNullableFilter
+  downgradeToCode: ProcedureCodeWhereInput
+  note: StringFilter
+  source: StringFilter
+  observedAt: DateTimeNullableFilter
+  observedBy: UserWhereInput
+  evidence: DocumentWhereInput
+  supersededBy: BenefitRuleWhereInput
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input BenefitRuleOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  pct: OrderDirection
+  ageMin: OrderDirection
+  ageMax: OrderDirection
+  waitingMonths: OrderDirection
+  note: OrderDirection
+  source: OrderDirection
+  observedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input BenefitRuleUpdateInput {
+  plan: InsurancePlanRelateToOneForUpdateInput
+  kind: String
+  appliesTo: JSON
+  pct: Decimal
+  frequency: JSON
+  ageMin: Int
+  ageMax: Int
+  waitingMonths: Int
+  downgradeToCode: ProcedureCodeRelateToOneForUpdateInput
+  note: String
+  source: String
+  observedAt: DateTime
+  observedBy: UserRelateToOneForUpdateInput
+  evidence: DocumentRelateToOneForUpdateInput
+  supersededBy: BenefitRuleRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input InsurancePlanRelateToOneForUpdateInput {
+  create: InsurancePlanCreateInput
+  connect: InsurancePlanWhereUniqueInput
+  disconnect: Boolean
+}
+
+input BenefitRuleRelateToOneForUpdateInput {
+  create: BenefitRuleCreateInput
+  connect: BenefitRuleWhereUniqueInput
+  disconnect: Boolean
+}
+
+input BenefitRuleUpdateArgs {
+  where: BenefitRuleWhereUniqueInput!
+  data: BenefitRuleUpdateInput!
+}
+
+input BenefitRuleCreateInput {
+  plan: InsurancePlanRelateToOneForCreateInput
+  kind: String
+  appliesTo: JSON
+  pct: Decimal
+  frequency: JSON
+  ageMin: Int
+  ageMax: Int
+  waitingMonths: Int
+  downgradeToCode: ProcedureCodeRelateToOneForCreateInput
+  note: String
+  source: String
+  observedAt: DateTime
+  observedBy: UserRelateToOneForCreateInput
+  evidence: DocumentRelateToOneForCreateInput
+  supersededBy: BenefitRuleRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input InsurancePlanRelateToOneForCreateInput {
+  create: InsurancePlanCreateInput
+  connect: InsurancePlanWhereUniqueInput
+}
+
+input BenefitRuleRelateToOneForCreateInput {
+  create: BenefitRuleCreateInput
+  connect: BenefitRuleWhereUniqueInput
+}
+
+type BenefitUsage {
+  id: ID!
+  coverage: Coverage
+  benefitYear: String
+  maxUsedMinor: BigInt
+  deductibleUsedMinor: BigInt
+  pendingMinor: BigInt
+  frequencyUse: JSON
+  rebuiltAt: DateTime
+  sourceHash: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input BenefitUsageWhereUniqueInput {
+  id: ID
+}
+
+input BenefitUsageWhereInput {
+  AND: [BenefitUsageWhereInput!]
+  OR: [BenefitUsageWhereInput!]
+  NOT: [BenefitUsageWhereInput!]
+  id: IDFilter
+  coverage: CoverageWhereInput
+  benefitYear: StringFilter
+  maxUsedMinor: BigIntFilter
+  deductibleUsedMinor: BigIntFilter
+  pendingMinor: BigIntFilter
+  rebuiltAt: DateTimeNullableFilter
+  sourceHash: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input BenefitUsageOrderByInput {
+  id: OrderDirection
+  benefitYear: OrderDirection
+  maxUsedMinor: OrderDirection
+  deductibleUsedMinor: OrderDirection
+  pendingMinor: OrderDirection
+  rebuiltAt: OrderDirection
+  sourceHash: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input BenefitUsageUpdateInput {
+  coverage: CoverageRelateToOneForUpdateInput
+  benefitYear: String
+  maxUsedMinor: BigInt
+  deductibleUsedMinor: BigInt
+  pendingMinor: BigInt
+  frequencyUse: JSON
+  rebuiltAt: DateTime
+  sourceHash: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input BenefitUsageUpdateArgs {
+  where: BenefitUsageWhereUniqueInput!
+  data: BenefitUsageUpdateInput!
+}
+
+input BenefitUsageCreateInput {
+  coverage: CoverageRelateToOneForCreateInput
+  benefitYear: String
+  maxUsedMinor: BigInt
+  deductibleUsedMinor: BigInt
+  pendingMinor: BigInt
+  frequencyUse: JSON
+  rebuiltAt: DateTime
+  sourceHash: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type BenefitVerification {
+  id: ID!
+  coverage: Coverage
+  trigger: String
+  status: String
+  completeness: String
+  eligibilityChecks(where: EligibilityCheckWhereInput! = {}, orderBy: [EligibilityCheckOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: EligibilityCheckWhereUniqueInput): [EligibilityCheck!]
+  eligibilityChecksCount(where: EligibilityCheckWhereInput! = {}): Int
+  facts(where: BenefitFactWhereInput! = {}, orderBy: [BenefitFactOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: BenefitFactWhereUniqueInput): [BenefitFact!]
+  factsCount(where: BenefitFactWhereInput! = {}): Int
+  tasks(where: WorkTaskWhereInput! = {}, orderBy: [WorkTaskOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: WorkTaskWhereUniqueInput): [WorkTask!]
+  tasksCount(where: WorkTaskWhereInput! = {}): Int
+  failureNote: String
+  requestedBy: User
+  completedBy: User
+  completedAt: DateTime
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input BenefitVerificationWhereUniqueInput {
+  id: ID
+}
+
+input BenefitVerificationWhereInput {
+  AND: [BenefitVerificationWhereInput!]
+  OR: [BenefitVerificationWhereInput!]
+  NOT: [BenefitVerificationWhereInput!]
+  id: IDFilter
+  coverage: CoverageWhereInput
+  trigger: StringFilter
+  status: StringFilter
+  completeness: StringNullableFilter
+  eligibilityChecks: EligibilityCheckManyRelationFilter
+  facts: BenefitFactManyRelationFilter
+  tasks: WorkTaskManyRelationFilter
+  failureNote: StringFilter
+  requestedBy: UserWhereInput
+  completedBy: UserWhereInput
+  completedAt: DateTimeNullableFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input EligibilityCheckManyRelationFilter {
+  every: EligibilityCheckWhereInput
+  some: EligibilityCheckWhereInput
+  none: EligibilityCheckWhereInput
+}
+
+input BenefitFactManyRelationFilter {
+  every: BenefitFactWhereInput
+  some: BenefitFactWhereInput
+  none: BenefitFactWhereInput
+}
+
+input WorkTaskManyRelationFilter {
+  every: WorkTaskWhereInput
+  some: WorkTaskWhereInput
+  none: WorkTaskWhereInput
+}
+
+input BenefitVerificationOrderByInput {
+  id: OrderDirection
+  trigger: OrderDirection
+  status: OrderDirection
+  completeness: OrderDirection
+  failureNote: OrderDirection
+  completedAt: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input BenefitVerificationUpdateInput {
+  coverage: CoverageRelateToOneForUpdateInput
+  trigger: String
+  status: String
+  completeness: String
+  eligibilityChecks: EligibilityCheckRelateToManyForUpdateInput
+  facts: BenefitFactRelateToManyForUpdateInput
+  tasks: WorkTaskRelateToManyForUpdateInput
+  failureNote: String
+  requestedBy: UserRelateToOneForUpdateInput
+  completedBy: UserRelateToOneForUpdateInput
+  completedAt: DateTime
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input EligibilityCheckRelateToManyForUpdateInput {
+  disconnect: [EligibilityCheckWhereUniqueInput!]
+  set: [EligibilityCheckWhereUniqueInput!]
+  create: [EligibilityCheckCreateInput!]
+  connect: [EligibilityCheckWhereUniqueInput!]
+}
+
+input BenefitFactRelateToManyForUpdateInput {
+  disconnect: [BenefitFactWhereUniqueInput!]
+  set: [BenefitFactWhereUniqueInput!]
+  create: [BenefitFactCreateInput!]
+  connect: [BenefitFactWhereUniqueInput!]
+}
+
+input WorkTaskRelateToManyForUpdateInput {
+  disconnect: [WorkTaskWhereUniqueInput!]
+  set: [WorkTaskWhereUniqueInput!]
+  create: [WorkTaskCreateInput!]
+  connect: [WorkTaskWhereUniqueInput!]
+}
+
+input BenefitVerificationUpdateArgs {
+  where: BenefitVerificationWhereUniqueInput!
+  data: BenefitVerificationUpdateInput!
+}
+
+input BenefitVerificationCreateInput {
+  coverage: CoverageRelateToOneForCreateInput
+  trigger: String
+  status: String
+  completeness: String
+  eligibilityChecks: EligibilityCheckRelateToManyForCreateInput
+  facts: BenefitFactRelateToManyForCreateInput
+  tasks: WorkTaskRelateToManyForCreateInput
+  failureNote: String
+  requestedBy: UserRelateToOneForCreateInput
+  completedBy: UserRelateToOneForCreateInput
+  completedAt: DateTime
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input EligibilityCheckRelateToManyForCreateInput {
+  create: [EligibilityCheckCreateInput!]
+  connect: [EligibilityCheckWhereUniqueInput!]
+}
+
+input BenefitFactRelateToManyForCreateInput {
+  create: [BenefitFactCreateInput!]
+  connect: [BenefitFactWhereUniqueInput!]
+}
+
+input WorkTaskRelateToManyForCreateInput {
+  create: [WorkTaskCreateInput!]
+  connect: [WorkTaskWhereUniqueInput!]
+}
+
+type Coverage {
+  id: ID!
+  patient: Patient
+  subscriber: Subscriber
+  ordinal: String
+  relationship: String
+  status: String
+  verificationLevel: String
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  lastVerification: BenefitVerification
+  verifications(where: BenefitVerificationWhereInput! = {}, orderBy: [BenefitVerificationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: BenefitVerificationWhereUniqueInput): [BenefitVerification!]
+  verificationsCount(where: BenefitVerificationWhereInput! = {}): Int
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CoverageWhereUniqueInput {
+  id: ID
+}
+
+input CoverageWhereInput {
+  AND: [CoverageWhereInput!]
+  OR: [CoverageWhereInput!]
+  NOT: [CoverageWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  subscriber: SubscriberWhereInput
+  ordinal: StringFilter
+  relationship: StringFilter
+  status: StringFilter
+  verificationLevel: StringFilter
+  effectiveFrom: CalendarDayNullableFilter
+  effectiveTo: CalendarDayNullableFilter
+  lastVerification: BenefitVerificationWhereInput
+  verifications: BenefitVerificationManyRelationFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input BenefitVerificationManyRelationFilter {
+  every: BenefitVerificationWhereInput
+  some: BenefitVerificationWhereInput
+  none: BenefitVerificationWhereInput
+}
+
+input CoverageOrderByInput {
+  id: OrderDirection
+  ordinal: OrderDirection
+  relationship: OrderDirection
+  status: OrderDirection
+  verificationLevel: OrderDirection
+  effectiveFrom: OrderDirection
+  effectiveTo: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input CoverageUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  subscriber: SubscriberRelateToOneForUpdateInput
+  ordinal: String
+  relationship: String
+  status: String
+  verificationLevel: String
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  lastVerification: BenefitVerificationRelateToOneForUpdateInput
+  verifications: BenefitVerificationRelateToManyForUpdateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SubscriberRelateToOneForUpdateInput {
+  create: SubscriberCreateInput
+  connect: SubscriberWhereUniqueInput
+  disconnect: Boolean
+}
+
+input BenefitVerificationRelateToManyForUpdateInput {
+  disconnect: [BenefitVerificationWhereUniqueInput!]
+  set: [BenefitVerificationWhereUniqueInput!]
+  create: [BenefitVerificationCreateInput!]
+  connect: [BenefitVerificationWhereUniqueInput!]
+}
+
+input CoverageUpdateArgs {
+  where: CoverageWhereUniqueInput!
+  data: CoverageUpdateInput!
+}
+
+input CoverageCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  subscriber: SubscriberRelateToOneForCreateInput
+  ordinal: String
+  relationship: String
+  status: String
+  verificationLevel: String
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  lastVerification: BenefitVerificationRelateToOneForCreateInput
+  verifications: BenefitVerificationRelateToManyForCreateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SubscriberRelateToOneForCreateInput {
+  create: SubscriberCreateInput
+  connect: SubscriberWhereUniqueInput
+}
+
+input BenefitVerificationRelateToManyForCreateInput {
+  create: [BenefitVerificationCreateInput!]
+  connect: [BenefitVerificationWhereUniqueInput!]
+}
+
+type EligibilityCheck {
+  id: ID!
+  verification: BenefitVerification
+  coverage: Coverage
+  adapterKey: String
+  mode: String
+  requestHash: String
+  status: String
+  rejectionCodes: JSON
+  resultNote: String
+  attempts: Int
+  observation: InboundObservation
+  respondedAt: DateTime
+  outboxEvent: OutboxEvent
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input EligibilityCheckWhereUniqueInput {
+  id: ID
+}
+
+input EligibilityCheckWhereInput {
+  AND: [EligibilityCheckWhereInput!]
+  OR: [EligibilityCheckWhereInput!]
+  NOT: [EligibilityCheckWhereInput!]
+  id: IDFilter
+  verification: BenefitVerificationWhereInput
+  coverage: CoverageWhereInput
+  adapterKey: StringFilter
+  mode: StringFilter
+  requestHash: StringFilter
+  status: StringFilter
+  resultNote: StringFilter
+  attempts: IntFilter
+  observation: InboundObservationWhereInput
+  respondedAt: DateTimeNullableFilter
+  outboxEvent: OutboxEventWhereInput
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input EligibilityCheckOrderByInput {
+  id: OrderDirection
+  adapterKey: OrderDirection
+  mode: OrderDirection
+  requestHash: OrderDirection
+  status: OrderDirection
+  resultNote: OrderDirection
+  attempts: OrderDirection
+  respondedAt: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input EligibilityCheckUpdateInput {
+  verification: BenefitVerificationRelateToOneForUpdateInput
+  coverage: CoverageRelateToOneForUpdateInput
+  adapterKey: String
+  mode: String
+  requestHash: String
+  status: String
+  rejectionCodes: JSON
+  resultNote: String
+  attempts: Int
+  observation: InboundObservationRelateToOneForUpdateInput
+  respondedAt: DateTime
+  outboxEvent: OutboxEventRelateToOneForUpdateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input OutboxEventRelateToOneForUpdateInput {
+  create: OutboxEventCreateInput
+  connect: OutboxEventWhereUniqueInput
+  disconnect: Boolean
+}
+
+input EligibilityCheckUpdateArgs {
+  where: EligibilityCheckWhereUniqueInput!
+  data: EligibilityCheckUpdateInput!
+}
+
+input EligibilityCheckCreateInput {
+  verification: BenefitVerificationRelateToOneForCreateInput
+  coverage: CoverageRelateToOneForCreateInput
+  adapterKey: String
+  mode: String
+  requestHash: String
+  status: String
+  rejectionCodes: JSON
+  resultNote: String
+  attempts: Int
+  observation: InboundObservationRelateToOneForCreateInput
+  respondedAt: DateTime
+  outboxEvent: OutboxEventRelateToOneForCreateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input OutboxEventRelateToOneForCreateInput {
+  create: OutboxEventCreateInput
+  connect: OutboxEventWhereUniqueInput
+}
+
+type Employer {
+  id: ID!
+  name: String
+  address: JSON
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input EmployerWhereUniqueInput {
+  id: ID
+}
+
+input EmployerWhereInput {
+  AND: [EmployerWhereInput!]
+  OR: [EmployerWhereInput!]
+  NOT: [EmployerWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  isSynthetic: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input EmployerOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  isSynthetic: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input EmployerUpdateInput {
+  name: String
+  address: JSON
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input EmployerUpdateArgs {
+  where: EmployerWhereUniqueInput!
+  data: EmployerUpdateInput!
+}
+
+input EmployerCreateInput {
+  name: String
+  address: JSON
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Estimate {
+  id: ID!
+  patient: Patient
+  subjectKind: String
+  planItem: TreatmentPlanItem
+  appointment: Appointment
+  coverage: Coverage
+  ordinal: String
+  inputs: JSON
+  feeMinor: BigInt
+  allowedMinor: BigInt
+  writeOffMinor: BigInt
+  insuranceMinor: BigInt
+  patientMinor: BigInt
+  deductibleAppliedMinor: BigInt
+  maxAppliedMinor: BigInt
+  secondaryInsuranceMinor: BigInt
+  coverageStatus: String
+  confidence: String
+  reasons: JSON
+  estimatorVersion: String
+  computedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input EstimateWhereUniqueInput {
+  id: ID
+}
+
+input EstimateWhereInput {
+  AND: [EstimateWhereInput!]
+  OR: [EstimateWhereInput!]
+  NOT: [EstimateWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  subjectKind: StringFilter
+  planItem: TreatmentPlanItemWhereInput
+  appointment: AppointmentWhereInput
+  coverage: CoverageWhereInput
+  ordinal: StringFilter
+  feeMinor: BigIntFilter
+  allowedMinor: BigIntFilter
+  writeOffMinor: BigIntFilter
+  insuranceMinor: BigIntFilter
+  patientMinor: BigIntFilter
+  deductibleAppliedMinor: BigIntFilter
+  maxAppliedMinor: BigIntFilter
+  secondaryInsuranceMinor: BigIntFilter
+  coverageStatus: StringFilter
+  confidence: StringFilter
+  estimatorVersion: StringFilter
+  computedAt: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input EstimateOrderByInput {
+  id: OrderDirection
+  subjectKind: OrderDirection
+  ordinal: OrderDirection
+  feeMinor: OrderDirection
+  allowedMinor: OrderDirection
+  writeOffMinor: OrderDirection
+  insuranceMinor: OrderDirection
+  patientMinor: OrderDirection
+  deductibleAppliedMinor: OrderDirection
+  maxAppliedMinor: OrderDirection
+  secondaryInsuranceMinor: OrderDirection
+  coverageStatus: OrderDirection
+  confidence: OrderDirection
+  estimatorVersion: OrderDirection
+  computedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input EstimateUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  subjectKind: String
+  planItem: TreatmentPlanItemRelateToOneForUpdateInput
+  appointment: AppointmentRelateToOneForUpdateInput
+  coverage: CoverageRelateToOneForUpdateInput
+  ordinal: String
+  inputs: JSON
+  feeMinor: BigInt
+  allowedMinor: BigInt
+  writeOffMinor: BigInt
+  insuranceMinor: BigInt
+  patientMinor: BigInt
+  deductibleAppliedMinor: BigInt
+  maxAppliedMinor: BigInt
+  secondaryInsuranceMinor: BigInt
+  coverageStatus: String
+  confidence: String
+  reasons: JSON
+  estimatorVersion: String
+  computedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanItemRelateToOneForUpdateInput {
+  create: TreatmentPlanItemCreateInput
+  connect: TreatmentPlanItemWhereUniqueInput
+  disconnect: Boolean
+}
+
+input EstimateUpdateArgs {
+  where: EstimateWhereUniqueInput!
+  data: EstimateUpdateInput!
+}
+
+input EstimateCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  subjectKind: String
+  planItem: TreatmentPlanItemRelateToOneForCreateInput
+  appointment: AppointmentRelateToOneForCreateInput
+  coverage: CoverageRelateToOneForCreateInput
+  ordinal: String
+  inputs: JSON
+  feeMinor: BigInt
+  allowedMinor: BigInt
+  writeOffMinor: BigInt
+  insuranceMinor: BigInt
+  patientMinor: BigInt
+  deductibleAppliedMinor: BigInt
+  maxAppliedMinor: BigInt
+  secondaryInsuranceMinor: BigInt
+  coverageStatus: String
+  confidence: String
+  reasons: JSON
+  estimatorVersion: String
+  computedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input TreatmentPlanItemRelateToOneForCreateInput {
+  create: TreatmentPlanItemCreateInput
+  connect: TreatmentPlanItemWhereUniqueInput
+}
+
+type InsurancePlan {
+  id: ID!
+  payer: Payer
+  employer: Employer
+  groupName: String
+  groupNumber: String
+  planType: String
+  networkStatus: String
+  feeSchedule: FeeSchedule
+  ucrSchedule: FeeSchedule
+  benefitYearStartMonth: Int
+  annualMaxMinor: BigInt
+  orthoLifetimeMaxMinor: BigInt
+  deductibleIndividualMinor: BigInt
+  deductibleFamilyMinor: BigInt
+  currencyCode: String
+  cobMethod: String
+  benefitRules(where: BenefitRuleWhereInput! = {}, orderBy: [BenefitRuleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: BenefitRuleWhereUniqueInput): [BenefitRule!]
+  benefitRulesCount(where: BenefitRuleWhereInput! = {}): Int
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input InsurancePlanWhereUniqueInput {
+  id: ID
+}
+
+input InsurancePlanWhereInput {
+  AND: [InsurancePlanWhereInput!]
+  OR: [InsurancePlanWhereInput!]
+  NOT: [InsurancePlanWhereInput!]
+  id: IDFilter
+  payer: PayerWhereInput
+  employer: EmployerWhereInput
+  groupName: StringFilter
+  groupNumber: StringFilter
+  planType: StringFilter
+  networkStatus: StringFilter
+  feeSchedule: FeeScheduleWhereInput
+  ucrSchedule: FeeScheduleWhereInput
+  benefitYearStartMonth: IntFilter
+  annualMaxMinor: BigIntNullableFilter
+  orthoLifetimeMaxMinor: BigIntNullableFilter
+  deductibleIndividualMinor: BigIntNullableFilter
+  deductibleFamilyMinor: BigIntNullableFilter
+  currencyCode: StringFilter
+  cobMethod: StringFilter
+  benefitRules: BenefitRuleManyRelationFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input BenefitRuleManyRelationFilter {
+  every: BenefitRuleWhereInput
+  some: BenefitRuleWhereInput
+  none: BenefitRuleWhereInput
+}
+
+input InsurancePlanOrderByInput {
+  id: OrderDirection
+  groupName: OrderDirection
+  groupNumber: OrderDirection
+  planType: OrderDirection
+  networkStatus: OrderDirection
+  benefitYearStartMonth: OrderDirection
+  annualMaxMinor: OrderDirection
+  orthoLifetimeMaxMinor: OrderDirection
+  deductibleIndividualMinor: OrderDirection
+  deductibleFamilyMinor: OrderDirection
+  currencyCode: OrderDirection
+  cobMethod: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input InsurancePlanUpdateInput {
+  payer: PayerRelateToOneForUpdateInput
+  employer: EmployerRelateToOneForUpdateInput
+  groupName: String
+  groupNumber: String
+  planType: String
+  networkStatus: String
+  feeSchedule: FeeScheduleRelateToOneForUpdateInput
+  ucrSchedule: FeeScheduleRelateToOneForUpdateInput
+  benefitYearStartMonth: Int
+  annualMaxMinor: BigInt
+  orthoLifetimeMaxMinor: BigInt
+  deductibleIndividualMinor: BigInt
+  deductibleFamilyMinor: BigInt
+  currencyCode: String
+  cobMethod: String
+  benefitRules: BenefitRuleRelateToManyForUpdateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayerRelateToOneForUpdateInput {
+  create: PayerCreateInput
+  connect: PayerWhereUniqueInput
+  disconnect: Boolean
+}
+
+input EmployerRelateToOneForUpdateInput {
+  create: EmployerCreateInput
+  connect: EmployerWhereUniqueInput
+  disconnect: Boolean
+}
+
+input BenefitRuleRelateToManyForUpdateInput {
+  disconnect: [BenefitRuleWhereUniqueInput!]
+  set: [BenefitRuleWhereUniqueInput!]
+  create: [BenefitRuleCreateInput!]
+  connect: [BenefitRuleWhereUniqueInput!]
+}
+
+input InsurancePlanUpdateArgs {
+  where: InsurancePlanWhereUniqueInput!
+  data: InsurancePlanUpdateInput!
+}
+
+input InsurancePlanCreateInput {
+  payer: PayerRelateToOneForCreateInput
+  employer: EmployerRelateToOneForCreateInput
+  groupName: String
+  groupNumber: String
+  planType: String
+  networkStatus: String
+  feeSchedule: FeeScheduleRelateToOneForCreateInput
+  ucrSchedule: FeeScheduleRelateToOneForCreateInput
+  benefitYearStartMonth: Int
+  annualMaxMinor: BigInt
+  orthoLifetimeMaxMinor: BigInt
+  deductibleIndividualMinor: BigInt
+  deductibleFamilyMinor: BigInt
+  currencyCode: String
+  cobMethod: String
+  benefitRules: BenefitRuleRelateToManyForCreateInput
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayerRelateToOneForCreateInput {
+  create: PayerCreateInput
+  connect: PayerWhereUniqueInput
+}
+
+input EmployerRelateToOneForCreateInput {
+  create: EmployerCreateInput
+  connect: EmployerWhereUniqueInput
+}
+
+input BenefitRuleRelateToManyForCreateInput {
+  create: [BenefitRuleCreateInput!]
+  connect: [BenefitRuleWhereUniqueInput!]
+}
+
+type OutsideHistory {
+  id: ID!
+  patient: Patient
+  code: ProcedureCode
+  codeText: String
+  frequencyGroup: String
+  tooth: String
+  surfaces: String
+  dateOfService: CalendarDay
+  providerName: String
+  source: String
+  evidence: Document
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input OutsideHistoryWhereUniqueInput {
+  id: ID
+}
+
+input OutsideHistoryWhereInput {
+  AND: [OutsideHistoryWhereInput!]
+  OR: [OutsideHistoryWhereInput!]
+  NOT: [OutsideHistoryWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  code: ProcedureCodeWhereInput
+  codeText: StringFilter
+  frequencyGroup: StringFilter
+  tooth: StringFilter
+  surfaces: StringFilter
+  dateOfService: CalendarDayNullableFilter
+  providerName: StringFilter
+  source: StringFilter
+  evidence: DocumentWhereInput
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input OutsideHistoryOrderByInput {
+  id: OrderDirection
+  codeText: OrderDirection
+  frequencyGroup: OrderDirection
+  tooth: OrderDirection
+  surfaces: OrderDirection
+  dateOfService: OrderDirection
+  providerName: OrderDirection
+  source: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input OutsideHistoryUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  code: ProcedureCodeRelateToOneForUpdateInput
+  codeText: String
+  frequencyGroup: String
+  tooth: String
+  surfaces: String
+  dateOfService: CalendarDay
+  providerName: String
+  source: String
+  evidence: DocumentRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input OutsideHistoryUpdateArgs {
+  where: OutsideHistoryWhereUniqueInput!
+  data: OutsideHistoryUpdateInput!
+}
+
+input OutsideHistoryCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  code: ProcedureCodeRelateToOneForCreateInput
+  codeText: String
+  frequencyGroup: String
+  tooth: String
+  surfaces: String
+  dateOfService: CalendarDay
+  providerName: String
+  source: String
+  evidence: DocumentRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Payer {
+  id: ID!
+  name: String
+  kind: String
+  adapterPayerIds: JSON
+  phone: String
+  portalUrl: String
+  timelyFilingDays: Int
+  attachmentNetwork: String
+  notes: String
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayerWhereUniqueInput {
+  id: ID
+}
+
+input PayerWhereInput {
+  AND: [PayerWhereInput!]
+  OR: [PayerWhereInput!]
+  NOT: [PayerWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  kind: StringFilter
+  phone: StringFilter
+  portalUrl: StringFilter
+  timelyFilingDays: IntNullableFilter
+  attachmentNetwork: StringFilter
+  notes: StringFilter
+  isSynthetic: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PayerOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  kind: OrderDirection
+  phone: OrderDirection
+  portalUrl: OrderDirection
+  timelyFilingDays: OrderDirection
+  attachmentNetwork: OrderDirection
+  notes: OrderDirection
+  isSynthetic: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PayerUpdateInput {
+  name: String
+  kind: String
+  adapterPayerIds: JSON
+  phone: String
+  portalUrl: String
+  timelyFilingDays: Int
+  attachmentNetwork: String
+  notes: String
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayerUpdateArgs {
+  where: PayerWhereUniqueInput!
+  data: PayerUpdateInput!
+}
+
+input PayerCreateInput {
+  name: String
+  kind: String
+  adapterPayerIds: JSON
+  phone: String
+  portalUrl: String
+  timelyFilingDays: Int
+  attachmentNetwork: String
+  notes: String
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Subscriber {
+  id: ID!
+  patient: Patient
+  personName: JSON
+  dateOfBirth: CalendarDay
+  plan: InsurancePlan
+  memberIdHash: String
+  memberIdLast4: String
+  employer: Employer
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SubscriberWhereUniqueInput {
+  id: ID
+}
+
+input SubscriberWhereInput {
+  AND: [SubscriberWhereInput!]
+  OR: [SubscriberWhereInput!]
+  NOT: [SubscriberWhereInput!]
+  id: IDFilter
+  patient: PatientWhereInput
+  dateOfBirth: CalendarDayNullableFilter
+  plan: InsurancePlanWhereInput
+  memberIdHash: StringFilter
+  memberIdLast4: StringFilter
+  employer: EmployerWhereInput
+  effectiveFrom: CalendarDayNullableFilter
+  effectiveTo: CalendarDayNullableFilter
+  isSynthetic: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input SubscriberOrderByInput {
+  id: OrderDirection
+  dateOfBirth: OrderDirection
+  memberIdHash: OrderDirection
+  memberIdLast4: OrderDirection
+  effectiveFrom: OrderDirection
+  effectiveTo: OrderDirection
+  isSynthetic: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input SubscriberUpdateInput {
+  patient: PatientRelateToOneForUpdateInput
+  personName: JSON
+  dateOfBirth: CalendarDay
+  plan: InsurancePlanRelateToOneForUpdateInput
+  memberIdHash: String
+  memberIdLast4: String
+  employer: EmployerRelateToOneForUpdateInput
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SubscriberUpdateArgs {
+  where: SubscriberWhereUniqueInput!
+  data: SubscriberUpdateInput!
+}
+
+input SubscriberCreateInput {
+  patient: PatientRelateToOneForCreateInput
+  personName: JSON
+  dateOfBirth: CalendarDay
+  plan: InsurancePlanRelateToOneForCreateInput
+  memberIdHash: String
+  memberIdLast4: String
+  employer: EmployerRelateToOneForCreateInput
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  isSynthetic: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type WorkTask {
+  id: ID!
+  kind: String
+  title: String
+  taskKey: String
+  subjectType: String
+  subjectId: String
+  verification: BenefitVerification
+  assignee: User
+  dueAt: DateTime
+  status: String
+  checklist: JSON
+  result: JSON
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input WorkTaskWhereUniqueInput {
+  id: ID
+}
+
+input WorkTaskWhereInput {
+  AND: [WorkTaskWhereInput!]
+  OR: [WorkTaskWhereInput!]
+  NOT: [WorkTaskWhereInput!]
+  id: IDFilter
+  kind: StringFilter
+  title: StringFilter
+  taskKey: StringFilter
+  subjectType: StringFilter
+  subjectId: StringFilter
+  verification: BenefitVerificationWhereInput
+  assignee: UserWhereInput
+  dueAt: DateTimeNullableFilter
+  status: StringFilter
+  isSynthetic: BooleanFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input WorkTaskOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  title: OrderDirection
+  taskKey: OrderDirection
+  subjectType: OrderDirection
+  subjectId: OrderDirection
+  dueAt: OrderDirection
+  status: OrderDirection
+  isSynthetic: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input WorkTaskUpdateInput {
+  kind: String
+  title: String
+  taskKey: String
+  subjectType: String
+  subjectId: String
+  verification: BenefitVerificationRelateToOneForUpdateInput
+  assignee: UserRelateToOneForUpdateInput
+  dueAt: DateTime
+  status: String
+  checklist: JSON
+  result: JSON
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input WorkTaskUpdateArgs {
+  where: WorkTaskWhereUniqueInput!
+  data: WorkTaskUpdateInput!
+}
+
+input WorkTaskCreateInput {
+  kind: String
+  title: String
+  taskKey: String
+  subjectType: String
+  subjectId: String
+  verification: BenefitVerificationRelateToOneForCreateInput
+  assignee: UserRelateToOneForCreateInput
+  dueAt: DateTime
+  status: String
+  checklist: JSON
+  result: JSON
+  isSynthetic: Boolean
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -11551,6 +12988,84 @@ type Mutation {
   updateTreatmentPlanVersions(data: [TreatmentPlanVersionUpdateArgs!]!): [TreatmentPlanVersion]
   deleteTreatmentPlanVersion(where: TreatmentPlanVersionWhereUniqueInput!): TreatmentPlanVersion
   deleteTreatmentPlanVersions(where: [TreatmentPlanVersionWhereUniqueInput!]!): [TreatmentPlanVersion]
+  createBenefitFact(data: BenefitFactCreateInput!): BenefitFact
+  createBenefitFacts(data: [BenefitFactCreateInput!]!): [BenefitFact]
+  updateBenefitFact(where: BenefitFactWhereUniqueInput!, data: BenefitFactUpdateInput!): BenefitFact
+  updateBenefitFacts(data: [BenefitFactUpdateArgs!]!): [BenefitFact]
+  deleteBenefitFact(where: BenefitFactWhereUniqueInput!): BenefitFact
+  deleteBenefitFacts(where: [BenefitFactWhereUniqueInput!]!): [BenefitFact]
+  createBenefitRule(data: BenefitRuleCreateInput!): BenefitRule
+  createBenefitRules(data: [BenefitRuleCreateInput!]!): [BenefitRule]
+  updateBenefitRule(where: BenefitRuleWhereUniqueInput!, data: BenefitRuleUpdateInput!): BenefitRule
+  updateBenefitRules(data: [BenefitRuleUpdateArgs!]!): [BenefitRule]
+  deleteBenefitRule(where: BenefitRuleWhereUniqueInput!): BenefitRule
+  deleteBenefitRules(where: [BenefitRuleWhereUniqueInput!]!): [BenefitRule]
+  createBenefitUsage(data: BenefitUsageCreateInput!): BenefitUsage
+  createBenefitUsages(data: [BenefitUsageCreateInput!]!): [BenefitUsage]
+  updateBenefitUsage(where: BenefitUsageWhereUniqueInput!, data: BenefitUsageUpdateInput!): BenefitUsage
+  updateBenefitUsages(data: [BenefitUsageUpdateArgs!]!): [BenefitUsage]
+  deleteBenefitUsage(where: BenefitUsageWhereUniqueInput!): BenefitUsage
+  deleteBenefitUsages(where: [BenefitUsageWhereUniqueInput!]!): [BenefitUsage]
+  createBenefitVerification(data: BenefitVerificationCreateInput!): BenefitVerification
+  createBenefitVerifications(data: [BenefitVerificationCreateInput!]!): [BenefitVerification]
+  updateBenefitVerification(where: BenefitVerificationWhereUniqueInput!, data: BenefitVerificationUpdateInput!): BenefitVerification
+  updateBenefitVerifications(data: [BenefitVerificationUpdateArgs!]!): [BenefitVerification]
+  deleteBenefitVerification(where: BenefitVerificationWhereUniqueInput!): BenefitVerification
+  deleteBenefitVerifications(where: [BenefitVerificationWhereUniqueInput!]!): [BenefitVerification]
+  createCoverage(data: CoverageCreateInput!): Coverage
+  createCoverages(data: [CoverageCreateInput!]!): [Coverage]
+  updateCoverage(where: CoverageWhereUniqueInput!, data: CoverageUpdateInput!): Coverage
+  updateCoverages(data: [CoverageUpdateArgs!]!): [Coverage]
+  deleteCoverage(where: CoverageWhereUniqueInput!): Coverage
+  deleteCoverages(where: [CoverageWhereUniqueInput!]!): [Coverage]
+  createEligibilityCheck(data: EligibilityCheckCreateInput!): EligibilityCheck
+  createEligibilityChecks(data: [EligibilityCheckCreateInput!]!): [EligibilityCheck]
+  updateEligibilityCheck(where: EligibilityCheckWhereUniqueInput!, data: EligibilityCheckUpdateInput!): EligibilityCheck
+  updateEligibilityChecks(data: [EligibilityCheckUpdateArgs!]!): [EligibilityCheck]
+  deleteEligibilityCheck(where: EligibilityCheckWhereUniqueInput!): EligibilityCheck
+  deleteEligibilityChecks(where: [EligibilityCheckWhereUniqueInput!]!): [EligibilityCheck]
+  createEmployer(data: EmployerCreateInput!): Employer
+  createEmployers(data: [EmployerCreateInput!]!): [Employer]
+  updateEmployer(where: EmployerWhereUniqueInput!, data: EmployerUpdateInput!): Employer
+  updateEmployers(data: [EmployerUpdateArgs!]!): [Employer]
+  deleteEmployer(where: EmployerWhereUniqueInput!): Employer
+  deleteEmployers(where: [EmployerWhereUniqueInput!]!): [Employer]
+  createEstimate(data: EstimateCreateInput!): Estimate
+  createEstimates(data: [EstimateCreateInput!]!): [Estimate]
+  updateEstimate(where: EstimateWhereUniqueInput!, data: EstimateUpdateInput!): Estimate
+  updateEstimates(data: [EstimateUpdateArgs!]!): [Estimate]
+  deleteEstimate(where: EstimateWhereUniqueInput!): Estimate
+  deleteEstimates(where: [EstimateWhereUniqueInput!]!): [Estimate]
+  createInsurancePlan(data: InsurancePlanCreateInput!): InsurancePlan
+  createInsurancePlans(data: [InsurancePlanCreateInput!]!): [InsurancePlan]
+  updateInsurancePlan(where: InsurancePlanWhereUniqueInput!, data: InsurancePlanUpdateInput!): InsurancePlan
+  updateInsurancePlans(data: [InsurancePlanUpdateArgs!]!): [InsurancePlan]
+  deleteInsurancePlan(where: InsurancePlanWhereUniqueInput!): InsurancePlan
+  deleteInsurancePlans(where: [InsurancePlanWhereUniqueInput!]!): [InsurancePlan]
+  createOutsideHistory(data: OutsideHistoryCreateInput!): OutsideHistory
+  createOutsideHistories(data: [OutsideHistoryCreateInput!]!): [OutsideHistory]
+  updateOutsideHistory(where: OutsideHistoryWhereUniqueInput!, data: OutsideHistoryUpdateInput!): OutsideHistory
+  updateOutsideHistories(data: [OutsideHistoryUpdateArgs!]!): [OutsideHistory]
+  deleteOutsideHistory(where: OutsideHistoryWhereUniqueInput!): OutsideHistory
+  deleteOutsideHistories(where: [OutsideHistoryWhereUniqueInput!]!): [OutsideHistory]
+  createPayer(data: PayerCreateInput!): Payer
+  createPayers(data: [PayerCreateInput!]!): [Payer]
+  updatePayer(where: PayerWhereUniqueInput!, data: PayerUpdateInput!): Payer
+  updatePayers(data: [PayerUpdateArgs!]!): [Payer]
+  deletePayer(where: PayerWhereUniqueInput!): Payer
+  deletePayers(where: [PayerWhereUniqueInput!]!): [Payer]
+  createSubscriber(data: SubscriberCreateInput!): Subscriber
+  createSubscribers(data: [SubscriberCreateInput!]!): [Subscriber]
+  updateSubscriber(where: SubscriberWhereUniqueInput!, data: SubscriberUpdateInput!): Subscriber
+  updateSubscribers(data: [SubscriberUpdateArgs!]!): [Subscriber]
+  deleteSubscriber(where: SubscriberWhereUniqueInput!): Subscriber
+  deleteSubscribers(where: [SubscriberWhereUniqueInput!]!): [Subscriber]
+  createWorkTask(data: WorkTaskCreateInput!): WorkTask
+  createWorkTasks(data: [WorkTaskCreateInput!]!): [WorkTask]
+  updateWorkTask(where: WorkTaskWhereUniqueInput!, data: WorkTaskUpdateInput!): WorkTask
+  updateWorkTasks(data: [WorkTaskUpdateArgs!]!): [WorkTask]
+  deleteWorkTask(where: WorkTaskWhereUniqueInput!): WorkTask
+  deleteWorkTasks(where: [WorkTaskWhereUniqueInput!]!): [WorkTask]
   endSession: Boolean!
   authenticateUserWithPassword(email: String!, password: String!): UserAuthenticationWithPasswordResult
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
@@ -11568,6 +13083,47 @@ type Mutation {
   addContactPoint(patientId: ID!, kind: String!, value: String!, isPrimary: Boolean, idempotencyKey: String!): JSON
   deactivateContactPoint(contactPointId: ID!, reason: String!, idempotencyKey: String!): JSON
   recordConsent(contactPointId: ID!, channel: String!, purpose: String!, granted: Boolean!, source: String, evidence: JSON, reason: String, idempotencyKey: String!): JSON
+  addChartProcedure(patientId: ID!, locationId: ID!, codeId: ID!, site: JSON!, status: String, providerId: ID, appointmentId: ID, diagnosisCodes: [String!], idempotencyKey: String!): JSON
+  addChartCondition(patientId: ID!, locationId: ID!, conditionId: ID!, site: JSON!, status: String, idempotencyKey: String!): JSON
+  setConditionStatus(chartEntryId: ID!, status: String!, expectedVersion: Int!, reason: String, idempotencyKey: String!): JSON
+  removePlannedEntry(chartEntryId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+  acceptChartEntry(chartEntryId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+  scheduleChartEntry(chartEntryId: ID!, expectedVersion: Int!, appointmentId: ID!, idempotencyKey: String!): JSON
+  completeProcedure(chartEntryId: ID!, expectedVersion: Int!, providerId: ID!, dateOfService: String, feeMinor: String, idempotencyKey: String!): JSON
+  correctProcedure(chartEntryId: ID!, expectedVersion: Int!, reason: String!, replacement: JSON, idempotencyKey: String!): JSON
+  draftClinicalNote(patientId: ID!, appointmentId: ID, templateVersionId: ID, title: String, body: String, amendsNoteId: ID, refersToAt: String, idempotencyKey: String!): JSON
+  updateNoteDraft(noteId: ID!, expectedVersion: Int!, title: String, body: String!, idempotencyKey: String!): JSON
+  signClinicalNote(noteId: ID!, expectedVersion: Int!, password: String!, idempotencyKey: String!): JSON
+  markNoteEnteredInError(noteId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+  startPerioExam(patientId: ID!, locationId: ID!, examinerId: ID!, examDate: String, idempotencyKey: String!): JSON
+  recordPerioMeasurements(examId: ID!, expectedVersion: Int!, measurements: [JSON!], findings: [JSON!], idempotencyKey: String!): JSON
+  completePerioExam(examId: ID!, expectedVersion: Int!, password: String!, classificationInputs: JSON, idempotencyKey: String!): JSON
+  confirmPerioClassification(classificationId: ID!, expectedVersion: Int!, stage: String!, grade: String!, reason: String, idempotencyKey: String!): JSON
+  reviseSignedPerioExam(examId: ID!, reason: String!, idempotencyKey: String!): JSON
+  logAnesthetic(patientId: ID!, appointmentId: ID, drug: String!, concentration: String, vasoconstrictor: String, carpules: String!, injectionSites: [String!], idempotencyKey: String!): JSON
+  recordVitals(patientId: ID!, appointmentId: ID, systolic: Int, diastolic: Int, pulse: Int, asaClass: String, idempotencyKey: String!): JSON
+  submitMedicalHistory(patientId: ID!, formId: ID!, answers: JSON!, via: String, idempotencyKey: String!): JSON
+  reviewMedicalHistory(responseId: ID!, expectedVersion: Int!, acknowledgedChanges: [String!]!, overrideReason: String, password: String!, idempotencyKey: String!): JSON
+  addMedication(patientId: ID!, name: String!, dose: String, frequency: String, idempotencyKey: String!): JSON
+  endMedication(medicationId: ID!, idempotencyKey: String!): JSON
+  buildTreatmentPlan(patientId: ID!, title: String!, chartEntryIds: [ID!]!, idempotencyKey: String!): JSON
+  updatePlanItem(itemId: ID!, phaseKey: String, priority: String, alternateGroup: String, feeMinor: String, idempotencyKey: String!): JSON
+  presentTreatmentPlan(planId: ID!, expectedVersion: Int!, channel: String, idempotencyKey: String!): JSON
+  acceptTreatmentPlan(planId: ID!, expectedVersion: Int!, versionHash: String!, selectedItemIds: [ID!]!, signer: String!, signerName: String!, password: String!, idempotencyKey: String!): JSON
+  declineTreatmentPlan(planId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+  reviseTreatmentPlan(planId: ID!, reason: String!, idempotencyKey: String!): JSON
+  requestForm(patientId: ID!, templateVersionId: ID!, channel: String, idempotencyKey: String!): JSON
+  submitForm(requestId: ID!, expectedVersion: Int!, data: JSON!, signerName: String!, signerRole: String!, password: String!, witnessUserId: ID, idempotencyKey: String!): JSON
+  withdrawConsent(consentId: ID!, reason: String!, idempotencyKey: String!): JSON
+  publishFormVersion(templateKey: String!, body: String!, fields: [JSON!], requiresWitness: Boolean, idempotencyKey: String!): JSON
+  recordImagingStudy(patientId: ID!, modality: String!, teeth: [String!], acquiredAt: String, idempotencyKey: String!): JSON
+  uploadCodeImport(systemKey: String!, label: String!, editionYear: Int!, fileName: String!, rows: [JSON!]!, idempotencyKey: String!): JSON
+  attestCodeLicence(batchId: ID!, expectedVersion: Int!, licenceType: String!, licenceHolder: String!, agreementRef: String!, idempotencyKey: String!): JSON
+  requestCodeActivation(batchId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+  openFeeSchedule(name: String!, kind: String!, isDefault: Boolean, idempotencyKey: String!): JSON
+  createFeeVersion(scheduleId: ID!, label: String!, effectiveFrom: String!, idempotencyKey: String!): JSON
+  setFee(versionId: ID!, codeId: ID!, amountMinor: String!, copayMinor: String, idempotencyKey: String!): JSON
+  requestFeePublish(versionId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
   addPatientAlert(patientId: ID!, kind: String!, severity: String!, text: String!, idempotencyKey: String!): JSON
   endPatientAlert(alertId: ID!, reason: String!, idempotencyKey: String!): JSON
   linkGuarantor(patientId: ID!, guarantorPatientId: ID, personName: JSON, relationship: String!, idempotencyKey: String!): JSON
@@ -11943,6 +13499,45 @@ type Query {
   treatmentPlanVersion(where: TreatmentPlanVersionWhereUniqueInput!): TreatmentPlanVersion
   treatmentPlanVersions(where: TreatmentPlanVersionWhereInput! = {}, orderBy: [TreatmentPlanVersionOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: TreatmentPlanVersionWhereUniqueInput): [TreatmentPlanVersion!]
   treatmentPlanVersionsCount(where: TreatmentPlanVersionWhereInput! = {}): Int
+  benefitFact(where: BenefitFactWhereUniqueInput!): BenefitFact
+  benefitFacts(where: BenefitFactWhereInput! = {}, orderBy: [BenefitFactOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: BenefitFactWhereUniqueInput): [BenefitFact!]
+  benefitFactsCount(where: BenefitFactWhereInput! = {}): Int
+  benefitRule(where: BenefitRuleWhereUniqueInput!): BenefitRule
+  benefitRules(where: BenefitRuleWhereInput! = {}, orderBy: [BenefitRuleOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: BenefitRuleWhereUniqueInput): [BenefitRule!]
+  benefitRulesCount(where: BenefitRuleWhereInput! = {}): Int
+  benefitUsage(where: BenefitUsageWhereUniqueInput!): BenefitUsage
+  benefitUsages(where: BenefitUsageWhereInput! = {}, orderBy: [BenefitUsageOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: BenefitUsageWhereUniqueInput): [BenefitUsage!]
+  benefitUsagesCount(where: BenefitUsageWhereInput! = {}): Int
+  benefitVerification(where: BenefitVerificationWhereUniqueInput!): BenefitVerification
+  benefitVerifications(where: BenefitVerificationWhereInput! = {}, orderBy: [BenefitVerificationOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: BenefitVerificationWhereUniqueInput): [BenefitVerification!]
+  benefitVerificationsCount(where: BenefitVerificationWhereInput! = {}): Int
+  coverage(where: CoverageWhereUniqueInput!): Coverage
+  coverages(where: CoverageWhereInput! = {}, orderBy: [CoverageOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: CoverageWhereUniqueInput): [Coverage!]
+  coveragesCount(where: CoverageWhereInput! = {}): Int
+  eligibilityCheck(where: EligibilityCheckWhereUniqueInput!): EligibilityCheck
+  eligibilityChecks(where: EligibilityCheckWhereInput! = {}, orderBy: [EligibilityCheckOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: EligibilityCheckWhereUniqueInput): [EligibilityCheck!]
+  eligibilityChecksCount(where: EligibilityCheckWhereInput! = {}): Int
+  employer(where: EmployerWhereUniqueInput!): Employer
+  employers(where: EmployerWhereInput! = {}, orderBy: [EmployerOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: EmployerWhereUniqueInput): [Employer!]
+  employersCount(where: EmployerWhereInput! = {}): Int
+  estimate(where: EstimateWhereUniqueInput!): Estimate
+  estimates(where: EstimateWhereInput! = {}, orderBy: [EstimateOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: EstimateWhereUniqueInput): [Estimate!]
+  estimatesCount(where: EstimateWhereInput! = {}): Int
+  insurancePlan(where: InsurancePlanWhereUniqueInput!): InsurancePlan
+  insurancePlans(where: InsurancePlanWhereInput! = {}, orderBy: [InsurancePlanOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: InsurancePlanWhereUniqueInput): [InsurancePlan!]
+  insurancePlansCount(where: InsurancePlanWhereInput! = {}): Int
+  outsideHistory(where: OutsideHistoryWhereUniqueInput!): OutsideHistory
+  outsideHistories(where: OutsideHistoryWhereInput! = {}, orderBy: [OutsideHistoryOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: OutsideHistoryWhereUniqueInput): [OutsideHistory!]
+  outsideHistoriesCount(where: OutsideHistoryWhereInput! = {}): Int
+  payer(where: PayerWhereUniqueInput!): Payer
+  payers(where: PayerWhereInput! = {}, orderBy: [PayerOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: PayerWhereUniqueInput): [Payer!]
+  payersCount(where: PayerWhereInput! = {}): Int
+  subscriber(where: SubscriberWhereUniqueInput!): Subscriber
+  subscribers(where: SubscriberWhereInput! = {}, orderBy: [SubscriberOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: SubscriberWhereUniqueInput): [Subscriber!]
+  subscribersCount(where: SubscriberWhereInput! = {}): Int
+  workTask(where: WorkTaskWhereUniqueInput!): WorkTask
+  workTasks(where: WorkTaskWhereInput! = {}, orderBy: [WorkTaskOrderByInput!]! = [], take: Int, skip: Int! = 0, cursor: WorkTaskWhereUniqueInput): [WorkTask!]
+  workTasksCount(where: WorkTaskWhereInput! = {}): Int
   keystone: KeystoneMeta!
   authenticatedItem: AuthenticatedItem
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult

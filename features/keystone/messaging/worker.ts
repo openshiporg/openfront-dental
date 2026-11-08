@@ -6,6 +6,7 @@ import { drainOutbox, type ClaimedMessage, type OutboxHandlers } from '../lib/ou
 import { expireHolds, sweepNoShows } from '../mutations/scheduling'
 import { adapterFor } from './adapters'
 import { messagingHandlers } from './dispatch'
+import { eligibilityHandlers } from './eligibilityWorker'
 
 /*
  * The Phase 1 background worker: one tick drains the outbox (confirmation dispatch, outbound
@@ -51,7 +52,7 @@ function staffHandlers(db: Db): OutboxHandlers {
 }
 
 export function phase1Handlers(db: Db): OutboxHandlers {
-  return { ...staffHandlers(db), ...messagingHandlers(db) }
+  return { ...staffHandlers(db), ...messagingHandlers(db), ...eligibilityHandlers(db) }
 }
 
 export async function runWorkerTick(db: Db, options: { workerId?: string; now?: () => Date } = {}) {
