@@ -1,0 +1,5 @@
+{
+  "controlNumber": "000000002",
+  "planStatus": [{ "statusCode": "6", "status": "Inactive" }],
+  "benefitsInformation": [{ "code": "6", "name": "Inactive", "serviceTypeCodes": ["35"] }]
+}
