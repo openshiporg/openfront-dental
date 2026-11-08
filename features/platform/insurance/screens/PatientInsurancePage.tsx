@@ -11,6 +11,12 @@ const SOURCES = ['payer_portal', 'payer_phone', 'fax_breakdown', 'prior_eob', 'p
 const FIELDS = ['coverage_active', 'annual_max', 'annual_max_used', 'deductible', 'deductible_met', 'coverage_pct', 'frequency_limit', 'waiting_period', 'missing_tooth_clause', 'downgrade', 'cob_method', 'age_limit', 'non_covered'];
 const CATEGORIES = ['preventive', 'basic', 'major', 'orthodontic'];
 
+const STILL_TO_ASK: Record<string, string> = {
+  'Ask the payer for frequency limits': 'frequency limits', 'Ask about waiting periods': 'waiting periods', 'Ask if a missing-tooth clause applies': 'whether a missing-tooth clause applies',
+  'Ask about downgrade (alternate benefit) rules': 'downgrade (alternate benefit) rules', 'Ask which coordination-of-benefits method applies': 'which coordination-of-benefits method applies',
+  'Ask what frequencies are already used this year': 'what frequencies are already used this year', 'Ask for procedures done elsewhere': 'treatment done elsewhere',
+  'Ask for coverage percentages': 'coverage percentages', 'Ask for the annual maximum': 'the annual maximum',
+};
 const fieldName = (f: string) => title(f);
 const categoryText = (a: any) => (a?.category ? ` · ${title(a.category)}` : a?.group ? ` · ${a.group === 'recall' ? 'cleanings and exams' : a.group}` : '');
 
@@ -102,7 +108,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
                 <span className="min-w-0 max-w-[55%] shrink-0 text-right"><span className={f.isUnknown ? 'text-amber-700' : ''}>{factText(f)}</span><br /><Meta>{title(f.source)} · {calendarDate(f.observedAt)}</Meta></span>
               </Row>
             )) : <Empty>No benefits recorded. Insurance is not assumed to pay anything.</Empty>}
-            {v?.tasks?.length ? <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Still to ask: {v.tasks.map((t: any) => t.title.replace(/^Ask (the payer )?(for |about |if |which |what )?/i, '').replace(/^./, (ch: string) => ch.toLowerCase())).join('; ')}</div> : null}
+            {v?.tasks?.length ? <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Still to ask: {v.tasks.map((t: any) => STILL_TO_ASK[t.title] ?? t.title).join('; ')}</div> : null}
             <div className="flex flex-wrap gap-2">
               {v && ['in_progress'].includes(v.status) ? <ActionButton op="completeVerification" vars={{ verificationId: v.id, expectedVersion: v.version }} paths={paths}>Finish verification</ActionButton> : <ActionButton op="requestVerification" vars={{ coverageId: c.id }} paths={paths}>Verify benefits</ActionButton>}
               {c.ordinal !== 'primary' ? <ActionButton op="setCoverageOrder" vars={{ coverageId: c.id, ordinal: 'primary' }} ask="Why is this now the primary plan?" paths={paths}>Make primary</ActionButton> : null}
