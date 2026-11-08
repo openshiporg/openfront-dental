@@ -49,11 +49,12 @@ export default async function PatientInsurancePage({ params }: { params: Promise
       id ordinal relationship status verificationLevel version effectiveFrom effectiveTo
       subscriber { memberIdLast4 plan { id groupName planType networkStatus annualMaxMinor payer { name } } }
       verifications(orderBy: { createdAt: desc }, take: 1) { id status version completeness completedAt eligibilityChecks { id status resultNote } tasks(where: { status: { in: ["open", "in_progress"] } }) { id title } }
-      from_BenefitFact_coverage(orderBy: { createdAt: desc }, take: 60) { id field appliesTo valueJson isUnknown source observedAt }
     }
+    benefitFacts(where: { coverage: { patient: { id: { equals: $id } } } }, orderBy: { createdAt: desc }, take: 200) { id field appliesTo valueJson isUnknown source observedAt coverage { id } }
+    estimates(where: { patient: { id: { equals: $id } } }, orderBy: { computedAt: desc }, take: 200) { id coverageStatus confidence insuranceMinor patientMinor planItem { id } }
     outsideHistories(where: { patient: { id: { equals: $id } } }, orderBy: { dateOfService: desc }, take: 20) { id codeText dateOfService providerName source }
     treatmentPlans(where: { patient: { id: { equals: $id } }, status: { in: ["draft", "presented", "accepted"] } }, orderBy: { createdAt: desc }, take: 3) {
-      id ref title currentVersion { items(orderBy: { sortOrder: asc }) { id feeMinor chartEntry { tooth code { code patientFriendlyName nomenclature } } from_Estimate_planItem(orderBy: { computedAt: desc }, take: 1) { id coverageStatus confidence insuranceMinor patientMinor } } }
+      id ref title currentVersion { items(orderBy: { sortOrder: asc }) { id feeMinor chartEntry { tooth code { code patientFriendlyName nomenclature } } } }
     }
   }`, { id }), practiceTimeZone()]);
   if (!d.patient) notFound();
@@ -67,7 +68,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
       <div className="flex flex-wrap items-center gap-3"><span className="font-mono text-sm text-muted-foreground">{chartLabel(p.chartNumber)}</span></div>
       {current.length ? current.map((c) => {
         const v = c.verifications[0];
-        const facts = c.from_BenefitFact_coverage as any[];
+        const facts = (d.benefitFacts as any[]).filter((f) => f.coverage?.id === c.id);
         const latest = new Map<string, any>();
         for (const f of facts) { const key = `${f.field}|${JSON.stringify(f.appliesTo)}`; const have = latest.get(key); if (!have || (have.isUnknown && !f.isUnknown)) latest.set(key, f); }
         const rows = [...latest.values()].sort((a, b) => a.field.localeCompare(b.field));
@@ -120,7 +121,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
             <div className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm font-medium">{plan.ref} · {plan.title}</span>
               <ActionButton op="estimateTreatmentPlan" vars={{ planId: plan.id }} paths={paths}>Estimate</ActionButton></div>
             {(plan.currentVersion?.items ?? []).map((i: any) => {
-              const e = i.from_Estimate_planItem[0];
+              const e = (d.estimates as any[]).find((x) => x.planItem?.id === i.id);
               const name = i.chartEntry?.code?.patientFriendlyName || i.chartEntry?.code?.nomenclature || 'Procedure';
               return e ? <EstimateLine key={i.id} e={e} name={name} /> : <Row key={i.id}><span>{name}</span><Meta>Not estimated · {money(i.feeMinor)} fee</Meta></Row>;
             })}
