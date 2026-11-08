@@ -27,12 +27,12 @@ export async function PerioTab({ id, p, providers, examId, href, paths }: { id: 
     );
   }
   const prior = exams.find((e) => e.id !== exam.id && e.status === 'completed' && new Date(e.examDate) <= new Date(exam.examDate) && e.revision <= exam.revision && e.id !== exam.id);
-  const data = await q<any>(`query Exam($e: ID!, $prior: ID) {
+  const data = await q<any>(`query Exam($e: ID!, $prior: ID!) {
     perioSiteMeasurements(where: { exam: { id: { equals: $e } } }, take: 600) { tooth site probingDepthMm gingivalMarginMm bleeding suppuration plaque }
     perioToothFindings(where: { exam: { id: { equals: $e } } }, take: 40) { tooth mobility furcation missing implant }
     perioClassifications(where: { exam: { id: { equals: $e } } }) { id suggestedStage suggestedGrade extent inputs confirmedStage confirmedGrade status version }
     prior: perioSiteMeasurements(where: { exam: { id: { equals: $prior } } }, take: 600) { tooth site probingDepthMm gingivalMarginMm }
-  }`, { e: exam.id, prior: prior?.id ?? '' });
+  }`, { e: exam.id, prior: prior?.id ?? 'none' });
   const rows = data.perioSiteMeasurements as any[];
   const by = new Map(rows.map((r) => [`${r.tooth}-${r.site}`, r]));
   const mobility = new Map((data.perioToothFindings as any[]).map((f) => [f.tooth, f]));

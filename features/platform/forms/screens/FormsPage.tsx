@@ -12,7 +12,8 @@ export default async function FormsPage({ searchParams }: { searchParams?: Promi
   const tab = TABS.some(([k]) => k === sp.tab) ? (sp.tab as string) : 'requests';
   const d = await q<any>(`{
     formRequests(where: { status: { in: ["requested", "opened"] } }, orderBy: { createdAt: desc }, take: 60) { id status version channel createdAt expiresAt patient { id chartNumber firstName lastName } template { id number template { title } } }
-    consentRecords(orderBy: { signedAt: desc }, take: 60) { id signerName signerRole signedAt patient { id chartNumber firstName lastName } templateVersion { number template { title kind } } actions { kind at reason } }
+    consentRecords(orderBy: { signedAt: desc }, take: 60) { id signerName signerRole signedAt patient { id chartNumber firstName lastName } templateVersion { number template { title kind } } }
+    consentActions(where: { kind: { in: ["withdraw", "expire"] } }, take: 200) { kind at reason record { id } }
     formTemplates(orderBy: { title: asc }) { id key kind title versions(orderBy: { number: desc }) { id number status requiresWitness contentHash body } }
     pendingCount: formRequestsCount(where: { status: { in: ["requested", "opened"] } })
     patients(where: { status: { equals: "active" } }, orderBy: { lastName: asc }, take: 120) { id chartNumber firstName lastName }
@@ -55,7 +56,7 @@ export default async function FormsPage({ searchParams }: { searchParams?: Promi
       {tab === 'consents' ? (
         <Section title="Signed consents">
           {(d.consentRecords as any[]).length ? (d.consentRecords as any[]).map((c) => {
-            const withdrawn = (c.actions as any[]).find((a) => a.kind === 'withdraw' || a.kind === 'expire');
+            const withdrawn = (d.consentActions as any[]).find((a) => a.record?.id === c.id);
             return (
               <Row key={c.id}>
                 <span className="min-w-0"><TitleLine status={withdrawn ? 'revoked' : 'active'}><span className="font-medium">{c.templateVersion?.template?.title}</span></TitleLine><Meta>{who(c.patient)} · signed by {c.signerName} ({title(c.signerRole)}) · {when(c.signedAt, undefined, 'dayTime')}{withdrawn ? ` · withdrawn: ${withdrawn.reason}` : ''}</Meta></span>

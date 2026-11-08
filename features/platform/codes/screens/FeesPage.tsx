@@ -15,7 +15,8 @@ export default async function FeesPage({ searchParams }: { searchParams?: Promis
   const first = schedules.flatMap((s) => s.versions)[0];
   const versionId = sp.version ?? first?.id;
   const selected = versionId ? schedules.flatMap((s) => s.versions.map((v: any) => ({ ...v, schedule: s }))).find((v) => v.id === versionId) : null;
-  const fees = selected ? (await q<any>(`query F($v: ID!) { fees(where: { feeVersion: { id: { equals: $v } } }, orderBy: { code: { code: asc } }, take: 300) { id amountMinor copayMinor code { code nomenclature } } }`, { v: selected.id })).fees as any[] : [];
+  let fees = selected ? (await q<any>(`query F($v: ID!) { fees(where: { feeVersion: { id: { equals: $v } } }, take: 300) { id amountMinor copayMinor code { code nomenclature } } }`, { v: selected.id })).fees as any[] : [];
+  fees.sort((a, b) => String(a.code.code).localeCompare(String(b.code.code)));
   const paths = ['/dashboard/platform/fees'];
   return (
     <Page title="Fee schedules">
