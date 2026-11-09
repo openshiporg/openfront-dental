@@ -9,7 +9,7 @@ import { CommandForm } from '../../components/CommandForm';
 export default async function RemittancesPage() {
   const [d, tz] = await Promise.all([q<any>(`{
     remittances(orderBy: { createdAt: desc }, take: 40) { id ref status traceNumber paymentDate totalPaidMinor paymentMethod exceptionNote payer { name } createdAt }
-    held: remittanceClaims(where: { claim: { is: null } }, orderBy: { createdAt: desc }, take: 40) { id patientControlNumber paidMinor chargeMinor remittance { ref payer { name } } }
+    held: remittanceClaims(where: { claim: null }, orderBy: { createdAt: desc }, take: 40) { id patientControlNumber paidMinor chargeMinor remittance { ref payer { name } } }
     denials(where: { status: { in: ["open", "working"] } }, orderBy: { createdAt: asc }, take: 40) { id carc preventableClass status amountMinor claim { id ref patient { firstName lastName } } }
     denialReasonMaps { carc suggestedAction }
     payers(orderBy: { name: asc }, take: 100) { id name }
