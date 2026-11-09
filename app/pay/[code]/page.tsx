@@ -23,7 +23,7 @@ export default async function PayPage({ params }: { params: Promise<{ code: stri
   const owed = BigInt(view.owedMinor)
   return (
     <main className="mx-auto min-h-dvh max-w-xl px-5 py-8">
-      <p className="text-sm text-neutral-600">{view.practiceName}{view.locationName ? ` · ${view.locationName}` : ''}</p>
+      <p className="text-sm text-neutral-600">{view.locationName.startsWith(view.practiceName) ? view.locationName : `${view.practiceName}${view.locationName ? ` · ${view.locationName}` : ''}`}</p>
       <h1 className="mt-1 text-2xl font-semibold">Your statement</h1>
       <p className="text-sm text-neutral-600">Statement {view.ref} · due {day(view.dueDate)}</p>
       <section className="mt-5 rounded-xl border border-neutral-200 p-4">
