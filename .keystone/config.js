@@ -2944,8 +2944,13 @@ var BenefitRule = (0, import_core16.list)({
     ...trackingFields
   }
 });
+var subscriberScope = ({ session }) => {
+  const where = patientFilter(["patient"])({ session });
+  if (where === false || where === true) return where;
+  return { OR: [where, { coverages: { some: where } }] };
+};
 var Subscriber = (0, import_core16.list)({
-  access: governed(INS_READ),
+  access: scopedGoverned(INS_READ, subscriberScope),
   ui: { labelField: "memberIdLast4", listView: { initialColumns: ["plan", "memberIdLast4", "effectiveFrom", "effectiveTo"] } },
   fields: {
     patient: (0, import_fields16.relationship)({ ref: "Patient", ...readOnly }),
@@ -2953,8 +2958,11 @@ var Subscriber = (0, import_core16.list)({
     dateOfBirth: (0, import_fields16.calendarDay)({ ...readOnly }),
     plan: (0, import_fields16.relationship)({ ref: "InsurancePlan", ...readOnly }),
     memberIdSecret: (0, import_fields16.relationship)({ ref: "SecretBox", access: { read: import_access13.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
-    memberIdHash: systemText({ indexed: true }),
-    memberIdLast4: systemText(),
+    // The keyed hash (HMAC under the server key) is for matching in server code only: no role reads, filters or sorts it.
+    memberIdHash: (0, import_fields16.text)({ isIndexed: true, access: { read: import_access13.denyAll, create: import_access13.denyAll, update: import_access13.denyAll }, isFilterable: false, isOrderable: false, ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "hidden" } } }),
+    // The last four are shown, but never searched on: a filter on them is a guessing oracle for the rest.
+    memberIdLast4: (0, import_fields16.text)({ isFilterable: false, isOrderable: false, access: { create: () => false, update: () => false }, ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "read" } } }),
+    coverages: (0, import_fields16.relationship)({ ref: "Coverage.subscriber", many: true, ...readOnly }),
     employer: (0, import_fields16.relationship)({ ref: "Employer", ...readOnly }),
     effectiveFrom: (0, import_fields16.calendarDay)({ ...readOnly }),
     effectiveTo: (0, import_fields16.calendarDay)({ ...readOnly }),
@@ -2967,7 +2975,7 @@ var Coverage = (0, import_core16.list)({
   ui: { labelField: "id", listView: { initialColumns: ["patient", "ordinal", "status", "verificationLevel", "effectiveFrom"] } },
   fields: {
     patient: (0, import_fields16.relationship)({ ref: "Patient", ...readOnly }),
-    subscriber: (0, import_fields16.relationship)({ ref: "Subscriber", ...readOnly }),
+    subscriber: (0, import_fields16.relationship)({ ref: "Subscriber.coverages", ...readOnly }),
     ordinal: fixedChoice(ORDINALS),
     relationship: fixedChoice(RELATIONSHIPS),
     status: lifecycle(COVERAGE_STATUSES),
@@ -3380,21 +3388,21 @@ var prismaCodeOf = (error) => String(error?.code ?? error?.extensions?.prisma?.c
 var isUniqueConflict = (error) => prismaCodeOf(error) === "P2002" || /Unique constraint failed|duplicate key value violates unique constraint/i.test(textOf(error));
 function dbRefusal(error) {
   const e = error;
-  const text15 = textOf(e);
+  const text16 = textOf(e);
   if (isUniqueConflict(e)) {
     const model = String(e?.meta?.modelName ?? e?.extensions?.prisma?.meta?.modelName ?? "");
-    const index = /unique constraint "([^"]+)"/i.exec(text15)?.[1] ?? "";
-    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text15) ? "BenefitVerification" : /EligibilityCheck/.test(text15) ? "EligibilityCheck" : "");
+    const index = /unique constraint "([^"]+)"/i.exec(text16)?.[1] ?? "";
+    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text16) ? "BenefitVerification" : /EligibilityCheck/.test(text16) ? "EligibilityCheck" : "");
     return new DomainError(Codes.STALE_STATE, UNIQUE_MESSAGES[key] ?? "Someone else made the same change at the same moment. Refresh and try again.");
   }
-  const check = /violates check constraint "([^"]+)"/i.exec(text15)?.[1];
+  const check = /violates check constraint "([^"]+)"/i.exec(text16)?.[1];
   if (check) {
     const message = CHECK_MESSAGES.find(([pattern]) => pattern.test(check))?.[1] ?? "The change was refused because it would break a practice rule. Nothing was changed.";
     return new DomainError(Codes.GUARD_FAILED, message, { reason: check });
   }
-  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text15)?.[1];
-  if (raised && /23514|check_violation|RAISE|P0001/i.test(text15 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
-  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text15)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
+  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text16)?.[1];
+  if (raised && /23514|check_violation|RAISE|P0001/i.test(text16 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
+  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text16)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
   return null;
 }
 
@@ -3520,9 +3528,9 @@ function dec(value) {
     if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
     return new Decimal(value);
   }
-  const text15 = String(value).trim();
-  if (!DECIMAL_TEXT.test(text15)) throw new Error(`Not a decimal number: ${JSON.stringify(text15).slice(0, 40)}`);
-  return new Decimal(text15);
+  const text16 = String(value).trim();
+  if (!DECIMAL_TEXT.test(text16)) throw new Error(`Not a decimal number: ${JSON.stringify(text16).slice(0, 40)}`);
+  return new Decimal(text16);
 }
 function toScale(value, scale, rounding = Decimal.ROUND_HALF_EVEN) {
   const places = typeof scale === "number" ? scale : Scale[scale];
@@ -3554,7 +3562,14 @@ function canonicalize(value) {
   throw new Error(`Canonical JSON cannot hold a ${typeof value}`);
 }
 var canonicalJson = (value) => JSON.stringify(canonicalize(value));
-var sha256 = (text15) => (0, import_node_crypto2.createHash)("sha256").update(text15).digest("hex");
+var sha256 = (text16) => (0, import_node_crypto2.createHash)("sha256").update(text16).digest("hex");
+var memberIdHash = (memberId, keyText = process.env.DENTAL_SECRET_KEY) => {
+  const text16 = String(keyText || "").trim();
+  if (!text16) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
+  const root = /^[a-f0-9]{64}$/i.test(text16) ? Buffer.from(text16, "hex") : Buffer.from(text16, "base64");
+  const key = (0, import_node_crypto2.createHmac)("sha256", root).update("dental.member-id-hash.v1").digest();
+  return `h1:${(0, import_node_crypto2.createHmac)("sha256", key).update(memberId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")).digest("hex")}`;
+};
 var payloadHash = (value) => sha256(canonicalJson(value));
 var toJsonValue = (value) => canonicalize(value);
 
@@ -4920,9 +4935,9 @@ async function seedPracticePlatform(uow, actor2) {
 var import_node_crypto4 = require("node:crypto");
 var SECRET_KEY_VERSION = 1;
 function decodeKey(value) {
-  const text15 = String(value || "").trim();
-  if (!text15) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
-  const key = /^[a-f0-9]{64}$/i.test(text15) ? Buffer.from(text15, "hex") : Buffer.from(text15, "base64");
+  const text16 = String(value || "").trim();
+  if (!text16) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
+  const key = /^[a-f0-9]{64}$/i.test(text16) ? Buffer.from(text16, "hex") : Buffer.from(text16, "base64");
   if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
   return key;
 }
@@ -4963,7 +4978,7 @@ var PLANS = [
   { id: "seed_plan_evergreen_ppo", payer: "seed_payer_evergreen", group: "Lantern Street Bakery", number: "GRP-77310", type: "ppo", net: "in_network", fee: "seed_fee_ppo", cob: "non_duplication", max: 100000n, ded: 5000n },
   { id: "seed_plan_coastal_mcd", payer: "seed_payer_coastal", group: "Coastal State Medicaid", number: "", type: "medicaid", net: "in_network", fee: null, cob: "unknown", max: null, ded: null }
 ];
-var SEED_TASK_TITLES = { frequency_limit: "Ask the payer for frequency limits", waiting_period: "Ask about waiting periods", cob_method: "Ask which coordination-of-benefits method applies" };
+var SEED_TASK_TITLES = { frequency_limit: "Ask the payer for frequency limits", waiting_period: "Ask about waiting periods", cob_method: "Ask the payer: COB method" };
 var FULL_FACTS = (maxLeft, dedLeft) => [
   ["coverage_active", {}, { active: true }],
   ["annual_max", { level: "individual" }, { amountMinor: "150000" }],
@@ -5002,7 +5017,7 @@ async function seedPhase3(uow, actor2) {
     const [planId, state] = layout[index];
     const memberId = members[index];
     const sid = `seed_sub_${index + 1}`, cid = `seed_cov_${index + 1}`, vid = `seed_ver_${index + 1}`;
-    rows.subscribers.push({ id: sid, patientId: patient.id, planId, memberIdSecretId: secrets[index].id, memberIdHash: sha256(memberId), memberIdLast4: memberId.slice(-4), dateOfBirth: patient.dateOfBirth, effectiveFrom: day3("2026-01-01"), isSynthetic: true });
+    rows.subscribers.push({ id: sid, patientId: patient.id, planId, memberIdSecretId: secrets[index].id, memberIdHash: memberIdHash(memberId), memberIdLast4: memberId.slice(-4), dateOfBirth: patient.dateOfBirth, effectiveFrom: day3("2026-01-01"), isSynthetic: true });
     rows.coverages.push({ id: cid, patientId: patient.id, subscriberId: sid, ordinal: "primary", relationship: "self", status: state === "none" ? "pending_verification" : "active", verificationLevel: "unverified", effectiveFrom: day3("2026-01-01"), isSynthetic: true });
     if (state === "none") continue;
     rows.verifications.push({ id: vid, coverageId: cid, trigger: "staff", status: "completed", completeness: state === "full" ? "complete" : "partial", completedAt: now, isSynthetic: true });
@@ -5011,7 +5026,7 @@ async function seedPhase3(uow, actor2) {
     if (state === "partial") {
       for (const field of ["frequency_limit", "waiting_period", "cob_method"]) {
         rows.facts.push({ verificationId: vid, coverageId: cid, field, appliesTo: {}, valueJson: {}, isUnknown: true, source: "payer_portal", observedAt: now });
-        rows.tasks.push({ kind: "verification_checklist", title: SEED_TASK_TITLES[field] ?? `Confirm ${field.replaceAll("_", " ")}`, taskKey: field, subjectType: "Coverage", subjectId: cid, verificationId: vid, dueAt: new Date(now.getTime() + 2 * 864e5), checklist: { field }, isSynthetic: true });
+        rows.tasks.push({ kind: "verification_checklist", title: SEED_TASK_TITLES[field] ?? `Ask the payer: ${field.replaceAll("_", " ")}`, taskKey: field, subjectType: "Coverage", subjectId: cid, verificationId: vid, dueAt: new Date(now.getTime() + 2 * 864e5), checklist: { field }, isSynthetic: true });
       }
     }
     rows.levels.push([cid, vid, state === "full" ? "verified_full" : "verified_partial"]);
@@ -5025,7 +5040,7 @@ async function seedPhase3(uow, actor2) {
   if (patients[0]) {
     const evgMember = "EVG-5501-K";
     const secret4 = await storeSecret(tx, "subscriber.memberId", evgMember);
-    await tx.subscriber.create({ data: { id: "seed_sub_evg_1", patientId: patients[0].id, planId: "seed_plan_evergreen_ppo", memberIdSecretId: secret4.id, memberIdHash: sha256(evgMember), memberIdLast4: evgMember.slice(-4), dateOfBirth: patients[0].dateOfBirth, effectiveFrom: day3("2026-01-01"), isSynthetic: true } });
+    await tx.subscriber.create({ data: { id: "seed_sub_evg_1", patientId: patients[0].id, planId: "seed_plan_evergreen_ppo", memberIdSecretId: secret4.id, memberIdHash: memberIdHash(evgMember), memberIdLast4: evgMember.slice(-4), dateOfBirth: patients[0].dateOfBirth, effectiveFrom: day3("2026-01-01"), isSynthetic: true } });
     await tx.coverage.create({ data: { id: "seed_cov_evg_1", patientId: patients[0].id, subscriberId: "seed_sub_evg_1", ordinal: "secondary", relationship: "self", status: "pending_verification", verificationLevel: "unverified", effectiveFrom: day3("2026-01-01"), isSynthetic: true } });
     created.coverages += 1;
   }
@@ -5763,10 +5778,10 @@ var toDate = (value, field) => {
   return date;
 };
 var requireText = (value, field, max2 = 500) => {
-  const text15 = String(value ?? "").trim();
-  if (!text15) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-  if (text15.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
-  return text15;
+  const text16 = String(value ?? "").trim();
+  if (!text16) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+  if (text16.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+  return text16;
 };
 var optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
 function normalizeContact(kind, value) {
@@ -6497,11 +6512,11 @@ async function addPatientAlert(_root, args, context) {
   requirePermission(actor2, "canManagePatients", "canChart");
   if (!ALERT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown alert kind.", { field: "kind" });
   if (!["info", "caution", "critical"].includes(args.severity)) throw new DomainError(Codes.INVALID_INPUT, "Choose info, caution or critical.", { field: "severity" });
-  const text15 = requireText(args.text, "alert text", 500);
+  const text16 = requireText(args.text, "alert text", 500);
   const { idempotencyKey, ...params } = args;
   const result = await command(context.prisma, { name: "patient.alert_add", actor: actor2, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text15, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
+    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text16, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
     auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
     return { alertId: alert.id };
   });
@@ -7426,9 +7441,9 @@ async function accountFor(uow, patientId) {
   return tx.guarantorAccount.create({ data: { guarantorId, ref } });
 }
 function requireReason(value, what = "reason") {
-  const text15 = String(value ?? "").trim();
-  if (text15.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
-  return text15.slice(0, 1e3);
+  const text16 = String(value ?? "").trim();
+  if (text16.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
+  return text16.slice(0, 1e3);
 }
 var oneOf = (value, allowed, field) => {
   if (!allowed.includes(String(value))) throw new DomainError(Codes.INVALID_INPUT, `Unknown ${field}.`, { field });
@@ -8939,17 +8954,18 @@ var TASK_TITLES = {
   waiting_period: "Ask about waiting periods",
   missing_tooth_clause: "Ask if a missing-tooth clause applies",
   downgrade: "Ask about downgrade (alternate benefit) rules",
-  cob_method: "Ask which coordination-of-benefits method applies",
+  cob_method: "Ask the payer: COB method",
   frequency_used: "Ask what frequencies are already used this year",
   history_procedure: "Ask for procedures done elsewhere",
   age_limit: "Ask about age limits",
   annual_max: "Ask for the annual maximum",
   coverage_pct: "Ask for coverage percentages"
 };
+var taskTitle = (field) => TASK_TITLES[field] ?? `Ask the payer: ${field.replaceAll("_", " ")}`;
 var money = (value, field) => {
-  const text15 = String(value ?? "").trim();
-  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text15)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
-  return toMinor(text15, "USD");
+  const text16 = String(value ?? "").trim();
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text16)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
+  return toMinor(text16, "USD");
 };
 var optMoney = (value, field) => value === void 0 || value === null || String(value).trim() === "" ? null : money(value, field);
 async function savePayer(_root, args, context) {
@@ -9015,7 +9031,7 @@ async function addCoverage(_root, args, context) {
   const memberId = requireText(args.memberId, "member ID", 40);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the effective date.", { field: "effectiveFrom" });
   const { idempotencyKey, memberId: _member, ...params } = args;
-  const result = await command(context.prisma, { name: "coverage.add", actor: actor2, idempotencyKey, params: { ...params, memberIdHash: sha256(memberId) } }, async (uow) => {
+  const result = await command(context.prisma, { name: "coverage.add", actor: actor2, idempotencyKey, params: { ...params, memberIdHash: memberIdHash(memberId) } }, async (uow) => {
     const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const plan = await uow.tx.insurancePlan.findUnique({ where: { id: args.planId }, select: { id: true } });
     if (!plan) throw new DomainError(Codes.NOT_FOUND, "Insurance plan not found.");
@@ -9029,7 +9045,7 @@ async function addCoverage(_root, args, context) {
         patientId: self ? patient.id : null,
         planId: plan.id,
         memberIdSecretId: secret4.id,
-        memberIdHash: sha256(memberId.toUpperCase()),
+        memberIdHash: memberIdHash(memberId),
         memberIdLast4: last4(memberId),
         personName: self ? {} : { first: requireText(args.subscriberFirstName, "subscriber first name", 80), last: requireText(args.subscriberLastName, "subscriber last name", 80) },
         dateOfBirth: self ? patientRow.dateOfBirth : dayOf(requireText(args.subscriberDateOfBirth, "subscriber date of birth", 10)),
@@ -9113,7 +9129,7 @@ async function openChecklist(tx, verificationId, coverageId, planType, now, isSy
   for (const field of fields) {
     const exists = await tx.workTask.findFirst({ where: { kind: "verification_checklist", subjectType: "Coverage", subjectId: coverageId, taskKey: field, status: { in: ["open", "in_progress"] } } });
     if (exists) continue;
-    await tx.workTask.create({ data: { kind: "verification_checklist", title: TASK_TITLES[field] ?? `Confirm ${field.replaceAll("_", " ")}`, taskKey: field, subjectType: "Coverage", subjectId: coverageId, verificationId, dueAt: new Date(now.getTime() + 2 * 864e5), checklist: { field }, isSynthetic } });
+    await tx.workTask.create({ data: { kind: "verification_checklist", title: taskTitle(field), taskKey: field, subjectType: "Coverage", subjectId: coverageId, verificationId, dueAt: new Date(now.getTime() + 2 * 864e5), checklist: { field }, isSynthetic } });
   }
 }
 async function openVerification(uow, actor2, coverageId, options) {
@@ -9325,6 +9341,8 @@ async function downgradeMap(tx, planId) {
   return map;
 }
 var CONFIDENCE_OF_LEVEL = { verified_full: "verified", verified_partial: "partially_verified", verified_electronic: "partially_verified", unverified: "assumed" };
+var CONFIDENCE_RANK = { verified: 2, partially_verified: 1, assumed: 0 };
+var weakestConfidence = (a, b) => CONFIDENCE_RANK[a] <= CONFIDENCE_RANK[b] ? a : b;
 async function estimatePlanInTx(uow, actor2, planId, locationIds) {
   const { tx } = uow;
   const plan = await tx.treatmentPlan.findUnique({ where: { id: planId } });
@@ -9434,6 +9452,7 @@ async function estimatePlanInTx(uow, actor2, planId, locationIds) {
       line: lines.find((l) => l.id === line.id)?.date,
       trace: line.trace
     };
+    line.confidence = weakestConfidence(line.confidence, CONFIDENCE_OF_LEVEL[primary.verificationLevel] ?? "assumed");
     const hash = (0, import_node_crypto14.createHash)("sha256").update(canonicalJson({ inputs: { ...inputs, trace: void 0 }, line: { fee: line.feeMinor, ins: line.insuranceMinor, pat: line.patientMinor, status: line.status, sec: line.secondaryInsuranceMinor, reasons: line.reasons, confidence: line.confidence } })).digest("hex");
     const last = await tx.estimate.findFirst({ where: { planItemId: line.id }, orderBy: [{ computedAt: "desc" }, { createdAt: "desc" }] });
     if (last?.inputs?.hash === hash && last?.coverageId === primary.id) continue;

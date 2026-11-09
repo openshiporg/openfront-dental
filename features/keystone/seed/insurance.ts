@@ -1,5 +1,5 @@
 import type { Actor } from '../lib/actor'
-import { sha256 } from '../lib/canonical'
+import { memberIdHash } from '../lib/canonical'
 import { auditCreate } from '../lib/cas'
 import { storeSecret } from '../lib/secretBox'
 import { localDate } from '../lib/time'
@@ -23,7 +23,7 @@ const PLANS = [
 ]
 
 type FactSeed = [field: string, appliesTo: Record<string, unknown>, value: Record<string, unknown>, source?: string]
-const SEED_TASK_TITLES: Record<string, string> = { frequency_limit: 'Ask the payer for frequency limits', waiting_period: 'Ask about waiting periods', cob_method: 'Ask which coordination-of-benefits method applies' }
+const SEED_TASK_TITLES: Record<string, string> = { frequency_limit: 'Ask the payer for frequency limits', waiting_period: 'Ask about waiting periods', cob_method: 'Ask the payer: COB method' }
 
 const FULL_FACTS = (maxLeft: number, dedLeft: number): FactSeed[] => [
   ['coverage_active', {}, { active: true }],
@@ -69,7 +69,7 @@ export async function seedPhase3(uow: UnitOfWork, actor: Actor) {
     const [planId, state] = layout[index]
     const memberId = members[index]
     const sid = `seed_sub_${index + 1}`, cid = `seed_cov_${index + 1}`, vid = `seed_ver_${index + 1}`
-    rows.subscribers.push({ id: sid, patientId: patient.id, planId, memberIdSecretId: secrets[index].id, memberIdHash: sha256(memberId), memberIdLast4: memberId.slice(-4), dateOfBirth: patient.dateOfBirth, effectiveFrom: day('2026-01-01'), isSynthetic: true })
+    rows.subscribers.push({ id: sid, patientId: patient.id, planId, memberIdSecretId: secrets[index].id, memberIdHash: memberIdHash(memberId), memberIdLast4: memberId.slice(-4), dateOfBirth: patient.dateOfBirth, effectiveFrom: day('2026-01-01'), isSynthetic: true })
     rows.coverages.push({ id: cid, patientId: patient.id, subscriberId: sid, ordinal: 'primary', relationship: 'self', status: state === 'none' ? 'pending_verification' : 'active', verificationLevel: 'unverified', effectiveFrom: day('2026-01-01'), isSynthetic: true })
     if (state === 'none') continue
     rows.verifications.push({ id: vid, coverageId: cid, trigger: 'staff', status: 'completed', completeness: state === 'full' ? 'complete' : 'partial', completedAt: now, isSynthetic: true })
@@ -78,7 +78,7 @@ export async function seedPhase3(uow: UnitOfWork, actor: Actor) {
     if (state === 'partial') {
       for (const field of ['frequency_limit', 'waiting_period', 'cob_method']) {
         rows.facts.push({ verificationId: vid, coverageId: cid, field, appliesTo: {}, valueJson: {}, isUnknown: true, source: 'payer_portal', observedAt: now })
-        rows.tasks.push({ kind: 'verification_checklist', title: SEED_TASK_TITLES[field] ?? `Confirm ${field.replaceAll('_', ' ')}`, taskKey: field, subjectType: 'Coverage', subjectId: cid, verificationId: vid, dueAt: new Date(now.getTime() + 2 * 86_400_000), checklist: { field }, isSynthetic: true })
+        rows.tasks.push({ kind: 'verification_checklist', title: SEED_TASK_TITLES[field] ?? `Ask the payer: ${field.replaceAll('_', ' ')}`, taskKey: field, subjectType: 'Coverage', subjectId: cid, verificationId: vid, dueAt: new Date(now.getTime() + 2 * 86_400_000), checklist: { field }, isSynthetic: true })
       }
     }
     rows.levels.push([cid, vid, state === 'full' ? 'verified_full' : 'verified_partial'])
@@ -94,7 +94,7 @@ export async function seedPhase3(uow: UnitOfWork, actor: Actor) {
   if (patients[0]) {
     const evgMember = 'EVG-5501-K'
     const secret = await storeSecret(tx, 'subscriber.memberId', evgMember)
-    await tx.subscriber.create({ data: { id: 'seed_sub_evg_1', patientId: patients[0].id, planId: 'seed_plan_evergreen_ppo', memberIdSecretId: secret.id, memberIdHash: sha256(evgMember), memberIdLast4: evgMember.slice(-4), dateOfBirth: patients[0].dateOfBirth, effectiveFrom: day('2026-01-01'), isSynthetic: true } })
+    await tx.subscriber.create({ data: { id: 'seed_sub_evg_1', patientId: patients[0].id, planId: 'seed_plan_evergreen_ppo', memberIdSecretId: secret.id, memberIdHash: memberIdHash(evgMember), memberIdLast4: evgMember.slice(-4), dateOfBirth: patients[0].dateOfBirth, effectiveFrom: day('2026-01-01'), isSynthetic: true } })
     await tx.coverage.create({ data: { id: 'seed_cov_evg_1', patientId: patients[0].id, subscriberId: 'seed_sub_evg_1', ordinal: 'secondary', relationship: 'self', status: 'pending_verification', verificationLevel: 'unverified', effectiveFrom: day('2026-01-01'), isSynthetic: true } })
     created.coverages += 1
   }

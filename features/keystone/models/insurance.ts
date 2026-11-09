@@ -1,5 +1,5 @@
 import { list } from '@keystone-6/core'
-import { calendarDay, checkbox, integer, json, relationship, select, timestamp } from '@keystone-6/core/fields'
+import { calendarDay, checkbox, integer, json, relationship, select, text, timestamp } from '@keystone-6/core/fields'
 import { denyAll } from '@keystone-6/core/access'
 import { sys } from '../access'
 import { ccy, fixedChoice, lifecycle, minor, pct, readOnly, systemText, versionField } from './domainFields'
@@ -112,8 +112,15 @@ export const BenefitRule = list({
   },
 })
 
+/** A subscriber is visible where the patient is, or where a patient they cover is (a spouse's plan covers the child). Nobody else's. */
+const subscriberScope = ({ session }: { session?: any }) => {
+  const where = patientFilter(['patient'])({ session })
+  if (where === false || where === true) return where
+  return { OR: [where, { coverages: { some: where } }] }
+}
+
 export const Subscriber = list({
-  access: governed(INS_READ),
+  access: scopedGoverned(INS_READ, subscriberScope),
   ui: { labelField: 'memberIdLast4', listView: { initialColumns: ['plan', 'memberIdLast4', 'effectiveFrom', 'effectiveTo'] } },
   fields: {
     patient: relationship({ ref: 'Patient', ...readOnly }),
@@ -121,8 +128,11 @@ export const Subscriber = list({
     dateOfBirth: calendarDay({ ...readOnly }),
     plan: relationship({ ref: 'InsurancePlan', ...readOnly }),
     memberIdSecret: relationship({ ref: 'SecretBox', access: { read: denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: 'hidden' } } }),
-    memberIdHash: systemText({ indexed: true }),
-    memberIdLast4: systemText(),
+    // The keyed hash (HMAC under the server key) is for matching in server code only: no role reads, filters or sorts it.
+    memberIdHash: text({ isIndexed: true, access: { read: denyAll, create: denyAll, update: denyAll }, isFilterable: false, isOrderable: false, ui: { createView: { fieldMode: 'hidden' }, itemView: { fieldMode: 'hidden' } } }),
+    // The last four are shown, but never searched on: a filter on them is a guessing oracle for the rest.
+    memberIdLast4: text({ isFilterable: false, isOrderable: false, access: { create: () => false, update: () => false }, ui: { createView: { fieldMode: 'hidden' }, itemView: { fieldMode: 'read' } } }),
+    coverages: relationship({ ref: 'Coverage.subscriber', many: true, ...readOnly }),
     employer: relationship({ ref: 'Employer', ...readOnly }),
     effectiveFrom: calendarDay({ ...readOnly }),
     effectiveTo: calendarDay({ ...readOnly }),
@@ -136,7 +146,7 @@ export const Coverage = list({
   ui: { labelField: 'id', listView: { initialColumns: ['patient', 'ordinal', 'status', 'verificationLevel', 'effectiveFrom'] } },
   fields: {
     patient: relationship({ ref: 'Patient', ...readOnly }),
-    subscriber: relationship({ ref: 'Subscriber', ...readOnly }),
+    subscriber: relationship({ ref: 'Subscriber.coverages', ...readOnly }),
     ordinal: fixedChoice(ORDINALS),
     relationship: fixedChoice(RELATIONSHIPS),
     status: lifecycle(COVERAGE_STATUSES),

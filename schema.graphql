@@ -12182,6 +12182,8 @@ type Subscriber {
   plan: InsurancePlan
   memberIdHash: String
   memberIdLast4: String
+  coverages(where: CoverageWhereInput! = {}, orderBy: [CoverageOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: CoverageWhereUniqueInput): [Coverage!]
+  coveragesCount(where: CoverageWhereInput! = {}): Int
   employer: Employer
   effectiveFrom: CalendarDay
   effectiveTo: CalendarDay
@@ -12202,8 +12204,7 @@ input SubscriberWhereInput {
   patient: PatientWhereInput
   dateOfBirth: CalendarDayNullableFilter
   plan: InsurancePlanWhereInput
-  memberIdHash: StringFilter
-  memberIdLast4: StringFilter
+  coverages: CoverageManyRelationFilter
   employer: EmployerWhereInput
   effectiveFrom: CalendarDayNullableFilter
   effectiveTo: CalendarDayNullableFilter
@@ -12212,11 +12213,15 @@ input SubscriberWhereInput {
   updatedAt: DateTimeFilter
 }
 
+input CoverageManyRelationFilter {
+  every: CoverageWhereInput
+  some: CoverageWhereInput
+  none: CoverageWhereInput
+}
+
 input SubscriberOrderByInput {
   id: OrderDirection
   dateOfBirth: OrderDirection
-  memberIdHash: OrderDirection
-  memberIdLast4: OrderDirection
   effectiveFrom: OrderDirection
   effectiveTo: OrderDirection
   isSynthetic: OrderDirection
@@ -12231,12 +12236,20 @@ input SubscriberUpdateInput {
   plan: InsurancePlanRelateToOneForUpdateInput
   memberIdHash: String
   memberIdLast4: String
+  coverages: CoverageRelateToManyForUpdateInput
   employer: EmployerRelateToOneForUpdateInput
   effectiveFrom: CalendarDay
   effectiveTo: CalendarDay
   isSynthetic: Boolean
   createdAt: DateTime
   updatedAt: DateTime
+}
+
+input CoverageRelateToManyForUpdateInput {
+  disconnect: [CoverageWhereUniqueInput!]
+  set: [CoverageWhereUniqueInput!]
+  create: [CoverageCreateInput!]
+  connect: [CoverageWhereUniqueInput!]
 }
 
 input SubscriberUpdateArgs {
@@ -12251,12 +12264,18 @@ input SubscriberCreateInput {
   plan: InsurancePlanRelateToOneForCreateInput
   memberIdHash: String
   memberIdLast4: String
+  coverages: CoverageRelateToManyForCreateInput
   employer: EmployerRelateToOneForCreateInput
   effectiveFrom: CalendarDay
   effectiveTo: CalendarDay
   isSynthetic: Boolean
   createdAt: DateTime
   updatedAt: DateTime
+}
+
+input CoverageRelateToManyForCreateInput {
+  create: [CoverageCreateInput!]
+  connect: [CoverageWhereUniqueInput!]
 }
 
 type WorkTask {

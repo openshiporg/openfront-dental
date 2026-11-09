@@ -90,4 +90,23 @@ describe('hidden fields cannot be filtered or sorted (GraphQL)', { skip: !hasTes
     assert.throws(() => buildSelection(schema, 'estimates', 'coverage { verifications { coverage { verifications { id } } } }'), /at most 3 levels/)
     assert.equal(buildSelection(schema, 'treatmentPlanVersions', 'id items { id }').selection, 'id items(take: 50) { id }')
   })
+
+  it('r3: the member-ID hash and last four are in no filter and no sort, for any role', async () => {
+    const all = sessionOf([...permissionNames] as Permission[])
+    for (const selection of [
+      'subscribersCount(where: { memberIdHash: { startsWith: "h1:" } })', 'subscribersCount(where: { memberIdLast4: { equals: "401A" } })',
+      'subscribers(orderBy: { memberIdLast4: asc }, take: 1) { id }', 'subscribers(orderBy: { memberIdHash: asc }, take: 1) { id }',
+    ]) {
+      const r = await run(all, `{ ${selection} }`)
+      assert.ok(r.errors?.length, `${selection} should be refused`)
+    }
+    const read = await run(all, '{ subscribers(take: 1) { id memberIdHash } }')
+    assert.equal((read.data as any)?.subscribers?.[0]?.memberIdHash ?? null, null)
+  })
+
+  it('r3: a desk with no locations sees no subscribers, and one with a location is filtered through the patient', async () => {
+    const none = { ...sessionOf(FRONT), data: { ...sessionOf(FRONT).data, role: { ...sessionOf(FRONT).data.role, canAccessAllLocations: false }, assignments: [] } }
+    const r = await run(none, '{ subscribersCount }')
+    assert.equal((r.data as any)?.subscribersCount, 0, message(r))
+  })
 })

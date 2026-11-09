@@ -2922,25 +2922,25 @@ model Payer {
 }
 
 model Subscriber {
-  id                       String         @id @default(cuid())
-  patient                  Patient?       @relation("Subscriber_patient", fields: [patientId], references: [id])
-  patientId                String?        @map("patient")
-  personName               Json?          @default("{}")
-  dateOfBirth              DateTime?      @postgresql.Date
-  plan                     InsurancePlan? @relation("Subscriber_plan", fields: [planId], references: [id])
-  planId                   String?        @map("plan")
-  memberIdSecret           SecretBox?     @relation("Subscriber_memberIdSecret", fields: [memberIdSecretId], references: [id])
-  memberIdSecretId         String?        @map("memberIdSecret")
-  memberIdHash             String         @default("")
-  memberIdLast4            String         @default("")
-  employer                 Employer?      @relation("Subscriber_employer", fields: [employerId], references: [id])
-  employerId               String?        @map("employer")
-  effectiveFrom            DateTime?      @postgresql.Date
-  effectiveTo              DateTime?      @postgresql.Date
-  isSynthetic              Boolean        @default(false)
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @default(now()) @updatedAt
-  from_Coverage_subscriber Coverage[]     @relation("Coverage_subscriber")
+  id               String         @id @default(cuid())
+  patient          Patient?       @relation("Subscriber_patient", fields: [patientId], references: [id])
+  patientId        String?        @map("patient")
+  personName       Json?          @default("{}")
+  dateOfBirth      DateTime?      @postgresql.Date
+  plan             InsurancePlan? @relation("Subscriber_plan", fields: [planId], references: [id])
+  planId           String?        @map("plan")
+  memberIdSecret   SecretBox?     @relation("Subscriber_memberIdSecret", fields: [memberIdSecretId], references: [id])
+  memberIdSecretId String?        @map("memberIdSecret")
+  memberIdHash     String         @default("")
+  memberIdLast4    String         @default("")
+  coverages        Coverage[]     @relation("Coverage_subscriber")
+  employer         Employer?      @relation("Subscriber_employer", fields: [employerId], references: [id])
+  employerId       String?        @map("employer")
+  effectiveFrom    DateTime?      @postgresql.Date
+  effectiveTo      DateTime?      @postgresql.Date
+  isSynthetic      Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @default(now()) @updatedAt
 
   @@index([patientId])
   @@index([planId])

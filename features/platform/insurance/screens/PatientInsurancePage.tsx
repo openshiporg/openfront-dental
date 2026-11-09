@@ -13,7 +13,7 @@ const CATEGORIES = ['preventive', 'basic', 'major', 'orthodontic'];
 
 const STILL_TO_ASK: Record<string, string> = {
   'Ask the payer for frequency limits': 'frequency limits', 'Ask about waiting periods': 'waiting periods', 'Ask if a missing-tooth clause applies': 'whether a missing-tooth clause applies',
-  'Ask about downgrade (alternate benefit) rules': 'downgrade (alternate benefit) rules', 'Ask which coordination-of-benefits method applies': 'which coordination-of-benefits method applies',
+  'Ask about downgrade (alternate benefit) rules': 'downgrade (alternate benefit) rules', 'Ask the payer: COB method': 'which coordination-of-benefits method applies',
   'Ask what frequencies are already used this year': 'what frequencies are already used this year', 'Ask for procedures done elsewhere': 'treatment done elsewhere',
   'Ask for coverage percentages': 'coverage percentages', 'Ask for the annual maximum': 'the annual maximum',
 };
@@ -26,16 +26,17 @@ function factText(f: any): string {
   const v = f.valueJson ?? {};
   switch (f.field) {
     case 'coverage_active': return v.active ? 'Active' : 'Not active';
-    case 'annual_max': case 'deductible': return money(v.amountMinor);
+    case 'annual_max': case 'deductible': case 'ortho_max': return money(v.amountMinor);
     case 'annual_max_used': case 'deductible_met': return `${money(v.remainingMinor)} remaining`;
+    case 'ortho_used': return v.remainingMinor !== undefined ? `${money(v.remainingMinor)} remaining` : money(v.amountMinor);
     case 'coverage_pct': return `${String(v.pct).replace(/\.?0+$/, '')}%`;
     case 'frequency_limit': return v.count ? `${v.count} per ${v.months} months` : String(v.text ?? 'Limit noted, ask the payer for the numbers');
     case 'waiting_period': return `${v.months} months`;
     case 'missing_tooth_clause': case 'downgrade': return (v.categories ?? []).length ? `Applies to ${v.categories.map((c: string) => title(c).toLowerCase()).join(', ')}` : 'Does not apply';
     case 'cob_method': return title(v.method);
     case 'non_covered': return 'Not covered';
-    case 'age_limit': return `${v.min ?? 0}–${v.max ?? 'no limit'} years`;
-    default: return JSON.stringify(v);
+    case 'age_limit': return v.max == null ? `${v.min ?? 0} years and older` : `${v.min ?? 0}–${v.max} years`;
+    default: return 'Recorded. Ask the office for details';
   }
 }
 

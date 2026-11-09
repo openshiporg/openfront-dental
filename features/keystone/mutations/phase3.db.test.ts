@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { PrismaClient } from '@prisma/client'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { fakeStedi } from '../../../tests/fakes/stedi'
@@ -142,6 +143,8 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     await expect(prisma.benefitFact.create({ data: { coverageId: coverage.id, field: 'annual_max', source: 'payer_phone', observedAt: new Date(), isUnknown: true, valueJson: { amountMinor: '1' } } })).rejects.toThrow(/BenefitFact_unknown_has_no_value/)
     await expect(prisma.insurancePlan.update({ where: { id: 'seed_plan_harbor_ppo' }, data: { annualMaxMinor: -1n } })).rejects.toThrow(/InsurancePlan_money_nonneg/)
     await expect(prisma.insurancePlan.update({ where: { id: 'seed_plan_harbor_ppo' }, data: { benefitYearStartMonth: 13 } })).rejects.toThrow(/InsurancePlan_benefit_year_month/)
+    await expect(prisma.insurancePlan.update({ where: { id: 'seed_plan_harbor_ppo' }, data: { annualMaxMinor: 99999999999999999n } })).rejects.toThrow(/InsurancePlan_annualMaxMinor_bound/)
+    await expect(prisma.subscriber.update({ where: { id: coverage.subscriberId! }, data: { memberIdHash: createHash('sha256').update('SUM-4401-A').digest('hex') } })).rejects.toThrow(/Subscriber_member_hash_keyed/)
     const estimate = await prisma.estimate.findFirst()
     if (estimate) await expect(prisma.$executeRaw`UPDATE "Estimate" SET "patientMinor" = 0 WHERE id = ${estimate.id}`).rejects.toThrow(/append|Estimate/i)
     await expect(prisma.workTask.create({ data: { kind: 'verification_checklist', title: 'dup', taskKey: 'cob_method', subjectType: 'Coverage', subjectId: coverage.id } }).then(() => prisma.workTask.create({ data: { kind: 'verification_checklist', title: 'dup', taskKey: 'cob_method', subjectType: 'Coverage', subjectId: coverage.id } }))).rejects.toThrow(/Unique constraint/)

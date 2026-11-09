@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { requirePermission, systemActor, type Actor } from '../lib/actor'
-import { canonicalJson, sha256 } from '../lib/canonical'
+import { canonicalJson, memberIdHash, sha256 } from '../lib/canonical'
 import { auditCreate, lockRow, transition } from '../lib/cas'
 import { command } from '../lib/command'
 import type { UnitOfWork } from '../lib/unitOfWork'
@@ -40,11 +40,14 @@ export const CHECKLIST_BY_PLAN: Record<string, string[]> = {
   other: ['frequency_limit', 'waiting_period', 'cob_method'],
 }
 
-const TASK_TITLES: Record<string, string> = {
+export const TASK_TITLES: Record<string, string> = {
   frequency_limit: 'Ask the payer for frequency limits', waiting_period: 'Ask about waiting periods', missing_tooth_clause: 'Ask if a missing-tooth clause applies',
-  downgrade: 'Ask about downgrade (alternate benefit) rules', cob_method: 'Ask which coordination-of-benefits method applies', frequency_used: 'Ask what frequencies are already used this year',
+  downgrade: 'Ask about downgrade (alternate benefit) rules', cob_method: 'Ask the payer: COB method', frequency_used: 'Ask what frequencies are already used this year',
   history_procedure: 'Ask for procedures done elsewhere', age_limit: 'Ask about age limits', annual_max: 'Ask for the annual maximum', coverage_pct: 'Ask for coverage percentages',
 }
+
+/** A checklist task's title: the written one, or "Ask the payer: <item>" for any other fact (never the raw field name). */
+export const taskTitle = (field: string) => TASK_TITLES[field] ?? `Ask the payer: ${field.replaceAll('_', ' ')}`
 
 const money = (value: unknown, field: string) => {
   const text = String(value ?? '').trim()
@@ -116,7 +119,7 @@ export async function addCoverage(_root: unknown, args: { patientId: string; pla
   const memberId = requireText(args.memberId, 'member ID', 40)
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? '')) throw new DomainError(Codes.INVALID_INPUT, 'Enter the effective date.', { field: 'effectiveFrom' })
   const { idempotencyKey, memberId: _member, ...params } = args
-  const result = await command(context.prisma, { name: 'coverage.add', actor, idempotencyKey, params: { ...params, memberIdHash: sha256(memberId) } }, async uow => {
+  const result = await command(context.prisma, { name: 'coverage.add', actor, idempotencyKey, params: { ...params, memberIdHash: memberIdHash(memberId) } }, async uow => {
     const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId)
     const plan = await uow.tx.insurancePlan.findUnique({ where: { id: args.planId }, select: { id: true } })
     if (!plan) throw new DomainError(Codes.NOT_FOUND, 'Insurance plan not found.')
@@ -127,7 +130,7 @@ export async function addCoverage(_root: unknown, args: { patientId: string; pla
     const secret = await storeSecret(uow.tx, 'subscriber.memberId', memberId)
     const subscriber = await uow.tx.subscriber.create({
       data: {
-        patientId: self ? patient.id : null, planId: plan.id, memberIdSecretId: secret.id, memberIdHash: sha256(memberId.toUpperCase()), memberIdLast4: last4(memberId),
+        patientId: self ? patient.id : null, planId: plan.id, memberIdSecretId: secret.id, memberIdHash: memberIdHash(memberId), memberIdLast4: last4(memberId),
         personName: self ? {} : { first: requireText(args.subscriberFirstName, 'subscriber first name', 80), last: requireText(args.subscriberLastName, 'subscriber last name', 80) },
         dateOfBirth: self ? patientRow.dateOfBirth : dayOf(requireText(args.subscriberDateOfBirth, 'subscriber date of birth', 10)),
         effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic,
@@ -223,7 +226,7 @@ export async function openChecklist(tx: Tx, verificationId: string, coverageId: 
   for (const field of fields) {
     const exists = await tx.workTask.findFirst({ where: { kind: 'verification_checklist', subjectType: 'Coverage', subjectId: coverageId, taskKey: field, status: { in: ['open', 'in_progress'] } } })
     if (exists) continue
-    await tx.workTask.create({ data: { kind: 'verification_checklist', title: TASK_TITLES[field] ?? `Confirm ${field.replaceAll('_', ' ')}`, taskKey: field, subjectType: 'Coverage', subjectId: coverageId, verificationId, dueAt: new Date(now.getTime() + 2 * 86_400_000), checklist: { field }, isSynthetic } })
+    await tx.workTask.create({ data: { kind: 'verification_checklist', title: taskTitle(field), taskKey: field, subjectType: 'Coverage', subjectId: coverageId, verificationId, dueAt: new Date(now.getTime() + 2 * 86_400_000), checklist: { field }, isSynthetic } })
   }
 }
 
@@ -447,6 +450,9 @@ async function downgradeMap(tx: Tx, planId: string | null | undefined): Promise<
 
 const CONFIDENCE_OF_LEVEL: Record<string, 'verified' | 'partially_verified' | 'assumed'> = { verified_full: 'verified', verified_partial: 'partially_verified', verified_electronic: 'partially_verified', unverified: 'assumed' }
 
+const CONFIDENCE_RANK = { verified: 2, partially_verified: 1, assumed: 0 } as const
+const weakestConfidence = (a: keyof typeof CONFIDENCE_RANK, b: keyof typeof CONFIDENCE_RANK) => (CONFIDENCE_RANK[a] <= CONFIDENCE_RANK[b] ? a : b)
+
 /**
  * Estimate the current version of a plan inside a transaction. Snapshots are immutable; the same inputs add nothing new (I-I3).
  * With no current coverage every fee is self-pay: a new snapshot is appended so no older "Plan pays" line is current.
@@ -538,6 +544,8 @@ export async function estimatePlanInTx(uow: UnitOfWork, actor: Actor, planId: st
       usage: { maxUsedMinor: loaded.usage.maxUsedMinor.toString(), pendingMinor: loaded.usage.pendingMinor.toString(), deductibleMetMinor: loaded.usage.deductibleMetMinor.toString(), history: loaded.usage.history.length }, notes: loaded.usageNotes,
       line: lines.find(l => l.id === line.id)?.date, trace: line.trace,
     }
+    // "Verified" is earned only when a person has finished the checklist (verified_full): a 271 alone, or a partial checklist, reads "partly verified".
+    line.confidence = weakestConfidence(line.confidence, CONFIDENCE_OF_LEVEL[primary.verificationLevel] ?? 'assumed')
     const hash = createHash('sha256').update(canonicalJson({ inputs: { ...inputs, trace: undefined }, line: { fee: line.feeMinor, ins: line.insuranceMinor, pat: line.patientMinor, status: line.status, sec: line.secondaryInsuranceMinor, reasons: line.reasons, confidence: line.confidence } })).digest('hex')
     const last = await tx.estimate.findFirst({ where: { planItemId: line.id }, orderBy: [{ computedAt: 'desc' }, { createdAt: 'desc' }] })
     if ((last?.inputs as any)?.hash === hash && last?.coverageId === primary.id) continue
