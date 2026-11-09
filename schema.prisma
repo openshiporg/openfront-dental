@@ -89,6 +89,10 @@ model User {
   from_BenefitVerification_requestedBy    BenefitVerification[]    @relation("BenefitVerification_requestedBy")
   from_BenefitVerification_completedBy    BenefitVerification[]    @relation("BenefitVerification_completedBy")
   from_WorkTask_assignee                  WorkTask[]               @relation("WorkTask_assignee")
+  from_AdjustmentRequest_requestedBy      AdjustmentRequest[]      @relation("AdjustmentRequest_requestedBy")
+  from_DayClose_closedBy                  DayClose[]               @relation("DayClose_closedBy")
+  from_PeriodClose_closedBy               PeriodClose[]            @relation("PeriodClose_closedBy")
+  from_Restatement_approvedBy             Restatement[]            @relation("Restatement_approvedBy")
 
   @@index([roleId])
 }
@@ -297,6 +301,8 @@ model ApprovalRequest {
   from_MergeCase_approval          MergeCase[]          @relation("MergeCase_approval")
   from_CodeImportBatch_approval    CodeImportBatch[]    @relation("CodeImportBatch_approval")
   from_FeeScheduleVersion_approval FeeScheduleVersion[] @relation("FeeScheduleVersion_approval")
+  from_AdjustmentRequest_approval  AdjustmentRequest[]  @relation("AdjustmentRequest_approval")
+  from_PeriodClose_approval        PeriodClose[]        @relation("PeriodClose_approval")
 
   @@index([action])
   @@index([targetId])
@@ -587,6 +593,9 @@ model Location {
   from_LedgerEntry_location          LedgerEntry[]          @relation("LedgerEntry_location")
   from_ChartEntry_location           ChartEntry[]           @relation("ChartEntry_location")
   from_PerioExam_location            PerioExam[]            @relation("PerioExam_location")
+  from_AdjustmentRequest_location    AdjustmentRequest[]    @relation("AdjustmentRequest_location")
+  from_DayClose_location             DayClose[]             @relation("DayClose_location")
+  from_PeriodClose_location          PeriodClose[]          @relation("PeriodClose_location")
 
   @@index([jurisdictionId])
   @@index([billingEntityId])
@@ -1086,6 +1095,7 @@ model Patient {
   from_Estimate_patient                  Estimate[]               @relation("Estimate_patient")
   from_OutsideHistory_patient            OutsideHistory[]         @relation("OutsideHistory_patient")
   from_Subscriber_patient                Subscriber[]             @relation("Subscriber_patient")
+  from_AdjustmentRequest_patient         AdjustmentRequest[]      @relation("AdjustmentRequest_patient")
 
   @@index([mergedIntoId])
   @@index([familyId])
@@ -1843,49 +1853,58 @@ model FeeScheduleVersion {
 }
 
 model GuarantorAccount {
-  id                       String        @id @default(cuid())
-  ref                      String        @unique @default("")
-  guarantor                Guarantor?    @relation("GuarantorAccount_guarantor", fields: [guarantorId], references: [id])
-  guarantorId              String?       @map("guarantor")
-  balanceCache             Json?         @default("{}")
-  balanceRebuiltAt         DateTime?
-  isSynthetic              Boolean       @default(false)
-  version                  Int           @default(0)
-  createdAt                DateTime      @default(now())
-  updatedAt                DateTime      @default(now()) @updatedAt
-  from_LedgerEntry_account LedgerEntry[] @relation("LedgerEntry_account")
+  id                             String              @id @default(cuid())
+  ref                            String              @unique @default("")
+  guarantor                      Guarantor?          @relation("GuarantorAccount_guarantor", fields: [guarantorId], references: [id])
+  guarantorId                    String?             @map("guarantor")
+  balanceCache                   Json?               @default("{}")
+  balanceRebuiltAt               DateTime?
+  isSynthetic                    Boolean             @default(false)
+  version                        Int                 @default(0)
+  createdAt                      DateTime            @default(now())
+  updatedAt                      DateTime            @default(now()) @updatedAt
+  from_LedgerEntry_account       LedgerEntry[]       @relation("LedgerEntry_account")
+  from_AdjustmentRequest_account AdjustmentRequest[] @relation("AdjustmentRequest_account")
 
   @@index([guarantorId])
 }
 
 model LedgerEntry {
-  id                          String            @id @default(cuid())
-  account                     GuarantorAccount? @relation("LedgerEntry_account", fields: [accountId], references: [id])
-  accountId                   String?           @map("account")
-  patient                     Patient?          @relation("LedgerEntry_patient", fields: [patientId], references: [id])
-  patientId                   String?           @map("patient")
-  kind                        String
-  amountMinor                 BigInt
-  currencyCode                String            @default("")
-  businessDate                DateTime?         @postgresql.Date
-  originalBusinessDate        DateTime?         @postgresql.Date
-  location                    Location?         @relation("LedgerEntry_location", fields: [locationId], references: [id])
-  locationId                  String?           @map("location")
-  provider                    ProviderProfile?  @relation("LedgerEntry_provider", fields: [providerId], references: [id])
-  providerId                  String?           @map("provider")
-  chartEntry                  ChartEntry?       @relation("LedgerEntry_chartEntry", fields: [chartEntryId], references: [id])
-  chartEntryId                String?           @map("chartEntry")
-  reverses                    LedgerEntry?      @relation("LedgerEntry_reverses", fields: [reversesId], references: [id])
-  reversesId                  String?           @map("reverses")
-  memo                        String            @default("")
-  postedBy                    User?             @relation("LedgerEntry_postedBy", fields: [postedById], references: [id])
-  postedById                  String?           @map("postedBy")
-  postedAt                    DateTime?
-  isSynthetic                 Boolean           @default(false)
-  createdAt                   DateTime          @default(now())
-  updatedAt                   DateTime          @default(now()) @updatedAt
-  from_LedgerEntry_reverses   LedgerEntry[]     @relation("LedgerEntry_reverses")
-  from_ChartEntry_ledgerEntry ChartEntry[]      @relation("ChartEntry_ledgerEntry")
+  id                                  String              @id @default(cuid())
+  account                             GuarantorAccount?   @relation("LedgerEntry_account", fields: [accountId], references: [id])
+  accountId                           String?             @map("account")
+  patient                             Patient?            @relation("LedgerEntry_patient", fields: [patientId], references: [id])
+  patientId                           String?             @map("patient")
+  kind                                String
+  amountMinor                         BigInt
+  currencyCode                        String              @default("")
+  businessDate                        DateTime?           @postgresql.Date
+  originalBusinessDate                DateTime?           @postgresql.Date
+  location                            Location?           @relation("LedgerEntry_location", fields: [locationId], references: [id])
+  locationId                          String?             @map("location")
+  provider                            ProviderProfile?    @relation("LedgerEntry_provider", fields: [providerId], references: [id])
+  providerId                          String?             @map("provider")
+  chartEntry                          ChartEntry?         @relation("LedgerEntry_chartEntry", fields: [chartEntryId], references: [id])
+  chartEntryId                        String?             @map("chartEntry")
+  reverses                            LedgerEntry?        @relation("LedgerEntry_reverses", fields: [reversesId], references: [id])
+  reversesId                          String?             @map("reverses")
+  adjustment                          AdjustmentRequest?  @relation("LedgerEntry_adjustment", fields: [adjustmentId], references: [id])
+  adjustmentId                        String?             @map("adjustment")
+  dayClose                            DayClose?           @relation("LedgerEntry_dayClose", fields: [dayCloseId], references: [id])
+  dayCloseId                          String?             @map("dayClose")
+  restatement                         Restatement?        @relation("LedgerEntry_restatement", fields: [restatementId], references: [id])
+  restatementId                       String?             @map("restatement")
+  memo                                String              @default("")
+  postedBy                            User?               @relation("LedgerEntry_postedBy", fields: [postedById], references: [id])
+  postedById                          String?             @map("postedBy")
+  postedAt                            DateTime?
+  isSynthetic                         Boolean             @default(false)
+  createdAt                           DateTime            @default(now())
+  updatedAt                           DateTime            @default(now()) @updatedAt
+  from_LedgerEntry_reverses           LedgerEntry[]       @relation("LedgerEntry_reverses")
+  from_ChartEntry_ledgerEntry         ChartEntry[]        @relation("ChartEntry_ledgerEntry")
+  from_AdjustmentRequest_relatedEntry AdjustmentRequest[] @relation("AdjustmentRequest_relatedEntry")
+  from_AdjustmentRequest_postedEntry  AdjustmentRequest[] @relation("AdjustmentRequest_postedEntry")
 
   @@index([accountId])
   @@index([patientId])
@@ -1893,6 +1912,9 @@ model LedgerEntry {
   @@index([providerId])
   @@index([chartEntryId])
   @@index([reversesId])
+  @@index([adjustmentId])
+  @@index([dayCloseId])
+  @@index([restatementId])
   @@index([postedById])
 }
 
@@ -2972,6 +2994,111 @@ model WorkTask {
   @@index([subjectId])
   @@index([verificationId])
   @@index([assigneeId])
+}
+
+model AdjustmentRequest {
+  id                          String            @id @default(cuid())
+  account                     GuarantorAccount? @relation("AdjustmentRequest_account", fields: [accountId], references: [id])
+  accountId                   String?           @map("account")
+  patient                     Patient?          @relation("AdjustmentRequest_patient", fields: [patientId], references: [id])
+  patientId                   String?           @map("patient")
+  location                    Location?         @relation("AdjustmentRequest_location", fields: [locationId], references: [id])
+  locationId                  String?           @map("location")
+  type                        AdjustmentType?   @relation("AdjustmentRequest_type", fields: [typeId], references: [id])
+  typeId                      String?           @map("type")
+  amountMinor                 BigInt
+  reason                      String            @default("")
+  relatedEntry                LedgerEntry?      @relation("AdjustmentRequest_relatedEntry", fields: [relatedEntryId], references: [id])
+  relatedEntryId              String?           @map("relatedEntry")
+  status                      String            @default("requested")
+  approval                    ApprovalRequest?  @relation("AdjustmentRequest_approval", fields: [approvalId], references: [id])
+  approvalId                  String?           @map("approval")
+  postedEntry                 LedgerEntry?      @relation("AdjustmentRequest_postedEntry", fields: [postedEntryId], references: [id])
+  postedEntryId               String?           @map("postedEntry")
+  requestedBy                 User?             @relation("AdjustmentRequest_requestedBy", fields: [requestedById], references: [id])
+  requestedById               String?           @map("requestedBy")
+  version                     Int               @default(0)
+  createdAt                   DateTime          @default(now())
+  updatedAt                   DateTime          @default(now()) @updatedAt
+  from_LedgerEntry_adjustment LedgerEntry[]     @relation("LedgerEntry_adjustment")
+
+  @@index([accountId])
+  @@index([patientId])
+  @@index([locationId])
+  @@index([typeId])
+  @@index([relatedEntryId])
+  @@index([approvalId])
+  @@index([postedEntryId])
+  @@index([requestedById])
+}
+
+model AdjustmentType {
+  id                          String              @id @default(cuid())
+  code                        String              @unique @default("")
+  name                        String              @default("")
+  direction                   String
+  category                    String
+  approvalThresholdMinor      BigInt
+  requiresApproval            Boolean             @default(false)
+  isActive                    Boolean             @default(true)
+  createdAt                   DateTime            @default(now())
+  updatedAt                   DateTime            @default(now()) @updatedAt
+  from_AdjustmentRequest_type AdjustmentRequest[] @relation("AdjustmentRequest_type")
+}
+
+model DayClose {
+  id           String        @id @default(cuid())
+  location     Location?     @relation("DayClose_location", fields: [locationId], references: [id])
+  locationId   String?       @map("location")
+  businessDate DateTime?     @postgresql.Date
+  status       String        @default("open")
+  daySheet     Json?         @default("{}")
+  closedBy     User?         @relation("DayClose_closedBy", fields: [closedById], references: [id])
+  closedById   String?       @map("closedBy")
+  closedAt     DateTime?
+  entries      LedgerEntry[] @relation("LedgerEntry_dayClose")
+  version      Int           @default(0)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+
+  @@index([locationId])
+  @@index([closedById])
+}
+
+model PeriodClose {
+  id                           String           @id @default(cuid())
+  location                     Location?        @relation("PeriodClose_location", fields: [locationId], references: [id])
+  locationId                   String?          @map("location")
+  period                       String           @default("")
+  status                       String           @default("open")
+  approval                     ApprovalRequest? @relation("PeriodClose_approval", fields: [approvalId], references: [id])
+  approvalId                   String?          @map("approval")
+  closedBy                     User?            @relation("PeriodClose_closedBy", fields: [closedById], references: [id])
+  closedById                   String?          @map("closedBy")
+  closedAt                     DateTime?
+  version                      Int              @default(0)
+  createdAt                    DateTime         @default(now())
+  updatedAt                    DateTime         @default(now()) @updatedAt
+  from_Restatement_periodClose Restatement[]    @relation("Restatement_periodClose")
+
+  @@index([locationId])
+  @@index([approvalId])
+  @@index([closedById])
+}
+
+model Restatement {
+  id            String        @id @default(cuid())
+  periodClose   PeriodClose?  @relation("Restatement_periodClose", fields: [periodCloseId], references: [id])
+  periodCloseId String?       @map("periodClose")
+  reason        String        @default("")
+  entries       LedgerEntry[] @relation("LedgerEntry_restatement")
+  approvedBy    User?         @relation("Restatement_approvedBy", fields: [approvedById], references: [id])
+  approvedById  String?       @map("approvedBy")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @default(now()) @updatedAt
+
+  @@index([periodCloseId])
+  @@index([approvedById])
 }
 
 enum UserKindType {

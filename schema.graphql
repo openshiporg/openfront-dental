@@ -7735,6 +7735,9 @@ type LedgerEntry {
   provider: ProviderProfile
   chartEntry: ChartEntry
   reverses: LedgerEntry
+  adjustment: AdjustmentRequest
+  dayClose: DayClose
+  restatement: Restatement
   memo: String
   postedBy: User
   postedAt: DateTime
@@ -7763,6 +7766,9 @@ input LedgerEntryWhereInput {
   provider: ProviderProfileWhereInput
   chartEntry: ChartEntryWhereInput
   reverses: LedgerEntryWhereInput
+  adjustment: AdjustmentRequestWhereInput
+  dayClose: DayCloseWhereInput
+  restatement: RestatementWhereInput
   memo: StringFilter
   postedBy: UserWhereInput
   postedAt: DateTimeNullableFilter
@@ -7797,6 +7803,9 @@ input LedgerEntryUpdateInput {
   provider: ProviderProfileRelateToOneForUpdateInput
   chartEntry: ChartEntryRelateToOneForUpdateInput
   reverses: LedgerEntryRelateToOneForUpdateInput
+  adjustment: AdjustmentRequestRelateToOneForUpdateInput
+  dayClose: DayCloseRelateToOneForUpdateInput
+  restatement: RestatementRelateToOneForUpdateInput
   memo: String
   postedBy: UserRelateToOneForUpdateInput
   postedAt: DateTime
@@ -7823,6 +7832,24 @@ input LedgerEntryRelateToOneForUpdateInput {
   disconnect: Boolean
 }
 
+input AdjustmentRequestRelateToOneForUpdateInput {
+  create: AdjustmentRequestCreateInput
+  connect: AdjustmentRequestWhereUniqueInput
+  disconnect: Boolean
+}
+
+input DayCloseRelateToOneForUpdateInput {
+  create: DayCloseCreateInput
+  connect: DayCloseWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RestatementRelateToOneForUpdateInput {
+  create: RestatementCreateInput
+  connect: RestatementWhereUniqueInput
+  disconnect: Boolean
+}
+
 input LedgerEntryUpdateArgs {
   where: LedgerEntryWhereUniqueInput!
   data: LedgerEntryUpdateInput!
@@ -7840,6 +7867,9 @@ input LedgerEntryCreateInput {
   provider: ProviderProfileRelateToOneForCreateInput
   chartEntry: ChartEntryRelateToOneForCreateInput
   reverses: LedgerEntryRelateToOneForCreateInput
+  adjustment: AdjustmentRequestRelateToOneForCreateInput
+  dayClose: DayCloseRelateToOneForCreateInput
+  restatement: RestatementRelateToOneForCreateInput
   memo: String
   postedBy: UserRelateToOneForCreateInput
   postedAt: DateTime
@@ -7861,6 +7891,21 @@ input ChartEntryRelateToOneForCreateInput {
 input LedgerEntryRelateToOneForCreateInput {
   create: LedgerEntryCreateInput
   connect: LedgerEntryWhereUniqueInput
+}
+
+input AdjustmentRequestRelateToOneForCreateInput {
+  create: AdjustmentRequestCreateInput
+  connect: AdjustmentRequestWhereUniqueInput
+}
+
+input DayCloseRelateToOneForCreateInput {
+  create: DayCloseCreateInput
+  connect: DayCloseWhereUniqueInput
+}
+
+input RestatementRelateToOneForCreateInput {
+  create: RestatementCreateInput
+  connect: RestatementWhereUniqueInput
 }
 
 type ProcedureCode {
@@ -12377,6 +12422,420 @@ input WorkTaskCreateInput {
   updatedAt: DateTime
 }
 
+type AdjustmentRequest {
+  id: ID!
+  account: GuarantorAccount
+  patient: Patient
+  location: Location
+  type: AdjustmentType
+  amountMinor: BigInt
+  reason: String
+  relatedEntry: LedgerEntry
+  status: String
+  approval: ApprovalRequest
+  postedEntry: LedgerEntry
+  requestedBy: User
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AdjustmentRequestWhereUniqueInput {
+  id: ID
+}
+
+input AdjustmentRequestWhereInput {
+  AND: [AdjustmentRequestWhereInput!]
+  OR: [AdjustmentRequestWhereInput!]
+  NOT: [AdjustmentRequestWhereInput!]
+  id: IDFilter
+  account: GuarantorAccountWhereInput
+  patient: PatientWhereInput
+  location: LocationWhereInput
+  type: AdjustmentTypeWhereInput
+  amountMinor: BigIntFilter
+  reason: StringFilter
+  relatedEntry: LedgerEntryWhereInput
+  status: StringFilter
+  approval: ApprovalRequestWhereInput
+  postedEntry: LedgerEntryWhereInput
+  requestedBy: UserWhereInput
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input AdjustmentRequestOrderByInput {
+  id: OrderDirection
+  amountMinor: OrderDirection
+  reason: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input AdjustmentRequestUpdateInput {
+  account: GuarantorAccountRelateToOneForUpdateInput
+  patient: PatientRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  type: AdjustmentTypeRelateToOneForUpdateInput
+  amountMinor: BigInt
+  reason: String
+  relatedEntry: LedgerEntryRelateToOneForUpdateInput
+  status: String
+  approval: ApprovalRequestRelateToOneForUpdateInput
+  postedEntry: LedgerEntryRelateToOneForUpdateInput
+  requestedBy: UserRelateToOneForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AdjustmentTypeRelateToOneForUpdateInput {
+  create: AdjustmentTypeCreateInput
+  connect: AdjustmentTypeWhereUniqueInput
+  disconnect: Boolean
+}
+
+input AdjustmentRequestUpdateArgs {
+  where: AdjustmentRequestWhereUniqueInput!
+  data: AdjustmentRequestUpdateInput!
+}
+
+input AdjustmentRequestCreateInput {
+  account: GuarantorAccountRelateToOneForCreateInput
+  patient: PatientRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  type: AdjustmentTypeRelateToOneForCreateInput
+  amountMinor: BigInt
+  reason: String
+  relatedEntry: LedgerEntryRelateToOneForCreateInput
+  status: String
+  approval: ApprovalRequestRelateToOneForCreateInput
+  postedEntry: LedgerEntryRelateToOneForCreateInput
+  requestedBy: UserRelateToOneForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AdjustmentTypeRelateToOneForCreateInput {
+  create: AdjustmentTypeCreateInput
+  connect: AdjustmentTypeWhereUniqueInput
+}
+
+type AdjustmentType {
+  id: ID!
+  code: String
+  name: String
+  direction: String
+  category: String
+  approvalThresholdMinor: BigInt
+  requiresApproval: Boolean
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AdjustmentTypeWhereUniqueInput {
+  id: ID
+  code: String
+}
+
+input AdjustmentTypeWhereInput {
+  AND: [AdjustmentTypeWhereInput!]
+  OR: [AdjustmentTypeWhereInput!]
+  NOT: [AdjustmentTypeWhereInput!]
+  id: IDFilter
+  code: StringFilter
+  name: StringFilter
+  direction: StringFilter
+  category: StringFilter
+  approvalThresholdMinor: BigIntFilter
+  requiresApproval: BooleanFilter
+  isActive: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input AdjustmentTypeOrderByInput {
+  id: OrderDirection
+  code: OrderDirection
+  name: OrderDirection
+  direction: OrderDirection
+  category: OrderDirection
+  approvalThresholdMinor: OrderDirection
+  requiresApproval: OrderDirection
+  isActive: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input AdjustmentTypeUpdateInput {
+  code: String
+  name: String
+  direction: String
+  category: String
+  approvalThresholdMinor: BigInt
+  requiresApproval: Boolean
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AdjustmentTypeUpdateArgs {
+  where: AdjustmentTypeWhereUniqueInput!
+  data: AdjustmentTypeUpdateInput!
+}
+
+input AdjustmentTypeCreateInput {
+  code: String
+  name: String
+  direction: String
+  category: String
+  approvalThresholdMinor: BigInt
+  requiresApproval: Boolean
+  isActive: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type DayClose {
+  id: ID!
+  location: Location
+  businessDate: CalendarDay
+  status: String
+  daySheet: JSON
+  closedBy: User
+  closedAt: DateTime
+  entries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
+  entriesCount(where: LedgerEntryWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DayCloseWhereUniqueInput {
+  id: ID
+}
+
+input DayCloseWhereInput {
+  AND: [DayCloseWhereInput!]
+  OR: [DayCloseWhereInput!]
+  NOT: [DayCloseWhereInput!]
+  id: IDFilter
+  location: LocationWhereInput
+  businessDate: CalendarDayNullableFilter
+  status: StringFilter
+  closedBy: UserWhereInput
+  closedAt: DateTimeNullableFilter
+  entries: LedgerEntryManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input LedgerEntryManyRelationFilter {
+  every: LedgerEntryWhereInput
+  some: LedgerEntryWhereInput
+  none: LedgerEntryWhereInput
+}
+
+input DayCloseOrderByInput {
+  id: OrderDirection
+  businessDate: OrderDirection
+  status: OrderDirection
+  closedAt: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input DayCloseUpdateInput {
+  location: LocationRelateToOneForUpdateInput
+  businessDate: CalendarDay
+  status: String
+  daySheet: JSON
+  closedBy: UserRelateToOneForUpdateInput
+  closedAt: DateTime
+  entries: LedgerEntryRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input LedgerEntryRelateToManyForUpdateInput {
+  disconnect: [LedgerEntryWhereUniqueInput!]
+  set: [LedgerEntryWhereUniqueInput!]
+  create: [LedgerEntryCreateInput!]
+  connect: [LedgerEntryWhereUniqueInput!]
+}
+
+input DayCloseUpdateArgs {
+  where: DayCloseWhereUniqueInput!
+  data: DayCloseUpdateInput!
+}
+
+input DayCloseCreateInput {
+  location: LocationRelateToOneForCreateInput
+  businessDate: CalendarDay
+  status: String
+  daySheet: JSON
+  closedBy: UserRelateToOneForCreateInput
+  closedAt: DateTime
+  entries: LedgerEntryRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input LedgerEntryRelateToManyForCreateInput {
+  create: [LedgerEntryCreateInput!]
+  connect: [LedgerEntryWhereUniqueInput!]
+}
+
+type PeriodClose {
+  id: ID!
+  location: Location
+  period: String
+  status: String
+  approval: ApprovalRequest
+  closedBy: User
+  closedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PeriodCloseWhereUniqueInput {
+  id: ID
+}
+
+input PeriodCloseWhereInput {
+  AND: [PeriodCloseWhereInput!]
+  OR: [PeriodCloseWhereInput!]
+  NOT: [PeriodCloseWhereInput!]
+  id: IDFilter
+  location: LocationWhereInput
+  period: StringFilter
+  status: StringFilter
+  approval: ApprovalRequestWhereInput
+  closedBy: UserWhereInput
+  closedAt: DateTimeNullableFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PeriodCloseOrderByInput {
+  id: OrderDirection
+  period: OrderDirection
+  status: OrderDirection
+  closedAt: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PeriodCloseUpdateInput {
+  location: LocationRelateToOneForUpdateInput
+  period: String
+  status: String
+  approval: ApprovalRequestRelateToOneForUpdateInput
+  closedBy: UserRelateToOneForUpdateInput
+  closedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PeriodCloseUpdateArgs {
+  where: PeriodCloseWhereUniqueInput!
+  data: PeriodCloseUpdateInput!
+}
+
+input PeriodCloseCreateInput {
+  location: LocationRelateToOneForCreateInput
+  period: String
+  status: String
+  approval: ApprovalRequestRelateToOneForCreateInput
+  closedBy: UserRelateToOneForCreateInput
+  closedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Restatement {
+  id: ID!
+  periodClose: PeriodClose
+  reason: String
+  entries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
+  entriesCount(where: LedgerEntryWhereInput! = {}): Int
+  approvedBy: User
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RestatementWhereUniqueInput {
+  id: ID
+}
+
+input RestatementWhereInput {
+  AND: [RestatementWhereInput!]
+  OR: [RestatementWhereInput!]
+  NOT: [RestatementWhereInput!]
+  id: IDFilter
+  periodClose: PeriodCloseWhereInput
+  reason: StringFilter
+  entries: LedgerEntryManyRelationFilter
+  approvedBy: UserWhereInput
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input RestatementOrderByInput {
+  id: OrderDirection
+  reason: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RestatementUpdateInput {
+  periodClose: PeriodCloseRelateToOneForUpdateInput
+  reason: String
+  entries: LedgerEntryRelateToManyForUpdateInput
+  approvedBy: UserRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PeriodCloseRelateToOneForUpdateInput {
+  create: PeriodCloseCreateInput
+  connect: PeriodCloseWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RestatementUpdateArgs {
+  where: RestatementWhereUniqueInput!
+  data: RestatementUpdateInput!
+}
+
+input RestatementCreateInput {
+  periodClose: PeriodCloseRelateToOneForCreateInput
+  reason: String
+  entries: LedgerEntryRelateToManyForCreateInput
+  approvedBy: UserRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PeriodCloseRelateToOneForCreateInput {
+  create: PeriodCloseCreateInput
+  connect: PeriodCloseWhereUniqueInput
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -13085,6 +13544,36 @@ type Mutation {
   updateWorkTasks(data: [WorkTaskUpdateArgs!]!): [WorkTask]
   deleteWorkTask(where: WorkTaskWhereUniqueInput!): WorkTask
   deleteWorkTasks(where: [WorkTaskWhereUniqueInput!]!): [WorkTask]
+  createAdjustmentRequest(data: AdjustmentRequestCreateInput!): AdjustmentRequest
+  createAdjustmentRequests(data: [AdjustmentRequestCreateInput!]!): [AdjustmentRequest]
+  updateAdjustmentRequest(where: AdjustmentRequestWhereUniqueInput!, data: AdjustmentRequestUpdateInput!): AdjustmentRequest
+  updateAdjustmentRequests(data: [AdjustmentRequestUpdateArgs!]!): [AdjustmentRequest]
+  deleteAdjustmentRequest(where: AdjustmentRequestWhereUniqueInput!): AdjustmentRequest
+  deleteAdjustmentRequests(where: [AdjustmentRequestWhereUniqueInput!]!): [AdjustmentRequest]
+  createAdjustmentType(data: AdjustmentTypeCreateInput!): AdjustmentType
+  createAdjustmentTypes(data: [AdjustmentTypeCreateInput!]!): [AdjustmentType]
+  updateAdjustmentType(where: AdjustmentTypeWhereUniqueInput!, data: AdjustmentTypeUpdateInput!): AdjustmentType
+  updateAdjustmentTypes(data: [AdjustmentTypeUpdateArgs!]!): [AdjustmentType]
+  deleteAdjustmentType(where: AdjustmentTypeWhereUniqueInput!): AdjustmentType
+  deleteAdjustmentTypes(where: [AdjustmentTypeWhereUniqueInput!]!): [AdjustmentType]
+  createDayClose(data: DayCloseCreateInput!): DayClose
+  createDayCloses(data: [DayCloseCreateInput!]!): [DayClose]
+  updateDayClose(where: DayCloseWhereUniqueInput!, data: DayCloseUpdateInput!): DayClose
+  updateDayCloses(data: [DayCloseUpdateArgs!]!): [DayClose]
+  deleteDayClose(where: DayCloseWhereUniqueInput!): DayClose
+  deleteDayCloses(where: [DayCloseWhereUniqueInput!]!): [DayClose]
+  createPeriodClose(data: PeriodCloseCreateInput!): PeriodClose
+  createPeriodCloses(data: [PeriodCloseCreateInput!]!): [PeriodClose]
+  updatePeriodClose(where: PeriodCloseWhereUniqueInput!, data: PeriodCloseUpdateInput!): PeriodClose
+  updatePeriodCloses(data: [PeriodCloseUpdateArgs!]!): [PeriodClose]
+  deletePeriodClose(where: PeriodCloseWhereUniqueInput!): PeriodClose
+  deletePeriodCloses(where: [PeriodCloseWhereUniqueInput!]!): [PeriodClose]
+  createRestatement(data: RestatementCreateInput!): Restatement
+  createRestatements(data: [RestatementCreateInput!]!): [Restatement]
+  updateRestatement(where: RestatementWhereUniqueInput!, data: RestatementUpdateInput!): Restatement
+  updateRestatements(data: [RestatementUpdateArgs!]!): [Restatement]
+  deleteRestatement(where: RestatementWhereUniqueInput!): Restatement
+  deleteRestatements(where: [RestatementWhereUniqueInput!]!): [Restatement]
   endSession: Boolean!
   authenticateUserWithPassword(email: String!, password: String!): UserAuthenticationWithPasswordResult
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
@@ -13569,6 +14058,21 @@ type Query {
   workTask(where: WorkTaskWhereUniqueInput!): WorkTask
   workTasks(where: WorkTaskWhereInput! = {}, orderBy: [WorkTaskOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: WorkTaskWhereUniqueInput): [WorkTask!]
   workTasksCount(where: WorkTaskWhereInput! = {}): Int
+  adjustmentRequest(where: AdjustmentRequestWhereUniqueInput!): AdjustmentRequest
+  adjustmentRequests(where: AdjustmentRequestWhereInput! = {}, orderBy: [AdjustmentRequestOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: AdjustmentRequestWhereUniqueInput): [AdjustmentRequest!]
+  adjustmentRequestsCount(where: AdjustmentRequestWhereInput! = {}): Int
+  adjustmentType(where: AdjustmentTypeWhereUniqueInput!): AdjustmentType
+  adjustmentTypes(where: AdjustmentTypeWhereInput! = {}, orderBy: [AdjustmentTypeOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: AdjustmentTypeWhereUniqueInput): [AdjustmentType!]
+  adjustmentTypesCount(where: AdjustmentTypeWhereInput! = {}): Int
+  dayClose(where: DayCloseWhereUniqueInput!): DayClose
+  dayCloses(where: DayCloseWhereInput! = {}, orderBy: [DayCloseOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: DayCloseWhereUniqueInput): [DayClose!]
+  dayClosesCount(where: DayCloseWhereInput! = {}): Int
+  periodClose(where: PeriodCloseWhereUniqueInput!): PeriodClose
+  periodCloses(where: PeriodCloseWhereInput! = {}, orderBy: [PeriodCloseOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PeriodCloseWhereUniqueInput): [PeriodClose!]
+  periodClosesCount(where: PeriodCloseWhereInput! = {}): Int
+  restatement(where: RestatementWhereUniqueInput!): Restatement
+  restatements(where: RestatementWhereInput! = {}, orderBy: [RestatementOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RestatementWhereUniqueInput): [Restatement!]
+  restatementsCount(where: RestatementWhereInput! = {}): Int
   keystone: KeystoneMeta!
   authenticatedItem: AuthenticatedItem
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult

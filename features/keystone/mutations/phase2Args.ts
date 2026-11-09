@@ -62,4 +62,9 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   failVerification: { verificationId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
   addOutsideHistory: { patientId: 'ID!', codeId: 'ID', codeText: 'String', frequencyGroup: 'String', tooth: 'String', dateOfService: 'String!', providerName: 'String', source: 'String!' },
   estimateTreatmentPlan: { planId: 'ID!' },
+  // Ledger
+  requestAdjustment: { patientId: 'ID!', locationId: 'ID!', typeId: 'ID!', amount: 'String!', reason: 'String!', relatedEntryId: 'ID' },
+  reverseLedgerEntry: { entryId: 'ID!', reason: 'String!' },
+  rebuildAccountBalance: { accountId: 'ID!' },
 }
+

@@ -7,6 +7,8 @@ npx prisma migrate resolve --rolled-back 20261108220000_dental_phase3_review_fix
 npm run migrate || exit 1
 # keyed member-ID hashes (idempotent; a failure here must not stop the site)
 ./node_modules/.bin/tsx scripts/rehash-member-ids.ts || true
+# cached ledger balances (idempotent)
+./node_modules/.bin/tsx scripts/rebuild-balances.ts || true
 (
   while true; do
     ./node_modules/.bin/tsx features/keystone/messaging/run-worker.ts --loop

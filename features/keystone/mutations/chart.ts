@@ -6,6 +6,7 @@ import { normalizeSite, type AreaRule } from '../lib/teeth'
 import { addDays } from '../lib/time'
 import { CONDITION_STATUSES } from '../models/clinical'
 import { accountFor, dayOf, feeFor, locationToday, oneOf, requireReason } from './clinicalShared'
+import { rebuildBalance } from '../lib/ledger'
 import { assertLocation, assertPatientInScope, optionalText, staff, type Ctx } from './shared'
 
 /*
@@ -165,6 +166,7 @@ export async function completeProcedure(_root: unknown, args: { chartEntryId: st
       data: { accountId: account.id, patientId: row.patientId, kind: 'charge', amountMinor: feeMinor, currencyCode: settingsCurrency, businessDate: dayOf(date), originalBusinessDate: dayOf(date), locationId: row.locationId, providerId: provider.id, chartEntryId: row.id, memo: `${code.code} ${row.tooth}${row.surfaces ? ` ${row.surfaces}` : ''}`.trim(), postedById: actor.kind === 'user' ? actor.userId : null, postedAt: uow.now },
     })
     await uow.tx.chartEntry.update({ where: { id: row.id }, data: { ledgerEntryId: charge.id } })
+    await rebuildBalance(uow.tx, account.id, uow.now)
     auditCreate(uow, actor, 'LedgerEntry', charge.id, 'ledger.charge_posted', { chartEntryId: row.id, amountMinor: feeMinor.toString(), businessDate: date })
     uow.emit({ topic: 'ledger.charge_posted', aggregateType: 'LedgerEntry', aggregateId: charge.id, payload: { chartEntryId: row.id, patientId: row.patientId }, dedupeKey: `ledger.charge_posted:${charge.id}` })
     return { chartEntryId: entry.id, ledgerEntryId: charge.id, feeMinor: feeMinor.toString() }
@@ -193,6 +195,7 @@ export async function correctProcedure(_root: unknown, args: { chartEntryId: str
         data: { accountId: charge.accountId, patientId: charge.patientId, kind: 'reversal', amountMinor: -charge.amountMinor, currencyCode: charge.currencyCode, businessDate: dayOf(today), originalBusinessDate: charge.originalBusinessDate, locationId: charge.locationId, providerId: charge.providerId, chartEntryId: row.id, reversesId: charge.id, memo: `Reversal: ${reason}`.slice(0, 200), postedById: actor.kind === 'user' ? actor.userId : null, postedAt: uow.now },
       })
       reversalId = reversal.id
+      if (charge.accountId) await rebuildBalance(uow.tx, charge.accountId, uow.now)
       auditCreate(uow, actor, 'LedgerEntry', reversal.id, 'ledger.charge_reversed', { reverses: charge.id, amountMinor: (-charge.amountMinor).toString() }, { reason })
     }
     let replacementId: string | null = null

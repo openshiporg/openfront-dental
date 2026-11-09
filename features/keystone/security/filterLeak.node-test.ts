@@ -53,6 +53,21 @@ describe('hidden fields cannot be filtered or sorted (GraphQL)', { skip: !hasTes
     })
   }
 
+  for (const selection of [
+    'guarantorAccounts(where: { balanceCache: { equals: { totalMinor: "0" } } }, take: 1) { id }',
+    'adjustmentRequestsCount(where: { amountMinor: { gt: "100" } })',
+    'adjustmentRequests(orderBy: { reason: asc }, take: 5) { id }',
+    'dayClosesCount(where: { daySheet: { equals: {} } })',
+  ]) {
+    it(`a reader without ledger access: ${selection} is refused`, async () => {
+      const r = await run(sessionOf(['canAccessDashboard', 'canManagePatients', 'canCloseDay']), `{ ${selection} }`)
+      // Either the schema refuses the filter, or the whole list is closed to this reader (these lists are readable only with the tier permission), so nothing comes back.
+      if (r.errors?.length) { assert.match(message(r), /filter|order|Access denied|not allowed|Cannot query|not defined by type/i); return }
+      const value: any = Object.values(r.data ?? {})[0]
+      assert.ok(value === 0 || (Array.isArray(value) && value.length === 0), `expected a refusal or nothing, got ${JSON.stringify(r.data)}`)
+    })
+  }
+
   it('a reader who can see the field can still filter and sort on it', async () => {
     const r = await run(sessionOf([...FRONT, 'canReadClinical']), '{ outsideHistoriesCount(where: { codeText: { contains: "Seaside" } }) outsideHistories(orderBy: { codeText: asc }, take: 1) { id } }')
     assert.equal(r.errors, undefined, message(r))

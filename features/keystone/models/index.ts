@@ -12,6 +12,7 @@ import * as catalogue from './catalogue'
 import * as clinical from './clinical'
 import * as treatment from './treatment'
 import * as insurance from './insurance'
+import * as ledger from './ledger'
 import { applyPhiTiers } from '../security/phiFields'
 import { sys } from '../access'
 
@@ -59,6 +60,7 @@ export const models = boundTake(hideRefusedActions(applyPhiTiers({
   ...listsOf(clinical),
   ...listsOf(treatment),
   ...listsOf(insurance),
+  ...listsOf(ledger),
 })))
 
 export default models

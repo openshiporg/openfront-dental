@@ -51,6 +51,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         <span className="font-mono text-sm text-muted-foreground">{chartLabel(p.chartNumber)}</span>
         <Link className="text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/chart`}>Open clinical record</Link>
         <Link className="text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/insurance`}>Insurance and estimates</Link>
+        <Link className="text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/ledger`}>Account and balance</Link>
         {p.mergedInto ? <Link className="text-sm underline" href={`/dashboard/platform/patients/${p.mergedInto.id}`}>Merged into {chartLabel(p.mergedInto.chartNumber)}</Link> : null}
       </div>
       {activeAlerts.length ? (

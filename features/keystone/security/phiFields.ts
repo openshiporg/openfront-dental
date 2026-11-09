@@ -105,6 +105,8 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   BenefitUsage: { maxUsedMinor: 'ins', deductibleUsedMinor: 'ins', pendingMinor: 'ins', frequencyUse: 'ins' },
   LedgerEntry: { amountMinor: 'fin', memo: 'fin' },
   GuarantorAccount: { balanceCache: 'fin' },
+  AdjustmentRequest: { amountMinor: 'fin', reason: 'fin' },
+  DayClose: { daySheet: 'fin' },
 }
 
 /** Every PHI field name, for log redaction (field names only, never values). */

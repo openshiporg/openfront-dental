@@ -1,4 +1,5 @@
 import { canonicalJson, sha256 } from '../lib/canonical'
+import { rebuildBalance } from '../lib/ledger'
 import { auditCreate } from '../lib/cas'
 import type { Actor } from '../lib/actor'
 import { addDays, localDate } from '../lib/time'
@@ -234,6 +235,7 @@ export async function seedPhase2(uow: UnitOfWork, actor: Actor) {
   await tx.chartEntry.createMany({ data: [...E, ...X] })
   if (L.length) {
     await tx.ledgerEntry.createMany({ data: L })
+    for (const accountId of new Set(L.map(l => l.accountId))) await rebuildBalance(tx, accountId, now)
     await tx.$executeRawUnsafe(`UPDATE "ChartEntry" c SET "ledgerEntry" = l.id FROM "LedgerEntry" l WHERE l."chartEntry" = c.id AND c."ledgerEntry" IS NULL AND c.id = ANY($1::text[])`, E.map(e => e.id))
   }
   if (PL.length) {

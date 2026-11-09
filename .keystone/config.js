@@ -36,7 +36,7 @@ module.exports = __toCommonJS(keystone_exports);
 
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
-var import_core18 = require("@keystone-6/core");
+var import_core19 = require("@keystone-6/core");
 var import_config = require("dotenv/config");
 
 // features/keystone/models/User.ts
@@ -2255,6 +2255,9 @@ var LedgerEntry = (0, import_core13.list)({
     provider: (0, import_fields13.relationship)({ ref: "ProviderProfile", ...readOnly }),
     chartEntry: (0, import_fields13.relationship)({ ref: "ChartEntry", ...readOnly }),
     reverses: (0, import_fields13.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    adjustment: (0, import_fields13.relationship)({ ref: "AdjustmentRequest", ...readOnly }),
+    dayClose: (0, import_fields13.relationship)({ ref: "DayClose.entries", ...readOnly }),
+    restatement: (0, import_fields13.relationship)({ ref: "Restatement.entries", ...readOnly }),
     memo: systemText(),
     postedBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
     postedAt: (0, import_fields13.timestamp)({ ...readOnly }),
@@ -3132,6 +3135,101 @@ var WorkTask = (0, import_core16.list)({
   }
 });
 
+// features/keystone/models/ledger.ts
+var ledger_exports = {};
+__export(ledger_exports, {
+  ADJUSTMENT_CATEGORIES: () => ADJUSTMENT_CATEGORIES,
+  ADJUSTMENT_DIRECTIONS: () => ADJUSTMENT_DIRECTIONS,
+  ADJUSTMENT_STATUSES: () => ADJUSTMENT_STATUSES,
+  AdjustmentRequest: () => AdjustmentRequest,
+  AdjustmentType: () => AdjustmentType,
+  DAY_CLOSE_STATUSES: () => DAY_CLOSE_STATUSES,
+  DayClose: () => DayClose,
+  PERIOD_CLOSE_STATUSES: () => PERIOD_CLOSE_STATUSES,
+  PeriodClose: () => PeriodClose,
+  Restatement: () => Restatement
+});
+var import_core17 = require("@keystone-6/core");
+var import_fields17 = require("@keystone-6/core/fields");
+var ADJUSTMENT_DIRECTIONS = ["credit", "debit"];
+var ADJUSTMENT_CATEGORIES = ["courtesy", "professional", "bad_debt", "small_balance", "broken_appt_fee", "membership_discount", "other"];
+var ADJUSTMENT_STATUSES = ["requested", "approved", "posted", "rejected"];
+var DAY_CLOSE_STATUSES = ["open", "closing", "closed"];
+var PERIOD_CLOSE_STATUSES = ["open", "closing", "closed", "reopen_requested", "reopened"];
+var AdjustmentType = (0, import_core17.list)({
+  access: governed("canReadLedger"),
+  ui: { labelField: "name", listView: { initialColumns: ["code", "name", "direction", "category", "approvalThresholdMinor", "requiresApproval"] } },
+  fields: {
+    code: (0, import_fields17.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    name: systemText({ required: true }),
+    direction: fixedChoice(ADJUSTMENT_DIRECTIONS),
+    category: fixedChoice(ADJUSTMENT_CATEGORIES),
+    approvalThresholdMinor: minor({ required: true, description: "At or above this amount a second person approves." }),
+    requiresApproval: (0, import_fields17.checkbox)({ defaultValue: false, ...readOnly }),
+    isActive: (0, import_fields17.checkbox)({ defaultValue: true, ...readOnly }),
+    ...trackingFields
+  }
+});
+var AdjustmentRequest = (0, import_core17.list)({
+  access: governed("canReadLedger"),
+  ui: { labelField: "reason", listView: { initialColumns: ["patient", "type", "amountMinor", "status", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    account: (0, import_fields17.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    patient: (0, import_fields17.relationship)({ ref: "Patient", ...readOnly }),
+    location: (0, import_fields17.relationship)({ ref: "Location", ...readOnly }),
+    type: (0, import_fields17.relationship)({ ref: "AdjustmentType", ...readOnly }),
+    amountMinor: minor({ required: true, description: "Always positive; the type decides the direction." }),
+    reason: systemText({ required: true }),
+    relatedEntry: (0, import_fields17.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    status: lifecycle(ADJUSTMENT_STATUSES),
+    approval: (0, import_fields17.relationship)({ ref: "ApprovalRequest", ...readOnly }),
+    postedEntry: (0, import_fields17.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    requestedBy: (0, import_fields17.relationship)({ ref: "User", ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var DayClose = (0, import_core17.list)({
+  access: governed(["canCloseDay", "canReadLedger"]),
+  ui: { labelField: "businessDate", listView: { initialColumns: ["location", "businessDate", "status", "closedAt"] } },
+  fields: {
+    location: (0, import_fields17.relationship)({ ref: "Location", ...readOnly }),
+    businessDate: (0, import_fields17.calendarDay)({ ...readOnly }),
+    status: lifecycle(DAY_CLOSE_STATUSES),
+    daySheet: (0, import_fields17.json)({ defaultValue: {}, ...readOnly, ui: { ...readOnly.ui, description: "Frozen totals by provider and tender." } }),
+    closedBy: (0, import_fields17.relationship)({ ref: "User", ...readOnly }),
+    closedAt: (0, import_fields17.timestamp)({ ...readOnly }),
+    entries: (0, import_fields17.relationship)({ ref: "LedgerEntry.dayClose", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PeriodClose = (0, import_core17.list)({
+  access: governed(["canClosePeriod", "canReadLedger"]),
+  ui: { labelField: "period", listView: { initialColumns: ["location", "period", "status", "closedAt"] } },
+  fields: {
+    location: (0, import_fields17.relationship)({ ref: "Location", ...readOnly }),
+    period: systemText({ required: true }),
+    status: lifecycle(PERIOD_CLOSE_STATUSES),
+    approval: (0, import_fields17.relationship)({ ref: "ApprovalRequest", ...readOnly }),
+    closedBy: (0, import_fields17.relationship)({ ref: "User", ...readOnly }),
+    closedAt: (0, import_fields17.timestamp)({ ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var Restatement = (0, import_core17.list)({
+  access: governed(["canClosePeriod", "canReadLedger"]),
+  ui: { labelField: "reason" },
+  fields: {
+    periodClose: (0, import_fields17.relationship)({ ref: "PeriodClose", ...readOnly }),
+    reason: systemText({ required: true }),
+    entries: (0, import_fields17.relationship)({ ref: "LedgerEntry.restatement", many: true, ...readOnly }),
+    approvedBy: (0, import_fields17.relationship)({ ref: "User", ...readOnly }),
+    ...trackingFields
+  }
+});
+
 // features/keystone/security/phiFields.ts
 var TIER_PERMISSION = {
   dem: "canReadDemographics",
@@ -3222,13 +3320,13 @@ var PHI_FIELDS = {
 };
 var PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap((fields) => Object.keys(fields)));
 function applyPhiTiers(models2) {
-  for (const [listKey, list15] of Object.entries(models2)) {
+  for (const [listKey, list16] of Object.entries(models2)) {
     const tiers = PHI_FIELDS[listKey];
     if (!tiers) continue;
     for (const [fieldKey, tier] of Object.entries(tiers)) {
-      const original = list15.fields?.[fieldKey];
+      const original = list16.fields?.[fieldKey];
       if (typeof original !== "function") throw new Error(`PHI_FIELDS names ${listKey}.${fieldKey}, which does not exist.`);
-      list15.fields[fieldKey] = (args) => {
+      list16.fields[fieldKey] = (args) => {
         const field = original(args);
         const access = field.access;
         const baseRead = typeof access === "function" ? access : access?.read;
@@ -3243,10 +3341,10 @@ function applyPhiTiers(models2) {
   return gateFilterAndOrder(models2);
 }
 function gateFilterAndOrder(models2) {
-  for (const list15 of Object.values(models2)) {
-    for (const [fieldKey, original] of Object.entries(list15.fields ?? {})) {
+  for (const list16 of Object.values(models2)) {
+    for (const [fieldKey, original] of Object.entries(list16.fields ?? {})) {
       if (typeof original !== "function" || fieldKey.startsWith("__group")) continue;
-      list15.fields[fieldKey] = (args) => {
+      list16.fields[fieldKey] = (args) => {
         const field = original(args);
         const read = typeof field.access === "function" ? field.access : field.access?.read;
         if (typeof read !== "function") return field;
@@ -3291,7 +3389,8 @@ var models = boundTake(hideRefusedActions(applyPhiTiers({
   ...listsOf(catalogue_exports),
   ...listsOf(clinical_exports),
   ...listsOf(treatment_exports),
-  ...listsOf(insurance_exports)
+  ...listsOf(insurance_exports),
+  ...listsOf(ledger_exports)
 })));
 
 // features/keystone/mutations/index.ts
@@ -3388,21 +3487,21 @@ var prismaCodeOf = (error) => String(error?.code ?? error?.extensions?.prisma?.c
 var isUniqueConflict = (error) => prismaCodeOf(error) === "P2002" || /Unique constraint failed|duplicate key value violates unique constraint/i.test(textOf(error));
 function dbRefusal(error) {
   const e = error;
-  const text16 = textOf(e);
+  const text17 = textOf(e);
   if (isUniqueConflict(e)) {
     const model = String(e?.meta?.modelName ?? e?.extensions?.prisma?.meta?.modelName ?? "");
-    const index = /unique constraint "([^"]+)"/i.exec(text16)?.[1] ?? "";
-    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text16) ? "BenefitVerification" : /EligibilityCheck/.test(text16) ? "EligibilityCheck" : "");
+    const index = /unique constraint "([^"]+)"/i.exec(text17)?.[1] ?? "";
+    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text17) ? "BenefitVerification" : /EligibilityCheck/.test(text17) ? "EligibilityCheck" : "");
     return new DomainError(Codes.STALE_STATE, UNIQUE_MESSAGES[key] ?? "Someone else made the same change at the same moment. Refresh and try again.");
   }
-  const check = /violates check constraint "([^"]+)"/i.exec(text16)?.[1];
+  const check = /violates check constraint "([^"]+)"/i.exec(text17)?.[1];
   if (check) {
     const message = CHECK_MESSAGES.find(([pattern]) => pattern.test(check))?.[1] ?? "The change was refused because it would break a practice rule. Nothing was changed.";
     return new DomainError(Codes.GUARD_FAILED, message, { reason: check });
   }
-  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text16)?.[1];
-  if (raised && /23514|check_violation|RAISE|P0001/i.test(text16 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
-  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text16)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
+  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text17)?.[1];
+  if (raised && /23514|check_violation|RAISE|P0001/i.test(text17 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
+  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text17)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
   return null;
 }
 
@@ -3528,9 +3627,9 @@ function dec(value) {
     if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
     return new Decimal(value);
   }
-  const text16 = String(value).trim();
-  if (!DECIMAL_TEXT.test(text16)) throw new Error(`Not a decimal number: ${JSON.stringify(text16).slice(0, 40)}`);
-  return new Decimal(text16);
+  const text17 = String(value).trim();
+  if (!DECIMAL_TEXT.test(text17)) throw new Error(`Not a decimal number: ${JSON.stringify(text17).slice(0, 40)}`);
+  return new Decimal(text17);
 }
 function toScale(value, scale, rounding = Decimal.ROUND_HALF_EVEN) {
   const places = typeof scale === "number" ? scale : Scale[scale];
@@ -3562,11 +3661,11 @@ function canonicalize(value) {
   throw new Error(`Canonical JSON cannot hold a ${typeof value}`);
 }
 var canonicalJson = (value) => JSON.stringify(canonicalize(value));
-var sha256 = (text16) => (0, import_node_crypto2.createHash)("sha256").update(text16).digest("hex");
+var sha256 = (text17) => (0, import_node_crypto2.createHash)("sha256").update(text17).digest("hex");
 var memberIdHash = (memberId, keyText = process.env.DENTAL_SECRET_KEY) => {
-  const text16 = String(keyText || "").trim();
-  if (!text16) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
-  const root = /^[a-f0-9]{64}$/i.test(text16) ? Buffer.from(text16, "hex") : Buffer.from(text16, "base64");
+  const text17 = String(keyText || "").trim();
+  if (!text17) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
+  const root = /^[a-f0-9]{64}$/i.test(text17) ? Buffer.from(text17, "hex") : Buffer.from(text17, "base64");
   const key = (0, import_node_crypto2.createHmac)("sha256", root).update("dental.member-id-hash.v1").digest();
   return `h1:${(0, import_node_crypto2.createHmac)("sha256", key).update(memberId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")).digest("hex")}`;
 };
@@ -4090,7 +4189,7 @@ function rng(seed) {
 }
 function samplePatients(today2) {
   const rand = rng(20261107);
-  const pick = (list15) => list15[Math.floor(rand() * list15.length)];
+  const pick = (list16) => list16[Math.floor(rand() * list16.length)];
   const year = Number(today2.slice(0, 4));
   const dobFor = (age) => {
     const month = 1 + Math.floor(rand() * 12);
@@ -4935,9 +5034,9 @@ async function seedPracticePlatform(uow, actor2) {
 var import_node_crypto4 = require("node:crypto");
 var SECRET_KEY_VERSION = 1;
 function decodeKey(value) {
-  const text16 = String(value || "").trim();
-  if (!text16) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
-  const key = /^[a-f0-9]{64}$/i.test(text16) ? Buffer.from(text16, "hex") : Buffer.from(text16, "base64");
+  const text17 = String(value || "").trim();
+  if (!text17) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
+  const key = /^[a-f0-9]{64}$/i.test(text17) ? Buffer.from(text17, "hex") : Buffer.from(text17, "base64");
   if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
   return key;
 }
@@ -5778,10 +5877,10 @@ var toDate = (value, field) => {
   return date;
 };
 var requireText = (value, field, max2 = 500) => {
-  const text16 = String(value ?? "").trim();
-  if (!text16) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-  if (text16.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
-  return text16;
+  const text17 = String(value ?? "").trim();
+  if (!text17) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+  if (text17.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+  return text17;
 };
 var optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
 function normalizeContact(kind, value) {
@@ -6512,11 +6611,11 @@ async function addPatientAlert(_root, args, context) {
   requirePermission(actor2, "canManagePatients", "canChart");
   if (!ALERT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown alert kind.", { field: "kind" });
   if (!["info", "caution", "critical"].includes(args.severity)) throw new DomainError(Codes.INVALID_INPUT, "Choose info, caution or critical.", { field: "severity" });
-  const text16 = requireText(args.text, "alert text", 500);
+  const text17 = requireText(args.text, "alert text", 500);
   const { idempotencyKey, ...params } = args;
   const result = await command(context.prisma, { name: "patient.alert_add", actor: actor2, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text16, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
+    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text17, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
     auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
     return { alertId: alert.id };
   });
@@ -6648,21 +6747,21 @@ async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
   let seq = 0;
   const entries = [];
   const survivorPrimary = new Set((await uow.tx.contactPoint.findMany({ where: { patientId: survivorId, isPrimary: true, isActive: true }, select: { kind: true } })).map((c) => c.kind));
-  for (const { list: list15, field } of MERGE_CHILDREN) {
-    const rows = await delegateOf(uow.tx, list15).findMany({ where: { [field]: mergedId }, select: { id: true, ...list15 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
+  for (const { list: list16, field } of MERGE_CHILDREN) {
+    const rows = await delegateOf(uow.tx, list16).findMany({ where: { [field]: mergedId }, select: { id: true, ...list16 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
     for (const row of rows) {
-      if (list15 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
+      if (list16 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
         await uow.tx.contactPoint.update({ where: { id: row.id }, data: { isPrimary: false } });
-        entries.push({ listKey: list15, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
+        entries.push({ listKey: list16, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
       }
       try {
-        await delegateOf(uow.tx, list15).update({ where: { id: row.id }, data: { [field]: survivorId } });
+        await delegateOf(uow.tx, list16).update({ where: { id: row.id }, data: { [field]: survivorId } });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list15 === "Appointment" ? "overlapping appointments" : list15} rows. Resolve them before merging.`);
+        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list16 === "Appointment" ? "overlapping appointments" : list16} rows. Resolve them before merging.`);
         throw error;
       }
-      entries.push({ listKey: list15, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
+      entries.push({ listKey: list16, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
     }
   }
   if (entries.length) await uow.tx.mergeMap.createMany({ data: entries.map((e) => ({ ...e, mergeCaseId })) });
@@ -6732,12 +6831,12 @@ function verifiedInternalIdentity(headers, socketAddress, secret4, now) {
   const loopback = /^(?:127\.|::1$|::ffff:127\.)/.test(String(socketAddress || ""));
   if (!loopback || secret4.length < 32) return null;
   const identity = String(headers["x-openfront-client-identity"] || "");
-  const timestamp14 = String(headers["x-openfront-client-timestamp"] || "");
+  const timestamp15 = String(headers["x-openfront-client-timestamp"] || "");
   const signature2 = String(headers["x-openfront-client-signature"] || "");
-  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp14) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
-  const age = Math.abs(now - Number(timestamp14) * 1e3);
+  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp15) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
+  const age = Math.abs(now - Number(timestamp15) * 1e3);
   if (!Number.isFinite(age) || age > INTERNAL_IDENTITY_MAX_AGE_MS) return null;
-  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp14}:${identity}`).digest("hex");
+  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp15}:${identity}`).digest("hex");
   return safeEqual(signature2, expected) ? `forwarded:${identity}` : null;
 }
 
@@ -6781,8 +6880,8 @@ var keyHash = (value) => (0, import_node_crypto10.createHash)("sha256").update(v
 var secret2 = () => process.env.SESSION_SECRET || "local-development-session-secret-change-me-now";
 var clientFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(clientKey(req, secret2())).digest("hex").slice(0, 32);
 var userAgentFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(String(req?.headers?.["user-agent"] ?? "")).digest("hex").slice(0, 32);
-function limitsFrom(json13) {
-  const value = json13 && typeof json13 === "object" ? json13 : {};
+function limitsFrom(json14) {
+  const value = json14 && typeof json14 === "object" ? json14 : {};
   const pick = (n, fallback, max2) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max2) : fallback;
   return {
     perClientPerHour: pick(value.perClientPerHour, DEFAULT_PUBLIC_LIMITS.perClientPerHour, 1e3),
@@ -7083,9 +7182,9 @@ var import_node_crypto13 = require("node:crypto");
 // features/keystone/security/phiReadAudit.ts
 var import_node_crypto12 = require("node:crypto");
 var import_graphql4 = require("graphql");
-function referenceToken(secret4, list15, id) {
+function referenceToken(secret4, list16, id) {
   if (!secret4 || secret4.length < 32) throw new Error("A strong PHI audit reference secret (SESSION_SECRET) is required.");
-  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list15}\0${id}`).digest("hex");
+  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list16}\0${id}`).digest("hex");
 }
 async function recordPhiReadAudit(prisma, actor2, descriptor) {
   await prisma.phiReadAudit.create({
@@ -7236,8 +7335,8 @@ function assertPortalScope(principal, patientId, capability) {
   if (!scope || !scope.capabilities.includes(capability)) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
   return scope;
 }
-async function auditPortalRead(context, principal, operationName, list15, ids, fields) {
-  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list15, ids, fields, tiers: ["dem"] });
+async function auditPortalRead(context, principal, operationName, list16, ids, fields) {
+  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list16, ids, fields, tiers: ["dem"] });
 }
 async function portalMe(_root, _args, context) {
   const principal = await portalPrincipal(context);
@@ -7441,9 +7540,9 @@ async function accountFor(uow, patientId) {
   return tx.guarantorAccount.create({ data: { guarantorId, ref } });
 }
 function requireReason(value, what = "reason") {
-  const text16 = String(value ?? "").trim();
-  if (text16.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
-  return text16.slice(0, 1e3);
+  const text17 = String(value ?? "").trim();
+  if (text17.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
+  return text17.slice(0, 1e3);
 }
 var oneOf = (value, allowed, field) => {
   if (!allowed.includes(String(value))) throw new DomainError(Codes.INVALID_INPUT, `Unknown ${field}.`, { field });
@@ -8963,9 +9062,9 @@ var TASK_TITLES = {
 };
 var taskTitle = (field) => TASK_TITLES[field] ?? `Ask the payer: ${field.replaceAll("_", " ")}`;
 var money = (value, field) => {
-  const text16 = String(value ?? "").trim();
-  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text16)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
-  return toMinor(text16, "USD");
+  const text17 = String(value ?? "").trim();
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text17)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
+  return toMinor(text17, "USD");
 };
 var optMoney = (value, field) => value === void 0 || value === null || String(value).trim() === "" ? null : money(value, field);
 async function savePayer(_root, args, context) {
@@ -9026,7 +9125,7 @@ var last4 = (value) => value.replace(/[^A-Za-z0-9]/g, "").slice(-4);
 async function addCoverage(_root, args, context) {
   const { actor: actor2, locationIds } = staff(context);
   requirePermission(actor2, "canManageInsurance");
-  const relationship14 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
+  const relationship15 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
   const ordinal = oneOf(args.ordinal, ORDINALS, "order");
   const memberId = requireText(args.memberId, "member ID", 40);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the effective date.", { field: "effectiveFrom" });
@@ -9037,7 +9136,7 @@ async function addCoverage(_root, args, context) {
     if (!plan) throw new DomainError(Codes.NOT_FOUND, "Insurance plan not found.");
     const open = await uow.tx.coverage.findFirst({ where: { patientId: patient.id, ordinal, status: { in: ["pending_verification", "active"] } } });
     if (open) throw new DomainError(Codes.GUARD_FAILED, `This patient already has a ${ordinal} coverage. Change the order or end that coverage first.`, { field: "ordinal" });
-    const self = relationship14 === "self";
+    const self = relationship15 === "self";
     const patientRow = await uow.tx.patient.findUniqueOrThrow({ where: { id: patient.id }, select: { firstName: true, lastName: true, dateOfBirth: true, isSynthetic: true } });
     const secret4 = await storeSecret(uow.tx, "subscriber.memberId", memberId);
     const subscriber = await uow.tx.subscriber.create({
@@ -9054,9 +9153,9 @@ async function addCoverage(_root, args, context) {
       }
     });
     const coverage = await uow.tx.coverage.create({
-      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship14, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
+      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship15, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
     });
-    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship14 });
+    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship15 });
     return { coverageId: coverage.id, subscriberId: subscriber.id };
   });
   return { replay: result.replay, ...result.value };
@@ -9945,7 +10044,7 @@ var { withAuth } = (0, import_auth.createAuth)({
   `
 });
 var keystone_default = withAuth(
-  (0, import_core18.config)({
+  (0, import_core19.config)({
     db: {
       provider: "postgresql",
       url: databaseURL,
