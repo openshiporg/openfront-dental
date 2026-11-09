@@ -63,8 +63,15 @@ export async function seedClaimSample(db: Db) {
     }
   }
   let enrollments = 0
-  const entity = await db.billingEntity.findFirst({ orderBy: { createdAt: 'asc' } })
+  // The sample practice bills under one legal entity. Real practices set theirs up in Settings; this only fills a gap for the sample.
+  let entity = await db.billingEntity.findFirst({ orderBy: { createdAt: 'asc' } })
+  const sampleLocations = await db.location.findMany({ where: { billingEntityId: null }, select: { id: true, address: true } })
+  if (!entity && sampleLocations.length && (await db.payer.count({ where: { isSynthetic: true } }))) {
+    const where = (sampleLocations[0].address ?? {}) as Record<string, unknown>
+    entity = await db.billingEntity.create({ data: { legalName: 'Bayview Family Dental, P.A.', tinLast4: '4417', npiType2: '1999900017', address: where as never, payToAddress: where as never, clearinghouseSubmitterIds: {} as never } })
+  }
   if (entity) {
+    await db.location.updateMany({ where: { billingEntityId: null }, data: { billingEntityId: entity.id } })
     for (const payer of await db.payer.findMany({ where: { isSynthetic: true } })) {
       if (!(await db.payerEnrollment.findFirst({ where: { billingEntityId: entity.id, payerId: payer.id, transaction: 'claims' } }))) {
         await db.payerEnrollment.create({ data: { billingEntityId: entity.id, payerId: payer.id, adapterKey: 'stedi', transaction: 'claims', status: 'live', notes: 'Sample practice' } })
