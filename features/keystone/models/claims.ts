@@ -2,7 +2,7 @@ import { list } from '@keystone-6/core'
 import { calendarDay, checkbox, integer, json, relationship, text, timestamp } from '@keystone-6/core/fields'
 import { fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
 import { governed } from './listAccess'
-import { locationFilter, scopedGoverned } from './scope'
+import { MONEY, moneyFilter, remittanceFilter, scopedGoverned, under } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -39,8 +39,8 @@ export const ENROLLMENT_TRANSACTIONS = ['claims', 'era', 'eligibility', 'claim_s
 export const ENROLLMENT_STATUSES = ['draft', 'submitted', 'in_progress', 'provisioning', 'live', 'rejected', 'canceled'] as const
 
 const CLAIM_READ = ['canReadInsurance', 'canManageClaims', 'canSubmitClaims', 'canPostRemittances', 'canReadLedger'] as never
-const claimScoped = () => scopedGoverned(CLAIM_READ, locationFilter(['location']))
-const childScoped = () => scopedGoverned(CLAIM_READ, locationFilter(['claim', 'location']))
+const claimScoped = () => scopedGoverned(CLAIM_READ, moneyFilter(MONEY.claim))
+const childScoped = () => scopedGoverned(CLAIM_READ, moneyFilter(under(['claim'], MONEY.claim)))
 
 export const ScrubRule = list({
   access: governed(CLAIM_READ),
@@ -193,7 +193,7 @@ export const ClaimStatusInquiry = list({
 })
 
 export const Remittance = list({
-  access: governed(CLAIM_READ),
+  access: scopedGoverned(CLAIM_READ, remittanceFilter()),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'payer', 'traceNumber', 'paymentDate', 'totalPaidMinor', 'status'], initialSort: { field: 'createdAt', direction: 'DESC' } } },
   fields: {
     ref: text({ isIndexed: 'unique', validation: { isRequired: true }, ...readOnly }),
@@ -235,7 +235,7 @@ export const RemittanceClaim = list({
 })
 
 export const RemittanceLine = list({
-  access: scopedGoverned(CLAIM_READ, locationFilter(['remittanceClaim', 'claim', 'location']) as never),
+  access: scopedGoverned(CLAIM_READ, moneyFilter(under(['remittanceClaim', 'claim'], MONEY.claim))),
   ui: { labelField: 'code', listView: { initialColumns: ['remittanceClaim', 'code', 'dateOfService', 'chargeMinor', 'paidMinor', 'conservationOk'] } },
   fields: {
     remittanceClaim: relationship({ ref: 'RemittanceClaim.lines', ...readOnly }),
@@ -257,7 +257,7 @@ export const RemittanceLine = list({
 })
 
 export const PaymentPosting = list({
-  access: scopedGoverned(CLAIM_READ, locationFilter(['remittanceClaim', 'claim', 'location']) as never),
+  access: scopedGoverned(CLAIM_READ, moneyFilter(under(['remittanceClaim', 'claim'], MONEY.claim))),
   ui: { labelField: 'status', listView: { initialColumns: ['remittance', 'status', 'at'] } },
   fields: {
     remittance: relationship({ ref: 'Remittance', ...readOnly }),
@@ -304,7 +304,7 @@ export const Denial = list({
 })
 
 export const Appeal = list({
-  access: scopedGoverned(CLAIM_READ, locationFilter(['denial', 'claim', 'location']) as never),
+  access: scopedGoverned(CLAIM_READ, moneyFilter(under(['denial', 'claim'], MONEY.claim))),
   ui: { labelField: 'level', listView: { initialColumns: ['denial', 'level', 'submittedVia', 'outcome', 'submittedAt'] } },
   fields: {
     denial: relationship({ ref: 'Denial.appeals', ...readOnly }),

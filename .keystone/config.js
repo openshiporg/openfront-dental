@@ -267,10 +267,35 @@ var init_listAccess = __esm({
 });
 
 // features/keystone/models/scope.ts
+function patientWhere(ids) {
+  const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
+  return {
+    OR: [
+      { homeLocation: { id: { in: ids } } },
+      { appointments: { some: { location: { id: { in: ids } }, startsAt: { gte: since.toISOString() } } } }
+    ]
+  };
+}
+function linksWhere(ids) {
+  const visible = patientWhere(ids);
+  return { links: { some: { patient: visible }, none: { patient: { NOT: [visible] } } } };
+}
+function moneyWhere(spec, ids) {
+  const parts = [];
+  const optional = (path, where) => {
+    const last = path[path.length - 1];
+    return nest(path.slice(0, -1), { OR: [{ [last]: null }, { [last]: where }] });
+  };
+  if (spec.location) parts.push(nest(spec.location, { id: { in: ids } }));
+  if (spec.patient) parts.push(optional(spec.patient, patientWhere(ids)));
+  if (spec.account) parts.push(optional(spec.account, { guarantor: linksWhere(ids) }));
+  if (spec.guarantor) parts.push(nest(spec.guarantor, linksWhere(ids)));
+  return parts.length === 1 ? parts[0] : { AND: parts };
+}
 function nest(path, leaf) {
   return path.reduceRight((inner, key) => ({ [key]: inner }), leaf);
 }
-var rule2, PATIENT_LOCATION_LOOKBACK_YEARS, locationFilter, patientFilter, scopedGoverned, scopedManaged;
+var rule2, PATIENT_LOCATION_LOOKBACK_YEARS, locationFilter, patientFilter, under, MONEY, moneyFilter, remittanceFilter, scopedGoverned, scopedManaged;
 var init_scope = __esm({
   "features/keystone/models/scope.ts"() {
     "use strict";
@@ -287,14 +312,28 @@ var init_scope = __esm({
       if (!isSignedIn({ session })) return false;
       const ids = sessionLocationIds(session);
       if (ids === null) return true;
-      const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
-      const where = {
-        OR: [
-          { homeLocation: { id: { in: ids } } },
-          { appointments: { some: { location: { id: { in: ids } }, startsAt: { gte: since.toISOString() } } } }
-        ]
-      };
+      const where = patientWhere(ids);
       return path.length ? nest(path, where) : where;
+    };
+    under = (prefix, spec) => Object.fromEntries(Object.entries(spec).map(([k, v]) => [k, [...prefix, ...v]]));
+    MONEY = {
+      ledgerEntry: { location: ["location"], patient: ["patient"], account: ["account"] },
+      claim: { location: ["location"], patient: ["patient"] },
+      payment: { location: ["location"], patient: ["patient"], account: ["account"] }
+    };
+    moneyFilter = (spec) => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      const ids = sessionLocationIds(session);
+      if (ids === null) return true;
+      return moneyWhere(spec, ids);
+    };
+    remittanceFilter = () => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      const ids = sessionLocationIds(session);
+      if (ids === null) return true;
+      const claim = moneyWhere(MONEY.claim, ids);
+      const mine = { some: { claim }, none: { claim: { NOT: [claim] } } };
+      return { OR: [{ claims: mine }, { duplicateOf: { claims: mine } }] };
     };
     scopedGoverned = (read, filter) => ({
       operation: { query: rule2(read), create: () => false, update: () => false, delete: () => false },
@@ -653,14 +692,13 @@ __export(payments_exports, {
   Statement: () => Statement,
   TOKEN_STATUSES: () => TOKEN_STATUSES
 });
-var import_core19, import_fields19, PAYMENT_TENDERS, PAYMENT_STATUSES, PAYMENT_SOURCES, TOKEN_STATUSES, REFUND_TARGETS, REFUND_METHODS, REFUND_STATUSES, CREDIT_STATUSES, STATEMENT_STATUSES, PLAN_STATUSES2, INSTALLMENT_STATUSES, READ, scoped, PaymentMethodToken, Statement, Payment, PaymentAllocation, Refund, CreditBalance, PaymentPlan, PaymentPlanInstallment, LedgerNote;
+var import_core19, import_fields19, PAYMENT_TENDERS, PAYMENT_STATUSES, PAYMENT_SOURCES, TOKEN_STATUSES, REFUND_TARGETS, REFUND_METHODS, REFUND_STATUSES, CREDIT_STATUSES, STATEMENT_STATUSES, PLAN_STATUSES2, INSTALLMENT_STATUSES, READ, scoped, PLAN, PaymentMethodToken, Statement, Payment, PaymentAllocation, Refund, CreditBalance, PaymentPlan, PaymentPlanInstallment, LedgerNote;
 var init_payments = __esm({
   "features/keystone/models/payments.ts"() {
     "use strict";
     import_core19 = require("@keystone-6/core");
     import_fields19 = require("@keystone-6/core/fields");
     init_domainFields();
-    init_listAccess();
     init_scope();
     init_trackingFields();
     PAYMENT_TENDERS = ["card", "ach", "cash", "check", "financing", "membership_credit", "other"];
@@ -675,9 +713,10 @@ var init_payments = __esm({
     PLAN_STATUSES2 = ["proposed", "active", "delinquent", "completed", "cancelled"];
     INSTALLMENT_STATUSES = ["due", "paid", "failed", "missed"];
     READ = ["canReadLedger", "canTakePayments", "canIssueRefunds", "canApproveRefunds"];
-    scoped = (path = ["location"]) => scopedGoverned(READ, locationFilter(path));
+    scoped = (spec) => scopedGoverned(READ, moneyFilter(spec));
+    PLAN = { location: ["location"], patient: ["patient"], account: ["account"] };
     PaymentMethodToken = (0, import_core19.list)({
-      access: scopedGoverned(READ, locationFilter(["account", "guarantor", "patient", "homeLocation"])),
+      access: scoped({ guarantor: ["account", "guarantor"] }),
       ui: { labelField: "last4", listView: { initialColumns: ["brand", "last4", "expMonth", "expYear", "status"] } },
       fields: {
         account: (0, import_fields19.relationship)({ ref: "GuarantorAccount", ...readOnly }),
@@ -697,7 +736,7 @@ var init_payments = __esm({
       }
     });
     Statement = (0, import_core19.list)({
-      access: scoped(),
+      access: scoped({ location: ["location"], account: ["account"] }),
       ui: { labelField: "ref", listView: { initialColumns: ["ref", "account", "cycleDate", "amountDueMinor", "dueDate", "status"], initialSort: { field: "createdAt", direction: "DESC" } } },
       fields: {
         ref: systemText({ indexed: "unique", required: true }),
@@ -720,7 +759,7 @@ var init_payments = __esm({
       }
     });
     Payment = (0, import_core19.list)({
-      access: scoped(),
+      access: scoped(MONEY.payment),
       ui: { labelField: "ref", listView: { initialColumns: ["ref", "account", "tender", "amountMinor", "status", "businessDate"], initialSort: { field: "createdAt", direction: "DESC" } } },
       fields: {
         ref: systemText({ indexed: "unique", required: true }),
@@ -752,7 +791,7 @@ var init_payments = __esm({
       }
     });
     PaymentAllocation = (0, import_core19.list)({
-      access: scoped(["payment", "location"]),
+      access: scoped(under(["payment"], MONEY.payment)),
       ui: { labelField: "amountMinor", listView: { initialColumns: ["payment", "ledgerEntry", "amountMinor"] } },
       fields: {
         payment: (0, import_fields19.relationship)({ ref: "Payment.allocations", ...readOnly }),
@@ -762,7 +801,7 @@ var init_payments = __esm({
       }
     });
     Refund = (0, import_core19.list)({
-      access: scoped(),
+      access: scoped({ location: ["location"], account: ["account"] }),
       ui: { labelField: "ref", listView: { initialColumns: ["ref", "account", "amountMinor", "method", "status", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
       fields: {
         ref: systemText({ indexed: "unique", required: true }),
@@ -785,7 +824,7 @@ var init_payments = __esm({
       }
     });
     CreditBalance = (0, import_core19.list)({
-      access: scopedGoverned(READ, locationFilter(["account", "guarantor", "patient", "homeLocation"])),
+      access: scoped({ guarantor: ["account", "guarantor"] }),
       ui: { labelField: "status", listView: { initialColumns: ["account", "amountMinor", "arisenOn", "status", "dormancyDueOn"] } },
       fields: {
         account: (0, import_fields19.relationship)({ ref: "GuarantorAccount", ...readOnly }),
@@ -799,7 +838,7 @@ var init_payments = __esm({
       }
     });
     PaymentPlan = (0, import_core19.list)({
-      access: scoped(),
+      access: scoped(PLAN),
       ui: { labelField: "ref", listView: { initialColumns: ["ref", "account", "principalMinor", "status", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
       fields: {
         ref: systemText({ indexed: "unique", required: true }),
@@ -822,7 +861,7 @@ var init_payments = __esm({
       }
     });
     PaymentPlanInstallment = (0, import_core19.list)({
-      access: scoped(["plan", "location"]),
+      access: scoped(under(["plan"], PLAN)),
       ui: { labelField: "dueDate", listView: { initialColumns: ["plan", "dueDate", "amountMinor", "status"] } },
       fields: {
         plan: (0, import_fields19.relationship)({ ref: "PaymentPlan.installments", ...readOnly }),
@@ -837,7 +876,7 @@ var init_payments = __esm({
       }
     });
     LedgerNote = (0, import_core19.list)({
-      access: governed(["canReadLedger"]),
+      access: scopedGoverned(["canReadLedger"], moneyFilter(under(["entry"], MONEY.ledgerEntry))),
       ui: { labelField: "text", listView: { initialColumns: ["entry", "text", "createdAt"] } },
       fields: {
         entry: (0, import_fields19.relationship)({ ref: "LedgerEntry", ...readOnly }),
@@ -867,7 +906,7 @@ __export(memberships_exports, {
   PatientMembership: () => PatientMembership,
   RegulatoryLicence: () => RegulatoryLicence
 });
-var import_core20, import_fields20, MEMBERSHIP_AGE_BANDS, MEMBERSHIP_INTERVALS, MEMBERSHIP_PLAN_STATUSES, MEMBERSHIP_STATUSES, MEMBERSHIP_LEDGER_KINDS, LICENCE_KINDS, DEPOSIT_STATUSES, MANAGE, plans, scopedByPatient, RegulatoryLicence, MembershipPlan, PatientMembership, MembershipAgreement, MembershipLedgerEntry, READ_MONEY, DepositBatch, DepositLine;
+var import_core20, import_fields20, MEMBERSHIP_AGE_BANDS, MEMBERSHIP_INTERVALS, MEMBERSHIP_PLAN_STATUSES, MEMBERSHIP_STATUSES, MEMBERSHIP_LEDGER_KINDS, LICENCE_KINDS, DEPOSIT_STATUSES, MANAGE, plans, MEMBER, scopedByPatient, RegulatoryLicence, MembershipPlan, PatientMembership, MembershipAgreement, MembershipLedgerEntry, READ_MONEY, DepositBatch, DepositLine;
 var init_memberships = __esm({
   "features/keystone/models/memberships.ts"() {
     "use strict";
@@ -886,7 +925,8 @@ var init_memberships = __esm({
     DEPOSIT_STATUSES = ["open", "banked"];
     MANAGE = ["canManageMemberships", "canReadLedger", "canTakePayments"];
     plans = () => governed(MANAGE);
-    scopedByPatient = scopedGoverned(MANAGE, locationFilter(["patient", "homeLocation"]));
+    MEMBER = { location: ["location"], patient: ["patient"], account: ["payer"] };
+    scopedByPatient = scopedGoverned(MANAGE, moneyFilter(MEMBER));
     RegulatoryLicence = (0, import_core20.list)({
       access: governed(["canManageMemberships", "canReadLedger"]),
       ui: { labelField: "number", listView: { initialColumns: ["kind", "jurisdiction", "number", "effectiveFrom", "effectiveTo"] } },
@@ -941,7 +981,7 @@ var init_memberships = __esm({
       }
     });
     MembershipAgreement = (0, import_core20.list)({
-      access: scopedGoverned(MANAGE, locationFilter(["membership", "patient", "homeLocation"])),
+      access: scopedGoverned(MANAGE, moneyFilter(under(["membership"], MEMBER))),
       ui: { labelField: "signerName" },
       fields: {
         membership: (0, import_fields20.relationship)({ ref: "PatientMembership", ...readOnly }),
@@ -955,7 +995,7 @@ var init_memberships = __esm({
       }
     });
     MembershipLedgerEntry = (0, import_core20.list)({
-      access: scopedGoverned(MANAGE, locationFilter(["membership", "patient", "homeLocation"])),
+      access: scopedGoverned(MANAGE, moneyFilter(under(["membership"], MEMBER))),
       ui: { labelField: "kind", listView: { initialColumns: ["membership", "kind", "codeFamily", "quantity", "at"], initialSort: { field: "at", direction: "DESC" } } },
       fields: {
         membership: (0, import_fields20.relationship)({ ref: "PatientMembership.entries", ...readOnly }),
@@ -970,7 +1010,7 @@ var init_memberships = __esm({
     });
     READ_MONEY = ["canCloseDay", "canReadLedger", "canTakePayments"];
     DepositBatch = (0, import_core20.list)({
-      access: scopedGoverned(READ_MONEY, locationFilter(["location"])),
+      access: scopedGoverned(READ_MONEY, moneyFilter({ location: ["location"] })),
       ui: { labelField: "ref", listView: { initialColumns: ["ref", "location", "businessDate", "totalMinor", "status"], initialSort: { field: "businessDate", direction: "DESC" } } },
       fields: {
         ref: systemText({ indexed: "unique", required: true }),
@@ -985,7 +1025,7 @@ var init_memberships = __esm({
       }
     });
     DepositLine = (0, import_core20.list)({
-      access: scopedGoverned(READ_MONEY, locationFilter(["batch", "location"])),
+      access: scopedGoverned(READ_MONEY, moneyFilter({ location: ["batch", "location"] })),
       ui: { labelField: "tender" },
       fields: {
         batch: (0, import_fields20.relationship)({ ref: "DepositBatch.lines", ...readOnly }),
@@ -4323,13 +4363,33 @@ var init_era = __esm({
 });
 
 // features/keystone/mutations/remittance.ts
+async function reversibleFor(tx, claimId, exceptPostingId) {
+  const candidates = await tx.paymentPosting.findMany({
+    where: { remittanceClaim: { claimId, claimStatusCode: { not: "22" }, paidMinor: { gte: 0n } }, status: "posted", ...exceptPostingId ? { id: { not: exceptPostingId } } : {} },
+    orderBy: { createdAt: "desc" },
+    include: { entries: true }
+  });
+  for (const posting of candidates) {
+    const own = posting.entries.filter((e) => e.kind !== "reversal" && !e.reversesId);
+    if (!own.length) continue;
+    const already = new Set((await tx.ledgerEntry.findMany({ where: { reversesId: { in: own.map((e) => e.id) } }, select: { reversesId: true } })).map((e) => e.reversesId));
+    const open = own.filter((e) => !already.has(e.id));
+    if (open.length) return { posting, entries: open };
+  }
+  return null;
+}
+async function alreadyPaid(tx, claim, parsed) {
+  if (["2", "3"].includes(parsed.statusCode) || ["appealed", "appeal_decided"].includes(claim.status)) return false;
+  return !!await reversibleFor(tx, claim.id);
+}
 async function applyParsedEra(uow, actor5, era, origin) {
   const { tx } = uow;
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`era:${era.traceNumber}`}))`;
+  const key = traceKey(era.traceNumber);
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`era:${key}`}))`;
   const claimRows = await tx.claim.findMany({ where: { patientControlNumber: { in: era.claims.map((c) => c.patientControlNumber).filter(Boolean) } }, include: { lines: true, coverage: { include: { subscriber: { include: { plan: true } } } } } });
   const byPcn = new Map(claimRows.map((c) => [c.patientControlNumber, c]));
   const payerId = origin.payerId ?? claimRows[0]?.coverage?.subscriber?.plan?.payerId ?? (era.payerName ? (await tx.payer.findFirst({ where: { name: era.payerName }, select: { id: true } }))?.id ?? null : null);
-  const earlier = era.traceNumber ? await tx.remittance.findFirst({ where: { traceNumber: era.traceNumber, payerId, status: { not: "duplicate" } }, orderBy: { createdAt: "asc" } }) : null;
+  const earlier = key ? (await tx.$queryRaw`SELECT id, ref FROM "Remittance" WHERE payer IS NOT DISTINCT FROM ${payerId} AND dental_trace_key("traceNumber") = ${key} AND status <> 'duplicate' ORDER BY "createdAt" ASC LIMIT 1`)[0] ?? null : null;
   const ref = await nextReference(tx, "ERA", uow.now);
   if (earlier) {
     const dup = await tx.remittance.create({ data: { ref, payerId, source: origin.source, adapterKey: origin.adapterKey, traceNumber: era.traceNumber, paymentMethod: era.paymentMethod, paymentDate: era.paymentDate ? dayOf(era.paymentDate) : null, totalPaidMinor: era.totalPaidMinor, status: "duplicate", duplicateOfId: earlier.id, exceptionNote: `Same payment trace as ${earlier.ref}. Nothing was posted.`, observationId: origin.observationId ?? null } });
@@ -4358,7 +4418,7 @@ async function applyParsedEra(uow, actor5, era, origin) {
       });
       lineRows.push({ id: row.id, line, claimLineId: claimLine?.id ?? null, conserves });
     }
-    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum2(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : "";
+    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum2(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : isTakeback(parsed) && !await reversibleFor(tx, claim.id) ? `${claim.ref} has no payment left to take back, so nothing was reversed.` : !isTakeback(parsed) && await alreadyPaid(tx, claim, parsed) ? `${claim.ref} already has a payment posted. Post a takeback first, or enter it as a secondary payment.` : "";
     if (problem) {
       held += 1;
       notes.push(problem);
@@ -4380,15 +4440,17 @@ async function postClaimPayment(uow, actor5, input) {
   const currency = (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? "USD";
   const postedById = actor5.kind === "user" ? actor5.userId : null;
   const payer = remittance.payerId ? await tx.payer.findUnique({ where: { id: remittance.payerId }, select: { name: true } }) : null;
-  const takeback = parsed.statusCode === "22" || parsed.paidMinor < 0n;
+  await lockRow(tx, "Claim", claim.id);
+  const takeback = isTakeback(parsed);
   const writeoff = parsed.lines.length ? sum2(parsed.lines.map((l) => writeOffMinor(l.adjustments))) : writeOffMinor(parsed.adjustments);
   const posting = await tx.paymentPosting.create({ data: { remittanceId: remittance.id, remittanceClaimId: input.remittanceClaimId, postedById, at: uow.now, status: "posted" } });
   const base = { accountId: account.id, patientId: claim.patientId, currencyCode: currency, businessDate, locationId: claim.locationId, paymentPostingId: posting.id, claimId: claim.id, postedById };
   const label = payer?.name ?? "insurance";
   if (takeback) {
-    const earlier = await tx.paymentPosting.findFirst({ where: { remittanceClaim: { claimId: claim.id }, status: "posted", id: { not: posting.id } }, orderBy: { createdAt: "desc" }, include: { entries: true } });
-    if (!earlier) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} has no earlier payment to take back.`);
-    for (const entry of earlier.entries.filter((e) => e.kind !== "reversal" && !e.reversesId)) {
+    const found = await reversibleFor(tx, claim.id, posting.id);
+    if (!found) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} has no payment left to take back, so nothing was reversed.`);
+    const earlier = found.posting;
+    for (const entry of found.entries) {
       await postEntry(tx, { ...base, kind: "reversal", amountMinor: -entry.amountMinor, originalBusinessDate: entry.originalBusinessDate ?? void 0, reversesId: entry.id, providerId: entry.providerId, chartEntryId: entry.chartEntryId, adjustmentId: entry.adjustmentId, memo: `Payment taken back by ${label} (${remittance.ref})` }, uow.now);
     }
     await tx.paymentPosting.update({ where: { id: earlier.id }, data: { status: "reversed", version: { increment: 1 } } });
@@ -4440,6 +4502,8 @@ async function matchRemittanceClaim(uow, actor5, remittanceClaimId, claimId) {
   await lockRow(tx, "Claim", claimId);
   const claim = await tx.claim.findUniqueOrThrow({ where: { id: claimId }, include: { lines: true } });
   if (!ADJUSTABLE_FROM.includes(claim.status)) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.`);
+  const asParsed = { statusCode: rc.claimStatusCode, paidMinor: rc.paidMinor };
+  if (!isTakeback(asParsed) && await alreadyPaid(tx, claim, asParsed)) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} already has a payment posted. Post a takeback first, or enter it as a secondary payment.`);
   const byControl = new Map(claim.lines.map((l) => [l.lineControlNumber, l]));
   const lineRows = [];
   for (const row of rc.lines) {
@@ -4457,7 +4521,7 @@ async function matchRemittanceClaim(uow, actor5, remittanceClaimId, claimId) {
   await tx.remittance.update({ where: { id: rc.remittanceId }, data: { status: "posted", postedCompleteness: open ? "partial" : "complete", exceptionNote: open ? rc.remittance?.exceptionNote ?? "" : "", version: { increment: 1 } } });
   return { claimId };
 }
-var ADJUSTABLE_FROM, asJson, sum2, lineAdjTotal;
+var traceKey, isTakeback, ADJUSTABLE_FROM, asJson, sum2, lineAdjTotal;
 var init_remittance = __esm({
   "features/keystone/mutations/remittance.ts"() {
     "use strict";
@@ -4469,6 +4533,8 @@ var init_remittance = __esm({
     init_money();
     init_sequence();
     init_clinicalShared();
+    traceKey = (trace) => String(trace ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+    isTakeback = (c) => c.statusCode === "22" || c.paidMinor < 0n;
     ADJUSTABLE_FROM = ["submitted", "acknowledged", "pending_payer", "submission_unknown", "adjudicated", "appealed", "appeal_decided"];
     asJson = (list19) => list19.map((a) => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }));
     sum2 = (values) => values.reduce((a, b) => a + b, 0n);
@@ -4661,7 +4727,7 @@ async function allocatePayment(tx, input) {
 }
 async function settlePayment(uow, actor5, paymentId, extra = {}) {
   const { tx } = uow;
-  const rows = await tx.$queryRaw`SELECT id, ref, account AS "accountId", patient AS "patientId", location AS "locationId", "amountMinor", "currencyCode", tender, status, statement AS "statementId", "receivedBy" AS "receivedById", "checkNumber", version FROM "Payment" WHERE id = ${paymentId} FOR UPDATE`;
+  const rows = await tx.$queryRaw`SELECT id, ref, account AS "accountId", patient AS "patientId", location AS "locationId", "amountMinor", "currencyCode", tender, status, statement AS "statementId", "receivedBy" AS "receivedById", "checkNumber", "providerIntentId", version FROM "Payment" WHERE id = ${paymentId} FOR UPDATE`;
   const pay = rows[0];
   if (!pay) throw new DomainError(Codes.NOT_FOUND, "Payment not found.");
   if (!["initiated", "requires_action", "unknown", "failed"].includes(pay.status)) return { settled: false, paymentId, status: pay.status };
@@ -4680,7 +4746,7 @@ async function settlePayment(uow, actor5, paymentId, extra = {}) {
     memo: `Payment received (${pay.ref})${pay.tender === "check" && pay.checkNumber ? `, check ${pay.checkNumber}` : ""}`
   }, uow.now);
   const split = await allocatePayment(tx, { paymentId: pay.id, accountId: pay.accountId, amountMinor: pay.amountMinor, explicit: extra.explicit });
-  await tx.payment.update({ where: { id: pay.id }, data: { status: "succeeded", ledgerEntryId: entry.id, businessDate: dayOf3(date), ...extra.providerIntentId ? { providerIntentId: extra.providerIntentId } : {}, failureNote: "", version: { increment: 1 } } });
+  await tx.payment.update({ where: { id: pay.id }, data: { status: "succeeded", ledgerEntryId: entry.id, businessDate: dayOf3(date), ...extra.providerIntentId && !pay.providerIntentId ? { providerIntentId: extra.providerIntentId } : {}, failureNote: "", version: { increment: 1 } } });
   auditCreate(uow, actor5, "Payment", pay.id, "payment.succeeded", { amountMinor: pay.amountMinor.toString(), tender: pay.tender, allocated: split.allocated.toString(), ledgerEntryId: entry.id });
   if (pay.statementId) await refreshStatementStatus(tx, pay.statementId);
   const installment = extra.installmentId ?? (await tx.paymentPlanInstallment.findFirst({ where: { paymentId: pay.id }, select: { id: true } }))?.id ?? null;
@@ -5400,7 +5466,8 @@ __export(paymentWorker_exports, {
 });
 async function runPaymentCreate(db, paymentId, deps = {}) {
   const pay = await db.payment.findUnique({ where: { id: paymentId } });
-  if (!pay || pay.status !== "initiated" || pay.tender !== "card") return { skipped: true };
+  const retryable = pay?.status === "initiated" || pay?.status === "unknown" && !pay?.providerIntentId;
+  if (!pay || !retryable || pay.tender !== "card") return { skipped: true };
   const plan = await db.paymentPlanInstallment.findFirst({ where: { paymentId }, select: { id: true } });
   const token = pay.methodTokenId ? await db.paymentMethodToken.findUnique({ where: { id: pay.methodTokenId } }) : null;
   const outcome = await createIntent({
@@ -5416,11 +5483,11 @@ async function runPaymentCreate(db, paymentId, deps = {}) {
   return runInTransaction(db, async (uow) => {
     if (outcome.kind === "succeeded") return settlePayment(uow, actor4, paymentId, { providerIntentId: outcome.intentId });
     if (outcome.kind === "pending") {
-      await uow.tx.payment.updateMany({ where: { id: paymentId, status: "initiated" }, data: { status: "requires_action", providerIntentId: outcome.intentId } });
+      await uow.tx.payment.updateMany({ where: { id: paymentId, status: { in: ["initiated", "unknown"] }, providerIntentId: "" }, data: { status: "requires_action", providerIntentId: outcome.intentId } });
       return { pending: true };
     }
     if (outcome.kind === "failed") {
-      if (outcome.intentId) await uow.tx.payment.updateMany({ where: { id: paymentId }, data: { providerIntentId: outcome.intentId } });
+      if (outcome.intentId) await uow.tx.payment.updateMany({ where: { id: paymentId, providerIntentId: "" }, data: { providerIntentId: outcome.intentId } });
       return failPayment(uow, actor4, paymentId, outcome.message, "failed");
     }
     return failPayment(uow, actor4, paymentId, outcome.message, "unknown");
@@ -7125,7 +7192,7 @@ var FamilyGroup = (0, import_core9.list)({
   }
 });
 var Guarantor = (0, import_core9.list)({
-  access: governed(["canReadLedger", "canManagePatients", "canReadDemographics"]),
+  access: scopedGoverned(["canReadLedger", "canManagePatients", "canReadDemographics"], moneyFilter({ guarantor: [] })),
   ui: { listView: { initialColumns: ["patient", "links"] } },
   fields: {
     patient: (0, import_fields9.relationship)({ ref: "Patient", ...readOnly, ui: { ...readOnly.ui, description: "Set when the guarantor is also a patient." } }),
@@ -7137,7 +7204,7 @@ var Guarantor = (0, import_core9.list)({
   }
 });
 var GuarantorLink = (0, import_core9.list)({
-  access: governed(["canReadLedger", "canManagePatients", "canReadDemographics"]),
+  access: scopedGoverned(["canReadLedger", "canManagePatients", "canReadDemographics"], moneyFilter({ guarantor: ["guarantor"] })),
   ui: { listView: { initialColumns: ["patient", "guarantor", "relationship", "status", "startsOn"] } },
   fields: {
     patient: (0, import_fields9.relationship)({ ref: "Patient.guarantorLinks", ...readOnly }),
@@ -7788,6 +7855,7 @@ var import_core13 = require("@keystone-6/core");
 var import_fields13 = require("@keystone-6/core/fields");
 init_domainFields();
 init_listAccess();
+init_scope();
 init_trackingFields();
 var CODE_CATEGORIES = ["diagnostic", "preventive", "restorative", "endodontics", "periodontics", "prosth_removable", "maxillofacial", "implant", "prosth_fixed", "oral_surgery", "orthodontics", "adjunctive", "other"];
 var AREA_RULES = ["none", "tooth", "tooth_surface", "quadrant", "arch", "mouth", "sextant"];
@@ -7915,7 +7983,7 @@ var ExplosionCode = (0, import_core13.list)({
 });
 var LEDGER_KINDS = ["charge", "insurance_payment", "insurance_writeoff", "insurance_adjustment", "patient_payment", "patient_adjustment", "refund", "transfer_out", "transfer_in", "finance_charge", "reversal"];
 var GuarantorAccount = (0, import_core13.list)({
-  access: governed(["canReadLedger", "canManagePatients"]),
+  access: scopedGoverned(["canReadLedger", "canManagePatients"], moneyFilter({ guarantor: ["guarantor"] })),
   ui: { labelField: "ref", listView: { initialColumns: ["ref", "guarantor", "balanceRebuiltAt"] } },
   fields: {
     ref: systemText({ indexed: "unique", required: true }),
@@ -7928,7 +7996,7 @@ var GuarantorAccount = (0, import_core13.list)({
   }
 });
 var LedgerEntry = (0, import_core13.list)({
-  access: governed(["canReadLedger"]),
+  access: scopedGoverned(["canReadLedger"], moneyFilter(MONEY.ledgerEntry)),
   ui: { labelField: "id", listView: { initialColumns: ["kind", "patient", "amountMinor", "businessDate", "provider", "postedAt"], initialSort: { field: "postedAt", direction: "DESC" } } },
   fields: {
     account: (0, import_fields13.relationship)({ ref: "GuarantorAccount", ...readOnly }),
@@ -8543,6 +8611,7 @@ var import_core17 = require("@keystone-6/core");
 var import_fields17 = require("@keystone-6/core/fields");
 init_domainFields();
 init_listAccess();
+init_scope();
 init_trackingFields();
 var ADJUSTMENT_DIRECTIONS = ["credit", "debit"];
 var ADJUSTMENT_CATEGORIES = ["courtesy", "professional", "bad_debt", "small_balance", "broken_appt_fee", "membership_discount", "other"];
@@ -8564,7 +8633,7 @@ var AdjustmentType = (0, import_core17.list)({
   }
 });
 var AdjustmentRequest = (0, import_core17.list)({
-  access: governed("canReadLedger"),
+  access: scopedGoverned("canReadLedger", moneyFilter({ location: ["location"], patient: ["patient"], account: ["account"] })),
   ui: { labelField: "reason", listView: { initialColumns: ["patient", "type", "amountMinor", "status", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
   fields: {
     account: (0, import_fields17.relationship)({ ref: "GuarantorAccount", ...readOnly }),
@@ -8583,7 +8652,7 @@ var AdjustmentRequest = (0, import_core17.list)({
   }
 });
 var DayClose = (0, import_core17.list)({
-  access: governed(["canCloseDay", "canReadLedger"]),
+  access: scopedGoverned(["canCloseDay", "canReadLedger"], moneyFilter({ location: ["location"] })),
   ui: { labelField: "businessDate", listView: { initialColumns: ["location", "businessDate", "status", "closedAt"] } },
   fields: {
     location: (0, import_fields17.relationship)({ ref: "Location", ...readOnly }),
@@ -8598,7 +8667,7 @@ var DayClose = (0, import_core17.list)({
   }
 });
 var PeriodClose = (0, import_core17.list)({
-  access: governed(["canClosePeriod", "canReadLedger"]),
+  access: scopedGoverned(["canClosePeriod", "canReadLedger"], moneyFilter({ location: ["location"] })),
   ui: { labelField: "period", listView: { initialColumns: ["location", "period", "status", "closedAt"] } },
   fields: {
     location: (0, import_fields17.relationship)({ ref: "Location", ...readOnly }),
@@ -8612,7 +8681,7 @@ var PeriodClose = (0, import_core17.list)({
   }
 });
 var Restatement = (0, import_core17.list)({
-  access: governed(["canClosePeriod", "canReadLedger"]),
+  access: scopedGoverned(["canClosePeriod", "canReadLedger"], moneyFilter({ location: ["periodClose", "location"] })),
   ui: { labelField: "reason" },
   fields: {
     periodClose: (0, import_fields17.relationship)({ ref: "PeriodClose", ...readOnly }),
@@ -8698,8 +8767,8 @@ var APPEAL_OUTCOMES = ["pending", "overturned", "upheld"];
 var ENROLLMENT_TRANSACTIONS = ["claims", "era", "eligibility", "claim_status", "attachments"];
 var ENROLLMENT_STATUSES = ["draft", "submitted", "in_progress", "provisioning", "live", "rejected", "canceled"];
 var CLAIM_READ = ["canReadInsurance", "canManageClaims", "canSubmitClaims", "canPostRemittances", "canReadLedger"];
-var claimScoped = () => scopedGoverned(CLAIM_READ, locationFilter(["location"]));
-var childScoped = () => scopedGoverned(CLAIM_READ, locationFilter(["claim", "location"]));
+var claimScoped = () => scopedGoverned(CLAIM_READ, moneyFilter(MONEY.claim));
+var childScoped = () => scopedGoverned(CLAIM_READ, moneyFilter(under(["claim"], MONEY.claim)));
 var ScrubRule = (0, import_core18.list)({
   access: governed(CLAIM_READ),
   ui: { labelField: "key", listView: { initialColumns: ["key", "kind", "severity", "isActive", "rulesetVersion"] } },
@@ -8843,7 +8912,7 @@ var ClaimStatusInquiry = (0, import_core18.list)({
   }
 });
 var Remittance = (0, import_core18.list)({
-  access: governed(CLAIM_READ),
+  access: scopedGoverned(CLAIM_READ, remittanceFilter()),
   ui: { labelField: "ref", listView: { initialColumns: ["ref", "payer", "traceNumber", "paymentDate", "totalPaidMinor", "status"], initialSort: { field: "createdAt", direction: "DESC" } } },
   fields: {
     ref: (0, import_fields18.text)({ isIndexed: "unique", validation: { isRequired: true }, ...readOnly }),
@@ -8883,7 +8952,7 @@ var RemittanceClaim = (0, import_core18.list)({
   }
 });
 var RemittanceLine = (0, import_core18.list)({
-  access: scopedGoverned(CLAIM_READ, locationFilter(["remittanceClaim", "claim", "location"])),
+  access: scopedGoverned(CLAIM_READ, moneyFilter(under(["remittanceClaim", "claim"], MONEY.claim))),
   ui: { labelField: "code", listView: { initialColumns: ["remittanceClaim", "code", "dateOfService", "chargeMinor", "paidMinor", "conservationOk"] } },
   fields: {
     remittanceClaim: (0, import_fields18.relationship)({ ref: "RemittanceClaim.lines", ...readOnly }),
@@ -8904,7 +8973,7 @@ var RemittanceLine = (0, import_core18.list)({
   }
 });
 var PaymentPosting = (0, import_core18.list)({
-  access: scopedGoverned(CLAIM_READ, locationFilter(["remittanceClaim", "claim", "location"])),
+  access: scopedGoverned(CLAIM_READ, moneyFilter(under(["remittanceClaim", "claim"], MONEY.claim))),
   ui: { labelField: "status", listView: { initialColumns: ["remittance", "status", "at"] } },
   fields: {
     remittance: (0, import_fields18.relationship)({ ref: "Remittance", ...readOnly }),
@@ -8948,7 +9017,7 @@ var Denial = (0, import_core18.list)({
   }
 });
 var Appeal = (0, import_core18.list)({
-  access: scopedGoverned(CLAIM_READ, locationFilter(["denial", "claim", "location"])),
+  access: scopedGoverned(CLAIM_READ, moneyFilter(under(["denial", "claim"], MONEY.claim))),
   ui: { labelField: "level", listView: { initialColumns: ["denial", "level", "submittedVia", "outcome", "submittedAt"] } },
   fields: {
     denial: (0, import_fields18.relationship)({ ref: "Denial.appeals", ...readOnly }),

@@ -82,9 +82,11 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 1: ledger and invariants (datab
   })
 
   it('refuses a wrong sign, a zero amount, and an entry with no account or business date', async () => {
-    await expect(post('patient_payment', 500n)).rejects.toThrow(/sign_by_kind/)
+    await expect(post('finance_charge', -500n)).rejects.toThrow(/sign_by_kind/)
+    // a patient payment needs its Payment row, a refund its Refund row (LedgerEntry_payment_source / _refund_source)
+    await expect(post('patient_payment', -500n)).rejects.toThrow(/payment_source/)
+    await expect(post('refund', 1n)).rejects.toThrow(/refund_source/)
     await expect(post('charge', -500n)).rejects.toThrow(/sign_by_kind/)
-    await expect(post('refund', -1n)).rejects.toThrow(/sign_by_kind/)
     await expect(post('patient_adjustment', 0n)).rejects.toThrow(/LedgerEntry_complete/)
     await expect(post('charge', 100n, { accountId: null })).rejects.toThrow(/LedgerEntry_complete/)
     await expect(post('charge', 2_000_000_000n)).rejects.toThrow(/_bound/)
@@ -98,7 +100,7 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 1: ledger and invariants (datab
   })
 
   it('a property: any run of postings keeps the cache equal to the sum, and rebuilding repairs drift', async () => {
-    const kinds: [string, bigint][] = [['patient_payment', -1n], ['patient_adjustment', 1n], ['patient_adjustment', -1n], ['charge', 1n]]
+    const kinds: [string, bigint][] = [['finance_charge', 1n], ['patient_adjustment', 1n], ['patient_adjustment', -1n], ['charge', 1n]]
     await fc.assert(fc.asyncProperty(fc.array(fc.tuple(fc.integer({ min: 0, max: 3 }), fc.integer({ min: 1, max: 90_000 })), { minLength: 1, maxLength: 5 }), async steps => {
       await prisma.$transaction(async tx => {
         for (const [k, cents] of steps) {
@@ -178,6 +180,7 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 1: ledger and invariants (datab
     await expect(postEntry(prisma as never, { accountId, patientId, kind: 'charge', amountMinor: 100n, currencyCode: 'USD', businessDate: september.businessDate, locationId }, new Date())).rejects.toThrow(/month is closed/)
     // Another month, and another location, are unaffected.
     await expect(post('charge', 100n, { businessDate: new Date('2026-10-15T00:00:00Z') })).resolves.toBeTruthy()
+    await prisma.periodClose.update({ where: { id: close.id }, data: { status: 'reopen_requested' } })
     await prisma.periodClose.update({ where: { id: close.id }, data: { status: 'reopened' } })
     await expect(post('charge', 100n, september)).rejects.toThrow(/month is closed/)
     const restatement = await prisma.restatement.create({ data: { periodCloseId: close.id, reason: 'Late insurance correction' } })

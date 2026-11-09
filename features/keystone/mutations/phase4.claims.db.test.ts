@@ -255,6 +255,75 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
     expect((await prisma.paymentPosting.findMany({ where: { remittanceClaim: { claimId: sent.id } }, orderBy: { createdAt: 'asc' } })).map(p => p.status)).toEqual(['reversed', 'posted'])
   })
 
+  it('r1 M1: a second takeback matches its own original, never an earlier takeback, and with nothing to reverse it is refused', async () => {
+    const entry = await makeEntry(3, { dateOfService: new Date('2026-11-06T00:00:00Z') })
+    const sent = await toSent([entry.id])
+    const lines = sent.lines.map(l => ({ lineControlNumber: l.lineControlNumber, feeMinor: l.feeMinor, code: 'X' }))
+    const negated = lines.map(l => ({ ...l, feeMinor: -l.feeMinor }))
+    const pay = () => eraFor({ patientControlNumber: sent.patientControlNumber, lines }, { trace: `TRC-${uniqueKey('p')}`, paid: f => (f * 7n) / 10n, writeOff: f => (f * 3n) / 10n })
+    const back = () => eraFor({ patientControlNumber: sent.patientControlNumber, lines: negated }, { trace: `TRC-${uniqueKey('r')}`, paid: f => (f * 7n) / 10n, writeOff: f => (f * 3n) / 10n, status: '22' })
+    const net = async () => (await prisma.ledgerEntry.aggregate({ where: { claimId: sent.id }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n
+    const fee = sent.lines[0].feeMinor
+    await importEraBody(prisma as never, pay(), { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    expect(await net()).toBe(-fee)
+    // a second ordinary payment on a claim already paid is held, not posted
+    const twice = await importEraBody(prisma as never, pay(), { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    expect(twice.results[0]).toMatchObject({ status: 'exception', claimsPosted: 0 })
+    expect(await net()).toBe(-fee)
+    // first takeback reverses the payment
+    const first = await importEraBody(prisma as never, back(), { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    expect(first.results[0]).toMatchObject({ status: 'posted', claimsPosted: 1 })
+    expect(await net()).toBe(0n)
+    // second takeback: nothing left to reverse, so it is refused (held), and nothing moves
+    const second = await importEraBody(prisma as never, back(), { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    expect(second.results[0]).toMatchObject({ status: 'exception', claimsPosted: 0, claimsHeld: 1 })
+    expect(await net()).toBe(0n)
+    // the payer pays again, then takes that back: the takeback reverses the new payment, not the old takeback
+    const again = await importEraBody(prisma as never, pay(), { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    expect(again.results[0]).toMatchObject({ status: 'posted', claimsPosted: 1 })
+    expect(await net()).toBe(-fee)
+    const third = await importEraBody(prisma as never, back(), { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    expect(third.results[0]).toMatchObject({ status: 'posted', claimsPosted: 1 })
+    expect(await net()).toBe(0n)
+    const postings = await prisma.paymentPosting.findMany({ where: { remittanceClaim: { claimId: sent.id } }, orderBy: { createdAt: 'asc' }, include: { entries: true, remittanceClaim: true } })
+    // pay(reversed), takeback(posted, 2 reversals), pay(reversed), takeback(posted, 2 reversals)
+    expect(postings.map(p => [p.status, p.remittanceClaim?.claimStatusCode, p.entries.length])).toEqual([['reversed', '1', 2], ['posted', '22', 2], ['reversed', '1', 2], ['posted', '22', 2]])
+    // every reversal points at a distinct original entry
+    const reversed = (await prisma.ledgerEntry.findMany({ where: { claimId: sent.id, kind: 'reversal' } })).map(e => e.reversesId)
+    expect(new Set(reversed).size).toBe(reversed.length)
+  })
+
+  it('r1 B2: a trace that differs only in case, spaces or dashes is the same payment, and the database holds one per payer', async () => {
+    const entry = await makeEntry(4, { dateOfService: new Date('2026-11-07T00:00:00Z') })
+    const sent = await toSent([entry.id])
+    const payerId = (await prisma.payer.findFirstOrThrow({ where: { name: 'Harbor Mutual Dental' } })).id
+    const fee = sent.lines[0].feeMinor
+    const base = uniqueKey('k').replace(/[^a-z0-9]/gi, '').toUpperCase()
+    const eob = (trace: string) => run('enterManualEob', { payerId, traceNumber: trace, paymentDate: '2026-11-12', method: 'check', claims: [{ claimRef: sent.patientControlNumber, statusCode: '1', charge: `${fee / 100n}.${String(fee % 100n).padStart(2, '0')}`, paidMinor: (fee / 2n).toString(), lines: [{ lineControl: 'L01', code: 'X', chargeMinor: fee.toString(), paidMinor: (fee / 2n).toString(), adjustments: [{ group: 'CO', reason: '45', amountMinor: (fee - fee / 2n).toString() }] }] }] }, biller)
+    expect(await eob(`CHK-${base}`)).toMatchObject({ status: 'posted', claimsPosted: 1 })
+    for (const variant of [`chk-${base.toLowerCase()}`, ` CHK ${base} `, `CHK${base}`, `c.h.k-${base}`]) {
+      expect(await eob(variant)).toMatchObject({ status: 'duplicate', claimsPosted: 0, duplicate: true })
+    }
+    expect((await prisma.ledgerEntry.aggregate({ where: { claimId: sent.id }, _sum: { amountMinor: true } }))._sum.amountMinor).toBe(-fee)
+    const first = await prisma.remittance.findFirstOrThrow({ where: { traceNumber: `CHK-${base}` } })
+    await expect(prisma.remittance.create({ data: { ref: uniqueKey('ERA'), payerId, source: 'manual_eob', traceNumber: `chk-${base.toLowerCase()}`, paymentMethod: 'check', status: 'posted' } })).rejects.toThrow(/Remittance_payer_trace_key|Unique constraint/)
+    expect(first.status).toBe('posted')
+  })
+
+  it('r1 m1: a payment row cannot be rewritten or moved backwards at the database', async () => {
+    const accountId = (await prisma.guarantorAccount.findFirstOrThrow()).id
+    const pay = await prisma.payment.create({ data: { ref: uniqueKey('PAY'), accountId, patientId, locationId, amountMinor: 1000n, tender: 'cash', source: 'front_desk', status: 'initiated' } })
+    await expect(prisma.payment.create({ data: { ref: uniqueKey('PAY'), accountId, patientId, locationId, amountMinor: 1000n, tender: 'cash', source: 'front_desk', status: 'succeeded' } })).rejects.toThrow(/Payment_starts_initiated/)
+    await expect(prisma.payment.update({ where: { id: pay.id }, data: { amountMinor: 1n } })).rejects.toThrow(/Payment_frozen/)
+    await expect(prisma.payment.update({ where: { id: pay.id }, data: { tender: 'card' } })).rejects.toThrow(/Payment_frozen/)
+    await expect(prisma.payment.update({ where: { id: pay.id }, data: { accountId: null } })).rejects.toThrow(/Payment_frozen/)
+    await prisma.payment.update({ where: { id: pay.id }, data: { providerIntentId: 'pi_x', status: 'requires_action' } })
+    await expect(prisma.payment.update({ where: { id: pay.id }, data: { providerIntentId: 'pi_y' } })).rejects.toThrow(/Payment_frozen/)
+    await expect(prisma.payment.update({ where: { id: pay.id }, data: { status: 'initiated' } })).rejects.toThrow(/Payment_status_forward_only/)
+    await prisma.payment.update({ where: { id: pay.id }, data: { status: 'failed' } })
+    await expect(prisma.payment.update({ where: { id: pay.id }, data: { status: 'unknown' } })).rejects.toThrow(/Payment_status_forward_only/)
+  })
+
   it('a denied line opens a denial once, mapped to a work category; a worker can appeal it and record the outcome', async () => {
     const entry = await makeEntry(1, { dateOfService: new Date('2026-11-04T00:00:00Z') })
     const sent = await toSent([entry.id])

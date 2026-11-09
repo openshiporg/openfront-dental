@@ -2,7 +2,7 @@ import { list } from '@keystone-6/core'
 import { calendarDay, checkbox, integer, json, relationship, timestamp } from '@keystone-6/core/fields'
 import { fixedChoice, lifecycle, minor, pct, readOnly, systemText, versionField } from './domainFields'
 import { governed } from './listAccess'
-import { locationFilter, scopedGoverned } from './scope'
+import { moneyFilter, scopedGoverned, under, type MoneyPaths } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -22,7 +22,8 @@ export const DEPOSIT_STATUSES = ['open', 'banked'] as const
 
 const MANAGE = ['canManageMemberships', 'canReadLedger', 'canTakePayments'] as never
 const plans = () => governed(MANAGE)
-const scopedByPatient = scopedGoverned(MANAGE, locationFilter(['patient', 'homeLocation']) as never)
+const MEMBER: MoneyPaths = { location: ['location'], patient: ['patient'], account: ['payer'] }
+const scopedByPatient = scopedGoverned(MANAGE, moneyFilter(MEMBER))
 
 export const RegulatoryLicence = list({
   access: governed(['canManageMemberships', 'canReadLedger']),
@@ -81,7 +82,7 @@ export const PatientMembership = list({
 })
 
 export const MembershipAgreement = list({
-  access: scopedGoverned(MANAGE, locationFilter(['membership', 'patient', 'homeLocation']) as never),
+  access: scopedGoverned(MANAGE, moneyFilter(under(['membership'], MEMBER))),
   ui: { labelField: 'signerName' },
   fields: {
     membership: relationship({ ref: 'PatientMembership', ...readOnly }),
@@ -96,7 +97,7 @@ export const MembershipAgreement = list({
 })
 
 export const MembershipLedgerEntry = list({
-  access: scopedGoverned(MANAGE, locationFilter(['membership', 'patient', 'homeLocation']) as never),
+  access: scopedGoverned(MANAGE, moneyFilter(under(['membership'], MEMBER))),
   ui: { labelField: 'kind', listView: { initialColumns: ['membership', 'kind', 'codeFamily', 'quantity', 'at'], initialSort: { field: 'at', direction: 'DESC' } } },
   fields: {
     membership: relationship({ ref: 'PatientMembership.entries', ...readOnly }),
@@ -112,7 +113,7 @@ export const MembershipLedgerEntry = list({
 
 const READ_MONEY = ['canCloseDay', 'canReadLedger', 'canTakePayments'] as never
 export const DepositBatch = list({
-  access: scopedGoverned(READ_MONEY, locationFilter(['location']) as never),
+  access: scopedGoverned(READ_MONEY, moneyFilter({ location: ['location'] })),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'location', 'businessDate', 'totalMinor', 'status'], initialSort: { field: 'businessDate', direction: 'DESC' } } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),
@@ -128,7 +129,7 @@ export const DepositBatch = list({
 })
 
 export const DepositLine = list({
-  access: scopedGoverned(READ_MONEY, locationFilter(['batch', 'location']) as never),
+  access: scopedGoverned(READ_MONEY, moneyFilter({ location: ['batch', 'location'] })),
   ui: { labelField: 'tender' },
   fields: {
     batch: relationship({ ref: 'DepositBatch.lines', ...readOnly }),

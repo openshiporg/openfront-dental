@@ -19,7 +19,9 @@ const actor = systemActor('payments')
 
 export async function runPaymentCreate(db: Db, paymentId: string, deps: PaymentCtx = {}) {
   const pay = await (db as any).payment.findUnique({ where: { id: paymentId } })
-  if (!pay || pay.status !== 'initiated' || pay.tender !== 'card') return { skipped: true }
+  // A send that timed out (unknown, no processor id yet) may be sent again: the same idempotency key means the processor charges once.
+  const retryable = pay?.status === 'initiated' || (pay?.status === 'unknown' && !pay?.providerIntentId)
+  if (!pay || !retryable || pay.tender !== 'card') return { skipped: true }
   const plan = await (db as any).paymentPlanInstallment.findFirst({ where: { paymentId }, select: { id: true } })
   const token = pay.methodTokenId ? await (db as any).paymentMethodToken.findUnique({ where: { id: pay.methodTokenId } }) : null
   const outcome = await createIntent({
@@ -29,11 +31,11 @@ export async function runPaymentCreate(db: Db, paymentId: string, deps: PaymentC
   return runInTransaction(db, async uow => {
     if (outcome.kind === 'succeeded') return settlePayment(uow, actor, paymentId, { providerIntentId: outcome.intentId })
     if (outcome.kind === 'pending') {
-      await uow.tx.payment.updateMany({ where: { id: paymentId, status: 'initiated' }, data: { status: 'requires_action', providerIntentId: outcome.intentId } })
+      await uow.tx.payment.updateMany({ where: { id: paymentId, status: { in: ['initiated', 'unknown'] }, providerIntentId: '' }, data: { status: 'requires_action', providerIntentId: outcome.intentId } })
       return { pending: true }
     }
     if (outcome.kind === 'failed') {
-      if (outcome.intentId) await uow.tx.payment.updateMany({ where: { id: paymentId }, data: { providerIntentId: outcome.intentId } })
+      if (outcome.intentId) await uow.tx.payment.updateMany({ where: { id: paymentId, providerIntentId: '' }, data: { providerIntentId: outcome.intentId } })
       return failPayment(uow, actor, paymentId, outcome.message, 'failed')
     }
     return failPayment(uow, actor, paymentId, outcome.message, 'unknown')

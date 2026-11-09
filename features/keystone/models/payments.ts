@@ -1,8 +1,7 @@
 import { list } from '@keystone-6/core'
 import { calendarDay, integer, json, relationship, text, timestamp } from '@keystone-6/core/fields'
 import { fixedChoice, lifecycle, minor, pct, readOnly, systemText, versionField } from './domainFields'
-import { governed } from './listAccess'
-import { locationFilter, scopedGoverned } from './scope'
+import { MONEY, moneyFilter, scopedGoverned, under, type MoneyPaths } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -26,10 +25,11 @@ export const PLAN_STATUSES = ['proposed', 'active', 'delinquent', 'completed', '
 export const INSTALLMENT_STATUSES = ['due', 'paid', 'failed', 'missed'] as const
 
 const READ = ['canReadLedger', 'canTakePayments', 'canIssueRefunds', 'canApproveRefunds'] as never
-const scoped = (path: string[] = ['location']) => scopedGoverned(READ, locationFilter(path) as never)
+const scoped = (spec: MoneyPaths) => scopedGoverned(READ, moneyFilter(spec))
+const PLAN: MoneyPaths = { location: ['location'], patient: ['patient'], account: ['account'] }
 
 export const PaymentMethodToken = list({
-  access: scopedGoverned(READ, locationFilter(['account', 'guarantor', 'patient', 'homeLocation']) as never),
+  access: scoped({ guarantor: ['account', 'guarantor'] }),
   ui: { labelField: 'last4', listView: { initialColumns: ['brand', 'last4', 'expMonth', 'expYear', 'status'] } },
   fields: {
     account: relationship({ ref: 'GuarantorAccount', ...readOnly }),
@@ -50,7 +50,7 @@ export const PaymentMethodToken = list({
 })
 
 export const Statement = list({
-  access: scoped(),
+  access: scoped({ location: ['location'], account: ['account'] }),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'account', 'cycleDate', 'amountDueMinor', 'dueDate', 'status'], initialSort: { field: 'createdAt', direction: 'DESC' } } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),
@@ -74,7 +74,7 @@ export const Statement = list({
 })
 
 export const Payment = list({
-  access: scoped(),
+  access: scoped(MONEY.payment),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'account', 'tender', 'amountMinor', 'status', 'businessDate'], initialSort: { field: 'createdAt', direction: 'DESC' } } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),
@@ -107,7 +107,7 @@ export const Payment = list({
 })
 
 export const PaymentAllocation = list({
-  access: scoped(['payment', 'location']),
+  access: scoped(under(['payment'], MONEY.payment)),
   ui: { labelField: 'amountMinor', listView: { initialColumns: ['payment', 'ledgerEntry', 'amountMinor'] } },
   fields: {
     payment: relationship({ ref: 'Payment.allocations', ...readOnly }),
@@ -118,7 +118,7 @@ export const PaymentAllocation = list({
 })
 
 export const Refund = list({
-  access: scoped(),
+  access: scoped({ location: ['location'], account: ['account'] }),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'account', 'amountMinor', 'method', 'status', 'createdAt'], initialSort: { field: 'createdAt', direction: 'DESC' } } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),
@@ -142,7 +142,7 @@ export const Refund = list({
 })
 
 export const CreditBalance = list({
-  access: scopedGoverned(READ, locationFilter(['account', 'guarantor', 'patient', 'homeLocation']) as never),
+  access: scoped({ guarantor: ['account', 'guarantor'] }),
   ui: { labelField: 'status', listView: { initialColumns: ['account', 'amountMinor', 'arisenOn', 'status', 'dormancyDueOn'] } },
   fields: {
     account: relationship({ ref: 'GuarantorAccount', ...readOnly }),
@@ -157,7 +157,7 @@ export const CreditBalance = list({
 })
 
 export const PaymentPlan = list({
-  access: scoped(),
+  access: scoped(PLAN),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'account', 'principalMinor', 'status', 'createdAt'], initialSort: { field: 'createdAt', direction: 'DESC' } } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),
@@ -181,7 +181,7 @@ export const PaymentPlan = list({
 })
 
 export const PaymentPlanInstallment = list({
-  access: scoped(['plan', 'location']),
+  access: scoped(under(['plan'], PLAN)),
   ui: { labelField: 'dueDate', listView: { initialColumns: ['plan', 'dueDate', 'amountMinor', 'status'] } },
   fields: {
     plan: relationship({ ref: 'PaymentPlan.installments', ...readOnly }),
@@ -198,7 +198,7 @@ export const PaymentPlanInstallment = list({
 
 /** A correction to how an entry reads. The ledger row is never edited; the screen shows the latest note instead of its memo. */
 export const LedgerNote = list({
-  access: governed(['canReadLedger']),
+  access: scopedGoverned(['canReadLedger'], moneyFilter(under(['entry'], MONEY.ledgerEntry))),
   ui: { labelField: 'text', listView: { initialColumns: ['entry', 'text', 'createdAt'] } },
   fields: {
     entry: relationship({ ref: 'LedgerEntry', ...readOnly }),

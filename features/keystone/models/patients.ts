@@ -2,7 +2,7 @@ import { list, graphql } from '@keystone-6/core'
 import { calendarDay, checkbox, integer, json, relationship, text, timestamp, virtual } from '@keystone-6/core/fields'
 import { choice, fixedChoice, lifecycle, readOnly, systemText, versionField } from './domainFields'
 import { governed, immutable, managed } from './listAccess'
-import { patientFilter, scopedGoverned, scopedManaged } from './scope'
+import { moneyFilter, patientFilter, scopedGoverned, scopedManaged } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -114,7 +114,7 @@ export const FamilyGroup = list({
 })
 
 export const Guarantor = list({
-  access: governed(['canReadLedger', 'canManagePatients', 'canReadDemographics']),
+  access: scopedGoverned(['canReadLedger', 'canManagePatients', 'canReadDemographics'], moneyFilter({ guarantor: [] })),
   ui: { listView: { initialColumns: ['patient', 'links'] } },
   fields: {
     patient: relationship({ ref: 'Patient', ...readOnly, ui: { ...readOnly.ui, description: 'Set when the guarantor is also a patient.' } }),
@@ -127,7 +127,7 @@ export const Guarantor = list({
 })
 
 export const GuarantorLink = list({
-  access: governed(['canReadLedger', 'canManagePatients', 'canReadDemographics']),
+  access: scopedGoverned(['canReadLedger', 'canManagePatients', 'canReadDemographics'], moneyFilter({ guarantor: ['guarantor'] })),
   ui: { listView: { initialColumns: ['patient', 'guarantor', 'relationship', 'status', 'startsOn'] } },
   fields: {
     patient: relationship({ ref: 'Patient.guarantorLinks', ...readOnly }),

@@ -2,6 +2,7 @@ import { list } from '@keystone-6/core'
 import { calendarDay, checkbox, json, relationship, text, timestamp } from '@keystone-6/core/fields'
 import { fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
 import { governed } from './listAccess'
+import { moneyFilter, scopedGoverned } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -32,7 +33,7 @@ export const AdjustmentType = list({
 })
 
 export const AdjustmentRequest = list({
-  access: governed('canReadLedger'),
+  access: scopedGoverned('canReadLedger', moneyFilter({ location: ['location'], patient: ['patient'], account: ['account'] })),
   ui: { labelField: 'reason', listView: { initialColumns: ['patient', 'type', 'amountMinor', 'status', 'createdAt'], initialSort: { field: 'createdAt', direction: 'DESC' } } },
   fields: {
     account: relationship({ ref: 'GuarantorAccount', ...readOnly }),
@@ -52,7 +53,7 @@ export const AdjustmentRequest = list({
 })
 
 export const DayClose = list({
-  access: governed(['canCloseDay', 'canReadLedger']),
+  access: scopedGoverned(['canCloseDay', 'canReadLedger'], moneyFilter({ location: ['location'] })),
   ui: { labelField: 'businessDate', listView: { initialColumns: ['location', 'businessDate', 'status', 'closedAt'] } },
   fields: {
     location: relationship({ ref: 'Location', ...readOnly }),
@@ -68,7 +69,7 @@ export const DayClose = list({
 })
 
 export const PeriodClose = list({
-  access: governed(['canClosePeriod', 'canReadLedger']),
+  access: scopedGoverned(['canClosePeriod', 'canReadLedger'], moneyFilter({ location: ['location'] })),
   ui: { labelField: 'period', listView: { initialColumns: ['location', 'period', 'status', 'closedAt'] } },
   fields: {
     location: relationship({ ref: 'Location', ...readOnly }),
@@ -83,7 +84,7 @@ export const PeriodClose = list({
 })
 
 export const Restatement = list({
-  access: governed(['canClosePeriod', 'canReadLedger']),
+  access: scopedGoverned(['canClosePeriod', 'canReadLedger'], moneyFilter({ location: ['periodClose', 'location'] })),
   ui: { labelField: 'reason' },
   fields: {
     periodClose: relationship({ ref: 'PeriodClose', ...readOnly }),

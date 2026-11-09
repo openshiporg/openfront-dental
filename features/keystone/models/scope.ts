@@ -29,14 +29,78 @@ export const patientFilter = (path: string[] = []) => ({ session }: AccessArgs) 
   if (!isSignedIn({ session })) return false
   const ids = sessionLocationIds(session)
   if (ids === null) return true
+  const where = patientWhere(ids)
+  return path.length ? nest(path, where) : where
+}
+
+/** The patient-visibility rule as a plain where for the given locations. */
+function patientWhere(ids: string[]) {
   const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 86_400_000)
-  const where = {
+  return {
     OR: [
       { homeLocation: { id: { in: ids } } },
       { appointments: { some: { location: { id: { in: ids } }, startsAt: { gte: since.toISOString() } } } },
     ],
   }
-  return path.length ? nest(path, where) : where
+}
+
+/** A guarantor is mine when every patient linked to them is visible to me, and at least one is. */
+function linksWhere(ids: string[]) {
+  const visible = patientWhere(ids)
+  return { links: { some: { patient: visible }, none: { patient: { NOT: [visible] } } } }
+}
+
+/**
+ * Paths from a list to the relationships that place a money row. `location` and `guarantor` are required matches; `patient` and
+ * `account` may be empty, but when set they must be visible (a family account through its guarantor's linked patients).
+ */
+export type MoneyPaths = { location?: string[]; patient?: string[]; account?: string[]; guarantor?: string[] }
+
+/** The same rule seen from a list that reaches the money row through `prefix` (e.g. a note on a ledger entry). */
+export const under = (prefix: string[], spec: MoneyPaths): MoneyPaths =>
+  Object.fromEntries(Object.entries(spec).map(([k, v]) => [k, [...prefix, ...(v as string[])]])) as MoneyPaths
+
+/** The where a money row must match for a reader limited to `ids`. */
+export function moneyWhere(spec: MoneyPaths, ids: string[]): Record<string, unknown> {
+  const parts: Record<string, unknown>[] = []
+  const optional = (path: string[], where: Record<string, unknown>) => {
+    const last = path[path.length - 1]
+    return nest(path.slice(0, -1), { OR: [{ [last]: null }, { [last]: where }] })
+  }
+  if (spec.location) parts.push(nest(spec.location, { id: { in: ids } }))
+  if (spec.patient) parts.push(optional(spec.patient, patientWhere(ids)))
+  if (spec.account) parts.push(optional(spec.account, { guarantor: linksWhere(ids) }))
+  if (spec.guarantor) parts.push(nest(spec.guarantor, linksWhere(ids)))
+  return parts.length === 1 ? parts[0] : { AND: parts }
+}
+
+/** Shapes shared by several lists. */
+export const MONEY = {
+  ledgerEntry: { location: ['location'], patient: ['patient'], account: ['account'] },
+  claim: { location: ['location'], patient: ['patient'] },
+  payment: { location: ['location'], patient: ['patient'], account: ['account'] },
+} satisfies Record<string, MoneyPaths>
+
+/**
+ * Money rows (Phase 4 r1 B1): the row's office is one of mine, and any patient or family account it names is visible to me.
+ * A Tampa-only reader sees no St. Petersburg row, no Tampa row about a St. Petersburg patient, and no family balance that
+ * includes one. Applies to every read path: lists, counts, relation fields and MCP (which runs the caller's session).
+ */
+export const moneyFilter = (spec: MoneyPaths) => ({ session }: AccessArgs) => {
+  if (!isSignedIn({ session })) return false
+  const ids = sessionLocationIds(session)
+  if (ids === null) return true
+  return moneyWhere(spec, ids)
+}
+
+/** Insurance remittances: every matched claim is mine, and at least one is; a repeat delivery follows its original. */
+export const remittanceFilter = () => ({ session }: AccessArgs) => {
+  if (!isSignedIn({ session })) return false
+  const ids = sessionLocationIds(session)
+  if (ids === null) return true
+  const claim = moneyWhere(MONEY.claim, ids)
+  const mine = { some: { claim }, none: { claim: { NOT: [claim] } } }
+  return { OR: [{ claims: mine }, { duplicateOf: { claims: mine } }] }
 }
 
 function nest(path: string[], leaf: Record<string, unknown>): Record<string, unknown> {

@@ -1,7 +1,6 @@
 #!/bin/sh
-# Production start: migrate, keep the background worker alive beside the web server, then serve.
-# The worker drains the outbox (eligibility checks, reminders) and runs the leased schedule jobs.
-# Two app instances are safe: every job and every message is claimed under a lease.
+# Production start: migrate, run the idempotent repair/report scripts, then serve. There is no worker: calls to outside services
+# run straight after a command commits, and scheduled steps run from "Run pending work" on the Day and month close screen.
 # one-time: clears the rolled-back first attempt of the review-fixes migration (a no-op when it is not marked failed)
 npx prisma migrate resolve --rolled-back 20261108220000_dental_phase3_review_fixes >/dev/null 2>&1 || true
 npm run migrate || exit 1
@@ -11,4 +10,6 @@ npm run migrate || exit 1
 ./node_modules/.bin/tsx scripts/rebuild-balances.ts || true
 ./node_modules/.bin/tsx scripts/seed-claim-reference.ts || true
 ./node_modules/.bin/tsx scripts/hash-statements.ts || true
+# report (never fix) remittances that posted the same payment trace twice before the normalised index
+./node_modules/.bin/tsx scripts/report-duplicate-remittances.ts || true
 exec ./node_modules/.bin/next start

@@ -12,7 +12,36 @@ import { accountFor, dayOf, locationToday } from './clinicalShared'
  * Applying a remittance (STATE-MACHINES §7; INTEGRATIONS §2.4). One function serves the clearinghouse poll and manual EOB entry.
  * Nothing posts twice: a trace number seen before is stored as a duplicate and posts nothing, and the database allows one live
  * posting per remittance claim. A line that does not balance (charge ≠ paid + adjustments) never posts: the remittance waits as an exception.
+ * A trace number is compared by its key (letters and digits only, upper case), so "chk-71502", " CHK 71502 " and "CHK-71502" are
+ * one payment; the database holds one live remittance per payer and key (migration 20261110500000).
  */
+
+/** The comparable form of a payment trace number. Must match SQL dental_trace_key(): strip all but A-Z a-z 0-9, then upper-case. */
+export const traceKey = (trace: string) => String(trace ?? '').replace(/[^A-Za-z0-9]/g, '').toUpperCase()
+
+const isTakeback = (c: { statusCode: string; paidMinor: bigint }) => c.statusCode === '22' || c.paidMinor < 0n
+
+/** The latest live posting on this claim that paid money and still has entries nobody has reversed: what a takeback undoes. */
+async function reversibleFor(tx: UnitOfWork['tx'], claimId: string, exceptPostingId?: string) {
+  const candidates = await tx.paymentPosting.findMany({
+    where: { remittanceClaim: { claimId, claimStatusCode: { not: '22' }, paidMinor: { gte: 0n } }, status: 'posted', ...(exceptPostingId ? { id: { not: exceptPostingId } } : {}) },
+    orderBy: { createdAt: 'desc' }, include: { entries: true },
+  })
+  for (const posting of candidates) {
+    const own = posting.entries.filter(e => e.kind !== 'reversal' && !e.reversesId)
+    if (!own.length) continue
+    const already = new Set((await tx.ledgerEntry.findMany({ where: { reversesId: { in: own.map(e => e.id) } }, select: { reversesId: true } })).map(e => e.reversesId))
+    const open = own.filter(e => !already.has(e.id))
+    if (open.length) return { posting, entries: open }
+  }
+  return null
+}
+
+/** A claim already paid by a live posting takes no second ordinary payment (secondary/tertiary and post-appeal payments excepted). */
+async function alreadyPaid(tx: UnitOfWork['tx'], claim: { id: string; status: string }, parsed: { statusCode: string }) {
+  if (['2', '3'].includes(parsed.statusCode) || ['appealed', 'appeal_decided'].includes(claim.status)) return false
+  return !!(await reversibleFor(tx, claim.id))
+}
 
 const ADJUSTABLE_FROM = ['submitted', 'acknowledged', 'pending_payer', 'submission_unknown', 'adjudicated', 'appealed', 'appeal_decided']
 const asJson = (list: { group: string; reason: string; amountMinor: bigint }[]) => list.map(a => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }))
@@ -23,13 +52,16 @@ export type ApplyResult = { remittanceId: string; ref: string; status: string; c
 
 export async function applyParsedEra(uow: UnitOfWork, actor: Actor, era: ParsedEra, origin: { source: 'era_835' | 'manual_eob'; adapterKey: string; observationId?: string | null; payerId?: string | null }): Promise<ApplyResult> {
   const { tx } = uow
-  // One trace number at a time: a second delivery of the same remittance waits here, then finds the first.
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`era:${era.traceNumber}`}))`
+  // One trace key at a time: a second delivery of the same remittance (in any spelling) waits here, then finds the first.
+  const key = traceKey(era.traceNumber)
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`era:${key}`}))`
   const claimRows = await tx.claim.findMany({ where: { patientControlNumber: { in: era.claims.map(c => c.patientControlNumber).filter(Boolean) } }, include: { lines: true, coverage: { include: { subscriber: { include: { plan: true } } } } } })
   const byPcn = new Map(claimRows.map(c => [c.patientControlNumber, c]))
   const payerId = origin.payerId ?? claimRows[0]?.coverage?.subscriber?.plan?.payerId ?? (era.payerName ? (await tx.payer.findFirst({ where: { name: era.payerName }, select: { id: true } }))?.id ?? null : null)
 
-  const earlier = era.traceNumber ? await tx.remittance.findFirst({ where: { traceNumber: era.traceNumber, payerId, status: { not: 'duplicate' } }, orderBy: { createdAt: 'asc' } }) : null
+  const earlier = key
+    ? (await tx.$queryRaw<{ id: string; ref: string }[]>`SELECT id, ref FROM "Remittance" WHERE payer IS NOT DISTINCT FROM ${payerId} AND dental_trace_key("traceNumber") = ${key} AND status <> 'duplicate' ORDER BY "createdAt" ASC LIMIT 1`)[0] ?? null
+    : null
   const ref = await nextReference(tx, 'ERA', uow.now)
   if (earlier) {
     const dup = await tx.remittance.create({ data: { ref, payerId, source: origin.source, adapterKey: origin.adapterKey, traceNumber: era.traceNumber, paymentMethod: era.paymentMethod, paymentDate: era.paymentDate ? dayOf(era.paymentDate) : null, totalPaidMinor: era.totalPaidMinor, status: 'duplicate', duplicateOfId: earlier.id, exceptionNote: `Same payment trace as ${earlier.ref}. Nothing was posted.`, observationId: origin.observationId ?? null } })
@@ -64,7 +96,9 @@ export async function applyParsedEra(uow: UnitOfWork, actor: Actor, era: ParsedE
       : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll('_', ' ')}, so it cannot take a payment.`
       : lineRows.some(l => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.`
       : lineRows.some(l => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge ≠ paid + adjustments).`
-      : sum(lineRows.map(l => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : ''
+      : sum(lineRows.map(l => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.`
+      : isTakeback(parsed) && !(await reversibleFor(tx, claim.id)) ? `${claim.ref} has no payment left to take back, so nothing was reversed.`
+      : !isTakeback(parsed) && (await alreadyPaid(tx, claim, parsed)) ? `${claim.ref} already has a payment posted. Post a takeback first, or enter it as a secondary payment.` : ''
     if (problem) {
       held += 1
       notes.push(problem)
@@ -89,17 +123,20 @@ export async function postClaimPayment(uow: UnitOfWork, actor: Actor, input: { r
   const currency = (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? 'USD'
   const postedById = actor.kind === 'user' ? actor.userId : null
   const payer = remittance.payerId ? await tx.payer.findUnique({ where: { id: remittance.payerId }, select: { name: true } }) : null
-  const takeback = parsed.statusCode === '22' || parsed.paidMinor < 0n
+  await lockRow<any>(tx, 'Claim', claim.id)
+  const takeback = isTakeback(parsed)
   const writeoff = parsed.lines.length ? sum(parsed.lines.map(l => writeOffMinor(l.adjustments))) : writeOffMinor(parsed.adjustments)
   const posting = await tx.paymentPosting.create({ data: { remittanceId: remittance.id, remittanceClaimId: input.remittanceClaimId, postedById, at: uow.now, status: 'posted' } })
   const base = { accountId: account.id, patientId: claim.patientId, currencyCode: currency, businessDate, locationId: claim.locationId, paymentPostingId: posting.id, claimId: claim.id, postedById }
   const label = payer?.name ?? 'insurance'
 
   if (takeback) {
-    // The payer took a payment back: reverse what that claim's earlier posting wrote, exactly, entry by entry.
-    const earlier = await tx.paymentPosting.findFirst({ where: { remittanceClaim: { claimId: claim.id }, status: 'posted', id: { not: posting.id } }, orderBy: { createdAt: 'desc' }, include: { entries: true } })
-    if (!earlier) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} has no earlier payment to take back.`)
-    for (const entry of earlier.entries.filter(e => e.kind !== 'reversal' && !e.reversesId)) {
+    // The payer took a payment back: reverse what that claim's own earlier payment posting wrote, exactly, entry by entry. Never an
+    // earlier takeback (it paid nothing), never an entry already reversed; with nothing to reverse the takeback is refused.
+    const found = await reversibleFor(tx, claim.id, posting.id)
+    if (!found) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} has no payment left to take back, so nothing was reversed.`)
+    const earlier = found.posting
+    for (const entry of found.entries) {
       await postEntry(tx, { ...base, kind: 'reversal', amountMinor: -entry.amountMinor, originalBusinessDate: entry.originalBusinessDate ?? undefined, reversesId: entry.id, providerId: entry.providerId, chartEntryId: entry.chartEntryId, adjustmentId: entry.adjustmentId, memo: `Payment taken back by ${label} (${remittance.ref})` }, uow.now)
     }
     await tx.paymentPosting.update({ where: { id: earlier.id }, data: { status: 'reversed', version: { increment: 1 } } })
@@ -157,6 +194,8 @@ export async function matchRemittanceClaim(uow: UnitOfWork, actor: Actor, remitt
   await lockRow<any>(tx, 'Claim', claimId)
   const claim = await tx.claim.findUniqueOrThrow({ where: { id: claimId }, include: { lines: true } })
   if (!ADJUSTABLE_FROM.includes(claim.status)) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} is ${claim.status.replaceAll('_', ' ')}, so it cannot take a payment.`)
+  const asParsed = { statusCode: rc.claimStatusCode, paidMinor: rc.paidMinor }
+  if (!isTakeback(asParsed) && (await alreadyPaid(tx, claim, asParsed))) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} already has a payment posted. Post a takeback first, or enter it as a secondary payment.`)
   const byControl = new Map(claim.lines.map(l => [l.lineControlNumber, l]))
   const lineRows: { id: string; line: EraLine; claimLineId: string | null }[] = []
   for (const row of rc.lines) {

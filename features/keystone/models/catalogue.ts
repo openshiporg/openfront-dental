@@ -2,6 +2,7 @@ import { list } from '@keystone-6/core'
 import { checkbox, integer, json, relationship, text, timestamp, calendarDay } from '@keystone-6/core/fields'
 import { fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
 import { governed } from './listAccess'
+import { MONEY, moneyFilter, scopedGoverned } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -150,7 +151,7 @@ export const ExplosionCode = list({
 export const LEDGER_KINDS = ['charge', 'insurance_payment', 'insurance_writeoff', 'insurance_adjustment', 'patient_payment', 'patient_adjustment', 'refund', 'transfer_out', 'transfer_in', 'finance_charge', 'reversal'] as const
 
 export const GuarantorAccount = list({
-  access: governed(['canReadLedger', 'canManagePatients']),
+  access: scopedGoverned(['canReadLedger', 'canManagePatients'], moneyFilter({ guarantor: ['guarantor'] })),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'guarantor', 'balanceRebuiltAt'] } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),
@@ -164,7 +165,7 @@ export const GuarantorAccount = list({
 })
 
 export const LedgerEntry = list({
-  access: governed(['canReadLedger']),
+  access: scopedGoverned(['canReadLedger'], moneyFilter(MONEY.ledgerEntry)),
   ui: { labelField: 'id', listView: { initialColumns: ['kind', 'patient', 'amountMinor', 'businessDate', 'provider', 'postedAt'], initialSort: { field: 'postedAt', direction: 'DESC' } } },
   fields: {
     account: relationship({ ref: 'GuarantorAccount', ...readOnly }),

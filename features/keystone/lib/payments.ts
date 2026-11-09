@@ -63,7 +63,7 @@ export async function allocatePayment(tx: Tx, input: { paymentId: string; accoun
   return { allocated: input.amountMinor - remaining, unallocated: remaining, made }
 }
 
-type PaymentRow = { id: string; ref: string; accountId: string | null; patientId: string | null; locationId: string | null; amountMinor: bigint; currencyCode: string; tender: string; status: string; statementId: string | null; receivedById: string | null; checkNumber: string; version: number }
+type PaymentRow = { id: string; ref: string; accountId: string | null; patientId: string | null; locationId: string | null; amountMinor: bigint; currencyCode: string; tender: string; status: string; statementId: string | null; receivedById: string | null; checkNumber: string; providerIntentId: string; version: number }
 
 /**
  * A payment that has really happened (cash in the drawer, a processor confirmation): post the ledger credit, apply it to the
@@ -71,7 +71,7 @@ type PaymentRow = { id: string; ref: string; accountId: string | null; patientId
  */
 export async function settlePayment(uow: UnitOfWork, actor: Actor, paymentId: string, extra: { providerIntentId?: string; installmentId?: string | null; explicit?: { entryId: string; amountMinor: bigint }[] } = {}) {
   const { tx } = uow
-  const rows = await tx.$queryRaw<PaymentRow[]>`SELECT id, ref, account AS "accountId", patient AS "patientId", location AS "locationId", "amountMinor", "currencyCode", tender, status, statement AS "statementId", "receivedBy" AS "receivedById", "checkNumber", version FROM "Payment" WHERE id = ${paymentId} FOR UPDATE`
+  const rows = await tx.$queryRaw<PaymentRow[]>`SELECT id, ref, account AS "accountId", patient AS "patientId", location AS "locationId", "amountMinor", "currencyCode", tender, status, statement AS "statementId", "receivedBy" AS "receivedById", "checkNumber", "providerIntentId", version FROM "Payment" WHERE id = ${paymentId} FOR UPDATE`
   const pay = rows[0]
   if (!pay) throw new DomainError(Codes.NOT_FOUND, 'Payment not found.')
   if (!['initiated', 'requires_action', 'unknown', 'failed'].includes(pay.status)) return { settled: false as const, paymentId, status: pay.status }
@@ -83,7 +83,7 @@ export async function settlePayment(uow: UnitOfWork, actor: Actor, paymentId: st
     memo: `Payment received (${pay.ref})${pay.tender === 'check' && pay.checkNumber ? `, check ${pay.checkNumber}` : ''}`,
   }, uow.now)
   const split = await allocatePayment(tx, { paymentId: pay.id, accountId: pay.accountId!, amountMinor: pay.amountMinor, explicit: extra.explicit })
-  await tx.payment.update({ where: { id: pay.id }, data: { status: 'succeeded', ledgerEntryId: entry.id, businessDate: dayOf(date), ...(extra.providerIntentId ? { providerIntentId: extra.providerIntentId } : {}), failureNote: '', version: { increment: 1 } } })
+  await tx.payment.update({ where: { id: pay.id }, data: { status: 'succeeded', ledgerEntryId: entry.id, businessDate: dayOf(date), ...(extra.providerIntentId && !pay.providerIntentId ? { providerIntentId: extra.providerIntentId } : {}), failureNote: '', version: { increment: 1 } } })
   auditCreate(uow, actor, 'Payment', pay.id, 'payment.succeeded', { amountMinor: pay.amountMinor.toString(), tender: pay.tender, allocated: split.allocated.toString(), ledgerEntryId: entry.id })
   if (pay.statementId) await refreshStatementStatus(tx, pay.statementId)
   const installment = extra.installmentId ?? (await tx.paymentPlanInstallment.findFirst({ where: { paymentId: pay.id }, select: { id: true } }))?.id ?? null

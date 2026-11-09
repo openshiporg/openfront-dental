@@ -61,7 +61,7 @@ describe.skipIf(!hasTestDatabase)('Phase 2: clinical record, plans, codes and fe
 
   it('seeds practice-authored OF- codes, a published fee schedule and charted patients, with no licensed content', async () => {
     const [codes, nonOf, fees, entries] = await Promise.all([
-      prisma.procedureCode.count(), prisma.procedureCode.count({ where: { NOT: { code: { startsWith: 'OF-' } } } }),
+      prisma.procedureCode.count(), prisma.procedureCode.count({ where: { NOT: { code: { startsWith: 'OF-' } }, isSynthetic: false } }), // the sample's insurance codes are generated (isSynthetic)
       prisma.fee.count(), prisma.chartEntry.count(),
     ])
     expect(codes).toBeGreaterThanOrEqual(20)
@@ -204,7 +204,7 @@ describe.skipIf(!hasTestDatabase)('Phase 2: clinical record, plans, codes and fe
     await decideApprovalRequest(null, { requestId: request.id, decision: 'approve', expectedVersion: request.version, idempotencyKey: uniqueKey() }, approver)
     batch = await prisma.codeImportBatch.findUniqueOrThrow({ where: { id: batch.id } })
     expect(batch.status).toBe('active')
-    expect(await prisma.procedureCode.count({ where: { code: { startsWith: 'D9' } } })).toBe(12)
+    expect(await prisma.procedureCode.count({ where: { code: { in: rows.map(r => r.code) }, isSynthetic: false } })).toBe(12)
     const system = await prisma.codeSystem.findUniqueOrThrow({ where: { key: 'CDT' } })
     expect(system.activeImportId).toBe(batch.id)
   })

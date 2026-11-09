@@ -116,7 +116,8 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 3: payments (database)', () => 
     expect((timeout as any).changed).toBe(true)
     expect((await prisma.payment.findUniqueOrThrow({ where: { id: paid.id } })).status).toBe('unknown')
     expect(await prisma.ledgerEntry.count({ where: { paymentId: paid.id } })).toBe(0)
-    await prisma.payment.update({ where: { id: paid.id }, data: { status: 'initiated' } })
+    // The retry re-sends the timed-out payment as it is (the database refuses to move a payment back to initiated).
+    await expect(prisma.payment.update({ where: { id: paid.id }, data: { status: 'initiated' } })).rejects.toThrow(/Payment_status_forward_only/)
     await runPaymentCreate(prisma as any, paid.id, fakeStripe({ '/v1/payment_intents': [{ status: 200, body: { id: 'pi_unit_1', status: 'succeeded', latest_charge: 'ch_unit_1' } }] }, calls))
     expect(new Set(calls.map(c => c.key)).size).toBe(1)
     expect((await prisma.payment.findUniqueOrThrow({ where: { id: paid.id } })).status).toBe('succeeded')
