@@ -87,6 +87,17 @@ export type PostInput = {
  * The only way a command appends to the ledger. It checks the sign (the database checks it again), writes the
  * row and refreshes the cache in the same transaction.
  */
+/** I-L2: a closed day takes no new entries. The row is dated on the next open day and keeps the date it belongs to in originalBusinessDate. */
+export async function openBusinessDate(tx: Tx, locationId: string, date: Date): Promise<Date> {
+  let day = date
+  for (let i = 0; i < 400; i++) {
+    const closed = await tx.dayClose.findFirst({ where: { locationId, businessDate: day, status: 'closed' }, select: { id: true } })
+    if (!closed) return day
+    day = new Date(day.getTime() + 86_400_000)
+  }
+  throw new DomainError(Codes.GUARD_FAILED, 'Every day in the coming year is closed. Reopen a day first.')
+}
+
 export async function postEntry(tx: Tx, input: PostInput, now: Date) {
   if (input.amountMinor === 0n) throw new DomainError(Codes.INVALID_INPUT, 'An amount of zero cannot be posted.', { field: 'amountMinor' })
   const sign = LEDGER_KIND_SIGN[input.kind]
@@ -94,10 +105,11 @@ export async function postEntry(tx: Tx, input: PostInput, now: Date) {
   if ((sign === 'debit' && input.amountMinor < 0n) || (sign === 'credit' && input.amountMinor > 0n)) {
     throw new DomainError(Codes.INVALID_INPUT, sign === 'debit' ? 'That kind of entry adds to the balance.' : 'That kind of entry reduces the balance.', { field: 'amountMinor' })
   }
+  const businessDate = input.restatementId ? input.businessDate : await openBusinessDate(tx, input.locationId, input.businessDate)
   const entry = await tx.ledgerEntry.create({
     data: {
       accountId: input.accountId, patientId: input.patientId, kind: input.kind, amountMinor: input.amountMinor, currencyCode: input.currencyCode,
-      businessDate: input.businessDate, originalBusinessDate: input.originalBusinessDate ?? input.businessDate, locationId: input.locationId,
+      businessDate, originalBusinessDate: input.originalBusinessDate ?? input.businessDate, locationId: input.locationId,
       providerId: input.providerId ?? null, chartEntryId: input.chartEntryId ?? null, adjustmentId: input.adjustmentId ?? null,
       reversesId: input.reversesId ?? null, restatementId: input.restatementId ?? null, paymentPostingId: input.paymentPostingId ?? null, claimId: input.claimId ?? null, paymentId: input.paymentId ?? null, refundId: input.refundId ?? null, memo: input.memo ?? '', postedById: input.postedById ?? null, postedAt: now,
       isSynthetic: input.isSynthetic ?? false,

@@ -93,5 +93,19 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   activatePaymentPlan: { planId: 'ID!', expectedVersion: 'Int!', agreedByName: 'String!' },
   cancelPaymentPlan: { planId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
   rebuildAccountBalance: { accountId: 'ID!' },
+  // Phase 4 slice 4: memberships, day and month close
+  recordLicence: { kind: 'String!', jurisdiction: 'String!', number: 'String!', effectiveFrom: 'String', effectiveTo: 'String', evidence: 'String' },
+  defineMembershipPlan: { name: 'String!', ageBand: 'String!', price: 'String!', interval: 'String!', discountPct: 'String!', benefits: '[JSON!]', termsText: 'String!', locationIds: '[ID!]!', renewalNoticeDays: 'Int' },
+  retireMembershipPlan: { planId: 'ID!', expectedVersion: 'Int!' },
+  enrolMembership: { patientId: 'ID!', planId: 'ID!', locationId: 'ID!' },
+  signMembershipAgreement: { membershipId: 'ID!', expectedVersion: 'Int!', signerName: 'String!', consent: 'Boolean!', startsOn: 'String' },
+  freezeMembership: { membershipId: 'ID!', expectedVersion: 'Int!', freeze: 'Boolean!', reason: 'String!' },
+  cancelMembership: { membershipId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
+  closeDay: { locationId: 'ID!', businessDate: 'String!' },
+  bankDeposit: { depositId: 'ID!', expectedVersion: 'Int!' },
+  closePeriod: { locationId: 'ID!', period: 'String!' },
+  requestPeriodReopen: { periodCloseId: 'ID!', reason: 'String!' },
+  postRestatement: { periodCloseId: 'ID!', patientId: 'ID!', typeId: 'ID!', amount: 'String!', businessDate: 'String!', reason: 'String!' },
+  reclosePeriod: { periodCloseId: 'ID!' },
 }
 

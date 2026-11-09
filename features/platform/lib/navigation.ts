@@ -33,6 +33,8 @@ export const platformNavItems: PlatformNavItem[] = [
 
   { title: 'Claims', href: '/platform/claims', color: 'teal', description: 'Build, check and send claims; follow them to payment.', icon: Receipt, group: 'billing' },
   { title: 'Patient payments', href: '/platform/payments', color: 'emerald', description: 'Refunds, statements and credits on patient accounts.', icon: Landmark, group: 'billing' },
+  { title: 'Memberships', href: '/platform/memberships', color: 'teal', description: 'In-house plans, members and the licence the state asks for.', icon: BadgeCheck, group: 'billing' },
+  { title: 'Day and month close', href: '/platform/close', color: 'amber', description: 'Close the day, bank the cash, close and reopen the month.', icon: ClipboardCheck, group: 'billing' },
   { title: 'Insurance payments', href: '/platform/remittances', color: 'emerald', description: 'Payments received, lines to match, denied lines to work.', icon: Landmark, group: 'billing' },
 
   { title: 'Insurance plans', href: '/platform/insurance', color: 'sky', description: 'Payers, plans, fee schedules and coordination rules.', icon: Landmark, group: 'front-desk' },
@@ -59,7 +61,7 @@ export const SHIPPED_ROUTES = new Set<string>([
   // Phase 3
   '/platform/insurance', '/platform/verifications',
   // Phase 4
-  '/platform/claims', '/platform/remittances',
+  '/platform/claims', '/platform/remittances', '/platform/payments', '/platform/memberships', '/platform/close',
 ])
 
 const shipped = () => platformNavItems.filter(item => SHIPPED_ROUTES.has(item.href))

@@ -5,6 +5,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -27,6 +30,1404 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
+// features/keystone/access.ts
+function sessionLocationIds(session) {
+  if (!isSignedIn({ session })) return [];
+  if (session.data.role?.canAccessAllLocations) return null;
+  const day5 = today();
+  return (session.data.assignments ?? []).filter((a) => a.location?.id && (!a.startsOn || a.startsOn <= day5) && (!a.endsOn || a.endsOn >= day5)).map((a) => a.location.id);
+}
+var permissionNames, NEVER_DEFAULT, approvalPermissions, isSignedIn, hasPermission, permissions, anyOf, sys, today, rules;
+var init_access = __esm({
+  "features/keystone/access.ts"() {
+    "use strict";
+    permissionNames = [
+      // Starter and fleet-standard
+      "canSeeOtherPeople",
+      "canEditOtherPeople",
+      "canManagePeople",
+      "canManageRoles",
+      "canAccessDashboard",
+      "canManageOnboarding",
+      "canManagePayments",
+      "canIssueRefunds",
+      "canReadAudit",
+      // Practice, locations and adapters
+      "canManagePractice",
+      "canManageAdapters",
+      "canApproveAdapters",
+      "canAccessAllLocations",
+      // Patients
+      "canManagePatients",
+      "canApprovePatientMerge",
+      "canReadDemographics",
+      // Scheduling
+      "canManageSchedule",
+      "canOverrideSchedule",
+      "canOverrideTemplate",
+      "canOverrideLabGate",
+      "canReadSchedule",
+      // Clinical
+      "canChart",
+      "canCompleteProcedures",
+      "canSignClinicalNotes",
+      "canPrescribe",
+      "canManagePerio",
+      "canManageLabCases",
+      "canApproveClinicalCorrections",
+      "canReadClinical",
+      "canReadSensitive",
+      // Treatment
+      "canManageTreatmentPlans",
+      "canPresentPlans",
+      // Codes and fees
+      "canManageFees",
+      "canImportCodes",
+      "canApproveCodeImport",
+      "canApproveFeePublish",
+      // Insurance
+      "canManageInsurance",
+      "canVerifyBenefits",
+      "canReadInsurance",
+      // Claims
+      "canManageClaims",
+      "canSubmitClaims",
+      "canOverrideScrub",
+      "canPostRemittances",
+      // Ledger
+      "canTakePayments",
+      "canAdjust",
+      "canCloseDay",
+      "canClosePeriod",
+      "canApproveAdjustments",
+      "canApproveRefunds",
+      "canApprovePeriodReopen",
+      "canReadLedger",
+      // Memberships
+      "canManageMemberships",
+      // Communications
+      "canMessagePatients",
+      "canManageTemplates",
+      "canReplyReviews",
+      // AI action layer
+      "canManageAgents",
+      "canDecideProposals",
+      "canDecideClaimProposals",
+      "canDecideClinicalProposals",
+      "canDecideFinancialProposals",
+      "canApproveAgentGrants",
+      "canApproveAutonomy",
+      "canReadSignals",
+      // Privacy and compliance. canBreakGlass and canBreakGlassRecords are never on a default role.
+      "canManageCompliance",
+      "canBreakGlass",
+      "canBreakGlassRecords",
+      "canReviewPrivacy",
+      "canApproveRetention",
+      "canReadPhiAudit",
+      // Data
+      "canImportData",
+      "canExportData",
+      "canApproveImports"
+    ];
+    NEVER_DEFAULT = ["canBreakGlass", "canBreakGlassRecords"];
+    approvalPermissions = permissionNames.filter((name) => name.startsWith("canApprove") || name === "canBreakGlass" || name === "canBreakGlassRecords");
+    isSignedIn = ({ session }) => {
+      if (!session) return false;
+      const expires = session.data?.accessExpiresAt;
+      return !expires || Date.parse(expires) > Date.now();
+    };
+    hasPermission = (session, permission) => isSignedIn({ session }) && session?.data.role?.[permission] === true;
+    permissions = Object.fromEntries(
+      permissionNames.map((name) => [name, ({ session }) => hasPermission(session, name)])
+    );
+    anyOf = (...names) => ({ session }) => names.some((name) => hasPermission(session, name));
+    sys = () => false;
+    today = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    rules = {
+      canReadPeople: ({ session }) => !isSignedIn({ session }) ? false : session.data.role?.canSeeOtherPeople || session.data.role?.canManagePeople ? true : { id: { equals: session.itemId } },
+      canUpdatePeople: ({ session }) => !isSignedIn({ session }) ? false : session.data.role?.canEditOtherPeople || session.data.role?.canManagePeople ? true : { id: { equals: session.itemId } },
+      /** Row filter for lists with a `location` relationship. */
+      atMyLocations: (field = "location") => ({ session }) => {
+        const ids = sessionLocationIds(session);
+        if (ids === null) return true;
+        return { [field]: { id: { in: ids } } };
+      }
+    };
+  }
+});
+
+// features/keystone/models/scope.ts
+function nest(path, leaf) {
+  return path.reduceRight((inner, key) => ({ [key]: inner }), leaf);
+}
+var rule2, PATIENT_LOCATION_LOOKBACK_YEARS, locationFilter, patientFilter, scopedGoverned, scopedManaged;
+var init_scope = __esm({
+  "features/keystone/models/scope.ts"() {
+    "use strict";
+    init_access();
+    rule2 = (read) => Array.isArray(read) ? anyOf(...read) : permissions[read];
+    PATIENT_LOCATION_LOOKBACK_YEARS = 3;
+    locationFilter = (path = ["location"]) => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      const ids = sessionLocationIds(session);
+      if (ids === null) return true;
+      return nest(path, { id: { in: ids } });
+    };
+    patientFilter = (path = []) => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      const ids = sessionLocationIds(session);
+      if (ids === null) return true;
+      const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
+      const where = {
+        OR: [
+          { homeLocation: { id: { in: ids } } },
+          { appointments: { some: { location: { id: { in: ids } }, startsAt: { gte: since.toISOString() } } } }
+        ]
+      };
+      return path.length ? nest(path, where) : where;
+    };
+    scopedGoverned = (read, filter) => ({
+      operation: { query: rule2(read), create: () => false, update: () => false, delete: () => false },
+      filter: { query: filter }
+    });
+    scopedManaged = (read, write, filter) => ({
+      operation: { query: rule2(read), create: rule2(write), update: rule2(write), delete: () => false },
+      filter: { query: filter, update: filter }
+    });
+  }
+});
+
+// features/keystone/lib/errors.ts
+var DomainError, isDomainError, Codes;
+var init_errors = __esm({
+  "features/keystone/lib/errors.ts"() {
+    "use strict";
+    DomainError = class extends Error {
+      constructor(code, message, details = {}) {
+        super(message);
+        this.name = "DomainError";
+        this.code = code;
+        this.details = details;
+      }
+    };
+    isDomainError = (error) => error instanceof DomainError;
+    Codes = {
+      NOT_AUTHORIZED: "NOT_AUTHORIZED",
+      NOT_FOUND: "NOT_FOUND",
+      INVALID_INPUT: "INVALID_INPUT",
+      INVALID_TRANSITION: "INVALID_TRANSITION",
+      STALE_STATE: "STALE_STATE",
+      GUARD_FAILED: "GUARD_FAILED",
+      IDEMPOTENCY_KEY_REQUIRED: "IDEMPOTENCY_KEY_REQUIRED",
+      IDEMPOTENCY_KEY_REUSED: "IDEMPOTENCY_KEY_REUSED",
+      IN_PROGRESS: "IN_PROGRESS",
+      APPROVAL_REQUIRED: "APPROVAL_REQUIRED",
+      SELF_APPROVAL: "SELF_APPROVAL",
+      AGENT_CANNOT_APPROVE: "AGENT_CANNOT_APPROVE",
+      APPROVAL_MISMATCH: "APPROVAL_MISMATCH",
+      LEASE_LOST: "LEASE_LOST",
+      STALE_FENCING_TOKEN: "STALE_FENCING_TOKEN",
+      AUDIT_CHAIN_BROKEN: "AUDIT_CHAIN_BROKEN",
+      // Dental (STATE-MACHINES, INTEGRATIONS)
+      SLOT_TAKEN: "SLOT_TAKEN",
+      HOLD_EXPIRED: "HOLD_EXPIRED",
+      OUTSIDE_TEMPLATE: "OUTSIDE_TEMPLATE",
+      PATIENT_UNAVAILABLE: "PATIENT_UNAVAILABLE",
+      PROVIDER_UNAVAILABLE: "PROVIDER_UNAVAILABLE",
+      SUPERVISION_REQUIRED: "SUPERVISION_REQUIRED",
+      INFERENCE_PHI_BLOCKED: "INFERENCE_PHI_BLOCKED",
+      SYNTHETIC_TO_LIVE: "SYNTHETIC_TO_LIVE",
+      MFA_REQUIRED: "MFA_REQUIRED",
+      BREAK_GLASS_REQUIRED: "BREAK_GLASS_REQUIRED",
+      RATE_LIMITED: "RATE_LIMITED",
+      CONSENT_REQUIRED: "CONSENT_REQUIRED",
+      DUPLICATE_SUSPECTED: "DUPLICATE_SUSPECTED",
+      LATE_CANCEL_WINDOW: "LATE_CANCEL_WINDOW",
+      LAB_CASE_NOT_READY: "LAB_CASE_NOT_READY",
+      PORTAL_SCOPE_DENIED: "PORTAL_SCOPE_DENIED",
+      PORTAL_SESSION_INVALID: "PORTAL_SESSION_INVALID",
+      OUTSIDE_LOCATION_SCOPE: "OUTSIDE_LOCATION_SCOPE",
+      MERGE_CONFLICT: "MERGE_CONFLICT"
+    };
+  }
+});
+
+// features/keystone/lib/actor.ts
+function actorFromSession(session) {
+  if (!session || !isSignedIn({ session })) throw new DomainError(Codes.NOT_AUTHORIZED, "Sign in to continue.");
+  const role = session.data.role;
+  const granted = new Set(role ? permissionNames.filter((name) => role[name] === true) : []);
+  return { kind: "user", userId: session.itemId, name: session.data.name, permissions: granted };
+}
+function can(actor3, permission) {
+  return actor3.kind === "user" && actor3.permissions.has(permission);
+}
+function requirePermission(actor3, ...anyOf2) {
+  if (actor3.kind === "system") return;
+  if (actor3.kind === "agent") throw new DomainError(Codes.NOT_AUTHORIZED, "Agents act only through their tool grants.");
+  if (!anyOf2.some((permission) => actor3.permissions.has(permission))) {
+    throw new DomainError(Codes.NOT_AUTHORIZED, `This needs the ${anyOf2.join(" or ")} permission.`);
+  }
+}
+var systemActor, principalKey, actorUserId, actorAgentId;
+var init_actor = __esm({
+  "features/keystone/lib/actor.ts"() {
+    "use strict";
+    init_access();
+    init_errors();
+    systemActor = (name) => ({ kind: "system", name });
+    principalKey = (actor3) => actor3.kind === "user" ? `user:${actor3.userId}` : actor3.kind === "agent" ? `agent:${actor3.agentId}` : `system:${actor3.name}`;
+    actorUserId = (actor3) => actor3.kind === "user" ? actor3.userId : null;
+    actorAgentId = (actor3) => actor3.kind === "agent" ? actor3.agentId : null;
+  }
+});
+
+// features/keystone/lib/decimal.ts
+function dec(value) {
+  if (value instanceof Decimal) return value;
+  if (typeof value === "bigint") return new Decimal(value.toString());
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
+    return new Decimal(value);
+  }
+  const text19 = String(value).trim();
+  if (!DECIMAL_TEXT.test(text19)) throw new Error(`Not a decimal number: ${JSON.stringify(text19).slice(0, 40)}`);
+  return new Decimal(text19);
+}
+function toScale(value, scale, rounding = Decimal.ROUND_HALF_EVEN) {
+  const places = typeof scale === "number" ? scale : Scale[scale];
+  return dec(value).toDecimalPlaces(places, rounding).toFixed(places);
+}
+var import_decimal, Decimal, Scale, DECIMAL_TEXT, plain, ZERO, ONE, BPS;
+var init_decimal = __esm({
+  "features/keystone/lib/decimal.ts"() {
+    "use strict";
+    import_decimal = __toESM(require("decimal.js"));
+    Decimal = import_decimal.default.clone({
+      precision: 60,
+      rounding: import_decimal.default.ROUND_HALF_EVEN,
+      toExpNeg: -40,
+      toExpPos: 60
+    });
+    Scale = { px: 10, qty: 18, units: 8, nav: 10, rate: 12 };
+    DECIMAL_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
+    plain = (value) => dec(value).toFixed();
+    ZERO = new Decimal(0);
+    ONE = new Decimal(1);
+    BPS = new Decimal(1e4);
+  }
+});
+
+// features/keystone/lib/canonical.ts
+function canonicalize(value) {
+  if (value === null || value === void 0) return null;
+  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "string" || typeof value === "boolean") return value;
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) throw new Error("Canonical JSON cannot hold a non-finite number");
+    return value;
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (typeof value === "object") {
+    const decimalLike = value;
+    if (typeof decimalLike.isFinite === "function" && typeof decimalLike.isNaN === "function") return plain(decimalLike.toString());
+    return Object.fromEntries(
+      Object.entries(value).filter(([, entry]) => entry !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, entry]) => [key, canonicalize(entry)])
+    );
+  }
+  throw new Error(`Canonical JSON cannot hold a ${typeof value}`);
+}
+var import_node_crypto2, canonicalJson, sha256, memberIdHash, payloadHash, toJsonValue;
+var init_canonical = __esm({
+  "features/keystone/lib/canonical.ts"() {
+    "use strict";
+    import_node_crypto2 = require("node:crypto");
+    init_decimal();
+    canonicalJson = (value) => JSON.stringify(canonicalize(value));
+    sha256 = (text19) => (0, import_node_crypto2.createHash)("sha256").update(text19).digest("hex");
+    memberIdHash = (memberId, keyText = process.env.DENTAL_SECRET_KEY) => {
+      const text19 = String(keyText || "").trim();
+      if (!text19) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
+      const root = /^[a-f0-9]{64}$/i.test(text19) ? Buffer.from(text19, "hex") : Buffer.from(text19, "base64");
+      const key = (0, import_node_crypto2.createHmac)("sha256", root).update("dental.member-id-hash.v1").digest();
+      return `h1:${(0, import_node_crypto2.createHmac)("sha256", key).update(memberId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")).digest("hex")}`;
+    };
+    payloadHash = (value) => sha256(canonicalJson(value));
+    toJsonValue = (value) => canonicalize(value);
+  }
+});
+
+// features/keystone/lib/db.ts
+async function advisoryLock(tx, key) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
+}
+function tableName(model) {
+  if (!MODEL_NAME.test(model)) throw new Error(`Invalid model name: ${model.slice(0, 40)}`);
+  return `"${model}"`;
+}
+function delegateOf(tx, model) {
+  tableName(model);
+  const delegate = tx[model[0].toLowerCase() + model.slice(1)];
+  if (!delegate) throw new Error(`Unknown model: ${model}`);
+  return delegate;
+}
+var MODEL_NAME, TRANSACTION_OPTIONS;
+var init_db = __esm({
+  "features/keystone/lib/db.ts"() {
+    "use strict";
+    MODEL_NAME = /^[A-Z][A-Za-z0-9]*$/;
+    TRANSACTION_OPTIONS = { maxWait: 15e3, timeout: 6e4 };
+  }
+});
+
+// features/keystone/lib/idempotency.ts
+function assertIdempotencyKey(key) {
+  if (typeof key !== "string" || !key.trim()) throw new DomainError(Codes.IDEMPOTENCY_KEY_REQUIRED, "An idempotency key is required.");
+  if (!IDEMPOTENCY_KEY.test(key)) throw new DomainError(Codes.INVALID_INPUT, "The idempotency key must be 8 to 200 letters, digits or . _ : -");
+}
+async function claimReceipt(tx, input) {
+  assertIdempotencyKey(input.key);
+  await advisoryLock(tx, `command:${input.key}`);
+  const existing = await tx.commandReceipt.findUnique({ where: { idempotencyKey: input.key } });
+  if (!existing) return { replay: false };
+  const requestHash = payloadHash(input.params);
+  if (existing.command !== input.command || existing.principalKey !== input.principalKey || existing.requestHash !== requestHash) {
+    throw new DomainError(Codes.IDEMPOTENCY_KEY_REUSED, "This idempotency key was already used for a different request.");
+  }
+  return { replay: true, responseBody: existing.responseBody };
+}
+async function writeReceipt(tx, input) {
+  await tx.commandReceipt.create({
+    data: {
+      idempotencyKey: input.key,
+      command: input.command,
+      principalKey: input.principalKey,
+      requestHash: payloadHash(input.params),
+      requestParams: toJsonValue(canonicalize(input.params)),
+      responseCode: "ok",
+      responseBody: toJsonValue(input.response),
+      recoveryPoint: "completed",
+      completedAt: input.now
+    }
+  });
+}
+var IDEMPOTENCY_KEY;
+var init_idempotency = __esm({
+  "features/keystone/lib/idempotency.ts"() {
+    "use strict";
+    init_canonical();
+    init_db();
+    init_errors();
+    IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{8,200}$/;
+  }
+});
+
+// features/keystone/lib/audit.ts
+function auditHashBody(row) {
+  return {
+    seq: row.seq,
+    eventKey: row.eventKey,
+    eventType: row.eventType,
+    entityType: row.entityType,
+    entityId: row.entityId,
+    actorUserId: row.actorUserId ?? null,
+    actorAgentId: row.actorAgentId ?? null,
+    approverId: row.approverId ?? null,
+    reason: row.reason || null,
+    before: row.before ?? null,
+    after: row.after ?? null,
+    metadata: row.metadata ?? null,
+    requestId: row.requestId || null,
+    at: row.at.toISOString()
+  };
+}
+async function appendAuditEvents(tx, events, now = /* @__PURE__ */ new Date()) {
+  if (!events.length) return [];
+  await advisoryLock(tx, "audit:chain");
+  const last = await tx.auditEvent.findFirst({ orderBy: { seq: "desc" }, select: { seq: true, hash: true } });
+  let seq = last?.seq ?? 0;
+  let prevHash = last?.hash ?? GENESIS_HASH;
+  const written = [];
+  for (const event of events) {
+    seq += 1;
+    const row = {
+      seq,
+      eventKey: event.eventKey ?? (0, import_node_crypto3.randomUUID)(),
+      eventType: event.eventType,
+      entityType: event.entityType,
+      entityId: event.entityId,
+      actorUserId: event.actorUserId ?? null,
+      actorAgentId: event.actorAgentId ?? null,
+      approverId: event.approverId ?? null,
+      reason: event.reason ? event.reason.slice(0, 2e3) : null,
+      before: event.before === void 0 ? null : toJsonValue(event.before),
+      after: event.after === void 0 ? null : toJsonValue(event.after),
+      metadata: event.metadata === void 0 ? null : toJsonValue(event.metadata),
+      requestId: event.requestId ?? null,
+      prevHash,
+      at: now
+    };
+    const hash = auditHash(prevHash, row);
+    const created = await tx.auditEvent.create({
+      data: {
+        seq: row.seq,
+        eventKey: row.eventKey,
+        eventType: row.eventType,
+        entityType: row.entityType,
+        entityId: row.entityId,
+        actorUserId: row.actorUserId,
+        actorAgentId: row.actorAgentId,
+        approverId: row.approverId,
+        reason: row.reason ?? "",
+        // Nullable json columns: omit null (stored as SQL NULL, read back as null).
+        ...row.before === null ? {} : { before: row.before },
+        ...row.after === null ? {} : { after: row.after },
+        ...row.metadata === null ? {} : { metadata: row.metadata },
+        requestId: row.requestId ?? "",
+        prevHash,
+        hash,
+        at: row.at
+      },
+      select: { id: true }
+    });
+    written.push({ id: created.id, seq, hash });
+    prevHash = hash;
+  }
+  return written;
+}
+async function verifyAuditChain(db, batchSize = 1e3) {
+  let prevHash = GENESIS_HASH;
+  let expectedSeq = 1;
+  let count = 0;
+  for (; ; ) {
+    const rows = await db.auditEvent.findMany({ where: { seq: { gte: expectedSeq } }, orderBy: { seq: "asc" }, take: batchSize });
+    if (!rows.length) break;
+    for (const row of rows) {
+      if (row.seq !== expectedSeq) return { ok: false, count, lastSeq: expectedSeq - 1, lastHash: prevHash, brokenAtSeq: expectedSeq, problem: "missing event" };
+      if (row.prevHash !== prevHash) return { ok: false, count, lastSeq: row.seq - 1, lastHash: prevHash, brokenAtSeq: row.seq, problem: "previous hash does not match" };
+      const hash = auditHash(prevHash, {
+        ...row,
+        reason: row.reason || null,
+        requestId: row.requestId || null,
+        actorUserId: row.actorUserId ?? null,
+        actorAgentId: row.actorAgentId ?? null,
+        approverId: row.approverId ?? null
+      });
+      if (hash !== row.hash) return { ok: false, count, lastSeq: row.seq - 1, lastHash: prevHash, brokenAtSeq: row.seq, problem: "content does not match its hash" };
+      prevHash = row.hash;
+      expectedSeq += 1;
+      count += 1;
+    }
+  }
+  return { ok: true, count, lastSeq: expectedSeq - 1, lastHash: prevHash };
+}
+var import_node_crypto3, GENESIS_HASH, auditHash;
+var init_audit = __esm({
+  "features/keystone/lib/audit.ts"() {
+    "use strict";
+    import_node_crypto3 = require("node:crypto");
+    init_canonical();
+    init_db();
+    GENESIS_HASH = "0".repeat(64);
+    auditHash = (prevHash, row) => sha256(`${prevHash}
+${canonicalJson(auditHashBody(row))}`);
+  }
+});
+
+// features/keystone/lib/unitOfWork.ts
+async function flushOutbox(tx, messages, now) {
+  for (const message of messages) {
+    const payload = toJsonValue(message.payload);
+    const dedupeKey = message.dedupeKey ?? `${message.topic}:${message.aggregateType}:${message.aggregateId}:${sha256(canonicalJson(payload))}`;
+    await tx.outboxEvent.upsert({
+      where: { dedupeKey },
+      create: {
+        topic: message.topic,
+        aggregateType: message.aggregateType,
+        aggregateId: message.aggregateId,
+        dedupeKey,
+        payload,
+        status: "pending",
+        nextAttemptAt: message.availableAt ?? now
+      },
+      update: {}
+    });
+  }
+}
+async function runInTransaction(db, work, options = {}) {
+  return db.$transaction(async (tx) => {
+    const uow = new UnitOfWork(tx, options.now ?? /* @__PURE__ */ new Date(), options.requestId ?? null);
+    const result = await work(uow);
+    await flushOutbox(tx, uow.outbox, uow.now);
+    await appendAuditEvents(tx, uow.audits, uow.now);
+    return result;
+  }, TRANSACTION_OPTIONS);
+}
+var UnitOfWork;
+var init_unitOfWork = __esm({
+  "features/keystone/lib/unitOfWork.ts"() {
+    "use strict";
+    init_audit();
+    init_canonical();
+    init_db();
+    UnitOfWork = class {
+      constructor(tx, now, requestId) {
+        this.tx = tx;
+        this.now = now;
+        this.requestId = requestId;
+        this.audits = [];
+        this.outbox = [];
+      }
+      audit(event) {
+        this.audits.push({ requestId: this.requestId, ...event });
+      }
+      emit(message) {
+        this.outbox.push(message);
+      }
+    };
+  }
+});
+
+// features/keystone/lib/command.ts
+async function command(db, spec, work) {
+  const principal = principalKey(spec.actor);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await runInTransaction(db, async (uow) => {
+        const receipt = await claimReceipt(uow.tx, { key: spec.idempotencyKey, command: spec.name, principalKey: principal, params: spec.params });
+        if (receipt.replay) return { replay: true, value: receipt.responseBody };
+        const value = toJsonValue(await work(uow));
+        await writeReceipt(uow.tx, { key: spec.idempotencyKey, command: spec.name, principalKey: principal, params: spec.params, response: value, now: uow.now });
+        return { replay: false, value };
+      }, { requestId: spec.requestId ?? null, now: spec.now });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const code = error?.code ?? "";
+      if (attempt < 4 && (RETRYABLE.test(message) || RETRYABLE.test(code))) continue;
+      if (attempt < 6 && NOT_STARTED.test(message)) {
+        await new Promise((resolve) => setTimeout(resolve, 100 * attempt + Math.floor(Math.random() * 400)));
+        continue;
+      }
+      throw error;
+    }
+  }
+}
+var RETRYABLE, NOT_STARTED;
+var init_command = __esm({
+  "features/keystone/lib/command.ts"() {
+    "use strict";
+    init_canonical();
+    init_actor();
+    init_idempotency();
+    init_unitOfWork();
+    RETRYABLE = /deadlock detected|could not serialize|P2034|40P01|40001/i;
+    NOT_STARTED = /Unable to start a transaction in the given time/i;
+  }
+});
+
+// features/keystone/lib/cas.ts
+async function lockRow(tx, model, id) {
+  const rows = await tx.$queryRawUnsafe(`SELECT id FROM ${tableName(model)} WHERE id = $1 FOR UPDATE`, id);
+  if (!rows.length) throw new DomainError(Codes.NOT_FOUND, `${model} not found.`, { model, id });
+  const row = await delegateOf(tx, model).findUnique({ where: { id } });
+  return row;
+}
+async function transition(uow, spec) {
+  const statusField = spec.statusField ?? "status";
+  if (!COLUMN.test(statusField)) throw new Error("Invalid status field");
+  const row = await lockRow(uow.tx, spec.model, spec.id);
+  const currentStatus = String(row[statusField]);
+  const currentVersion = Number(row.version);
+  if (spec.expectedVersion !== void 0 && spec.expectedVersion !== null && spec.expectedVersion !== currentVersion) {
+    throw new DomainError(Codes.STALE_STATE, `${spec.model} changed since you loaded it. Reload and try again.`, { currentStatus, currentVersion });
+  }
+  if (!spec.from.includes(currentStatus)) {
+    throw new DomainError(Codes.INVALID_TRANSITION, `${spec.model} can't move from ${currentStatus} to ${spec.to}.`, { currentStatus, currentVersion, to: spec.to });
+  }
+  if (spec.guard) await spec.guard(row);
+  const extra = typeof spec.data === "function" ? await spec.data(row) : spec.data ?? {};
+  const result = await delegateOf(uow.tx, spec.model).updateMany({
+    where: { id: spec.id, version: currentVersion, [statusField]: { in: [...spec.from] } },
+    data: { ...extra, [statusField]: spec.to, version: { increment: 1 } }
+  });
+  if (result.count !== 1) {
+    throw new DomainError(Codes.STALE_STATE, `${spec.model} changed since you loaded it. Reload and try again.`, { currentStatus, currentVersion });
+  }
+  uow.audit({
+    eventType: spec.eventType,
+    entityType: spec.model,
+    entityId: spec.id,
+    actorUserId: actorUserId(spec.actor),
+    actorAgentId: actorAgentId(spec.actor),
+    approverId: spec.approverId ?? null,
+    reason: spec.reason ?? null,
+    before: { [statusField]: currentStatus, version: currentVersion },
+    after: { [statusField]: spec.to, version: currentVersion + 1, ...extra },
+    metadata: { ...spec.metadata ?? {}, ...spec.actor.kind === "system" ? { system: spec.actor.name } : {} }
+  });
+  return await delegateOf(uow.tx, spec.model).findUnique({ where: { id: spec.id } });
+}
+function auditCreate(uow, actor3, model, id, eventType, after, extra = {}) {
+  uow.audit({
+    eventType,
+    entityType: model,
+    entityId: id,
+    actorUserId: actorUserId(actor3),
+    actorAgentId: actorAgentId(actor3),
+    reason: extra.reason ?? null,
+    after,
+    metadata: { ...extra.metadata ?? {}, ...actor3.kind === "system" ? { system: actor3.name } : {} }
+  });
+}
+var COLUMN;
+var init_cas = __esm({
+  "features/keystone/lib/cas.ts"() {
+    "use strict";
+    init_db();
+    init_errors();
+    init_actor();
+    COLUMN = /^[a-z][A-Za-z0-9]*$/;
+  }
+});
+
+// features/keystone/lib/time.ts
+function assertDate(date) {
+  if (!DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || (/* @__PURE__ */ new Date(`${date}T00:00:00Z`)).toISOString().slice(0, 10) !== date) {
+    throw new Error(`Invalid date ${date}`);
+  }
+}
+function assertHhmm(value) {
+  if (!HHMM.test(value)) throw new Error(`Invalid local time ${value} (expected HH:mm)`);
+}
+function addDays(date, days) {
+  assertDate(date);
+  const t = Date.parse(`${date}T12:00:00Z`) + days * 864e5;
+  return new Date(t).toISOString().slice(0, 10);
+}
+function localDate(timeZone, at) {
+  const p = zoneParts(timeZone, typeof at === "number" ? at : at.getTime());
+  return `${p.year}-${p.month}-${p.day}`;
+}
+function zonedInstant(timeZone, date, hhmm) {
+  assertDate(date);
+  assertHhmm(hhmm);
+  const [h, m] = hhmm.split(":").map((x) => Number.parseInt(x, 10));
+  const target = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m);
+  const wall = (at) => {
+    const p = zoneParts(timeZone, at);
+    return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
+  };
+  const offsetBefore = wall(target - 864e5) - (target - 864e5);
+  const offsetAfter = wall(target + 864e5) - (target + 864e5);
+  const valid = [target - offsetBefore, target - offsetAfter].filter((at) => wall(at) === target).sort((x, y) => x - y);
+  return new Date(valid[0] ?? target - offsetBefore);
+}
+var DATE, HHMM, weekdayOf, zoneParts, minutesOf, overlaps;
+var init_time = __esm({
+  "features/keystone/lib/time.ts"() {
+    "use strict";
+    DATE = /^\d{4}-\d{2}-\d{2}$/;
+    HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+    weekdayOf = (date) => {
+      assertDate(date);
+      return (/* @__PURE__ */ new Date(`${date}T12:00:00Z`)).getUTCDay();
+    };
+    zoneParts = (timeZone, at) => Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at)).map((p) => [p.type, p.value])
+    );
+    minutesOf = (hhmm) => {
+      assertHhmm(hhmm);
+      return Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
+    };
+    overlaps = (a0, a1, b0, b1) => a0 < b1 && b0 < a1;
+  }
+});
+
+// features/keystone/lib/ledger.ts
+function computeBalance(entries, today2) {
+  let total = 0n;
+  for (const e of entries) total += e.amountMinor;
+  const debits = entries.filter((e) => e.amountMinor > 0n).sort((a, b) => (a.businessDate?.getTime() ?? 0) - (b.businessDate?.getTime() ?? 0));
+  let credit = entries.filter((e) => e.amountMinor < 0n).reduce((sum3, e) => sum3 - e.amountMinor, 0n);
+  const buckets = { current: 0n, d31: 0n, d61: 0n, d91: 0n };
+  for (const d of debits) {
+    const applied = credit < d.amountMinor ? credit : d.amountMinor;
+    credit -= applied;
+    const left = d.amountMinor - applied;
+    if (left === 0n) continue;
+    const age = d.businessDate ? dayNumber(today2) - dayNumber(d.businessDate) : 0;
+    if (age > 90) buckets.d91 += left;
+    else if (age > 60) buckets.d61 += left;
+    else if (age > 30) buckets.d31 += left;
+    else buckets.current += left;
+  }
+  return {
+    totalMinor: total.toString(),
+    patientMinor: (total > 0n ? total : 0n).toString(),
+    insurancePendingMinor: "0",
+    creditMinor: (total < 0n ? -total : 0n).toString(),
+    aging: { current: buckets.current.toString(), d31: buckets.d31.toString(), d61: buckets.d61.toString(), d91: buckets.d91.toString() },
+    entryCount: entries.length
+  };
+}
+async function rebuildBalance(tx, accountId, now) {
+  await advisoryLock(tx, `ledger:${accountId}`);
+  const entries = await tx.ledgerEntry.findMany({ where: { accountId }, select: { amountMinor: true, businessDate: true, kind: true } });
+  const cache = computeBalance(entries, now);
+  await tx.guarantorAccount.update({ where: { id: accountId }, data: { balanceCache: toJsonValue(cache), balanceRebuiltAt: now, version: { increment: 1 } } });
+  return cache;
+}
+async function openBusinessDate(tx, locationId, date) {
+  let day5 = date;
+  for (let i = 0; i < 400; i++) {
+    const closed = await tx.dayClose.findFirst({ where: { locationId, businessDate: day5, status: "closed" }, select: { id: true } });
+    if (!closed) return day5;
+    day5 = new Date(day5.getTime() + 864e5);
+  }
+  throw new DomainError(Codes.GUARD_FAILED, "Every day in the coming year is closed. Reopen a day first.");
+}
+async function postEntry(tx, input, now) {
+  if (input.amountMinor === 0n) throw new DomainError(Codes.INVALID_INPUT, "An amount of zero cannot be posted.", { field: "amountMinor" });
+  const sign = LEDGER_KIND_SIGN[input.kind];
+  if (!sign) throw new DomainError(Codes.INVALID_INPUT, "Unknown ledger kind.");
+  if (sign === "debit" && input.amountMinor < 0n || sign === "credit" && input.amountMinor > 0n) {
+    throw new DomainError(Codes.INVALID_INPUT, sign === "debit" ? "That kind of entry adds to the balance." : "That kind of entry reduces the balance.", { field: "amountMinor" });
+  }
+  const businessDate = input.restatementId ? input.businessDate : await openBusinessDate(tx, input.locationId, input.businessDate);
+  const entry = await tx.ledgerEntry.create({
+    data: {
+      accountId: input.accountId,
+      patientId: input.patientId,
+      kind: input.kind,
+      amountMinor: input.amountMinor,
+      currencyCode: input.currencyCode,
+      businessDate,
+      originalBusinessDate: input.originalBusinessDate ?? input.businessDate,
+      locationId: input.locationId,
+      providerId: input.providerId ?? null,
+      chartEntryId: input.chartEntryId ?? null,
+      adjustmentId: input.adjustmentId ?? null,
+      reversesId: input.reversesId ?? null,
+      restatementId: input.restatementId ?? null,
+      paymentPostingId: input.paymentPostingId ?? null,
+      claimId: input.claimId ?? null,
+      paymentId: input.paymentId ?? null,
+      refundId: input.refundId ?? null,
+      memo: input.memo ?? "",
+      postedById: input.postedById ?? null,
+      postedAt: now,
+      isSynthetic: input.isSynthetic ?? false
+    }
+  });
+  await rebuildBalance(tx, input.accountId, now);
+  return entry;
+}
+function parseMoney(text19, field = "amount") {
+  const raw = String(text19 ?? "").trim().replace(/^\$/, "").replaceAll(",", "");
+  if (!/^\d{1,7}(\.\d{1,2})?$/.test(raw)) throw new DomainError(Codes.INVALID_INPUT, `Enter the ${field} in dollars and cents, like 125.00.`, { field });
+  const [whole2, cents = ""] = raw.split(".");
+  const minor2 = BigInt(whole2) * 100n + BigInt(cents.padEnd(2, "0"));
+  if (minor2 <= 0n) throw new DomainError(Codes.INVALID_INPUT, `The ${field} must be more than zero.`, { field });
+  return minor2;
+}
+var LEDGER_KIND_SIGN, DAY, dayNumber;
+var init_ledger = __esm({
+  "features/keystone/lib/ledger.ts"() {
+    "use strict";
+    init_db();
+    init_errors();
+    init_canonical();
+    LEDGER_KIND_SIGN = {
+      charge: "debit",
+      finance_charge: "debit",
+      refund: "debit",
+      insurance_payment: "credit",
+      insurance_writeoff: "credit",
+      patient_payment: "credit",
+      insurance_adjustment: "either",
+      patient_adjustment: "either",
+      transfer_out: "either",
+      transfer_in: "either",
+      reversal: "either"
+    };
+    DAY = 864e5;
+    dayNumber = (date) => Math.floor(date.getTime() / DAY);
+  }
+});
+
+// features/keystone/lib/separationOfDuties.ts
+function assertCanDecide(actor3, requesterUserId, requesterAgentOwnerId, strictAgentOwner = true) {
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, AGENT_APPROVAL_MESSAGE);
+  if (requesterUserId && requesterUserId === actor3.userId) throw new DomainError(Codes.SELF_APPROVAL, SELF_APPROVAL_MESSAGE);
+  if (strictAgentOwner && requesterAgentOwnerId && requesterAgentOwnerId === actor3.userId) throw new DomainError(Codes.SELF_APPROVAL, "You can't approve a proposal made by your own agent.");
+}
+var SELF_APPROVAL_MESSAGE, AGENT_APPROVAL_MESSAGE;
+var init_separationOfDuties = __esm({
+  "features/keystone/lib/separationOfDuties.ts"() {
+    "use strict";
+    init_errors();
+    SELF_APPROVAL_MESSAGE = "You can't approve your own request.";
+    AGENT_APPROVAL_MESSAGE = "An agent can propose but never approve.";
+  }
+});
+
+// features/keystone/lib/approval.ts
+async function requestApproval(uow, actor3, input) {
+  const policy = await uow.tx.approvalPolicy.findUnique({ where: { action: input.action } });
+  const requiredPermission = policy?.requiredPermission ?? input.requiredPermission;
+  const minutes = input.expiresInMinutes ?? policy?.expiresAfterMinutes ?? 1440;
+  const created = await uow.tx.approvalRequest.create({
+    data: {
+      action: input.action,
+      summary: input.summary ?? "",
+      targetList: input.targetList,
+      targetId: input.targetId,
+      payload: toJsonValue(input.payload),
+      payloadHash: payloadHash(input.payload),
+      requiredPermission,
+      requestedById: actorUserId(actor3),
+      requestedByAgentId: actorAgentId(actor3),
+      status: "pending",
+      expiresAt: new Date(uow.now.getTime() + minutes * 6e4)
+    }
+  });
+  uow.audit({ eventType: "approval.requested", entityType: "ApprovalRequest", entityId: created.id, actorUserId: actorUserId(actor3), actorAgentId: actorAgentId(actor3), after: { action: input.action, targetList: input.targetList, targetId: input.targetId, payloadHash: created.payloadHash, requiredPermission } });
+  uow.emit({ topic: "notify.approval", aggregateType: "ApprovalRequest", aggregateId: created.id, payload: { action: input.action, requiredPermission }, dedupeKey: `notify.approval:${created.id}` });
+  return created;
+}
+async function decideApproval(uow, actor3, input) {
+  const request = await lockRow(uow.tx, "ApprovalRequest", input.requestId);
+  let agentOwnerId = null;
+  if (request.requestedByAgentId) {
+    const agent = await uow.tx.agentIdentity.findUnique({ where: { id: request.requestedByAgentId }, select: { ownerId: true } });
+    agentOwnerId = agent?.ownerId ?? null;
+  }
+  assertCanDecide(actor3, request.requestedById, agentOwnerId, input.strictAgentOwner ?? true);
+  if (actor3.kind !== "user" || !actor3.permissions.has(request.requiredPermission)) {
+    throw new DomainError(Codes.NOT_AUTHORIZED, `Deciding this needs the ${request.requiredPermission} permission.`);
+  }
+  if (request.expiresAt && new Date(request.expiresAt).getTime() <= uow.now.getTime()) {
+    await transition(uow, { model: "ApprovalRequest", id: input.requestId, from: ["pending"], to: "expired", actor: actor3, eventType: "approval.expired" });
+    throw new DomainError(Codes.GUARD_FAILED, "This approval request has expired.");
+  }
+  const to = input.decision === "approve" ? "approved" : "rejected";
+  const updated = await transition(uow, {
+    model: "ApprovalRequest",
+    id: input.requestId,
+    from: ["pending"],
+    to,
+    expectedVersion: input.expectedVersion,
+    actor: actor3,
+    eventType: `approval.${to}`,
+    reason: input.reason ?? null,
+    approverId: actor3.userId
+  });
+  await uow.tx.approvalDecision.create({ data: { requestId: input.requestId, decidedById: actor3.userId, decision: input.decision, reason: input.reason ?? "", at: uow.now } });
+  return updated;
+}
+async function consumeApproval(uow, input) {
+  const request = await lockRow(uow.tx, "ApprovalRequest", input.requestId);
+  if (request.status !== "approved") throw new DomainError(Codes.APPROVAL_REQUIRED, "This action needs an approved request.");
+  if (request.consumedAt) throw new DomainError(Codes.APPROVAL_MISMATCH, "This approval was already used.");
+  if (request.action !== input.action || request.targetList !== input.targetList || request.targetId !== input.targetId || request.payloadHash !== payloadHash(input.payload)) {
+    throw new DomainError(Codes.APPROVAL_MISMATCH, "The approval was given for a different action or payload.");
+  }
+  if (request.expiresAt && new Date(request.expiresAt).getTime() <= uow.now.getTime()) throw new DomainError(Codes.GUARD_FAILED, "The approval has expired.");
+  const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: input.requestId, decision: "approve" }, orderBy: { at: "desc" } });
+  await uow.tx.approvalRequest.update({ where: { id: input.requestId }, data: { consumedAt: uow.now, version: { increment: 1 } } });
+  uow.audit({ eventType: "approval.consumed", entityType: "ApprovalRequest", entityId: input.requestId, approverId: decision?.decidedById ?? null, after: { action: input.action, targetId: input.targetId } });
+  return { approverId: decision?.decidedById ?? null };
+}
+var init_approval = __esm({
+  "features/keystone/lib/approval.ts"() {
+    "use strict";
+    init_canonical();
+    init_actor();
+    init_errors();
+    init_separationOfDuties();
+    init_cas();
+  }
+});
+
+// features/keystone/lib/approvalAppliers.ts
+function registerApplier(action, apply, options = {}) {
+  if (appliers.has(action)) throw new Error(`Applier for ${action} already registered`);
+  appliers.set(action, { apply, applyOnApprove: options.applyOnApprove ?? true });
+}
+function applierFor(action) {
+  return appliers.get(action) ?? null;
+}
+var appliers;
+var init_approvalAppliers = __esm({
+  "features/keystone/lib/approvalAppliers.ts"() {
+    "use strict";
+    appliers = /* @__PURE__ */ new Map();
+  }
+});
+
+// features/keystone/lib/money.ts
+function minorDigits(currencyCode) {
+  if (!isCurrencyCode(currencyCode)) throw new Error(`Invalid currency code: ${String(currencyCode).slice(0, 8)}`);
+  return MINOR_DIGITS[currencyCode] ?? 2;
+}
+function toMinor(amount, currencyCode = "USD", rounding = Decimal.ROUND_HALF_EVEN) {
+  const digits = minorDigits(currencyCode);
+  const scaled = dec(amount).times(new Decimal(10).pow(digits)).toDecimalPlaces(0, rounding);
+  return BigInt(scaled.toFixed(0));
+}
+function formatMinor(minor2, currencyCode = "USD") {
+  const digits = minorDigits(currencyCode);
+  const negative = minor2 < 0n;
+  const abs = negative ? -minor2 : minor2;
+  const base = 10n ** BigInt(digits);
+  const whole2 = (abs / base).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const fraction = digits ? "." + (abs % base).toString().padStart(digits, "0") : "";
+  const symbol = currencyCode === "USD" ? "$" : `${currencyCode} `;
+  return `${negative ? "\u2212" : ""}${symbol}${whole2}${fraction}`;
+}
+function minorOf(value) {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
+  if (typeof value === "string" && /^-?\d+$/.test(value.trim())) return BigInt(value.trim());
+  throw new Error("Not an integer minor-unit amount");
+}
+var MINOR_DIGITS, isCurrencyCode;
+var init_money = __esm({
+  "features/keystone/lib/money.ts"() {
+    "use strict";
+    init_decimal();
+    MINOR_DIGITS = { USD: 2, EUR: 2, GBP: 2, CHF: 2, CAD: 2, AUD: 2, SEK: 2, JPY: 0, KRW: 0, BHD: 3, KWD: 3 };
+    isCurrencyCode = (code) => typeof code === "string" && /^[A-Z]{3}$/.test(code);
+  }
+});
+
+// features/keystone/lib/sequence.ts
+async function nextReference(tx, prefix, now = /* @__PURE__ */ new Date(), width = 6) {
+  if (!/^[A-Z]{2,5}$/.test(prefix)) throw new Error("Reference prefix must be 2-5 capital letters");
+  const key = `${prefix}-${now.getUTCFullYear()}`;
+  await advisoryLock(tx, `sequence:${key}`);
+  const row = await tx.sequence.upsert({ where: { key }, create: { key, nextValue: 2 }, update: { nextValue: { increment: 1 } } });
+  const value = row.nextValue - 1;
+  return `${key}-${String(value).padStart(width, "0")}`;
+}
+function publicCode(prefix, groups = 2) {
+  const bytes = (0, import_node_crypto5.randomBytes)(groups * 4);
+  const chars = Array.from(bytes, (byte) => CROCKFORD[byte % 32]);
+  const parts = Array.from({ length: groups }, (_, i) => chars.slice(i * 4, i * 4 + 4).join(""));
+  return `${prefix}-${parts.join("-")}`;
+}
+async function nextChartNumber(tx) {
+  await advisoryLock(tx, "sequence:chart");
+  const row = await tx.sequence.upsert({ where: { key: "chart" }, create: { key: "chart", nextValue: 1002 }, update: { nextValue: { increment: 1 } } });
+  return String(row.nextValue - 1);
+}
+var import_node_crypto5, CROCKFORD;
+var init_sequence = __esm({
+  "features/keystone/lib/sequence.ts"() {
+    "use strict";
+    import_node_crypto5 = require("node:crypto");
+    init_db();
+    CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  }
+});
+
+// features/keystone/mutations/clinicalShared.ts
+var clinicalShared_exports = {};
+__export(clinicalShared_exports, {
+  accountFor: () => accountFor,
+  dayOf: () => dayOf,
+  feeFor: () => feeFor,
+  isoDay: () => isoDay,
+  locationToday: () => locationToday,
+  oneOf: () => oneOf,
+  requireReason: () => requireReason,
+  verifyPassword: () => verifyPassword
+});
+async function locationToday(tx, locationId, now) {
+  const location = await tx.location.findUnique({ where: { id: locationId }, select: { timeZone: true } });
+  return localDate(location?.timeZone ?? "America/New_York", now);
+}
+async function feeFor(tx, codeId, onDate) {
+  const day5 = dayOf(onDate);
+  const schedule = await tx.feeSchedule.findFirst({ where: { isDefault: true } });
+  if (!schedule) return null;
+  const version = await tx.feeScheduleVersion.findFirst({
+    where: { scheduleId: schedule.id, status: "published", effectiveFrom: { lte: day5 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day5 } }] },
+    orderBy: { effectiveFrom: "desc" }
+  });
+  if (!version) return null;
+  const fee = await tx.fee.findUnique({ where: { feeVersionId_codeId: { feeVersionId: version.id, codeId } } });
+  return fee ? { amountMinor: fee.amountMinor, versionId: version.id } : null;
+}
+async function accountFor(uow, patientId) {
+  const { tx } = uow;
+  const link = await tx.guarantorLink.findFirst({ where: { patientId, status: "active" }, orderBy: { createdAt: "asc" } });
+  let guarantorId = link?.guarantorId ?? null;
+  if (!guarantorId) {
+    const own = await tx.guarantor.findFirst({ where: { patientId } });
+    const guarantor = own ?? await tx.guarantor.create({ data: { patientId } });
+    guarantorId = guarantor.id;
+    await tx.guarantorLink.create({ data: { patientId, guarantorId, relationship: "self", status: "active" } });
+  }
+  const existing = await tx.guarantorAccount.findFirst({ where: { guarantorId } });
+  if (existing) return existing;
+  const ref = await nextReference(tx, "ACC", uow.now);
+  return tx.guarantorAccount.create({ data: { guarantorId, ref } });
+}
+function requireReason(value, what = "reason") {
+  const text19 = String(value ?? "").trim();
+  if (text19.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
+  return text19.slice(0, 1e3);
+}
+async function verifyPassword(context, userId, password2) {
+  const user = await context.prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
+  const field = context.graphql?.schema?.getType("User")?.getFields()?.password?.extensions?.keystoneSecretField;
+  if (!user || !field?.compare || typeof password2 !== "string" || password2.length > 1e3 || !await field.compare(password2, user.password)) {
+    throw new DomainError(Codes.NOT_AUTHORIZED, "Enter your password to sign.");
+  }
+}
+var dayOf, isoDay, oneOf;
+var init_clinicalShared = __esm({
+  "features/keystone/mutations/clinicalShared.ts"() {
+    "use strict";
+    init_errors();
+    init_sequence();
+    init_time();
+    dayOf = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
+    isoDay = (date) => date ? date instanceof Date ? date.toISOString().slice(0, 10) : String(date).slice(0, 10) : null;
+    oneOf = (value, allowed, field) => {
+      if (!allowed.includes(String(value))) throw new DomainError(Codes.INVALID_INPUT, `Unknown ${field}.`, { field });
+      return String(value);
+    };
+  }
+});
+
+// features/keystone/mutations/shared.ts
+function staff(context) {
+  const actor3 = actorFromSession(context.session);
+  const locationIds = sessionLocationIds(context.session);
+  return { actor: actor3, locationIds, session: context.session };
+}
+function assertLocation(locationIds, locationId) {
+  if (!locationId) throw new DomainError(Codes.INVALID_INPUT, "Choose a location.", { field: "locationId" });
+  if (locationIds !== null && !locationIds.includes(locationId)) {
+    throw new DomainError(Codes.OUTSIDE_LOCATION_SCOPE, "You are not assigned to that location today.");
+  }
+}
+async function assertPatientInScope(tx, locationIds, patientId) {
+  const patient = await tx.patient.findUnique({ where: { id: patientId }, select: { id: true, status: true, homeLocationId: true, version: true } });
+  if (!patient) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+  if (locationIds === null) return patient;
+  if (patient.homeLocationId && locationIds.includes(patient.homeLocationId)) return patient;
+  const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
+  const seen = await tx.appointment.findFirst({ where: { patientId, locationId: { in: locationIds }, startsAt: { gte: since } }, select: { id: true } });
+  if (!seen) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+  return patient;
+}
+async function resolvePatientRef(tx, ref) {
+  const value = String(ref ?? "").trim();
+  if (!value.startsWith("chart:")) return value;
+  const chartNumber = value.slice(6).trim().replace(/^(chart\s*)?#?/i, "");
+  const patient = chartNumber ? await tx.patient.findUnique({ where: { chartNumber }, select: { id: true } }) : null;
+  if (!patient) throw new DomainError(Codes.NOT_FOUND, "No patient has that chart number.", { field: "patientId" });
+  return patient.id;
+}
+function assertBookablePatient(patient) {
+  if (!BOOKABLE_PATIENT.has(patient.status)) {
+    throw new DomainError(Codes.GUARD_FAILED, patient.status === "merged_into" ? "This record was merged; book on the surviving record." : `A ${patient.status} patient can't be booked.`, { currentStatus: patient.status });
+  }
+}
+function normalizeContact(kind, value) {
+  const raw = String(value ?? "").trim();
+  if (kind === "email") {
+    const email = raw.toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid email address.", { field: "value" });
+    return { value: raw, normalized: email };
+  }
+  const digits = raw.replace(/\D/g, "");
+  const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith("1") ? `+${digits}` : digits.length >= 8 && digits.length <= 15 ? `+${digits}` : "";
+  if (!e164) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid phone number.", { field: "value" });
+  return { value: raw, normalized: e164 };
+}
+var BOOKABLE_PATIENT, toDate, requireText, optionalText;
+var init_shared = __esm({
+  "features/keystone/mutations/shared.ts"() {
+    "use strict";
+    init_access();
+    init_actor();
+    init_errors();
+    init_scope();
+    BOOKABLE_PATIENT = /* @__PURE__ */ new Set(["prospect", "active", "inactive"]);
+    toDate = (value, field) => {
+      const date = new Date(String(value ?? ""));
+      if (Number.isNaN(date.getTime())) throw new DomainError(Codes.INVALID_INPUT, `Enter a valid ${field}.`, { field });
+      return date;
+    };
+    requireText = (value, field, max2 = 500) => {
+      const text19 = String(value ?? "").trim();
+      if (!text19) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+      if (text19.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+      return text19;
+    };
+    optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
+  }
+});
+
+// features/keystone/mutations/close.ts
+var close_exports = {};
+__export(close_exports, {
+  bankDeposit: () => bankDeposit,
+  buildDaySheet: () => buildDaySheet,
+  closeDay: () => closeDay,
+  closePeriod: () => closePeriod,
+  periodReopenRejected: () => periodReopenRejected,
+  postRestatement: () => postRestatement,
+  reclosePeriod: () => reclosePeriod,
+  requestPeriodReopen: () => requestPeriodReopen
+});
+async function buildDaySheet(tx, locationId, date) {
+  const day5 = dayOf(date);
+  const entries = await tx.ledgerEntry.findMany({ where: { locationId, businessDate: day5 }, select: { kind: true, amountMinor: true, providerId: true } });
+  const byKind = {};
+  for (const e of entries) byKind[e.kind] = (byKind[e.kind] ?? 0n) + e.amountMinor;
+  const production = {};
+  const reversed = await tx.ledgerEntry.findMany({ where: { locationId, businessDate: day5, kind: "reversal" }, select: { amountMinor: true, providerId: true, reverses: { select: { kind: true } } } });
+  for (const e of entries) if (e.kind === "charge") production[e.providerId ?? "none"] = (production[e.providerId ?? "none"] ?? 0n) + e.amountMinor;
+  for (const e of reversed) if (e.reverses?.kind === "charge") production[e.providerId ?? "none"] = (production[e.providerId ?? "none"] ?? 0n) + e.amountMinor;
+  const payments = await tx.payment.findMany({ where: { locationId, businessDate: day5, status: { in: ["succeeded", "partially_refunded", "refunded"] } }, select: { id: true, tender: true, amountMinor: true, refundedMinor: true } });
+  const byTender = {};
+  for (const p of payments) byTender[p.tender] = (byTender[p.tender] ?? 0n) + p.amountMinor;
+  const adjustments = (byKind.patient_adjustment ?? 0n) + (byKind.insurance_adjustment ?? 0n) + (byKind.insurance_writeoff ?? 0n);
+  const text19 = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.toString()]));
+  const production_ = Object.values(production).reduce((a, b) => a + b, 0n);
+  return {
+    businessDate: date,
+    entryCount: entries.length,
+    productionMinor: production_.toString(),
+    productionByProvider: text19(production),
+    collectionsMinor: sum(payments).toString(),
+    collectionsByTender: text19(byTender),
+    insurancePaymentsMinor: (-(byKind.insurance_payment ?? 0n)).toString(),
+    adjustmentsMinor: adjustments.toString(),
+    refundsMinor: (byKind.refund ?? 0n).toString(),
+    byKind: text19(byKind)
+  };
+}
+async function closeDay(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canCloseDay");
+  if (!DATE2.test(args.businessDate)) throw new DomainError(Codes.INVALID_INPUT, "Enter the day as YYYY-MM-DD.", { field: "businessDate" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "day.close", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    assertLocation(locationIds, args.locationId);
+    await advisoryLock(tx, `close:${args.locationId}`);
+    const today2 = await locationToday(tx, args.locationId, uow.now);
+    if (args.businessDate > today2) throw new DomainError(Codes.GUARD_FAILED, "A day cannot be closed before it has happened.", { field: "businessDate" });
+    const existing = await tx.dayClose.findFirst({ where: { locationId: args.locationId, businessDate: dayOf(args.businessDate) } });
+    if (existing?.status === "closed") throw new DomainError(Codes.GUARD_FAILED, "That day is already closed.");
+    const period = await tx.periodClose.findFirst({ where: { locationId: args.locationId, period: args.businessDate.slice(0, 7) } });
+    if (period && period.status !== "open") throw new DomainError(Codes.GUARD_FAILED, "That month is already closed.");
+    const open = await tx.payment.count({ where: { locationId: args.locationId, businessDate: dayOf(args.businessDate), status: { in: OPEN_PAYMENT } } });
+    const openToday = await tx.payment.count({ where: { locationId: args.locationId, createdAt: { gte: dayOf(args.businessDate), lt: dayOf(addDays(args.businessDate, 1)) }, status: { in: OPEN_PAYMENT } } });
+    if (open + openToday > 0) throw new DomainError(Codes.GUARD_FAILED, `${open + openToday} payment${open + openToday === 1 ? " is" : "s are"} still waiting on the card processor. Resolve them, then close the day.`);
+    const earlier = await tx.ledgerEntry.findFirst({ where: { locationId: args.locationId, businessDate: { lt: dayOf(args.businessDate) } }, orderBy: { businessDate: "asc" }, select: { businessDate: true } });
+    if (earlier) {
+      for (let d = iso(earlier.businessDate); d < args.businessDate; d = addDays(d, 1)) {
+        if (d.slice(0, 7) !== args.businessDate.slice(0, 7)) continue;
+        const has = await tx.ledgerEntry.findFirst({ where: { locationId: args.locationId, businessDate: dayOf(d) }, select: { id: true } });
+        const closed2 = has ? await tx.dayClose.findFirst({ where: { locationId: args.locationId, businessDate: dayOf(d), status: "closed" }, select: { id: true } }) : true;
+        if (!closed2) throw new DomainError(Codes.GUARD_FAILED, `${d} has entries and is not closed. Close the earlier day first.`);
+      }
+    }
+    const row = existing ?? await tx.dayClose.create({ data: { locationId: args.locationId, businessDate: dayOf(args.businessDate), status: "open" } });
+    await transition(uow, { model: "DayClose", id: row.id, from: ["open"], to: "closing", actor: actor3, eventType: "day.closing" });
+    const sheet = await buildDaySheet(tx, args.locationId, args.businessDate);
+    const cashPayments = await tx.payment.findMany({ where: { locationId: args.locationId, businessDate: dayOf(args.businessDate), tender: { in: ["cash", "check"] }, status: { in: ["succeeded", "partially_refunded"] } } });
+    let depositRef = null;
+    let deposit = null;
+    if (cashPayments.length) {
+      const total = cashPayments.reduce((s, p) => s + p.amountMinor, 0n);
+      depositRef = await nextReference(tx, "DEP", uow.now);
+      deposit = await tx.depositBatch.create({ data: { ref: depositRef, locationId: args.locationId, businessDate: dayOf(args.businessDate), totalMinor: total, status: "open" } });
+      for (const p of cashPayments) await tx.depositLine.create({ data: { batchId: deposit.id, paymentId: p.id, tender: p.tender, amountMinor: p.amountMinor } });
+    }
+    const closed = await transition(uow, {
+      model: "DayClose",
+      id: row.id,
+      from: ["closing"],
+      to: "closed",
+      actor: actor3,
+      eventType: "day.closed",
+      data: { daySheet: sheet, closedById: actor3.kind === "user" ? actor3.userId : null, closedAt: uow.now }
+    });
+    if (deposit) await tx.depositBatch.update({ where: { id: deposit.id }, data: { dayCloseId: closed.id } });
+    return { id: closed.id, status: "closed", businessDate: args.businessDate, depositRef, collections: formatMinor(BigInt(sheet.collectionsMinor)), production: formatMinor(BigInt(sheet.productionMinor)) };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function bankDeposit(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canCloseDay");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "deposit.bank", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "DepositBatch", args.depositId);
+    assertLocation(locationIds, row.locationId);
+    const next = await transition(uow, { model: "DepositBatch", id: row.id, from: ["open"], to: "banked", expectedVersion: args.expectedVersion, actor: actor3, eventType: "deposit.banked" });
+    return { id: next.id, status: "banked" };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function periodWarnings(tx, locationId, period, today2) {
+  const warnings = [];
+  const cutoff = new Date(dayOf(today2).getTime() - 14 * 864e5);
+  const stale = await tx.remittance.count({ where: { status: { in: ["received", "parsed", "matched", "exception"] }, createdAt: { lt: cutoff } } });
+  if (stale) warnings.push(`${stale} insurance payment${stale === 1 ? " has" : "s have"} waited over 14 days to be posted.`);
+  const credits = await tx.creditBalance.count({ where: { status: "open", account: { guarantor: { patient: { homeLocationId: locationId } } } } });
+  if (credits) warnings.push(`${credits} account${credits === 1 ? " has" : "s have"} a credit that has not been reviewed.`);
+  return warnings;
+}
+async function closePeriod(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canClosePeriod");
+  if (!PERIOD.test(args.period)) throw new DomainError(Codes.INVALID_INPUT, "Enter the month as YYYY-MM.", { field: "period" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "period.close", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    assertLocation(locationIds, args.locationId);
+    await advisoryLock(tx, `close:${args.locationId}`);
+    const today2 = await locationToday(tx, args.locationId, uow.now);
+    const [y, m] = args.period.split("-").map(Number);
+    const first = `${args.period}-01`;
+    const last = iso(new Date(Date.UTC(y, m, 0)));
+    if (last >= today2) throw new DomainError(Codes.GUARD_FAILED, "A month can be closed only after its last day has passed.", { field: "period" });
+    const existing = await tx.periodClose.findFirst({ where: { locationId: args.locationId, period: args.period } });
+    if (existing && existing.status !== "open") throw new DomainError(Codes.GUARD_FAILED, "That month is already closed.");
+    const days = await tx.ledgerEntry.findMany({ where: { locationId: args.locationId, businessDate: { gte: dayOf(first), lte: dayOf(last) } }, select: { businessDate: true }, distinct: ["businessDate"] });
+    const closedDays = new Set((await tx.dayClose.findMany({ where: { locationId: args.locationId, businessDate: { gte: dayOf(first), lte: dayOf(last) }, status: "closed" }, select: { businessDate: true } })).map((d) => iso(d.businessDate)));
+    const missing = days.map((d) => iso(d.businessDate)).filter((d) => !closedDays.has(d)).sort();
+    if (missing.length) throw new DomainError(Codes.GUARD_FAILED, `${missing.length} day${missing.length === 1 ? "" : "s"} with entries ${missing.length === 1 ? "is" : "are"} not closed yet (${missing.slice(0, 3).join(", ")}${missing.length > 3 ? ", \u2026" : ""}).`);
+    const warnings = await periodWarnings(tx, args.locationId, args.period, today2);
+    const row = existing ?? await tx.periodClose.create({ data: { locationId: args.locationId, period: args.period, status: "open" } });
+    await transition(uow, { model: "PeriodClose", id: row.id, from: ["open"], to: "closing", actor: actor3, eventType: "period.closing" });
+    const closed = await transition(uow, { model: "PeriodClose", id: row.id, from: ["closing"], to: "closed", actor: actor3, eventType: "period.closed", data: { closedById: actor3.kind === "user" ? actor3.userId : null, closedAt: uow.now } });
+    return { id: closed.id, status: "closed", period: args.period, warnings };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function requestPeriodReopen(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canClosePeriod");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "period.request_reopen", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "PeriodClose", args.periodCloseId);
+    assertLocation(locationIds, row.locationId);
+    await transition(uow, { model: "PeriodClose", id: row.id, from: ["closed"], to: "reopen_requested", actor: actor3, eventType: "period.reopen_requested", reason });
+    const approval = await requestApproval(uow, actor3, {
+      action: "period.reopen",
+      targetList: "PeriodClose",
+      targetId: row.id,
+      requiredPermission: "canApprovePeriodReopen",
+      payload: { periodCloseId: row.id, period: row.period, reason },
+      summary: `Reopen ${row.period}: ${reason.slice(0, 80)}`
+    });
+    await uow.tx.periodClose.update({ where: { id: row.id }, data: { approvalId: approval.id } });
+    return { id: row.id, status: "reopen_requested", approvalId: approval.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function periodReopenRejected(uow, actor3, periodCloseId) {
+  const row = await uow.tx.periodClose.findUnique({ where: { id: periodCloseId }, select: { status: true } });
+  if (row?.status === "reopen_requested") await transition(uow, { model: "PeriodClose", id: periodCloseId, from: ["reopen_requested"], to: "closed", actor: actor3, eventType: "period.reopen_rejected" });
+}
+async function postRestatement(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canClosePeriod");
+  const reason = requireReason(args.reason);
+  const amountMinor = parseMoney(args.amount);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "period.post_restatement", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const period = await lockRow(tx, "PeriodClose", args.periodCloseId);
+    assertLocation(locationIds, period.locationId);
+    if (period.status !== "reopened") throw new DomainError(Codes.GUARD_FAILED, "That month is not open for corrections.");
+    if (!DATE2.test(args.businessDate) || args.businessDate.slice(0, 7) !== period.period) throw new DomainError(Codes.INVALID_INPUT, `Date the correction inside ${period.period}.`, { field: "businessDate" });
+    const restatement = await tx.restatement.findFirst({ where: { periodCloseId: period.id }, orderBy: { createdAt: "desc" } });
+    if (!restatement) throw new DomainError(Codes.GUARD_FAILED, "There is no restatement to post under.");
+    const type = await tx.adjustmentType.findUnique({ where: { id: args.typeId } });
+    if (!type || !type.isActive) throw new DomainError(Codes.NOT_FOUND, "Adjustment type not found.", { field: "typeId" });
+    const patient = await tx.patient.findUnique({ where: { id: args.patientId }, select: { id: true } });
+    if (!patient) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+    const { accountFor: accountFor2 } = await Promise.resolve().then(() => (init_clinicalShared(), clinicalShared_exports));
+    const account = await accountFor2(uow, patient.id);
+    await advisoryLock(tx, `ledger:${account.id}`);
+    const signed = type.direction === "credit" ? -amountMinor : amountMinor;
+    const entry = await postEntry(tx, {
+      accountId: account.id,
+      patientId: patient.id,
+      kind: "patient_adjustment",
+      amountMinor: signed,
+      currencyCode: "USD",
+      businessDate: dayOf(args.businessDate),
+      locationId: period.locationId,
+      restatementId: restatement.id,
+      memo: `${type.name} (correction to ${period.period})`,
+      postedById: actor3.kind === "user" ? actor3.userId : null
+    }, uow.now);
+    auditCreate(uow, actor3, "LedgerEntry", entry.id, "period.restatement_posted", { period: period.period, amountMinor: signed.toString() }, { reason });
+    return { id: entry.id, restatementId: restatement.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function reclosePeriod(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canClosePeriod");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "period.reclose", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "PeriodClose", args.periodCloseId);
+    assertLocation(locationIds, row.locationId);
+    const next = await transition(uow, { model: "PeriodClose", id: row.id, from: ["reopened"], to: "closed", actor: actor3, eventType: "period.reclosed", data: { closedById: actor3.kind === "user" ? actor3.userId : null, closedAt: uow.now } });
+    const restated = await uow.tx.ledgerEntry.count({ where: { restatement: { periodCloseId: row.id } } });
+    return { id: next.id, status: "closed", restatedEntries: restated };
+  });
+  return { replay: result.replay, ...result.value };
+}
+var DATE2, PERIOD, iso, sum, OPEN_PAYMENT;
+var init_close = __esm({
+  "features/keystone/mutations/close.ts"() {
+    "use strict";
+    init_actor();
+    init_approval();
+    init_approvalAppliers();
+    init_cas();
+    init_command();
+    init_db();
+    init_errors();
+    init_money();
+    init_ledger();
+    init_sequence();
+    init_time();
+    init_clinicalShared();
+    init_shared();
+    DATE2 = /^\d{4}-\d{2}-\d{2}$/;
+    PERIOD = /^\d{4}-(0[1-9]|1[0-2])$/;
+    iso = (d) => d.toISOString().slice(0, 10);
+    sum = (rows) => rows.reduce((s, r) => s + r.amountMinor, 0n);
+    OPEN_PAYMENT = ["initiated", "requires_action", "unknown"];
+    registerApplier("period.reopen", async (uow, actor3, request) => {
+      const row = await lockRow(uow.tx, "PeriodClose", request.targetId);
+      const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
+      await transition(uow, { model: "PeriodClose", id: row.id, from: ["reopen_requested"], to: "reopened", actor: actor3, eventType: "period.reopened", approverId: decision?.decidedById ?? null });
+      const restatement = await uow.tx.restatement.create({ data: { periodCloseId: row.id, reason: String(request.payload?.reason ?? ""), approvedById: decision?.decidedById ?? null } });
+      auditCreate(uow, actor3, "Restatement", restatement.id, "period.restatement_opened", { period: row.period });
+      return { periodCloseId: row.id, restatementId: restatement.id };
+    }, { applyOnApprove: true });
+  }
+});
+
 // keystone.ts
 var keystone_exports = {};
 __export(keystone_exports, {
@@ -36,7 +1437,7 @@ module.exports = __toCommonJS(keystone_exports);
 
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
-var import_core21 = require("@keystone-6/core");
+var import_core22 = require("@keystone-6/core");
 var import_config = require("dotenv/config");
 
 // features/keystone/models/User.ts
@@ -68,128 +1469,8 @@ var trackingFields = {
   })
 };
 
-// features/keystone/access.ts
-var permissionNames = [
-  // Starter and fleet-standard
-  "canSeeOtherPeople",
-  "canEditOtherPeople",
-  "canManagePeople",
-  "canManageRoles",
-  "canAccessDashboard",
-  "canManageOnboarding",
-  "canManagePayments",
-  "canIssueRefunds",
-  "canReadAudit",
-  // Practice, locations and adapters
-  "canManagePractice",
-  "canManageAdapters",
-  "canApproveAdapters",
-  "canAccessAllLocations",
-  // Patients
-  "canManagePatients",
-  "canApprovePatientMerge",
-  "canReadDemographics",
-  // Scheduling
-  "canManageSchedule",
-  "canOverrideSchedule",
-  "canOverrideTemplate",
-  "canOverrideLabGate",
-  "canReadSchedule",
-  // Clinical
-  "canChart",
-  "canCompleteProcedures",
-  "canSignClinicalNotes",
-  "canPrescribe",
-  "canManagePerio",
-  "canManageLabCases",
-  "canApproveClinicalCorrections",
-  "canReadClinical",
-  "canReadSensitive",
-  // Treatment
-  "canManageTreatmentPlans",
-  "canPresentPlans",
-  // Codes and fees
-  "canManageFees",
-  "canImportCodes",
-  "canApproveCodeImport",
-  "canApproveFeePublish",
-  // Insurance
-  "canManageInsurance",
-  "canVerifyBenefits",
-  "canReadInsurance",
-  // Claims
-  "canManageClaims",
-  "canSubmitClaims",
-  "canOverrideScrub",
-  "canPostRemittances",
-  // Ledger
-  "canTakePayments",
-  "canAdjust",
-  "canCloseDay",
-  "canClosePeriod",
-  "canApproveAdjustments",
-  "canApproveRefunds",
-  "canApprovePeriodReopen",
-  "canReadLedger",
-  // Memberships
-  "canManageMemberships",
-  // Communications
-  "canMessagePatients",
-  "canManageTemplates",
-  "canReplyReviews",
-  // AI action layer
-  "canManageAgents",
-  "canDecideProposals",
-  "canDecideClaimProposals",
-  "canDecideClinicalProposals",
-  "canDecideFinancialProposals",
-  "canApproveAgentGrants",
-  "canApproveAutonomy",
-  "canReadSignals",
-  // Privacy and compliance. canBreakGlass and canBreakGlassRecords are never on a default role.
-  "canManageCompliance",
-  "canBreakGlass",
-  "canBreakGlassRecords",
-  "canReviewPrivacy",
-  "canApproveRetention",
-  "canReadPhiAudit",
-  // Data
-  "canImportData",
-  "canExportData",
-  "canApproveImports"
-];
-var NEVER_DEFAULT = ["canBreakGlass", "canBreakGlassRecords"];
-var approvalPermissions = permissionNames.filter((name) => name.startsWith("canApprove") || name === "canBreakGlass" || name === "canBreakGlassRecords");
-var isSignedIn = ({ session }) => {
-  if (!session) return false;
-  const expires = session.data?.accessExpiresAt;
-  return !expires || Date.parse(expires) > Date.now();
-};
-var hasPermission = (session, permission) => isSignedIn({ session }) && session?.data.role?.[permission] === true;
-var permissions = Object.fromEntries(
-  permissionNames.map((name) => [name, ({ session }) => hasPermission(session, name)])
-);
-var anyOf = (...names) => ({ session }) => names.some((name) => hasPermission(session, name));
-var sys = () => false;
-var today = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-function sessionLocationIds(session) {
-  if (!isSignedIn({ session })) return [];
-  if (session.data.role?.canAccessAllLocations) return null;
-  const day5 = today();
-  return (session.data.assignments ?? []).filter((a) => a.location?.id && (!a.startsOn || a.startsOn <= day5) && (!a.endsOn || a.endsOn >= day5)).map((a) => a.location.id);
-}
-var rules = {
-  canReadPeople: ({ session }) => !isSignedIn({ session }) ? false : session.data.role?.canSeeOtherPeople || session.data.role?.canManagePeople ? true : { id: { equals: session.itemId } },
-  canUpdatePeople: ({ session }) => !isSignedIn({ session }) ? false : session.data.role?.canEditOtherPeople || session.data.role?.canManagePeople ? true : { id: { equals: session.itemId } },
-  /** Row filter for lists with a `location` relationship. */
-  atMyLocations: (field = "location") => ({ session }) => {
-    const ids = sessionLocationIds(session);
-    if (ids === null) return true;
-    return { [field]: { id: { in: ids } } };
-  }
-};
-
 // features/keystone/models/User.ts
+init_access();
 var serverSecret = { access: { read: import_access.denyAll, create: sys, update: sys }, ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "hidden" }, listView: { fieldMode: "hidden" } } };
 var User = (0, import_core.list)({
   access: {
@@ -271,6 +1552,7 @@ var User = (0, import_core.list)({
 var import_core2 = require("@keystone-6/core");
 var import_access3 = require("@keystone-6/core/access");
 var import_fields3 = require("@keystone-6/core/fields");
+init_access();
 var Role = (0, import_core2.list)({
   access: {
     operation: {
@@ -306,6 +1588,7 @@ var Role = (0, import_core2.list)({
 // features/keystone/models/OAuthApp.ts
 var import_core3 = require("@keystone-6/core");
 var import_fields4 = require("@keystone-6/core/fields");
+init_access();
 
 // features/keystone/mcp-oauth/core.ts
 var import_node_crypto = __toESM(require("node:crypto"));
@@ -462,6 +1745,7 @@ var OAuthApp = (0, import_core3.list)({
 // features/keystone/models/OAuthToken.ts
 var import_core5 = require("@keystone-6/core");
 var import_fields5 = require("@keystone-6/core/fields");
+init_access();
 var digestTokenInput = {
   resolveInput: ({ resolvedData, fieldKey }) => resolvedData[fieldKey] ? digestToken(resolvedData[fieldKey]) : resolvedData[fieldKey]
 };
@@ -619,6 +1903,7 @@ __export(platform_exports, {
 var import_core7 = require("@keystone-6/core");
 var import_access8 = require("@keystone-6/core/access");
 var import_fields7 = require("@keystone-6/core/fields");
+init_access();
 
 // features/keystone/models/domainFields.ts
 var import_fields6 = require("@keystone-6/core/fields");
@@ -674,6 +1959,7 @@ var fixedChoice = (values) => (0, import_fields6.select)({
 });
 
 // features/keystone/models/listAccess.ts
+init_access();
 var rule = (permission) => permission === "signedIn" ? isSignedIn : Array.isArray(permission) ? anyOf(...permission) : permissions[permission];
 var governed = (read) => ({
   operation: { query: rule(read), create: sys, update: sys, delete: sys }
@@ -1190,6 +2476,7 @@ var InferenceProvider = (0, import_core7.list)({
 // features/keystone/models/agents.ts
 var import_core8 = require("@keystone-6/core");
 var import_fields8 = require("@keystone-6/core/fields");
+init_access();
 var PROPOSAL_KINDS = [
   "fill_slot",
   "outreach_message",
@@ -1322,42 +2609,7 @@ __export(patients_exports, {
 });
 var import_core9 = require("@keystone-6/core");
 var import_fields9 = require("@keystone-6/core/fields");
-
-// features/keystone/models/scope.ts
-var rule2 = (read) => Array.isArray(read) ? anyOf(...read) : permissions[read];
-var PATIENT_LOCATION_LOOKBACK_YEARS = 3;
-var locationFilter = (path = ["location"]) => ({ session }) => {
-  if (!isSignedIn({ session })) return false;
-  const ids = sessionLocationIds(session);
-  if (ids === null) return true;
-  return nest(path, { id: { in: ids } });
-};
-var patientFilter = (path = []) => ({ session }) => {
-  if (!isSignedIn({ session })) return false;
-  const ids = sessionLocationIds(session);
-  if (ids === null) return true;
-  const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
-  const where = {
-    OR: [
-      { homeLocation: { id: { in: ids } } },
-      { appointments: { some: { location: { id: { in: ids } }, startsAt: { gte: since.toISOString() } } } }
-    ]
-  };
-  return path.length ? nest(path, where) : where;
-};
-function nest(path, leaf) {
-  return path.reduceRight((inner, key) => ({ [key]: inner }), leaf);
-}
-var scopedGoverned = (read, filter) => ({
-  operation: { query: rule2(read), create: () => false, update: () => false, delete: () => false },
-  filter: { query: filter }
-});
-var scopedManaged = (read, write, filter) => ({
-  operation: { query: rule2(read), create: rule2(write), update: rule2(write), delete: () => false },
-  filter: { query: filter, update: filter }
-});
-
-// features/keystone/models/patients.ts
+init_scope();
 var PATIENT_READERS = ["canReadDemographics", "canManagePatients", "canReadClinical", "canReadInsurance", "canReadLedger", "canReadSchedule"];
 var PATIENT_STATUSES = ["prospect", "active", "inactive", "archived", "deceased", "merged_into"];
 var SEX_AT_BIRTH = ["female", "male", "unknown", "other"];
@@ -1593,6 +2845,7 @@ __export(scheduling_exports, {
 });
 var import_core10 = require("@keystone-6/core");
 var import_fields10 = require("@keystone-6/core/fields");
+init_scope();
 var OPERATORY_KINDS = ["doctor", "hygiene", "flex", "consult", "surgery"];
 var APPOINTMENT_CATEGORIES = [
   "new_patient",
@@ -1964,6 +3217,7 @@ __export(portal_exports, {
 var import_core12 = require("@keystone-6/core");
 var import_access12 = require("@keystone-6/core/access");
 var import_fields12 = require("@keystone-6/core/fields");
+init_scope();
 var secretField = { access: { read: import_access12.denyAll, create: import_access12.denyAll, update: import_access12.denyAll }, ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "hidden" }, listView: { fieldMode: "hidden" } } };
 var PORTAL_CAPABILITIES = ["appointments", "forms", "plans_accept", "statements_pay", "records", "messages", "membership", "preferences"];
 var PORTAL_RELATIONSHIPS = ["self", "guarantor", "guardian", "personal_representative"];
@@ -2301,6 +3555,7 @@ __export(clinical_exports, {
 });
 var import_core14 = require("@keystone-6/core");
 var import_fields14 = require("@keystone-6/core/fields");
+init_scope();
 var CHART_READ = ["canReadClinical", "canChart", "canManagePerio", "canSignClinicalNotes", "canPrescribe", "canCompleteProcedures"];
 var chartRead = (path = ["patient"]) => scopedGoverned(CHART_READ, patientFilter(path));
 var CHART_KINDS = ["procedure", "condition"];
@@ -2656,6 +3911,7 @@ __export(treatment_exports, {
 });
 var import_core15 = require("@keystone-6/core");
 var import_fields15 = require("@keystone-6/core/fields");
+init_scope();
 var PLAN_STATUSES = ["draft", "presented", "partially_accepted", "accepted", "declined", "in_progress", "completed", "superseded", "archived"];
 var PLAN_PRIORITIES = ["urgent", "recommended_necessary", "recommended", "elective"];
 var FORM_KINDS = ["consent_treatment", "consent_sedation", "hipaa_npp_ack", "financial_policy", "photo_consent", "informed_refusal", "membership_terms", "payment_plan_terms", "intake", "medical_history", "other"];
@@ -2861,6 +4117,8 @@ __export(insurance_exports, {
 var import_core16 = require("@keystone-6/core");
 var import_fields16 = require("@keystone-6/core/fields");
 var import_access13 = require("@keystone-6/core/access");
+init_access();
+init_scope();
 var PAYER_KINDS = ["commercial", "medicaid", "chip", "medicare_advantage", "tricare", "other"];
 var PLAN_TYPES = ["ppo", "indemnity", "dhmo", "medicaid", "ma_dental", "discount", "other"];
 var COB_METHODS = ["standard", "non_duplication", "carve_out", "maintenance_of_benefits", "unknown"];
@@ -3280,6 +4538,7 @@ __export(claims_exports, {
 });
 var import_core18 = require("@keystone-6/core");
 var import_fields18 = require("@keystone-6/core/fields");
+init_scope();
 var CLAIM_KINDS = ["original", "predetermination", "secondary", "tertiary"];
 var CLAIM_STATUSES = ["draft", "scrubbed", "ready", "released", "submitted", "submission_unknown", "acknowledged", "rejected", "pending_payer", "adjudicated", "correction_required", "void_requested", "voided", "appealed", "appeal_decided", "responded", "closed"];
 var CLAIM_OUTCOMES = ["paid", "partially_paid", "denied", "zero_applied_to_deductible"];
@@ -3612,6 +4871,7 @@ __export(payments_exports, {
 });
 var import_core19 = require("@keystone-6/core");
 var import_fields19 = require("@keystone-6/core/fields");
+init_scope();
 var PAYMENT_TENDERS = ["card", "ach", "cash", "check", "financing", "membership_credit", "other"];
 var PAYMENT_STATUSES = ["initiated", "requires_action", "succeeded", "failed", "unknown", "partially_refunded", "refunded"];
 var PAYMENT_SOURCES = ["front_desk", "pay_link", "autopay", "portal_api", "payment_plan", "membership"];
@@ -3796,7 +5056,148 @@ var LedgerNote = (0, import_core19.list)({
   }
 });
 
+// features/keystone/models/memberships.ts
+var memberships_exports = {};
+__export(memberships_exports, {
+  DEPOSIT_STATUSES: () => DEPOSIT_STATUSES,
+  DepositBatch: () => DepositBatch,
+  DepositLine: () => DepositLine,
+  LICENCE_KINDS: () => LICENCE_KINDS,
+  MEMBERSHIP_AGE_BANDS: () => MEMBERSHIP_AGE_BANDS,
+  MEMBERSHIP_INTERVALS: () => MEMBERSHIP_INTERVALS,
+  MEMBERSHIP_LEDGER_KINDS: () => MEMBERSHIP_LEDGER_KINDS,
+  MEMBERSHIP_PLAN_STATUSES: () => MEMBERSHIP_PLAN_STATUSES,
+  MEMBERSHIP_STATUSES: () => MEMBERSHIP_STATUSES,
+  MembershipAgreement: () => MembershipAgreement,
+  MembershipLedgerEntry: () => MembershipLedgerEntry,
+  MembershipPlan: () => MembershipPlan,
+  PatientMembership: () => PatientMembership,
+  RegulatoryLicence: () => RegulatoryLicence
+});
+var import_core20 = require("@keystone-6/core");
+var import_fields20 = require("@keystone-6/core/fields");
+init_scope();
+var MEMBERSHIP_AGE_BANDS = ["child", "adult", "perio"];
+var MEMBERSHIP_INTERVALS = ["monthly", "annual"];
+var MEMBERSHIP_PLAN_STATUSES = ["draft", "active", "retired"];
+var MEMBERSHIP_STATUSES = ["pending_agreement", "active", "past_due", "frozen", "cancelled", "expired"];
+var MEMBERSHIP_LEDGER_KINDS = ["activate", "charge", "benefit_issue", "benefit_use", "benefit_reverse", "discount", "discount_reverse", "freeze", "unfreeze", "cancel", "renew"];
+var LICENCE_KINDS = ["discount_plan_operator", "other"];
+var DEPOSIT_STATUSES = ["open", "banked"];
+var MANAGE = ["canManageMemberships", "canReadLedger", "canTakePayments"];
+var plans = () => governed(MANAGE);
+var scopedByPatient = scopedGoverned(MANAGE, locationFilter(["patient", "homeLocation"]));
+var RegulatoryLicence = (0, import_core20.list)({
+  access: governed(["canManageMemberships", "canReadLedger"]),
+  ui: { labelField: "number", listView: { initialColumns: ["kind", "jurisdiction", "number", "effectiveFrom", "effectiveTo"] } },
+  fields: {
+    kind: fixedChoice(LICENCE_KINDS),
+    jurisdiction: systemText({ required: true }),
+    number: systemText({ required: true }),
+    effectiveFrom: (0, import_fields20.calendarDay)({ ...readOnly }),
+    effectiveTo: (0, import_fields20.calendarDay)({ ...readOnly }),
+    evidence: systemText(),
+    ...trackingFields
+  }
+});
+var MembershipPlan = (0, import_core20.list)({
+  access: plans(),
+  ui: { labelField: "name", listView: { initialColumns: ["name", "ageBand", "priceMinor", "interval", "status"] } },
+  fields: {
+    name: systemText({ indexed: "unique", required: true }),
+    ageBand: fixedChoice(MEMBERSHIP_AGE_BANDS),
+    priceMinor: minor({ required: true }),
+    interval: fixedChoice(MEMBERSHIP_INTERVALS),
+    includedBenefits: (0, import_fields20.json)({ defaultValue: [], ...readOnly, ui: { ...readOnly.ui, description: "Covered visits per period, by procedure family." } }),
+    discountPct: pct({ required: true, description: "Percent off the office fee for work that is not a covered visit." }),
+    termsText: systemText(),
+    termsHash: systemText(),
+    renewalNoticeDays: (0, import_fields20.integer)({ defaultValue: 30, ...readOnly }),
+    cancellationPolicy: (0, import_fields20.json)({ defaultValue: {}, ...readOnly }),
+    locations: (0, import_fields20.relationship)({ ref: "Location", many: true, ...readOnly }),
+    status: lifecycle(MEMBERSHIP_PLAN_STATUSES),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PatientMembership = (0, import_core20.list)({
+  access: scopedByPatient,
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "patient", "plan", "status", "currentPeriodEnd"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    ref: systemText({ indexed: "unique", required: true }),
+    patient: (0, import_fields20.relationship)({ ref: "Patient", ...readOnly }),
+    plan: (0, import_fields20.relationship)({ ref: "MembershipPlan", ...readOnly }),
+    location: (0, import_fields20.relationship)({ ref: "Location", ...readOnly }),
+    payer: (0, import_fields20.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    status: lifecycle(MEMBERSHIP_STATUSES),
+    currentPeriodStart: (0, import_fields20.calendarDay)({ ...readOnly }),
+    currentPeriodEnd: (0, import_fields20.calendarDay)({ ...readOnly }),
+    autoRenew: (0, import_fields20.checkbox)({ defaultValue: true, ...readOnly }),
+    agreement: (0, import_fields20.relationship)({ ref: "MembershipAgreement", ...readOnly }),
+    cancelledReason: systemText(),
+    entries: (0, import_fields20.relationship)({ ref: "MembershipLedgerEntry.membership", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var MembershipAgreement = (0, import_core20.list)({
+  access: scopedGoverned(MANAGE, locationFilter(["membership", "patient", "homeLocation"])),
+  ui: { labelField: "signerName" },
+  fields: {
+    membership: (0, import_fields20.relationship)({ ref: "PatientMembership", ...readOnly }),
+    termsHash: systemText({ required: true }),
+    priceSnapshotMinor: minor({ required: true }),
+    disclosures: (0, import_fields20.json)({ defaultValue: {}, ...readOnly }),
+    affirmativeConsentHash: systemText({ required: true }),
+    signerName: systemText({ required: true }),
+    signedAt: (0, import_fields20.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var MembershipLedgerEntry = (0, import_core20.list)({
+  access: scopedGoverned(MANAGE, locationFilter(["membership", "patient", "homeLocation"])),
+  ui: { labelField: "kind", listView: { initialColumns: ["membership", "kind", "codeFamily", "quantity", "at"], initialSort: { field: "at", direction: "DESC" } } },
+  fields: {
+    membership: (0, import_fields20.relationship)({ ref: "PatientMembership.entries", ...readOnly }),
+    kind: fixedChoice(MEMBERSHIP_LEDGER_KINDS),
+    codeFamily: systemText(),
+    quantity: (0, import_fields20.integer)({ ...readOnly }),
+    chartEntry: (0, import_fields20.relationship)({ ref: "ChartEntry", ...readOnly }),
+    ledgerEntry: (0, import_fields20.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    at: (0, import_fields20.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var READ_MONEY = ["canCloseDay", "canReadLedger", "canTakePayments"];
+var DepositBatch = (0, import_core20.list)({
+  access: scopedGoverned(READ_MONEY, locationFilter(["location"])),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "location", "businessDate", "totalMinor", "status"], initialSort: { field: "businessDate", direction: "DESC" } } },
+  fields: {
+    ref: systemText({ indexed: "unique", required: true }),
+    location: (0, import_fields20.relationship)({ ref: "Location", ...readOnly }),
+    businessDate: (0, import_fields20.calendarDay)({ ...readOnly }),
+    dayClose: (0, import_fields20.relationship)({ ref: "DayClose", ...readOnly }),
+    totalMinor: minor({ required: true }),
+    status: lifecycle(DEPOSIT_STATUSES),
+    lines: (0, import_fields20.relationship)({ ref: "DepositLine.batch", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var DepositLine = (0, import_core20.list)({
+  access: scopedGoverned(READ_MONEY, locationFilter(["batch", "location"])),
+  ui: { labelField: "tender" },
+  fields: {
+    batch: (0, import_fields20.relationship)({ ref: "DepositBatch.lines", ...readOnly }),
+    payment: (0, import_fields20.relationship)({ ref: "Payment", ...readOnly }),
+    tender: systemText({ required: true }),
+    amountMinor: minor({ required: true }),
+    ...trackingFields
+  }
+});
+
 // features/keystone/security/phiFields.ts
+init_access();
 var TIER_PERMISSION = {
   dem: "canReadDemographics",
   clin: "canReadClinical",
@@ -3885,6 +5286,9 @@ var PHI_FIELDS = {
   GuarantorAccount: { balanceCache: "fin" },
   AdjustmentRequest: { amountMinor: "fin", reason: "fin" },
   DayClose: { daySheet: "fin" },
+  DepositBatch: { totalMinor: "fin" },
+  DepositLine: { amountMinor: "fin" },
+  MembershipAgreement: { priceSnapshotMinor: "fin", disclosures: "fin" },
   Claim: { totalChargeMinor: "ins", narrative: "ins", primaryAdjudicationSnapshot: "ins", clearinghouseRefs: "ins" },
   ClaimVersion: { payload: "ins" },
   ClaimLine: { feeMinor: "ins", allowedMinor: "ins", paidMinor: "ins", patientRespMinor: "ins", tooth: "ins", surfaces: "ins" },
@@ -3898,7 +5302,7 @@ var PHI_FIELDS = {
   Denial: { amountMinor: "ins", rarc: "ins", resolutionNote: "ins" },
   Appeal: { letter: "ins" },
   PaymentMethodToken: { last4: "fin", brand: "fin", expMonth: "fin", expYear: "fin", providerCustomerId: "fin", providerMethodId: "fin", consentText: "fin" },
-  Statement: { snapshot: "fin", amountDueMinor: "fin" },
+  Statement: { snapshot: "fin", amountDueMinor: "fin", payLinkCode: "fin", pdfSha256: "fin", payLinkExpiresAt: "fin" },
   Payment: { amountMinor: "fin", refundedMinor: "fin", checkNumber: "fin", failureNote: "fin" },
   PaymentAllocation: { amountMinor: "fin" },
   Refund: { amountMinor: "fin", reason: "fin", failureNote: "fin" },
@@ -3909,13 +5313,13 @@ var PHI_FIELDS = {
 };
 var PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap((fields) => Object.keys(fields)));
 function applyPhiTiers(models2) {
-  for (const [listKey, list18] of Object.entries(models2)) {
+  for (const [listKey, list19] of Object.entries(models2)) {
     const tiers = PHI_FIELDS[listKey];
     if (!tiers) continue;
     for (const [fieldKey, tier] of Object.entries(tiers)) {
-      const original = list18.fields?.[fieldKey];
+      const original = list19.fields?.[fieldKey];
       if (typeof original !== "function") throw new Error(`PHI_FIELDS names ${listKey}.${fieldKey}, which does not exist.`);
-      list18.fields[fieldKey] = (args) => {
+      list19.fields[fieldKey] = (args) => {
         const field = original(args);
         const access = field.access;
         const baseRead = typeof access === "function" ? access : access?.read;
@@ -3930,10 +5334,10 @@ function applyPhiTiers(models2) {
   return gateFilterAndOrder(models2);
 }
 function gateFilterAndOrder(models2) {
-  for (const list18 of Object.values(models2)) {
-    for (const [fieldKey, original] of Object.entries(list18.fields ?? {})) {
+  for (const list19 of Object.values(models2)) {
+    for (const [fieldKey, original] of Object.entries(list19.fields ?? {})) {
       if (typeof original !== "function" || fieldKey.startsWith("__group")) continue;
-      list18.fields[fieldKey] = (args) => {
+      list19.fields[fieldKey] = (args) => {
         const field = original(args);
         const read = typeof field.access === "function" ? field.access : field.access?.read;
         if (typeof read !== "function") return field;
@@ -3950,6 +5354,7 @@ function gateFilterAndOrder(models2) {
 }
 
 // features/keystone/models/index.ts
+init_access();
 var hideRefusedActions = (lists) => Object.fromEntries(Object.entries(lists).map(([key, config2]) => {
   const op2 = config2.access?.operation ?? {};
   const ui = { ...config2.ui };
@@ -3981,7 +5386,8 @@ var models = boundTake(hideRefusedActions(applyPhiTiers({
   ...listsOf(insurance_exports),
   ...listsOf(ledger_exports),
   ...listsOf(claims_exports),
-  ...listsOf(payments_exports)
+  ...listsOf(payments_exports),
+  ...listsOf(memberships_exports)
 })));
 
 // features/keystone/mutations/index.ts
@@ -3998,6 +5404,7 @@ async function redirectToInit(root, args, context) {
 var redirectToInit_default = redirectToInit;
 
 // features/keystone/mutations/updateActiveUser.ts
+init_access();
 async function updateActiveUser(_root, { data }, context) {
   const session = context.session;
   if (!isSignedIn({ session })) throw new Error("Not authenticated");
@@ -4009,57 +5416,10 @@ var updateActiveUser_default = updateActiveUser;
 
 // features/keystone/mutations/op.ts
 var import_graphql = require("graphql");
-
-// features/keystone/lib/errors.ts
-var DomainError = class extends Error {
-  constructor(code, message, details = {}) {
-    super(message);
-    this.name = "DomainError";
-    this.code = code;
-    this.details = details;
-  }
-};
-var isDomainError = (error) => error instanceof DomainError;
-var Codes = {
-  NOT_AUTHORIZED: "NOT_AUTHORIZED",
-  NOT_FOUND: "NOT_FOUND",
-  INVALID_INPUT: "INVALID_INPUT",
-  INVALID_TRANSITION: "INVALID_TRANSITION",
-  STALE_STATE: "STALE_STATE",
-  GUARD_FAILED: "GUARD_FAILED",
-  IDEMPOTENCY_KEY_REQUIRED: "IDEMPOTENCY_KEY_REQUIRED",
-  IDEMPOTENCY_KEY_REUSED: "IDEMPOTENCY_KEY_REUSED",
-  IN_PROGRESS: "IN_PROGRESS",
-  APPROVAL_REQUIRED: "APPROVAL_REQUIRED",
-  SELF_APPROVAL: "SELF_APPROVAL",
-  AGENT_CANNOT_APPROVE: "AGENT_CANNOT_APPROVE",
-  APPROVAL_MISMATCH: "APPROVAL_MISMATCH",
-  LEASE_LOST: "LEASE_LOST",
-  STALE_FENCING_TOKEN: "STALE_FENCING_TOKEN",
-  AUDIT_CHAIN_BROKEN: "AUDIT_CHAIN_BROKEN",
-  // Dental (STATE-MACHINES, INTEGRATIONS)
-  SLOT_TAKEN: "SLOT_TAKEN",
-  HOLD_EXPIRED: "HOLD_EXPIRED",
-  OUTSIDE_TEMPLATE: "OUTSIDE_TEMPLATE",
-  PATIENT_UNAVAILABLE: "PATIENT_UNAVAILABLE",
-  PROVIDER_UNAVAILABLE: "PROVIDER_UNAVAILABLE",
-  SUPERVISION_REQUIRED: "SUPERVISION_REQUIRED",
-  INFERENCE_PHI_BLOCKED: "INFERENCE_PHI_BLOCKED",
-  SYNTHETIC_TO_LIVE: "SYNTHETIC_TO_LIVE",
-  MFA_REQUIRED: "MFA_REQUIRED",
-  BREAK_GLASS_REQUIRED: "BREAK_GLASS_REQUIRED",
-  RATE_LIMITED: "RATE_LIMITED",
-  CONSENT_REQUIRED: "CONSENT_REQUIRED",
-  DUPLICATE_SUSPECTED: "DUPLICATE_SUSPECTED",
-  LATE_CANCEL_WINDOW: "LATE_CANCEL_WINDOW",
-  LAB_CASE_NOT_READY: "LAB_CASE_NOT_READY",
-  PORTAL_SCOPE_DENIED: "PORTAL_SCOPE_DENIED",
-  PORTAL_SESSION_INVALID: "PORTAL_SESSION_INVALID",
-  OUTSIDE_LOCATION_SCOPE: "OUTSIDE_LOCATION_SCOPE",
-  MERGE_CONFLICT: "MERGE_CONFLICT"
-};
+init_errors();
 
 // features/keystone/lib/dbRefusal.ts
+init_errors();
 var UNIQUE_MESSAGES = {
   BenefitVerification: "A verification is already open for this plan. Refresh to see it.",
   EligibilityCheck: "An eligibility check for this plan is already running. Refresh to see it.",
@@ -4194,423 +5554,16 @@ var op = (fn) => async (root, args, context) => {
   }
 };
 
-// features/keystone/lib/actor.ts
-function actorFromSession(session) {
-  if (!session || !isSignedIn({ session })) throw new DomainError(Codes.NOT_AUTHORIZED, "Sign in to continue.");
-  const role = session.data.role;
-  const granted = new Set(role ? permissionNames.filter((name) => role[name] === true) : []);
-  return { kind: "user", userId: session.itemId, name: session.data.name, permissions: granted };
-}
-var systemActor = (name) => ({ kind: "system", name });
-function can(actor3, permission) {
-  return actor3.kind === "user" && actor3.permissions.has(permission);
-}
-function requirePermission(actor3, ...anyOf2) {
-  if (actor3.kind === "system") return;
-  if (actor3.kind === "agent") throw new DomainError(Codes.NOT_AUTHORIZED, "Agents act only through their tool grants.");
-  if (!anyOf2.some((permission) => actor3.permissions.has(permission))) {
-    throw new DomainError(Codes.NOT_AUTHORIZED, `This needs the ${anyOf2.join(" or ")} permission.`);
-  }
-}
-var principalKey = (actor3) => actor3.kind === "user" ? `user:${actor3.userId}` : actor3.kind === "agent" ? `agent:${actor3.agentId}` : `system:${actor3.name}`;
-var actorUserId = (actor3) => actor3.kind === "user" ? actor3.userId : null;
-var actorAgentId = (actor3) => actor3.kind === "agent" ? actor3.agentId : null;
+// features/keystone/mutations/setup.ts
+init_actor();
+init_command();
 
-// features/keystone/lib/canonical.ts
-var import_node_crypto2 = require("node:crypto");
-
-// features/keystone/lib/decimal.ts
-var import_decimal = __toESM(require("decimal.js"));
-var Decimal = import_decimal.default.clone({
-  precision: 60,
-  rounding: import_decimal.default.ROUND_HALF_EVEN,
-  toExpNeg: -40,
-  toExpPos: 60
-});
-var Scale = { px: 10, qty: 18, units: 8, nav: 10, rate: 12 };
-var DECIMAL_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
-function dec(value) {
-  if (value instanceof Decimal) return value;
-  if (typeof value === "bigint") return new Decimal(value.toString());
-  if (typeof value === "number") {
-    if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
-    return new Decimal(value);
-  }
-  const text19 = String(value).trim();
-  if (!DECIMAL_TEXT.test(text19)) throw new Error(`Not a decimal number: ${JSON.stringify(text19).slice(0, 40)}`);
-  return new Decimal(text19);
-}
-function toScale(value, scale, rounding = Decimal.ROUND_HALF_EVEN) {
-  const places = typeof scale === "number" ? scale : Scale[scale];
-  return dec(value).toDecimalPlaces(places, rounding).toFixed(places);
-}
-var plain = (value) => dec(value).toFixed();
-var ZERO = new Decimal(0);
-var ONE = new Decimal(1);
-var BPS = new Decimal(1e4);
-
-// features/keystone/lib/canonical.ts
-function canonicalize(value) {
-  if (value === null || value === void 0) return null;
-  if (typeof value === "bigint") return value.toString();
-  if (typeof value === "string" || typeof value === "boolean") return value;
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("Canonical JSON cannot hold a non-finite number");
-    return value;
-  }
-  if (value instanceof Date) return value.toISOString();
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (typeof value === "object") {
-    const decimalLike = value;
-    if (typeof decimalLike.isFinite === "function" && typeof decimalLike.isNaN === "function") return plain(decimalLike.toString());
-    return Object.fromEntries(
-      Object.entries(value).filter(([, entry]) => entry !== void 0).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, entry]) => [key, canonicalize(entry)])
-    );
-  }
-  throw new Error(`Canonical JSON cannot hold a ${typeof value}`);
-}
-var canonicalJson = (value) => JSON.stringify(canonicalize(value));
-var sha256 = (text19) => (0, import_node_crypto2.createHash)("sha256").update(text19).digest("hex");
-var memberIdHash = (memberId, keyText = process.env.DENTAL_SECRET_KEY) => {
-  const text19 = String(keyText || "").trim();
-  if (!text19) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
-  const root = /^[a-f0-9]{64}$/i.test(text19) ? Buffer.from(text19, "hex") : Buffer.from(text19, "base64");
-  const key = (0, import_node_crypto2.createHmac)("sha256", root).update("dental.member-id-hash.v1").digest();
-  return `h1:${(0, import_node_crypto2.createHmac)("sha256", key).update(memberId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")).digest("hex")}`;
-};
-var payloadHash = (value) => sha256(canonicalJson(value));
-var toJsonValue = (value) => canonicalize(value);
-
-// features/keystone/lib/db.ts
-async function advisoryLock(tx, key) {
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
-}
-var MODEL_NAME = /^[A-Z][A-Za-z0-9]*$/;
-function tableName(model) {
-  if (!MODEL_NAME.test(model)) throw new Error(`Invalid model name: ${model.slice(0, 40)}`);
-  return `"${model}"`;
-}
-function delegateOf(tx, model) {
-  tableName(model);
-  const delegate = tx[model[0].toLowerCase() + model.slice(1)];
-  if (!delegate) throw new Error(`Unknown model: ${model}`);
-  return delegate;
-}
-var TRANSACTION_OPTIONS = { maxWait: 15e3, timeout: 6e4 };
-
-// features/keystone/lib/idempotency.ts
-var IDEMPOTENCY_KEY = /^[A-Za-z0-9._:-]{8,200}$/;
-function assertIdempotencyKey(key) {
-  if (typeof key !== "string" || !key.trim()) throw new DomainError(Codes.IDEMPOTENCY_KEY_REQUIRED, "An idempotency key is required.");
-  if (!IDEMPOTENCY_KEY.test(key)) throw new DomainError(Codes.INVALID_INPUT, "The idempotency key must be 8 to 200 letters, digits or . _ : -");
-}
-async function claimReceipt(tx, input) {
-  assertIdempotencyKey(input.key);
-  await advisoryLock(tx, `command:${input.key}`);
-  const existing = await tx.commandReceipt.findUnique({ where: { idempotencyKey: input.key } });
-  if (!existing) return { replay: false };
-  const requestHash = payloadHash(input.params);
-  if (existing.command !== input.command || existing.principalKey !== input.principalKey || existing.requestHash !== requestHash) {
-    throw new DomainError(Codes.IDEMPOTENCY_KEY_REUSED, "This idempotency key was already used for a different request.");
-  }
-  return { replay: true, responseBody: existing.responseBody };
-}
-async function writeReceipt(tx, input) {
-  await tx.commandReceipt.create({
-    data: {
-      idempotencyKey: input.key,
-      command: input.command,
-      principalKey: input.principalKey,
-      requestHash: payloadHash(input.params),
-      requestParams: toJsonValue(canonicalize(input.params)),
-      responseCode: "ok",
-      responseBody: toJsonValue(input.response),
-      recoveryPoint: "completed",
-      completedAt: input.now
-    }
-  });
-}
-
-// features/keystone/lib/audit.ts
-var import_node_crypto3 = require("node:crypto");
-var GENESIS_HASH = "0".repeat(64);
-function auditHashBody(row) {
-  return {
-    seq: row.seq,
-    eventKey: row.eventKey,
-    eventType: row.eventType,
-    entityType: row.entityType,
-    entityId: row.entityId,
-    actorUserId: row.actorUserId ?? null,
-    actorAgentId: row.actorAgentId ?? null,
-    approverId: row.approverId ?? null,
-    reason: row.reason || null,
-    before: row.before ?? null,
-    after: row.after ?? null,
-    metadata: row.metadata ?? null,
-    requestId: row.requestId || null,
-    at: row.at.toISOString()
-  };
-}
-var auditHash = (prevHash, row) => sha256(`${prevHash}
-${canonicalJson(auditHashBody(row))}`);
-async function appendAuditEvents(tx, events, now = /* @__PURE__ */ new Date()) {
-  if (!events.length) return [];
-  await advisoryLock(tx, "audit:chain");
-  const last = await tx.auditEvent.findFirst({ orderBy: { seq: "desc" }, select: { seq: true, hash: true } });
-  let seq = last?.seq ?? 0;
-  let prevHash = last?.hash ?? GENESIS_HASH;
-  const written = [];
-  for (const event of events) {
-    seq += 1;
-    const row = {
-      seq,
-      eventKey: event.eventKey ?? (0, import_node_crypto3.randomUUID)(),
-      eventType: event.eventType,
-      entityType: event.entityType,
-      entityId: event.entityId,
-      actorUserId: event.actorUserId ?? null,
-      actorAgentId: event.actorAgentId ?? null,
-      approverId: event.approverId ?? null,
-      reason: event.reason ? event.reason.slice(0, 2e3) : null,
-      before: event.before === void 0 ? null : toJsonValue(event.before),
-      after: event.after === void 0 ? null : toJsonValue(event.after),
-      metadata: event.metadata === void 0 ? null : toJsonValue(event.metadata),
-      requestId: event.requestId ?? null,
-      prevHash,
-      at: now
-    };
-    const hash = auditHash(prevHash, row);
-    const created = await tx.auditEvent.create({
-      data: {
-        seq: row.seq,
-        eventKey: row.eventKey,
-        eventType: row.eventType,
-        entityType: row.entityType,
-        entityId: row.entityId,
-        actorUserId: row.actorUserId,
-        actorAgentId: row.actorAgentId,
-        approverId: row.approverId,
-        reason: row.reason ?? "",
-        // Nullable json columns: omit null (stored as SQL NULL, read back as null).
-        ...row.before === null ? {} : { before: row.before },
-        ...row.after === null ? {} : { after: row.after },
-        ...row.metadata === null ? {} : { metadata: row.metadata },
-        requestId: row.requestId ?? "",
-        prevHash,
-        hash,
-        at: row.at
-      },
-      select: { id: true }
-    });
-    written.push({ id: created.id, seq, hash });
-    prevHash = hash;
-  }
-  return written;
-}
-async function verifyAuditChain(db, batchSize = 1e3) {
-  let prevHash = GENESIS_HASH;
-  let expectedSeq = 1;
-  let count = 0;
-  for (; ; ) {
-    const rows = await db.auditEvent.findMany({ where: { seq: { gte: expectedSeq } }, orderBy: { seq: "asc" }, take: batchSize });
-    if (!rows.length) break;
-    for (const row of rows) {
-      if (row.seq !== expectedSeq) return { ok: false, count, lastSeq: expectedSeq - 1, lastHash: prevHash, brokenAtSeq: expectedSeq, problem: "missing event" };
-      if (row.prevHash !== prevHash) return { ok: false, count, lastSeq: row.seq - 1, lastHash: prevHash, brokenAtSeq: row.seq, problem: "previous hash does not match" };
-      const hash = auditHash(prevHash, {
-        ...row,
-        reason: row.reason || null,
-        requestId: row.requestId || null,
-        actorUserId: row.actorUserId ?? null,
-        actorAgentId: row.actorAgentId ?? null,
-        approverId: row.approverId ?? null
-      });
-      if (hash !== row.hash) return { ok: false, count, lastSeq: row.seq - 1, lastHash: prevHash, brokenAtSeq: row.seq, problem: "content does not match its hash" };
-      prevHash = row.hash;
-      expectedSeq += 1;
-      count += 1;
-    }
-  }
-  return { ok: true, count, lastSeq: expectedSeq - 1, lastHash: prevHash };
-}
-
-// features/keystone/lib/unitOfWork.ts
-var UnitOfWork = class {
-  constructor(tx, now, requestId) {
-    this.tx = tx;
-    this.now = now;
-    this.requestId = requestId;
-    this.audits = [];
-    this.outbox = [];
-  }
-  audit(event) {
-    this.audits.push({ requestId: this.requestId, ...event });
-  }
-  emit(message) {
-    this.outbox.push(message);
-  }
-};
-async function flushOutbox(tx, messages, now) {
-  for (const message of messages) {
-    const payload = toJsonValue(message.payload);
-    const dedupeKey = message.dedupeKey ?? `${message.topic}:${message.aggregateType}:${message.aggregateId}:${sha256(canonicalJson(payload))}`;
-    await tx.outboxEvent.upsert({
-      where: { dedupeKey },
-      create: {
-        topic: message.topic,
-        aggregateType: message.aggregateType,
-        aggregateId: message.aggregateId,
-        dedupeKey,
-        payload,
-        status: "pending",
-        nextAttemptAt: message.availableAt ?? now
-      },
-      update: {}
-    });
-  }
-}
-async function runInTransaction(db, work, options = {}) {
-  return db.$transaction(async (tx) => {
-    const uow = new UnitOfWork(tx, options.now ?? /* @__PURE__ */ new Date(), options.requestId ?? null);
-    const result = await work(uow);
-    await flushOutbox(tx, uow.outbox, uow.now);
-    await appendAuditEvents(tx, uow.audits, uow.now);
-    return result;
-  }, TRANSACTION_OPTIONS);
-}
-
-// features/keystone/lib/command.ts
-var RETRYABLE = /deadlock detected|could not serialize|P2034|40P01|40001/i;
-var NOT_STARTED = /Unable to start a transaction in the given time/i;
-async function command(db, spec, work) {
-  const principal = principalKey(spec.actor);
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      return await runInTransaction(db, async (uow) => {
-        const receipt = await claimReceipt(uow.tx, { key: spec.idempotencyKey, command: spec.name, principalKey: principal, params: spec.params });
-        if (receipt.replay) return { replay: true, value: receipt.responseBody };
-        const value = toJsonValue(await work(uow));
-        await writeReceipt(uow.tx, { key: spec.idempotencyKey, command: spec.name, principalKey: principal, params: spec.params, response: value, now: uow.now });
-        return { replay: false, value };
-      }, { requestId: spec.requestId ?? null, now: spec.now });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const code = error?.code ?? "";
-      if (attempt < 4 && (RETRYABLE.test(message) || RETRYABLE.test(code))) continue;
-      if (attempt < 6 && NOT_STARTED.test(message)) {
-        await new Promise((resolve) => setTimeout(resolve, 100 * attempt + Math.floor(Math.random() * 400)));
-        continue;
-      }
-      throw error;
-    }
-  }
-}
-
-// features/keystone/lib/cas.ts
-var COLUMN = /^[a-z][A-Za-z0-9]*$/;
-async function lockRow(tx, model, id) {
-  const rows = await tx.$queryRawUnsafe(`SELECT id FROM ${tableName(model)} WHERE id = $1 FOR UPDATE`, id);
-  if (!rows.length) throw new DomainError(Codes.NOT_FOUND, `${model} not found.`, { model, id });
-  const row = await delegateOf(tx, model).findUnique({ where: { id } });
-  return row;
-}
-async function transition(uow, spec) {
-  const statusField = spec.statusField ?? "status";
-  if (!COLUMN.test(statusField)) throw new Error("Invalid status field");
-  const row = await lockRow(uow.tx, spec.model, spec.id);
-  const currentStatus = String(row[statusField]);
-  const currentVersion = Number(row.version);
-  if (spec.expectedVersion !== void 0 && spec.expectedVersion !== null && spec.expectedVersion !== currentVersion) {
-    throw new DomainError(Codes.STALE_STATE, `${spec.model} changed since you loaded it. Reload and try again.`, { currentStatus, currentVersion });
-  }
-  if (!spec.from.includes(currentStatus)) {
-    throw new DomainError(Codes.INVALID_TRANSITION, `${spec.model} can't move from ${currentStatus} to ${spec.to}.`, { currentStatus, currentVersion, to: spec.to });
-  }
-  if (spec.guard) await spec.guard(row);
-  const extra = typeof spec.data === "function" ? await spec.data(row) : spec.data ?? {};
-  const result = await delegateOf(uow.tx, spec.model).updateMany({
-    where: { id: spec.id, version: currentVersion, [statusField]: { in: [...spec.from] } },
-    data: { ...extra, [statusField]: spec.to, version: { increment: 1 } }
-  });
-  if (result.count !== 1) {
-    throw new DomainError(Codes.STALE_STATE, `${spec.model} changed since you loaded it. Reload and try again.`, { currentStatus, currentVersion });
-  }
-  uow.audit({
-    eventType: spec.eventType,
-    entityType: spec.model,
-    entityId: spec.id,
-    actorUserId: actorUserId(spec.actor),
-    actorAgentId: actorAgentId(spec.actor),
-    approverId: spec.approverId ?? null,
-    reason: spec.reason ?? null,
-    before: { [statusField]: currentStatus, version: currentVersion },
-    after: { [statusField]: spec.to, version: currentVersion + 1, ...extra },
-    metadata: { ...spec.metadata ?? {}, ...spec.actor.kind === "system" ? { system: spec.actor.name } : {} }
-  });
-  return await delegateOf(uow.tx, spec.model).findUnique({ where: { id: spec.id } });
-}
-function auditCreate(uow, actor3, model, id, eventType, after, extra = {}) {
-  uow.audit({
-    eventType,
-    entityType: model,
-    entityId: id,
-    actorUserId: actorUserId(actor3),
-    actorAgentId: actorAgentId(actor3),
-    reason: extra.reason ?? null,
-    after,
-    metadata: { ...extra.metadata ?? {}, ...actor3.kind === "system" ? { system: actor3.name } : {} }
-  });
-}
-
-// features/keystone/lib/time.ts
-var DATE = /^\d{4}-\d{2}-\d{2}$/;
-var HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-function assertDate(date) {
-  if (!DATE.test(date) || Number.isNaN(Date.parse(`${date}T00:00:00Z`)) || (/* @__PURE__ */ new Date(`${date}T00:00:00Z`)).toISOString().slice(0, 10) !== date) {
-    throw new Error(`Invalid date ${date}`);
-  }
-}
-function assertHhmm(value) {
-  if (!HHMM.test(value)) throw new Error(`Invalid local time ${value} (expected HH:mm)`);
-}
-function addDays(date, days) {
-  assertDate(date);
-  const t = Date.parse(`${date}T12:00:00Z`) + days * 864e5;
-  return new Date(t).toISOString().slice(0, 10);
-}
-var weekdayOf = (date) => {
-  assertDate(date);
-  return (/* @__PURE__ */ new Date(`${date}T12:00:00Z`)).getUTCDay();
-};
-var zoneParts = (timeZone, at) => Object.fromEntries(
-  new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(new Date(at)).map((p) => [p.type, p.value])
-);
-function localDate(timeZone, at) {
-  const p = zoneParts(timeZone, typeof at === "number" ? at : at.getTime());
-  return `${p.year}-${p.month}-${p.day}`;
-}
-function zonedInstant(timeZone, date, hhmm) {
-  assertDate(date);
-  assertHhmm(hhmm);
-  const [h, m] = hhmm.split(":").map((x) => Number.parseInt(x, 10));
-  const target = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), h, m);
-  const wall = (at) => {
-    const p = zoneParts(timeZone, at);
-    return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
-  };
-  const offsetBefore = wall(target - 864e5) - (target - 864e5);
-  const offsetAfter = wall(target + 864e5) - (target + 864e5);
-  const valid = [target - offsetBefore, target - offsetAfter].filter((at) => wall(at) === target).sort((x, y) => x - y);
-  return new Date(valid[0] ?? target - offsetBefore);
-}
-var minutesOf = (hhmm) => {
-  assertHhmm(hhmm);
-  return Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3, 5));
-};
-var overlaps = (a0, a1, b0, b1) => a0 < b1 && b0 < a1;
+// features/keystone/seed/schedule.ts
+init_cas();
+init_time();
 
 // features/keystone/scheduling/engine.ts
+init_time();
 var MS_PER_MINUTE = 6e4;
 function parsePattern(value) {
   if (!Array.isArray(value) || value.length === 0) throw new Error("An appointment type needs at least one unit in its pattern.");
@@ -4622,7 +5575,7 @@ function parsePattern(value) {
     return { role, units };
   });
 }
-var patternUnits = (pattern) => pattern.reduce((sum2, unit) => sum2 + unit.units, 0);
+var patternUnits = (pattern) => pattern.reduce((sum3, unit) => sum3 + unit.units, 0);
 function expandPattern(pattern, unitMinutes, startMs, providers) {
   const segments = [];
   let at = startMs;
@@ -4798,12 +5751,12 @@ function rng(seed) {
 }
 function samplePatients(today2) {
   const rand = rng(20261107);
-  const pick = (list18) => list18[Math.floor(rand() * list18.length)];
+  const pick = (list19) => list19[Math.floor(rand() * list19.length)];
   const year = Number(today2.slice(0, 4));
   const dobFor = (age) => {
     const month = 1 + Math.floor(rand() * 12);
-    const dayOf3 = 1 + Math.floor(rand() * 28);
-    return `${year - age}-${String(month).padStart(2, "0")}-${String(dayOf3).padStart(2, "0")}`;
+    const dayOf4 = 1 + Math.floor(rand() * 28);
+    return `${year - age}-${String(month).padStart(2, "0")}-${String(dayOf4).padStart(2, "0")}`;
   };
   const out = [];
   let n = 0;
@@ -5135,100 +6088,11 @@ function nextPatient(people, w, startMs, endMs, busy, next) {
   return null;
 }
 
-// features/keystone/lib/ledger.ts
-var LEDGER_KIND_SIGN = {
-  charge: "debit",
-  finance_charge: "debit",
-  refund: "debit",
-  insurance_payment: "credit",
-  insurance_writeoff: "credit",
-  patient_payment: "credit",
-  insurance_adjustment: "either",
-  patient_adjustment: "either",
-  transfer_out: "either",
-  transfer_in: "either",
-  reversal: "either"
-};
-var DAY = 864e5;
-var dayNumber = (date) => Math.floor(date.getTime() / DAY);
-function computeBalance(entries, today2) {
-  let total = 0n;
-  for (const e of entries) total += e.amountMinor;
-  const debits = entries.filter((e) => e.amountMinor > 0n).sort((a, b) => (a.businessDate?.getTime() ?? 0) - (b.businessDate?.getTime() ?? 0));
-  let credit = entries.filter((e) => e.amountMinor < 0n).reduce((sum2, e) => sum2 - e.amountMinor, 0n);
-  const buckets = { current: 0n, d31: 0n, d61: 0n, d91: 0n };
-  for (const d of debits) {
-    const applied = credit < d.amountMinor ? credit : d.amountMinor;
-    credit -= applied;
-    const left = d.amountMinor - applied;
-    if (left === 0n) continue;
-    const age = d.businessDate ? dayNumber(today2) - dayNumber(d.businessDate) : 0;
-    if (age > 90) buckets.d91 += left;
-    else if (age > 60) buckets.d61 += left;
-    else if (age > 30) buckets.d31 += left;
-    else buckets.current += left;
-  }
-  return {
-    totalMinor: total.toString(),
-    patientMinor: (total > 0n ? total : 0n).toString(),
-    insurancePendingMinor: "0",
-    creditMinor: (total < 0n ? -total : 0n).toString(),
-    aging: { current: buckets.current.toString(), d31: buckets.d31.toString(), d61: buckets.d61.toString(), d91: buckets.d91.toString() },
-    entryCount: entries.length
-  };
-}
-async function rebuildBalance(tx, accountId, now) {
-  await advisoryLock(tx, `ledger:${accountId}`);
-  const entries = await tx.ledgerEntry.findMany({ where: { accountId }, select: { amountMinor: true, businessDate: true, kind: true } });
-  const cache = computeBalance(entries, now);
-  await tx.guarantorAccount.update({ where: { id: accountId }, data: { balanceCache: toJsonValue(cache), balanceRebuiltAt: now, version: { increment: 1 } } });
-  return cache;
-}
-async function postEntry(tx, input, now) {
-  if (input.amountMinor === 0n) throw new DomainError(Codes.INVALID_INPUT, "An amount of zero cannot be posted.", { field: "amountMinor" });
-  const sign = LEDGER_KIND_SIGN[input.kind];
-  if (!sign) throw new DomainError(Codes.INVALID_INPUT, "Unknown ledger kind.");
-  if (sign === "debit" && input.amountMinor < 0n || sign === "credit" && input.amountMinor > 0n) {
-    throw new DomainError(Codes.INVALID_INPUT, sign === "debit" ? "That kind of entry adds to the balance." : "That kind of entry reduces the balance.", { field: "amountMinor" });
-  }
-  const entry = await tx.ledgerEntry.create({
-    data: {
-      accountId: input.accountId,
-      patientId: input.patientId,
-      kind: input.kind,
-      amountMinor: input.amountMinor,
-      currencyCode: input.currencyCode,
-      businessDate: input.businessDate,
-      originalBusinessDate: input.originalBusinessDate ?? input.businessDate,
-      locationId: input.locationId,
-      providerId: input.providerId ?? null,
-      chartEntryId: input.chartEntryId ?? null,
-      adjustmentId: input.adjustmentId ?? null,
-      reversesId: input.reversesId ?? null,
-      restatementId: input.restatementId ?? null,
-      paymentPostingId: input.paymentPostingId ?? null,
-      claimId: input.claimId ?? null,
-      paymentId: input.paymentId ?? null,
-      refundId: input.refundId ?? null,
-      memo: input.memo ?? "",
-      postedById: input.postedById ?? null,
-      postedAt: now,
-      isSynthetic: input.isSynthetic ?? false
-    }
-  });
-  await rebuildBalance(tx, input.accountId, now);
-  return entry;
-}
-function parseMoney(text19, field = "amount") {
-  const raw = String(text19 ?? "").trim().replace(/^\$/, "").replaceAll(",", "");
-  if (!/^\d{1,7}(\.\d{1,2})?$/.test(raw)) throw new DomainError(Codes.INVALID_INPUT, `Enter the ${field} in dollars and cents, like 125.00.`, { field });
-  const [whole2, cents = ""] = raw.split(".");
-  const minor2 = BigInt(whole2) * 100n + BigInt(cents.padEnd(2, "0"));
-  if (minor2 <= 0n) throw new DomainError(Codes.INVALID_INPUT, `The ${field} must be more than zero.`, { field });
-  return minor2;
-}
-
 // features/keystone/seed/clinical.ts
+init_canonical();
+init_ledger();
+init_cas();
+init_time();
 var day = (d) => /* @__PURE__ */ new Date(`${d}T00:00:00Z`);
 var TZ2 = "America/New_York";
 var OF_CODES = [
@@ -5493,6 +6357,10 @@ async function seedPhase2(uow, actor3) {
   return created;
 }
 
+// features/keystone/seed/platform.ts
+init_access();
+init_cas();
+
 // features/keystone/lib/jurisdiction.ts
 var import_zod = require("zod");
 var verified = (value) => import_zod.z.object({ value, verify: import_zod.z.boolean(), note: import_zod.z.string().optional(), source: import_zod.z.string().optional() });
@@ -5562,6 +6430,7 @@ function parsePackRules(rules2) {
 }
 
 // features/keystone/seed/practice.ts
+init_access();
 var PACK_LABELS = PACKS.map((pack) => `${pack.key}@${pack.version}`);
 var PRACTICE = {
   legalName: "Bayview Family Dental, PLLC",
@@ -5733,6 +6602,10 @@ async function seedPracticePlatform(uow, actor3) {
   return created;
 }
 
+// features/keystone/seed/insurance.ts
+init_canonical();
+init_cas();
+
 // features/keystone/lib/secretBox.ts
 var import_node_crypto4 = require("node:crypto");
 var SECRET_KEY_VERSION = 1;
@@ -5768,6 +6641,7 @@ async function readSecret(tx, id) {
 }
 
 // features/keystone/seed/insurance.ts
+init_time();
 var TZ3 = "America/New_York";
 var day3 = (d) => /* @__PURE__ */ new Date(`${d}T00:00:00Z`);
 var PAYERS = [
@@ -5962,100 +6836,26 @@ async function loadPracticeSetup(_root, args, context) {
 }
 
 // features/keystone/mutations/audit.ts
+init_actor();
+init_audit();
 async function verifyAuditChain2(_root, _args, context) {
   const actor3 = actorFromSession(context.session);
   requirePermission(actor3, "canReadAudit");
   return verifyAuditChain(context.prisma);
 }
 
-// features/keystone/lib/separationOfDuties.ts
-var SELF_APPROVAL_MESSAGE = "You can't approve your own request.";
-var AGENT_APPROVAL_MESSAGE = "An agent can propose but never approve.";
-function assertCanDecide(actor3, requesterUserId, requesterAgentOwnerId, strictAgentOwner = true) {
-  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, AGENT_APPROVAL_MESSAGE);
-  if (requesterUserId && requesterUserId === actor3.userId) throw new DomainError(Codes.SELF_APPROVAL, SELF_APPROVAL_MESSAGE);
-  if (strictAgentOwner && requesterAgentOwnerId && requesterAgentOwnerId === actor3.userId) throw new DomainError(Codes.SELF_APPROVAL, "You can't approve a proposal made by your own agent.");
-}
-
-// features/keystone/lib/approval.ts
-async function requestApproval(uow, actor3, input) {
-  const policy = await uow.tx.approvalPolicy.findUnique({ where: { action: input.action } });
-  const requiredPermission = policy?.requiredPermission ?? input.requiredPermission;
-  const minutes = input.expiresInMinutes ?? policy?.expiresAfterMinutes ?? 1440;
-  const created = await uow.tx.approvalRequest.create({
-    data: {
-      action: input.action,
-      summary: input.summary ?? "",
-      targetList: input.targetList,
-      targetId: input.targetId,
-      payload: toJsonValue(input.payload),
-      payloadHash: payloadHash(input.payload),
-      requiredPermission,
-      requestedById: actorUserId(actor3),
-      requestedByAgentId: actorAgentId(actor3),
-      status: "pending",
-      expiresAt: new Date(uow.now.getTime() + minutes * 6e4)
-    }
-  });
-  uow.audit({ eventType: "approval.requested", entityType: "ApprovalRequest", entityId: created.id, actorUserId: actorUserId(actor3), actorAgentId: actorAgentId(actor3), after: { action: input.action, targetList: input.targetList, targetId: input.targetId, payloadHash: created.payloadHash, requiredPermission } });
-  uow.emit({ topic: "notify.approval", aggregateType: "ApprovalRequest", aggregateId: created.id, payload: { action: input.action, requiredPermission }, dedupeKey: `notify.approval:${created.id}` });
-  return created;
-}
-async function decideApproval(uow, actor3, input) {
-  const request = await lockRow(uow.tx, "ApprovalRequest", input.requestId);
-  let agentOwnerId = null;
-  if (request.requestedByAgentId) {
-    const agent = await uow.tx.agentIdentity.findUnique({ where: { id: request.requestedByAgentId }, select: { ownerId: true } });
-    agentOwnerId = agent?.ownerId ?? null;
-  }
-  assertCanDecide(actor3, request.requestedById, agentOwnerId, input.strictAgentOwner ?? true);
-  if (actor3.kind !== "user" || !actor3.permissions.has(request.requiredPermission)) {
-    throw new DomainError(Codes.NOT_AUTHORIZED, `Deciding this needs the ${request.requiredPermission} permission.`);
-  }
-  if (request.expiresAt && new Date(request.expiresAt).getTime() <= uow.now.getTime()) {
-    await transition(uow, { model: "ApprovalRequest", id: input.requestId, from: ["pending"], to: "expired", actor: actor3, eventType: "approval.expired" });
-    throw new DomainError(Codes.GUARD_FAILED, "This approval request has expired.");
-  }
-  const to = input.decision === "approve" ? "approved" : "rejected";
-  const updated = await transition(uow, {
-    model: "ApprovalRequest",
-    id: input.requestId,
-    from: ["pending"],
-    to,
-    expectedVersion: input.expectedVersion,
-    actor: actor3,
-    eventType: `approval.${to}`,
-    reason: input.reason ?? null,
-    approverId: actor3.userId
-  });
-  await uow.tx.approvalDecision.create({ data: { requestId: input.requestId, decidedById: actor3.userId, decision: input.decision, reason: input.reason ?? "", at: uow.now } });
-  return updated;
-}
-async function consumeApproval(uow, input) {
-  const request = await lockRow(uow.tx, "ApprovalRequest", input.requestId);
-  if (request.status !== "approved") throw new DomainError(Codes.APPROVAL_REQUIRED, "This action needs an approved request.");
-  if (request.consumedAt) throw new DomainError(Codes.APPROVAL_MISMATCH, "This approval was already used.");
-  if (request.action !== input.action || request.targetList !== input.targetList || request.targetId !== input.targetId || request.payloadHash !== payloadHash(input.payload)) {
-    throw new DomainError(Codes.APPROVAL_MISMATCH, "The approval was given for a different action or payload.");
-  }
-  if (request.expiresAt && new Date(request.expiresAt).getTime() <= uow.now.getTime()) throw new DomainError(Codes.GUARD_FAILED, "The approval has expired.");
-  const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: input.requestId, decision: "approve" }, orderBy: { at: "desc" } });
-  await uow.tx.approvalRequest.update({ where: { id: input.requestId }, data: { consumedAt: uow.now, version: { increment: 1 } } });
-  uow.audit({ eventType: "approval.consumed", entityType: "ApprovalRequest", entityId: input.requestId, approverId: decision?.decidedById ?? null, after: { action: input.action, targetId: input.targetId } });
-  return { approverId: decision?.decidedById ?? null };
-}
-
-// features/keystone/lib/approvalAppliers.ts
-var appliers = /* @__PURE__ */ new Map();
-function registerApplier(action, apply, options = {}) {
-  if (appliers.has(action)) throw new Error(`Applier for ${action} already registered`);
-  appliers.set(action, { apply, applyOnApprove: options.applyOnApprove ?? true });
-}
-function applierFor(action) {
-  return appliers.get(action) ?? null;
-}
+// features/keystone/mutations/approvals.ts
+init_actor();
+init_command();
+init_approval();
+init_approvalAppliers();
+init_cas();
+init_errors();
 
 // features/keystone/lib/practiceControls.ts
+init_errors();
+init_approvalAppliers();
+init_approval();
 var KEYS = ["aiAutonomyAllowed", "strictAgentOwnerSoD", "breakGlassMinutes", "requireStaffMfa"];
 var bool = (value, name) => {
   if (typeof value !== "boolean") throw new DomainError(Codes.INVALID_INPUT, `${name} must be true or false.`, { field: name });
@@ -6124,6 +6924,10 @@ async function decideApprovalRequest(_root, args, context) {
         if (refund.accountId) await uow.tx.creditBalance.updateMany({ where: { accountId: refund.accountId, status: "refund_requested" }, data: { status: "open", version: { increment: 1 } } });
       }
     }
+    if (args.decision === "reject" && decided.targetList === "PeriodClose") {
+      const { periodReopenRejected: periodReopenRejected2 } = await Promise.resolve().then(() => (init_close(), close_exports));
+      await periodReopenRejected2(uow, actor3, String(decided.targetId));
+    }
     return { id: decided.id, status: decided.status, applied };
   });
   return { replay: result.replay, ...result.value };
@@ -6162,9 +6966,11 @@ async function requestPracticeControls(_root, args, context) {
 
 // features/keystone/mutations/mfa.ts
 var import_graphql2 = require("graphql");
+init_errors();
+init_unitOfWork();
 
 // features/keystone/lib/session.ts
-var import_node_crypto5 = require("node:crypto");
+var import_node_crypto6 = require("node:crypto");
 var import_session = require("@keystone-6/core/session");
 var SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
 var PENDING_MS = 5 * 6e4;
@@ -6229,7 +7035,7 @@ function dentalSessions() {
           itemId: user.id,
           authVersion: Number(user.authVersion),
           mfaVerified: verifiedVersion !== void 0,
-          mfaNonce: (0, import_node_crypto5.randomBytes)(24).toString("hex"),
+          mfaNonce: (0, import_node_crypto6.randomBytes)(24).toString("hex"),
           mfaExpiresAt: Date.now() + PENDING_MS,
           startedAt: Date.now()
         }
@@ -6240,7 +7046,8 @@ function dentalSessions() {
 }
 
 // features/keystone/lib/mfa.ts
-var import_node_crypto6 = require("node:crypto");
+var import_node_crypto7 = require("node:crypto");
+init_errors();
 var BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 function encodeMfaSecret(bytes) {
   let bits = 0;
@@ -6272,12 +7079,12 @@ function decodeSecret(secret4) {
   }
   return Buffer.from(bytes);
 }
-var newMfaSecret = () => encodeMfaSecret((0, import_node_crypto6.randomBytes)(20));
+var newMfaSecret = () => encodeMfaSecret((0, import_node_crypto7.randomBytes)(20));
 function totp(secret4, counter) {
   if (!Number.isSafeInteger(counter) || counter < 0) throw new Error("Invalid authenticator counter.");
   const input = Buffer.alloc(8);
   input.writeBigUInt64BE(BigInt(counter));
-  const hash = (0, import_node_crypto6.createHmac)("sha1", decodeSecret(secret4)).update(input).digest();
+  const hash = (0, import_node_crypto7.createHmac)("sha1", decodeSecret(secret4)).update(input).digest();
   const offset = hash[hash.length - 1] & 15;
   return String((hash.readUInt32BE(offset) & 2147483647) % 1e6).padStart(6, "0");
 }
@@ -6285,14 +7092,14 @@ function verifyTotp(secret4, code, lastCounter, now = Date.now()) {
   if (!/^\d{6}$/.test(code)) throw new DomainError(Codes.INVALID_INPUT, "Enter the six-digit code from your authenticator app.", { field: "code" });
   const current = Math.floor(now / 3e4);
   for (const counter of [current, current - 1, current + 1]) {
-    if (counter >= 0 && counter > lastCounter && (0, import_node_crypto6.timingSafeEqual)(Buffer.from(totp(secret4, counter)), Buffer.from(code))) return counter;
+    if (counter >= 0 && counter > lastCounter && (0, import_node_crypto7.timingSafeEqual)(Buffer.from(totp(secret4, counter)), Buffer.from(code))) return counter;
   }
   throw new DomainError(Codes.MFA_REQUIRED, "That code is wrong, expired or already used. Wait for the next code and try again.");
 }
 var provisioningUri = (issuer, account, secret4) => `otpauth://totp/${encodeURIComponent(`${issuer}:${account}`)}?secret=${secret4}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
-var hashRecoveryCode = (userId, code) => (0, import_node_crypto6.createHash)("sha256").update(`${userId}:${code.trim().toUpperCase()}`).digest("hex");
+var hashRecoveryCode = (userId, code) => (0, import_node_crypto7.createHash)("sha256").update(`${userId}:${code.trim().toUpperCase()}`).digest("hex");
 function newRecoveryCodes(count = 10) {
-  return Array.from({ length: count }, () => (0, import_node_crypto6.randomBytes)(10).toString("hex").toUpperCase().replace(/(.{5})(?=.)/g, "$1-"));
+  return Array.from({ length: count }, () => (0, import_node_crypto7.randomBytes)(10).toString("hex").toUpperCase().replace(/(.{5})(?=.)/g, "$1-"));
 }
 function consumeRecoveryCode(userId, stored, code) {
   let hashes = [];
@@ -6303,7 +7110,7 @@ function consumeRecoveryCode(userId, stored, code) {
     hashes = [];
   }
   const hash = hashRecoveryCode(userId, code.replaceAll("-", "").replace(/(.{5})(?=.)/g, "$1-"));
-  const index = hashes.findIndex((value) => value.length === hash.length && (0, import_node_crypto6.timingSafeEqual)(Buffer.from(value), Buffer.from(hash)));
+  const index = hashes.findIndex((value) => value.length === hash.length && (0, import_node_crypto7.timingSafeEqual)(Buffer.from(value), Buffer.from(hash)));
   if (index < 0) throw new DomainError(Codes.MFA_REQUIRED, "That recovery code is wrong or already used.");
   return JSON.stringify(hashes.filter((_, position) => position !== index));
 }
@@ -6423,30 +7230,28 @@ async function manageMfa(_root, args, context) {
   }
 }
 
-// features/keystone/lib/sequence.ts
-var import_node_crypto7 = require("node:crypto");
-async function nextReference(tx, prefix, now = /* @__PURE__ */ new Date(), width = 6) {
-  if (!/^[A-Z]{2,5}$/.test(prefix)) throw new Error("Reference prefix must be 2-5 capital letters");
-  const key = `${prefix}-${now.getUTCFullYear()}`;
-  await advisoryLock(tx, `sequence:${key}`);
-  const row = await tx.sequence.upsert({ where: { key }, create: { key, nextValue: 2 }, update: { nextValue: { increment: 1 } } });
-  const value = row.nextValue - 1;
-  return `${key}-${String(value).padStart(width, "0")}`;
-}
-var CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-function publicCode(prefix, groups = 2) {
-  const bytes = (0, import_node_crypto7.randomBytes)(groups * 4);
-  const chars = Array.from(bytes, (byte) => CROCKFORD[byte % 32]);
-  const parts = Array.from({ length: groups }, (_, i) => chars.slice(i * 4, i * 4 + 4).join(""));
-  return `${prefix}-${parts.join("-")}`;
-}
-async function nextChartNumber(tx) {
-  await advisoryLock(tx, "sequence:chart");
-  const row = await tx.sequence.upsert({ where: { key: "chart" }, create: { key: "chart", nextValue: 1002 }, update: { nextValue: { increment: 1 } } });
-  return String(row.nextValue - 1);
-}
+// features/keystone/mutations/patients.ts
+init_actor();
+init_approval();
+init_approvalAppliers();
+init_cas();
+init_command();
+init_db();
+init_errors();
+init_sequence();
+init_time();
+
+// features/keystone/mutations/scheduling.ts
+init_actor();
+init_cas();
+init_command();
+init_errors();
+init_sequence();
+init_time();
 
 // features/keystone/scheduling/service.ts
+init_errors();
+init_time();
 var ACTIVE = [...ACTIVE_APPOINTMENT_STATUSES];
 async function lockResources(tx, input) {
   const keys = [
@@ -6632,68 +7437,8 @@ function asSlotTaken(error) {
   throw error;
 }
 
-// features/keystone/mutations/shared.ts
-function staff(context) {
-  const actor3 = actorFromSession(context.session);
-  const locationIds = sessionLocationIds(context.session);
-  return { actor: actor3, locationIds, session: context.session };
-}
-function assertLocation(locationIds, locationId) {
-  if (!locationId) throw new DomainError(Codes.INVALID_INPUT, "Choose a location.", { field: "locationId" });
-  if (locationIds !== null && !locationIds.includes(locationId)) {
-    throw new DomainError(Codes.OUTSIDE_LOCATION_SCOPE, "You are not assigned to that location today.");
-  }
-}
-async function assertPatientInScope(tx, locationIds, patientId) {
-  const patient = await tx.patient.findUnique({ where: { id: patientId }, select: { id: true, status: true, homeLocationId: true, version: true } });
-  if (!patient) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
-  if (locationIds === null) return patient;
-  if (patient.homeLocationId && locationIds.includes(patient.homeLocationId)) return patient;
-  const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
-  const seen = await tx.appointment.findFirst({ where: { patientId, locationId: { in: locationIds }, startsAt: { gte: since } }, select: { id: true } });
-  if (!seen) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
-  return patient;
-}
-async function resolvePatientRef(tx, ref) {
-  const value = String(ref ?? "").trim();
-  if (!value.startsWith("chart:")) return value;
-  const chartNumber = value.slice(6).trim().replace(/^(chart\s*)?#?/i, "");
-  const patient = chartNumber ? await tx.patient.findUnique({ where: { chartNumber }, select: { id: true } }) : null;
-  if (!patient) throw new DomainError(Codes.NOT_FOUND, "No patient has that chart number.", { field: "patientId" });
-  return patient.id;
-}
-var BOOKABLE_PATIENT = /* @__PURE__ */ new Set(["prospect", "active", "inactive"]);
-function assertBookablePatient(patient) {
-  if (!BOOKABLE_PATIENT.has(patient.status)) {
-    throw new DomainError(Codes.GUARD_FAILED, patient.status === "merged_into" ? "This record was merged; book on the surviving record." : `A ${patient.status} patient can't be booked.`, { currentStatus: patient.status });
-  }
-}
-var toDate = (value, field) => {
-  const date = new Date(String(value ?? ""));
-  if (Number.isNaN(date.getTime())) throw new DomainError(Codes.INVALID_INPUT, `Enter a valid ${field}.`, { field });
-  return date;
-};
-var requireText = (value, field, max2 = 500) => {
-  const text19 = String(value ?? "").trim();
-  if (!text19) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-  if (text19.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
-  return text19;
-};
-var optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
-function normalizeContact(kind, value) {
-  const raw = String(value ?? "").trim();
-  if (kind === "email") {
-    const email = raw.toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid email address.", { field: "value" });
-    return { value: raw, normalized: email };
-  }
-  const digits = raw.replace(/\D/g, "");
-  const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith("1") ? `+${digits}` : digits.length >= 8 && digits.length <= 15 ? `+${digits}` : "";
-  if (!e164) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid phone number.", { field: "value" });
-  return { value: raw, normalized: e164 };
-}
-
 // features/keystone/mutations/scheduling.ts
+init_shared();
 var ACTIVE2 = [...ACTIVE_APPOINTMENT_STATUSES];
 var STAFF_HOLD_MINUTES = 5;
 var MAX_SEARCH_DAYS = 31;
@@ -7201,6 +7946,7 @@ async function publishScheduleTemplate(_root, args, context) {
 }
 
 // features/keystone/mutations/patients.ts
+init_shared();
 var DOB = /^\d{4}-\d{2}-\d{2}$/;
 function cleanPatient(input, today2) {
   const firstName = requireText(input.firstName, "first name", 100);
@@ -7544,21 +8290,21 @@ async function applyMergeIn(uow, actor3, mergeCaseId, approverId) {
   let seq = 0;
   const entries = [];
   const survivorPrimary = new Set((await uow.tx.contactPoint.findMany({ where: { patientId: survivorId, isPrimary: true, isActive: true }, select: { kind: true } })).map((c) => c.kind));
-  for (const { list: list18, field } of MERGE_CHILDREN) {
-    const rows = await delegateOf(uow.tx, list18).findMany({ where: { [field]: mergedId }, select: { id: true, ...list18 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
+  for (const { list: list19, field } of MERGE_CHILDREN) {
+    const rows = await delegateOf(uow.tx, list19).findMany({ where: { [field]: mergedId }, select: { id: true, ...list19 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
     for (const row of rows) {
-      if (list18 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
+      if (list19 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
         await uow.tx.contactPoint.update({ where: { id: row.id }, data: { isPrimary: false } });
-        entries.push({ listKey: list18, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
+        entries.push({ listKey: list19, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
       }
       try {
-        await delegateOf(uow.tx, list18).update({ where: { id: row.id }, data: { [field]: survivorId } });
+        await delegateOf(uow.tx, list19).update({ where: { id: row.id }, data: { [field]: survivorId } });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list18 === "Appointment" ? "overlapping appointments" : list18} rows. Resolve them before merging.`);
+        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list19 === "Appointment" ? "overlapping appointments" : list19} rows. Resolve them before merging.`);
         throw error;
       }
-      entries.push({ listKey: list18, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
+      entries.push({ listKey: list19, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
     }
   }
   if (entries.length) await uow.tx.mergeMap.createMany({ data: entries.map((e) => ({ ...e, mergeCaseId })) });
@@ -7608,9 +8354,15 @@ async function revertMergeIn(uow, actor3, mergeCaseId, reason, expectedVersion) 
 
 // features/keystone/mutations/public.ts
 var import_node_crypto11 = require("node:crypto");
+init_actor();
+init_command();
+init_errors();
+init_sequence();
+init_time();
 
 // features/keystone/security/publicRateLimit.ts
 var import_node_crypto10 = require("node:crypto");
+init_errors();
 
 // features/keystone/security/rateLimit.ts
 var import_node_crypto9 = require("node:crypto");
@@ -7628,12 +8380,12 @@ function verifiedInternalIdentity(headers, socketAddress, secret4, now) {
   const loopback = /^(?:127\.|::1$|::ffff:127\.)/.test(String(socketAddress || ""));
   if (!loopback || secret4.length < 32) return null;
   const identity = String(headers["x-openfront-client-identity"] || "");
-  const timestamp17 = String(headers["x-openfront-client-timestamp"] || "");
+  const timestamp18 = String(headers["x-openfront-client-timestamp"] || "");
   const signature2 = String(headers["x-openfront-client-signature"] || "");
-  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp17) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
-  const age = Math.abs(now - Number(timestamp17) * 1e3);
+  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp18) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
+  const age = Math.abs(now - Number(timestamp18) * 1e3);
   if (!Number.isFinite(age) || age > INTERNAL_IDENTITY_MAX_AGE_MS) return null;
-  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp17}:${identity}`).digest("hex");
+  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp18}:${identity}`).digest("hex");
   return safeEqual(signature2, expected) ? `forwarded:${identity}` : null;
 }
 
@@ -7677,8 +8429,8 @@ var keyHash = (value) => (0, import_node_crypto10.createHash)("sha256").update(v
 var secret2 = () => process.env.SESSION_SECRET || "local-development-session-secret-change-me-now";
 var clientFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(clientKey(req, secret2())).digest("hex").slice(0, 32);
 var userAgentFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(String(req?.headers?.["user-agent"] ?? "")).digest("hex").slice(0, 32);
-function limitsFrom(json16) {
-  const value = json16 && typeof json16 === "object" ? json16 : {};
+function limitsFrom(json17) {
+  const value = json17 && typeof json17 === "object" ? json17 : {};
   const pick = (n, fallback, max2) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max2) : fallback;
   return {
     perClientPerHour: pick(value.perClientPerHour, DEFAULT_PUBLIC_LIMITS.perClientPerHour, 1e3),
@@ -7719,6 +8471,9 @@ async function verifyCaptcha(token, fetchImpl = fetch) {
 }
 
 // features/keystone/mutations/public.ts
+init_shared();
+init_actor();
+init_cas();
 var actor = systemActor("public-booking");
 var sha = (value) => (0, import_node_crypto11.createHash)("sha256").update(value).digest("hex");
 async function siteAndPolicy(db, slug, locationId) {
@@ -7975,13 +8730,17 @@ async function reviewBookingRequest(_root, args, context) {
 
 // features/keystone/mutations/portal.ts
 var import_node_crypto13 = require("node:crypto");
+init_actor();
+init_cas();
+init_command();
+init_errors();
 
 // features/keystone/security/phiReadAudit.ts
 var import_node_crypto12 = require("node:crypto");
 var import_graphql4 = require("graphql");
-function referenceToken(secret4, list18, id) {
+function referenceToken(secret4, list19, id) {
   if (!secret4 || secret4.length < 32) throw new Error("A strong PHI audit reference secret (SESSION_SECRET) is required.");
-  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list18}\0${id}`).digest("hex");
+  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list19}\0${id}`).digest("hex");
 }
 async function recordPhiReadAudit(prisma, actor3, descriptor) {
   await prisma.phiReadAudit.create({
@@ -8024,6 +8783,7 @@ async function recordDirectPhiRead(prisma, actor3, input, secret4 = process.env.
 }
 
 // features/keystone/mutations/portal.ts
+init_shared();
 var CODE_TTL_MS = 10 * 6e4;
 var CODE_MAX_FAILURES = 5;
 var TOKEN_TTL_MS = 2 * 36e5;
@@ -8132,8 +8892,8 @@ function assertPortalScope(principal, patientId, capability) {
   if (!scope || !scope.capabilities.includes(capability)) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
   return scope;
 }
-async function auditPortalRead(context, principal, operationName, list18, ids, fields) {
-  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list18, ids, fields, tiers: ["dem"] });
+async function auditPortalRead(context, principal, operationName, list19, ids, fields) {
+  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list19, ids, fields, tiers: ["dem"] });
 }
 async function portalMe(_root, _args, context) {
   const principal = await portalPrincipal(context);
@@ -8303,58 +9063,16 @@ async function suspendPortalAccount(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 
-// features/keystone/mutations/clinicalShared.ts
-var dayOf = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
-var isoDay = (date) => date ? date instanceof Date ? date.toISOString().slice(0, 10) : String(date).slice(0, 10) : null;
-async function locationToday(tx, locationId, now) {
-  const location = await tx.location.findUnique({ where: { id: locationId }, select: { timeZone: true } });
-  return localDate(location?.timeZone ?? "America/New_York", now);
-}
-async function feeFor(tx, codeId, onDate) {
-  const day5 = dayOf(onDate);
-  const schedule = await tx.feeSchedule.findFirst({ where: { isDefault: true } });
-  if (!schedule) return null;
-  const version = await tx.feeScheduleVersion.findFirst({
-    where: { scheduleId: schedule.id, status: "published", effectiveFrom: { lte: day5 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day5 } }] },
-    orderBy: { effectiveFrom: "desc" }
-  });
-  if (!version) return null;
-  const fee = await tx.fee.findUnique({ where: { feeVersionId_codeId: { feeVersionId: version.id, codeId } } });
-  return fee ? { amountMinor: fee.amountMinor, versionId: version.id } : null;
-}
-async function accountFor(uow, patientId) {
-  const { tx } = uow;
-  const link = await tx.guarantorLink.findFirst({ where: { patientId, status: "active" }, orderBy: { createdAt: "asc" } });
-  let guarantorId = link?.guarantorId ?? null;
-  if (!guarantorId) {
-    const own = await tx.guarantor.findFirst({ where: { patientId } });
-    const guarantor = own ?? await tx.guarantor.create({ data: { patientId } });
-    guarantorId = guarantor.id;
-    await tx.guarantorLink.create({ data: { patientId, guarantorId, relationship: "self", status: "active" } });
-  }
-  const existing = await tx.guarantorAccount.findFirst({ where: { guarantorId } });
-  if (existing) return existing;
-  const ref = await nextReference(tx, "ACC", uow.now);
-  return tx.guarantorAccount.create({ data: { guarantorId, ref } });
-}
-function requireReason(value, what = "reason") {
-  const text19 = String(value ?? "").trim();
-  if (text19.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
-  return text19.slice(0, 1e3);
-}
-var oneOf = (value, allowed, field) => {
-  if (!allowed.includes(String(value))) throw new DomainError(Codes.INVALID_INPUT, `Unknown ${field}.`, { field });
-  return String(value);
-};
-async function verifyPassword(context, userId, password2) {
-  const user = await context.prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
-  const field = context.graphql?.schema?.getType("User")?.getFields()?.password?.extensions?.keystoneSecretField;
-  if (!user || !field?.compare || typeof password2 !== "string" || password2.length > 1e3 || !await field.compare(password2, user.password)) {
-    throw new DomainError(Codes.NOT_AUTHORIZED, "Enter your password to sign.");
-  }
-}
-
 // features/keystone/mutations/catalogue.ts
+init_actor();
+init_canonical();
+init_cas();
+init_command();
+init_approval();
+init_approvalAppliers();
+init_errors();
+init_clinicalShared();
+init_shared();
 var MAX_ROWS = 5e3;
 function cleanRow(raw, index) {
   const code = String(raw.code ?? "").trim().toUpperCase();
@@ -8524,7 +9242,14 @@ registerApplier("fee_schedule.publish", async (uow, actor3, request) => {
   return { versionId: version.id };
 }, { applyOnApprove: true });
 
+// features/keystone/mutations/chart.ts
+init_actor();
+init_cas();
+init_command();
+init_errors();
+
 // features/keystone/lib/teeth.ts
+init_errors();
 var PERMANENT = Array.from({ length: 32 }, (_, i) => String(i + 1));
 var PRIMARY = "ABCDEFGHIJKLMNOPQRST".split("");
 var SUPERNUMERARY = [...Array.from({ length: 32 }, (_, i) => String(i + 51)), ...PRIMARY.map((letter) => `${letter}S`)];
@@ -8599,6 +9324,118 @@ function normalizeSite(rule3, input, options = {}) {
 }
 
 // features/keystone/mutations/chart.ts
+init_time();
+init_clinicalShared();
+init_ledger();
+
+// features/keystone/lib/memberships.ts
+init_errors();
+init_ledger();
+init_time();
+var dayOf2 = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
+var iso2 = (d) => d.toISOString().slice(0, 10);
+function parseBenefits(value) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((b) => b && typeof b.codeFamily === "string" && Number.isInteger(b.countPerPeriod) && b.countPerPeriod >= 0 ? [{ codeFamily: b.codeFamily, countPerPeriod: b.countPerPeriod }] : []);
+}
+async function membershipGate(tx, locationId, today2) {
+  const location = await tx.location.findUnique({ where: { id: locationId }, select: { jurisdiction: true, name: true } });
+  const pack = location?.jurisdiction;
+  const rule3 = pack?.rules?.membershipPlans?.value;
+  const mode = rule3?.mode ?? "licence_required";
+  if (mode === "prohibited") throw new DomainError(Codes.GUARD_FAILED, "Membership plans are not allowed in this office\u2019s state. Nobody can be enrolled.");
+  if (mode === "allowed") return { mode, licenceId: null };
+  const day5 = dayOf2(today2);
+  const licence = await tx.regulatoryLicence.findFirst({
+    where: { jurisdiction: pack?.key ?? "", kind: "discount_plan_operator", OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: day5 } }], AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: day5 } }] }] },
+    orderBy: { effectiveFrom: "desc" }
+  });
+  if (!licence) {
+    throw new DomainError(Codes.GUARD_FAILED, mode === "registration_required" ? `${pack?.key ?? "This state"} requires the practice to be registered as a discount plan operator. Record the registration first.` : `${pack?.key ?? "This state"} requires a discount plan operator licence. Record the licence first.`);
+  }
+  return { mode, licenceId: licence.id };
+}
+async function benefitsUsed(tx, membershipId, codeFamily, periodStart) {
+  const rows = await tx.membershipLedgerEntry.findMany({ where: { membershipId, codeFamily, kind: { in: ["benefit_use", "benefit_reverse"] }, at: { gte: periodStart } }, select: { kind: true, quantity: true } });
+  return rows.reduce((n, r) => n + (r.kind === "benefit_use" ? 1 : -1) * (r.quantity ?? 1), 0);
+}
+var percentOf = (amount, pct2) => amount * BigInt(Math.round(Number(pct2) * 1e4)) / 1000000n;
+async function applyMembershipToCharge(uow, input) {
+  const { tx } = uow;
+  const day5 = dayOf2(input.serviceDate);
+  const membership = await tx.patientMembership.findFirst({
+    where: { patientId: input.patientId, status: "active", currentPeriodStart: { lte: day5 }, currentPeriodEnd: { gte: day5 } },
+    include: { plan: true }
+  });
+  if (!membership?.plan || input.feeMinor <= 0n) return null;
+  const plan = membership.plan;
+  const benefits = parseBenefits(plan.includedBenefits);
+  const benefit = benefits.find((b) => b.codeFamily === input.category);
+  const covered = benefit ? await benefitsUsed(tx, membership.id, input.category, membership.currentPeriodStart) < benefit.countPerPeriod : false;
+  const creditMinor = covered ? input.feeMinor : percentOf(input.feeMinor, plan.discountPct);
+  if (creditMinor <= 0n) return null;
+  const entry = await postEntry(tx, {
+    accountId: input.accountId,
+    patientId: input.patientId,
+    kind: "patient_adjustment",
+    amountMinor: -creditMinor,
+    currencyCode: input.currencyCode,
+    businessDate: input.businessDate,
+    originalBusinessDate: input.businessDate,
+    locationId: input.locationId,
+    providerId: input.providerId,
+    chartEntryId: input.chartEntryId,
+    memo: covered ? `Included in ${plan.name}` : `${plan.name} member discount`,
+    postedById: input.postedById
+  }, uow.now);
+  await tx.membershipLedgerEntry.create({ data: { membershipId: membership.id, kind: covered ? "benefit_use" : "discount", codeFamily: input.category, quantity: 1, chartEntryId: input.chartEntryId, ledgerEntryId: entry.id, at: uow.now } });
+  return { ledgerEntryId: entry.id, covered, creditMinor };
+}
+async function reverseMembershipForChart(uow, input) {
+  const { tx } = uow;
+  const uses = await tx.membershipLedgerEntry.findMany({ where: { chartEntryId: input.chartEntryId, kind: { in: ["benefit_use", "discount"] } } });
+  const done = [];
+  for (const use of uses) {
+    if (!use.ledgerEntryId) continue;
+    const already = await tx.ledgerEntry.findFirst({ where: { reversesId: use.ledgerEntryId }, select: { id: true } });
+    if (already) continue;
+    const original = await tx.ledgerEntry.findUniqueOrThrow({ where: { id: use.ledgerEntryId } });
+    const reversal = await postEntry(tx, {
+      accountId: original.accountId,
+      patientId: original.patientId,
+      kind: "reversal",
+      amountMinor: -original.amountMinor,
+      currencyCode: original.currencyCode,
+      businessDate: input.businessDate,
+      originalBusinessDate: original.originalBusinessDate ?? void 0,
+      locationId: original.locationId,
+      providerId: original.providerId,
+      chartEntryId: original.chartEntryId,
+      adjustmentId: original.adjustmentId,
+      reversesId: original.id,
+      memo: `Reversal: ${input.reason}`.slice(0, 200),
+      postedById: input.postedById
+    }, uow.now);
+    await tx.membershipLedgerEntry.create({ data: { membershipId: use.membershipId, kind: use.kind === "benefit_use" ? "benefit_reverse" : "discount_reverse", codeFamily: use.codeFamily, quantity: 1, chartEntryId: input.chartEntryId, ledgerEntryId: reversal.id, at: uow.now } });
+    done.push(reversal.id);
+  }
+  return done;
+}
+function nextPeriodEnd(start, interval) {
+  const [y, m, d] = start.split("-").map(Number);
+  const months = interval === "annual" ? 12 : 1;
+  const target = new Date(Date.UTC(y, m - 1 + months, 1));
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  const end = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth(), Math.min(d, lastDay)));
+  return addDays(iso2(end), -1);
+}
+var todayAt = async (tx, locationId, now) => {
+  const location = await tx.location.findUnique({ where: { id: locationId }, select: { timeZone: true } });
+  return localDate(location?.timeZone ?? "America/New_York", now);
+};
+
+// features/keystone/mutations/chart.ts
+init_shared();
 var PLANNING = ["diagnosed", "planned", "accepted"];
 var PLANNABLE = ["diagnosed", "planned"];
 async function codeFor(tx, codeId, onDate) {
@@ -8744,10 +9581,12 @@ async function completeProcedure(_root, args, context) {
       data: { providerId: provider.id, dateOfService: dayOf(date), originalServiceDate: dayOf(date), feeMinor, feeScheduleVersionId: feeVersionId }
     });
     const charge = await uow.tx.ledgerEntry.create({
-      data: { accountId: account.id, patientId: row.patientId, kind: "charge", amountMinor: feeMinor, currencyCode: settingsCurrency, businessDate: dayOf(date), originalBusinessDate: dayOf(date), locationId: row.locationId, providerId: provider.id, chartEntryId: row.id, memo: `${code.code} ${row.tooth}${row.surfaces ? ` ${row.surfaces}` : ""}`.trim(), postedById: actor3.kind === "user" ? actor3.userId : null, postedAt: uow.now }
+      data: { accountId: account.id, patientId: row.patientId, kind: "charge", amountMinor: feeMinor, currencyCode: settingsCurrency, businessDate: await openBusinessDate(uow.tx, row.locationId, dayOf(date)), originalBusinessDate: dayOf(date), locationId: row.locationId, providerId: provider.id, chartEntryId: row.id, memo: `${code.code} ${row.tooth}${row.surfaces ? ` ${row.surfaces}` : ""}`.trim(), postedById: actor3.kind === "user" ? actor3.userId : null, postedAt: uow.now }
     });
     await uow.tx.chartEntry.update({ where: { id: row.id }, data: { ledgerEntryId: charge.id } });
+    const member = await applyMembershipToCharge(uow, { patientId: row.patientId, accountId: account.id, locationId: row.locationId, chartEntryId: row.id, providerId: provider.id, category: code.category, feeMinor, serviceDate: date, businessDate: charge.businessDate, currencyCode: settingsCurrency, postedById: actor3.kind === "user" ? actor3.userId : null });
     await rebuildBalance(uow.tx, account.id, uow.now);
+    if (member) auditCreate(uow, actor3, "LedgerEntry", member.ledgerEntryId, "membership.applied", { chartEntryId: row.id, covered: member.covered, amountMinor: member.creditMinor.toString() });
     auditCreate(uow, actor3, "LedgerEntry", charge.id, "ledger.charge_posted", { chartEntryId: row.id, amountMinor: feeMinor.toString(), businessDate: date });
     uow.emit({ topic: "ledger.charge_posted", aggregateType: "LedgerEntry", aggregateId: charge.id, payload: { chartEntryId: row.id, patientId: row.patientId }, dedupeKey: `ledger.charge_posted:${charge.id}` });
     return { chartEntryId: entry.id, ledgerEntryId: charge.id, feeMinor: feeMinor.toString() };
@@ -8768,9 +9607,10 @@ async function correctProcedure(_root, args, context) {
     if (charge) {
       const today2 = await locationToday(uow.tx, row.locationId, uow.now);
       const reversal = await uow.tx.ledgerEntry.create({
-        data: { accountId: charge.accountId, patientId: charge.patientId, kind: "reversal", amountMinor: -charge.amountMinor, currencyCode: charge.currencyCode, businessDate: dayOf(today2), originalBusinessDate: charge.originalBusinessDate, locationId: charge.locationId, providerId: charge.providerId, chartEntryId: row.id, reversesId: charge.id, memo: `Reversal: ${reason}`.slice(0, 200), postedById: actor3.kind === "user" ? actor3.userId : null, postedAt: uow.now }
+        data: { accountId: charge.accountId, patientId: charge.patientId, kind: "reversal", amountMinor: -charge.amountMinor, currencyCode: charge.currencyCode, businessDate: await openBusinessDate(uow.tx, charge.locationId, dayOf(today2)), originalBusinessDate: charge.originalBusinessDate, locationId: charge.locationId, providerId: charge.providerId, chartEntryId: row.id, reversesId: charge.id, memo: `Reversal: ${reason}`.slice(0, 200), postedById: actor3.kind === "user" ? actor3.userId : null, postedAt: uow.now }
       });
       reversalId = reversal.id;
+      await reverseMembershipForChart(uow, { chartEntryId: row.id, reason, businessDate: reversal.businessDate, postedById: actor3.kind === "user" ? actor3.userId : null });
       if (charge.accountId) await rebuildBalance(uow.tx, charge.accountId, uow.now);
       auditCreate(uow, actor3, "LedgerEntry", reversal.id, "ledger.charge_reversed", { reverses: charge.id, amountMinor: (-charge.amountMinor).toString() }, { reason });
     }
@@ -8804,7 +9644,15 @@ async function scheduleChartEntry(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 
+// features/keystone/mutations/clinical.ts
+init_actor();
+init_canonical();
+init_cas();
+init_command();
+init_errors();
+
 // features/keystone/lib/perio.ts
+init_errors();
 var SITES = ["MB", "B", "DB", "ML", "L", "DL"];
 var PD_MIN = 0;
 var PD_MAX = 15;
@@ -8848,7 +9696,7 @@ function summarize(measurements) {
     sites: n,
     bleedingPct: pct2(recorded.filter((m) => m.bleeding).length),
     plaquePct: pct2(recorded.filter((m) => m.plaque).length),
-    meanPd: n ? Math.round(recorded.reduce((sum2, m) => sum2 + (m.probingDepthMm ?? 0), 0) / n * 10) / 10 : 0,
+    meanPd: n ? Math.round(recorded.reduce((sum3, m) => sum3 + (m.probingDepthMm ?? 0), 0) / n * 10) / 10 : 0,
     sitesGe4: recorded.filter((m) => (m.probingDepthMm ?? 0) >= 4).length,
     sitesGe5: recorded.filter((m) => (m.probingDepthMm ?? 0) >= 5).length,
     maxCal: cals.length ? Math.max(...cals) : null,
@@ -8899,6 +9747,9 @@ function suggestClassification(input) {
 }
 
 // features/keystone/mutations/clinical.ts
+init_time();
+init_clinicalShared();
+init_shared();
 async function draftClinicalNote(_root, args, context) {
   const { actor: actor3, locationIds, session } = staff(context);
   requirePermission(actor3, "canChart", "canSignClinicalNotes");
@@ -9237,6 +10088,13 @@ async function endMedication(_root, args, context) {
 }
 
 // features/keystone/mutations/forms.ts
+init_actor();
+init_canonical();
+init_cas();
+init_command();
+init_errors();
+init_clinicalShared();
+init_shared();
 async function requestForm(_root, args, context) {
   const { actor: actor3, locationIds } = staff(context);
   requirePermission(actor3, "canChart", "canManagePatients");
@@ -9328,6 +10186,14 @@ async function recordImagingStudy(_root, args, context) {
 }
 
 // features/keystone/mutations/plans.ts
+init_actor();
+init_canonical();
+init_cas();
+init_command();
+init_errors();
+init_sequence();
+init_clinicalShared();
+init_shared();
 var PLAN_OPEN = ["draft", "presented", "partially_accepted", "accepted", "in_progress"];
 async function buildTreatmentPlan(_root, args, context) {
   const { actor: actor3, locationIds } = staff(context);
@@ -9392,7 +10258,7 @@ async function presentTreatmentPlan(_root, args, context) {
     const version = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: { orderBy: { sortOrder: "asc" } } } });
     if (!version || version.frozenAt) throw new DomainError(Codes.INVALID_TRANSITION, "There is no draft version to present.");
     if (!version.items.length) throw new DomainError(Codes.GUARD_FAILED, "Add at least one procedure before presenting the plan.");
-    const totals = version.items.reduce((sum2, item) => sum2 + item.feeMinor, 0n);
+    const totals = version.items.reduce((sum3, item) => sum3 + item.feeMinor, 0n);
     const contentHash = sha256(canonicalJson({ plan: plan.ref, number: version.number, phases: version.phases, items: version.items.map((i) => [i.chartEntryId, i.phaseKey, i.priority, i.alternateGroup, i.feeMinor.toString()]) }));
     await uow.tx.treatmentPlanVersion.update({ where: { id: version.id }, data: { frozenAt: uow.now, contentHash, presentedById: actor3.kind === "user" ? actor3.userId : null, totalsMinor: { totalMinor: totals.toString(), itemCount: version.items.length } } });
     await uow.tx.planPresentation.create({ data: { planVersionId: version.id, presentedById: actor3.kind === "user" ? actor3.userId : null, channel, at: uow.now } });
@@ -9423,7 +10289,7 @@ async function acceptTreatmentPlan(_root, args, context) {
     for (const item of selected) if (item.alternateGroup) groups.set(item.alternateGroup, (groups.get(item.alternateGroup) ?? 0) + 1);
     const doubled = [...groups.entries()].find(([, n]) => n > 1);
     if (doubled) throw new DomainError(Codes.GUARD_FAILED, `Choose only one option from the alternatives in \u201C${doubled[0]}\u201D.`, { field: "selectedItemIds" });
-    const total = selected.reduce((sum2, i) => sum2 + i.feeMinor, 0n);
+    const total = selected.reduce((sum3, i) => sum3 + i.feeMinor, 0n);
     const acceptance = await uow.tx.planAcceptance.create({
       data: {
         planVersionId: version.id,
@@ -9483,37 +10349,15 @@ async function reviseTreatmentPlan(_root, args, context) {
 
 // features/keystone/mutations/insurance.ts
 var import_node_crypto14 = require("node:crypto");
-
-// features/keystone/lib/money.ts
-var MINOR_DIGITS = { USD: 2, EUR: 2, GBP: 2, CHF: 2, CAD: 2, AUD: 2, SEK: 2, JPY: 0, KRW: 0, BHD: 3, KWD: 3 };
-var isCurrencyCode = (code) => typeof code === "string" && /^[A-Z]{3}$/.test(code);
-function minorDigits(currencyCode) {
-  if (!isCurrencyCode(currencyCode)) throw new Error(`Invalid currency code: ${String(currencyCode).slice(0, 8)}`);
-  return MINOR_DIGITS[currencyCode] ?? 2;
-}
-function toMinor(amount, currencyCode = "USD", rounding = Decimal.ROUND_HALF_EVEN) {
-  const digits = minorDigits(currencyCode);
-  const scaled = dec(amount).times(new Decimal(10).pow(digits)).toDecimalPlaces(0, rounding);
-  return BigInt(scaled.toFixed(0));
-}
-function formatMinor(minor2, currencyCode = "USD") {
-  const digits = minorDigits(currencyCode);
-  const negative = minor2 < 0n;
-  const abs = negative ? -minor2 : minor2;
-  const base = 10n ** BigInt(digits);
-  const whole2 = (abs / base).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  const fraction = digits ? "." + (abs % base).toString().padStart(digits, "0") : "";
-  const symbol = currencyCode === "USD" ? "$" : `${currencyCode} `;
-  return `${negative ? "\u2212" : ""}${symbol}${whole2}${fraction}`;
-}
-function minorOf(value) {
-  if (typeof value === "bigint") return value;
-  if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
-  if (typeof value === "string" && /^-?\d+$/.test(value.trim())) return BigInt(value.trim());
-  throw new Error("Not an integer minor-unit amount");
-}
+init_actor();
+init_canonical();
+init_cas();
+init_command();
+init_decimal();
+init_errors();
 
 // features/keystone/lib/estimateInputs.ts
+init_money();
 var CATEGORY_OF_CODE = {
   diagnostic: "preventive",
   preventive: "preventive",
@@ -9577,15 +10421,15 @@ async function loadCoverageForEstimate(tx, coverageId, onDate) {
   const version = plan.feeScheduleId ? await tx.feeScheduleVersion.findFirst({ where: { scheduleId: plan.feeScheduleId, status: "published", effectiveFrom: { lte: /* @__PURE__ */ new Date(`${onDate}T00:00:00Z`) } }, orderBy: { effectiveFrom: "desc" } }) : null;
   const history = await tx.outsideHistory.findMany({ where: { patientId: coverage.patientId, frequencyGroup: { not: "" } }, select: { frequencyGroup: true, dateOfService: true } });
   const done = await tx.chartEntry.findMany({ where: { patientId: coverage.patientId, kind: "procedure", status: { in: ["completed", "posted"] } }, include: { code: true }, take: 500 });
-  const dayOf3 = (d) => d ? d.toISOString().slice(0, 10) : "";
+  const dayOf4 = (d) => d ? d.toISOString().slice(0, 10) : "";
   const used = [
-    ...history.filter((h) => h.dateOfService).map((h) => ({ group: String(h.frequencyGroup), date: dayOf3(h.dateOfService) })),
-    ...done.filter((e) => e.dateOfService).map((e) => ({ group: groupOf(e.code), date: dayOf3(e.dateOfService) }))
+    ...history.filter((h) => h.dateOfService).map((h) => ({ group: String(h.frequencyGroup), date: dayOf4(h.dateOfService) })),
+    ...done.filter((e) => e.dateOfService).map((e) => ({ group: groupOf(e.code), date: dayOf4(e.dateOfService) }))
   ];
   return {
     coverageId,
     ordinal: coverage.ordinal,
-    effectiveFrom: coverage.effectiveFrom ? dayOf3(coverage.effectiveFrom) : null,
+    effectiveFrom: coverage.effectiveFrom ? dayOf4(coverage.effectiveFrom) : null,
     cobMethod,
     factIds: facts.map((f) => f.id),
     feeScheduleVersionId: version?.id ?? null,
@@ -9602,6 +10446,7 @@ var groupOf = (code) => code?.isPreventiveRecallTrigger ? "recall" : String(code
 var categoryOf = (code) => code?.estimatingCategory || CATEGORY_OF_CODE[String(code?.category)] || "basic";
 
 // features/keystone/lib/estimator.ts
+init_decimal();
 var ESTIMATOR_VERSION = "est-1.0.0";
 var RANK = { verified: 2, partially_verified: 1, assumed: 0 };
 var weakest = (a, b) => RANK[a] <= RANK[b] ? a : b;
@@ -9825,16 +10670,20 @@ function estimate(input) {
     }
   }
   const confidence = results.reduce((acc, r) => weakest(acc, r.confidence), "verified");
-  const sum2 = (pick) => results.reduce((s, r) => s + pick(r), 0n);
+  const sum3 = (pick) => results.reduce((s, r) => s + pick(r), 0n);
   return {
     estimatorVersion: ESTIMATOR_VERSION,
     lines: input.lines.map((l) => results.find((r) => r.id === l.id)),
     confidence,
-    totals: { feeMinor: sum2((r) => r.feeMinor), insuranceMinor: sum2((r) => r.insuranceMinor), patientMinor: sum2((r) => r.patientMinor), writeOffMinor: sum2((r) => r.writeOffMinor) }
+    totals: { feeMinor: sum3((r) => r.feeMinor), insuranceMinor: sum3((r) => r.insuranceMinor), patientMinor: sum3((r) => r.patientMinor), writeOffMinor: sum3((r) => r.writeOffMinor) }
   };
 }
 
 // features/keystone/mutations/insurance.ts
+init_money();
+init_time();
+init_clinicalShared();
+init_shared();
 var WRITE = ["canManageInsurance", "canVerifyBenefits"];
 var REQUIRED_FACTS = [
   { field: "coverage_active" },
@@ -9935,7 +10784,7 @@ var last4 = (value) => value.replace(/[^A-Za-z0-9]/g, "").slice(-4);
 async function addCoverage(_root, args, context) {
   const { actor: actor3, locationIds } = staff(context);
   requirePermission(actor3, "canManageInsurance");
-  const relationship17 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
+  const relationship18 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
   const ordinal = oneOf(args.ordinal, ORDINALS, "order");
   const memberId = requireText(args.memberId, "member ID", 40);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the effective date.", { field: "effectiveFrom" });
@@ -9946,7 +10795,7 @@ async function addCoverage(_root, args, context) {
     if (!plan) throw new DomainError(Codes.NOT_FOUND, "Insurance plan not found.");
     const open = await uow.tx.coverage.findFirst({ where: { patientId: patient.id, ordinal, status: { in: ["pending_verification", "active"] } } });
     if (open) throw new DomainError(Codes.GUARD_FAILED, `This patient already has a ${ordinal} coverage. Change the order or end that coverage first.`, { field: "ordinal" });
-    const self = relationship17 === "self";
+    const self = relationship18 === "self";
     const patientRow = await uow.tx.patient.findUniqueOrThrow({ where: { id: patient.id }, select: { firstName: true, lastName: true, dateOfBirth: true, isSynthetic: true } });
     const secret4 = await storeSecret(uow.tx, "subscriber.memberId", memberId);
     const subscriber = await uow.tx.subscriber.create({
@@ -9963,9 +10812,9 @@ async function addCoverage(_root, args, context) {
       }
     });
     const coverage = await uow.tx.coverage.create({
-      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship17, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
+      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship18, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
     });
-    auditCreate(uow, actor3, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship17 });
+    auditCreate(uow, actor3, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship18 });
     return { coverageId: coverage.id, subscriberId: subscriber.id };
   });
   return { replay: result.replay, ...result.value };
@@ -10024,9 +10873,9 @@ async function closeCoverageWork(uow, actor3, coverageId, note) {
   return { closedVerifications: verifications.length, closedTasks: tasks.count, closedChecks: checks.count };
 }
 async function reestimatePatient(uow, actor3, patientId) {
-  const plans = await uow.tx.treatmentPlan.findMany({ where: { patientId, currentVersionId: { not: null } }, select: { id: true } });
+  const plans2 = await uow.tx.treatmentPlan.findMany({ where: { patientId, currentVersionId: { not: null } }, select: { id: true } });
   let lines = 0;
-  for (const plan of plans) {
+  for (const plan of plans2) {
     const seen = await uow.tx.estimate.count({ where: { patientId, planItem: { planVersion: { planId: plan.id } } } });
     if (!seen) continue;
     const out = await estimatePlanInTx(uow, actor3, plan.id, null);
@@ -10294,7 +11143,7 @@ async function estimatePlanInTx(uow, actor3, planId, locationIds) {
       created2 += 1;
     }
     uow.audit({ eventType: "estimate.computed", entityType: "TreatmentPlan", entityId: plan.id, actorUserId: actorId, after: { lines: version.items.length, created: created2, selfPay: true } });
-    return { estimated: version.items.length, created: created2, noCoverage: true, confidence: "assumed", insuranceMinor: "0", patientMinor: version.items.reduce((sum2, i) => sum2 + i.feeMinor, 0n).toString() };
+    return { estimated: version.items.length, created: created2, noCoverage: true, confidence: "assumed", insuranceMinor: "0", patientMinor: version.items.reduce((sum3, i) => sum3 + i.feeMinor, 0n).toString() };
   }
   const tz = patientRow.homeLocationId ? (await tx.location.findUnique({ where: { id: patientRow.homeLocationId }, select: { timeZone: true } }))?.timeZone : null;
   const today2 = localDate(tz ?? "America/New_York", uow.now);
@@ -10401,7 +11250,13 @@ async function estimateTreatmentPlan(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 
+// features/keystone/mutations/claims.ts
+init_actor();
+init_cas();
+init_canonical();
+
 // features/keystone/lib/claims.ts
+init_time();
 var isoDay2 = (d) => d ? d.toISOString().slice(0, 10) : "";
 function filingDeadline(earliestService, timelyFilingDays) {
   return timelyFilingDays ? addDays(earliestService, timelyFilingDays) : null;
@@ -10511,16 +11366,33 @@ async function scrubClaim(tx, claimId, today2) {
 }
 var hasBlocking = (findings) => findings.some((f) => f.severity === "blocking");
 
-// features/keystone/lib/era.ts
-var lineConserves = (line) => line.chargeMinor === line.paidMinor + line.adjustments.reduce((sum2, a) => sum2 + a.amountMinor, 0n);
-var writeOffMinor = (adjustments) => adjustments.filter((a) => a.group === "CO").reduce((sum2, a) => sum2 + a.amountMinor, 0n);
-var patientRespOf = (adjustments) => adjustments.filter((a) => a.group === "PR").reduce((sum2, a) => sum2 + a.amountMinor, 0n);
+// features/keystone/mutations/claims.ts
+init_command();
+init_errors();
+init_ledger();
+init_sequence();
+init_clinicalShared();
 
 // features/keystone/mutations/remittance.ts
+init_actor();
+init_cas();
+init_errors();
+
+// features/keystone/lib/era.ts
+init_money();
+var lineConserves = (line) => line.chargeMinor === line.paidMinor + line.adjustments.reduce((sum3, a) => sum3 + a.amountMinor, 0n);
+var writeOffMinor = (adjustments) => adjustments.filter((a) => a.group === "CO").reduce((sum3, a) => sum3 + a.amountMinor, 0n);
+var patientRespOf = (adjustments) => adjustments.filter((a) => a.group === "PR").reduce((sum3, a) => sum3 + a.amountMinor, 0n);
+
+// features/keystone/mutations/remittance.ts
+init_ledger();
+init_money();
+init_sequence();
+init_clinicalShared();
 var ADJUSTABLE_FROM = ["submitted", "acknowledged", "pending_payer", "submission_unknown", "adjudicated", "appealed", "appeal_decided"];
-var asJson = (list18) => list18.map((a) => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }));
-var sum = (values) => values.reduce((a, b) => a + b, 0n);
-var lineAdjTotal = (line) => sum(line.adjustments.map((a) => a.amountMinor));
+var asJson = (list19) => list19.map((a) => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }));
+var sum2 = (values) => values.reduce((a, b) => a + b, 0n);
+var lineAdjTotal = (line) => sum2(line.adjustments.map((a) => a.amountMinor));
 async function applyParsedEra(uow, actor3, era, origin) {
   const { tx } = uow;
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`era:${era.traceNumber}`}))`;
@@ -10552,11 +11424,11 @@ async function applyParsedEra(uow, actor3, era, origin) {
       const claimLine = lineByControl.get(line.lineControlNumber) ?? null;
       const conserves = lineConserves(line);
       const row = await tx.remittanceLine.create({
-        data: { remittanceClaimId: rc.id, claimLineId: claimLine?.id ?? null, code: line.code, tooth: "", dateOfService: line.dateOfService ? dayOf(line.dateOfService) : null, lineControlNumber: line.lineControlNumber, chargeMinor: line.chargeMinor, allowedMinor: line.chargeMinor - sum(line.adjustments.filter((a) => a.group === "CO").map((a) => a.amountMinor)), paidMinor: line.paidMinor, adjustmentsTotalMinor: lineAdjTotal(line), adjustments: asJson(line.adjustments), rarc: line.remarks, conservationOk: conserves }
+        data: { remittanceClaimId: rc.id, claimLineId: claimLine?.id ?? null, code: line.code, tooth: "", dateOfService: line.dateOfService ? dayOf(line.dateOfService) : null, lineControlNumber: line.lineControlNumber, chargeMinor: line.chargeMinor, allowedMinor: line.chargeMinor - sum2(line.adjustments.filter((a) => a.group === "CO").map((a) => a.amountMinor)), paidMinor: line.paidMinor, adjustmentsTotalMinor: lineAdjTotal(line), adjustments: asJson(line.adjustments), rarc: line.remarks, conservationOk: conserves }
       });
       lineRows.push({ id: row.id, line, claimLineId: claimLine?.id ?? null, conserves });
     }
-    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : "";
+    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum2(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : "";
     if (problem) {
       held += 1;
       notes.push(problem);
@@ -10579,7 +11451,7 @@ async function postClaimPayment(uow, actor3, input) {
   const postedById = actor3.kind === "user" ? actor3.userId : null;
   const payer = remittance.payerId ? await tx.payer.findUnique({ where: { id: remittance.payerId }, select: { name: true } }) : null;
   const takeback = parsed.statusCode === "22" || parsed.paidMinor < 0n;
-  const writeoff = parsed.lines.length ? sum(parsed.lines.map((l) => writeOffMinor(l.adjustments))) : writeOffMinor(parsed.adjustments);
+  const writeoff = parsed.lines.length ? sum2(parsed.lines.map((l) => writeOffMinor(l.adjustments))) : writeOffMinor(parsed.adjustments);
   const posting = await tx.paymentPosting.create({ data: { remittanceId: remittance.id, remittanceClaimId: input.remittanceClaimId, postedById, at: uow.now, status: "posted" } });
   const base = { accountId: account.id, patientId: claim.patientId, currencyCode: currency, businessDate, locationId: claim.locationId, paymentPostingId: posting.id, claimId: claim.id, postedById };
   const label = payer?.name ?? "insurance";
@@ -10658,6 +11530,7 @@ async function matchRemittanceClaim(uow, actor3, remittanceClaimId, claimId) {
 }
 
 // features/keystone/mutations/claims.ts
+init_shared();
 var EDITABLE = ["draft", "scrubbed", "ready", "rejected", "correction_required"];
 var SENT = ["submitted", "submission_unknown", "acknowledged", "pending_payer", "adjudicated", "appealed", "appeal_decided"];
 async function scopedClaim(tx, locationIds, claimId) {
@@ -10988,10 +11861,20 @@ async function recordAppealOutcome(_root, args, context) {
 }
 
 // features/keystone/mutations/ledger.ts
+init_actor();
+init_approval();
+init_approvalAppliers();
+init_cas();
+init_command();
+init_errors();
+init_money();
+init_ledger();
+init_clinicalShared();
+init_shared();
 var currencyOf = async (tx) => (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? "USD";
 async function accountTotal(tx, accountId) {
-  const sum2 = await tx.ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } });
-  return sum2._sum.amountMinor ?? 0n;
+  const sum3 = await tx.ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } });
+  return sum3._sum.amountMinor ?? 0n;
 }
 async function postAdjustmentRow(uow, actor3, request, type, approverId) {
   const { tx } = uow;
@@ -11118,9 +12001,25 @@ async function rebuildAccountBalance(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 
+// features/keystone/mutations/payments.ts
+init_actor();
+init_approval();
+init_approvalAppliers();
+init_cas();
+init_command();
+init_db();
+init_errors();
+init_money();
+init_ledger();
+
 // features/keystone/lib/payments.ts
 var import_node_crypto15 = require("node:crypto");
-var dayOf2 = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
+init_db();
+init_cas();
+init_errors();
+init_ledger();
+init_time();
+var dayOf3 = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
 async function locationToday2(tx, locationId, now) {
   const location = await tx.location.findUnique({ where: { id: locationId }, select: { timeZone: true } });
   return localDate(location?.timeZone ?? "America/New_York", now);
@@ -11128,7 +12027,7 @@ async function locationToday2(tx, locationId, now) {
 var sha2562 = (text19) => (0, import_node_crypto15.createHash)("sha256").update(text19).digest("hex");
 function chargesOutstanding(entries) {
   const sorted = [...entries].sort((a, b) => (a.businessDate?.getTime() ?? 0) - (b.businessDate?.getTime() ?? 0) || (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
-  let credit = sorted.filter((e) => e.amountMinor < 0n).reduce((sum2, e) => sum2 - e.amountMinor, 0n);
+  let credit = sorted.filter((e) => e.amountMinor < 0n).reduce((sum3, e) => sum3 - e.amountMinor, 0n);
   const out = [];
   for (const e of sorted.filter((x) => x.amountMinor > 0n)) {
     const applied = credit < e.amountMinor ? credit : e.amountMinor;
@@ -11174,14 +12073,14 @@ async function settlePayment(uow, actor3, paymentId, extra = {}) {
     kind: "patient_payment",
     amountMinor: -pay.amountMinor,
     currencyCode: pay.currencyCode || "USD",
-    businessDate: dayOf2(date),
+    businessDate: dayOf3(date),
     locationId: pay.locationId,
     paymentId: pay.id,
     postedById: pay.receivedById,
     memo: `Payment received (${pay.ref})${pay.tender === "check" && pay.checkNumber ? `, check ${pay.checkNumber}` : ""}`
   }, uow.now);
   const split = await allocatePayment(tx, { paymentId: pay.id, accountId: pay.accountId, amountMinor: pay.amountMinor, explicit: extra.explicit });
-  await tx.payment.update({ where: { id: pay.id }, data: { status: "succeeded", ledgerEntryId: entry.id, businessDate: dayOf2(date), ...extra.providerIntentId ? { providerIntentId: extra.providerIntentId } : {}, failureNote: "", version: { increment: 1 } } });
+  await tx.payment.update({ where: { id: pay.id }, data: { status: "succeeded", ledgerEntryId: entry.id, businessDate: dayOf3(date), ...extra.providerIntentId ? { providerIntentId: extra.providerIntentId } : {}, failureNote: "", version: { increment: 1 } } });
   auditCreate(uow, actor3, "Payment", pay.id, "payment.succeeded", { amountMinor: pay.amountMinor.toString(), tender: pay.tender, allocated: split.allocated.toString(), ledgerEntryId: entry.id });
   uow.emit({ topic: "notify.staff", aggregateType: "Payment", aggregateId: pay.id, payload: { kind: "payment.received", locationId: pay.locationId }, dedupeKey: `notify.staff:payment.received:${pay.id}` });
   if (pay.statementId) await refreshStatementStatus(tx, pay.statementId);
@@ -11231,7 +12130,7 @@ async function completeRefund(uow, actor3, refundId, extra = {}) {
     kind: "refund",
     amountMinor: refund.amountMinor,
     currencyCode: "USD",
-    businessDate: dayOf2(date),
+    businessDate: dayOf3(date),
     locationId: refund.locationId,
     refundId: refund.id,
     paymentId: refund.paymentId,
@@ -11249,6 +12148,18 @@ async function completeRefund(uow, actor3, refundId, extra = {}) {
   if (statementId) await refreshStatementStatus(tx, statementId);
   return { completed: true, refundId, ledgerEntryId: entry.id };
 }
+
+// features/keystone/mutations/payments.ts
+init_sequence();
+
+// features/keystone/lib/payLink.ts
+init_actor();
+init_cas();
+init_db();
+init_errors();
+init_ledger();
+init_sequence();
+init_unitOfWork();
 
 // features/integrations/payments/stripe.ts
 var import_node_crypto16 = require("node:crypto");
@@ -11392,9 +12303,10 @@ ${xref}
 var latin1Length = (s) => s.length;
 
 // features/keystone/lib/statementPdf.ts
+init_money();
 var money2 = (minor2) => formatMinor(BigInt(minor2 || "0"));
-var day4 = (iso) => {
-  const [y, m, d] = iso.slice(0, 10).split("-");
+var day4 = (iso3) => {
+  const [y, m, d] = iso3.slice(0, 10).split("-");
   return `${m}/${d}/${y}`;
 };
 function renderStatementPdf(s) {
@@ -11477,15 +12389,18 @@ function renderStatementPdf(s) {
 }
 var pdfSha256 = (bytes) => (0, import_node_crypto17.createHash)("sha256").update(bytes).digest("hex");
 function statementForPdf(row) {
-  const iso = (d) => d instanceof Date ? d.toISOString().slice(0, 10) : String(d ?? "").slice(0, 10);
-  return { ref: row.ref, cycleDate: iso(row.cycleDate), dueDate: iso(row.dueDate), amountDueMinor: row.amountDueMinor.toString(), payLinkCode: row.payLinkCode, snapshot: row.snapshot ?? {} };
+  const iso3 = (d) => d instanceof Date ? d.toISOString().slice(0, 10) : String(d ?? "").slice(0, 10);
+  return { ref: row.ref, cycleDate: iso3(row.cycleDate), dueDate: iso3(row.dueDate), amountDueMinor: row.amountDueMinor.toString(), payLinkCode: row.payLinkCode, snapshot: row.snapshot ?? {} };
 }
 
 // features/keystone/mutations/payments.ts
+init_time();
+init_clinicalShared();
+init_shared();
 var currencyOf2 = async (tx) => (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? "USD";
 async function accountBalance(tx, accountId) {
-  const sum2 = await tx.ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } });
-  return sum2._sum.amountMinor ?? 0n;
+  const sum3 = await tx.ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } });
+  return sum3._sum.amountMinor ?? 0n;
 }
 async function takePayment(_root, args, context) {
   const { actor: actor3, locationIds } = staff(context);
@@ -11809,6 +12724,189 @@ async function cancelPaymentPlan(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 
+// features/keystone/mutations/memberships.ts
+init_actor();
+init_cas();
+init_command();
+init_errors();
+init_money();
+init_ledger();
+init_sequence();
+init_time();
+init_clinicalShared();
+init_shared();
+var currencyOf3 = async (tx) => (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? "USD";
+var DISCLOSURES = {
+  notInsurance: "This is a membership plan for in-office savings. It is not dental insurance.",
+  renewal: "The plan renews each period and the price is charged to the account. You can cancel before the next period starts.",
+  cancellation: "If you cancel, benefits stop at the end of the period already charged. Unused covered visits do not carry over."
+};
+async function recordLicence(_root, args, context) {
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManageMemberships");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "licence.record", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const jurisdiction = requireText(args.jurisdiction, "jurisdiction", 40);
+    const number = requireText(args.number, "number", 60);
+    if (!["discount_plan_operator", "other"].includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Choose the kind of licence.", { field: "kind" });
+    if (args.effectiveFrom && args.effectiveTo && args.effectiveTo < args.effectiveFrom) throw new DomainError(Codes.INVALID_INPUT, "The licence cannot end before it starts.", { field: "effectiveTo" });
+    const row = await uow.tx.regulatoryLicence.create({ data: { kind: args.kind, jurisdiction, number, effectiveFrom: args.effectiveFrom ? dayOf(args.effectiveFrom) : null, effectiveTo: args.effectiveTo ? dayOf(args.effectiveTo) : null, evidence: optionalText(args.evidence, 400) } });
+    auditCreate(uow, actor3, "RegulatoryLicence", row.id, "licence.recorded", { kind: args.kind, jurisdiction, number });
+    return { id: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function defineMembershipPlan(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageMemberships");
+  const priceMinor = parseMoney(args.price, "price");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "membership_plan.create", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const name = requireText(args.name, "name", 80);
+    if (!MEMBERSHIP_AGE_BANDS.includes(args.ageBand)) throw new DomainError(Codes.INVALID_INPUT, "Choose child, adult or perio.", { field: "ageBand" });
+    if (!MEMBERSHIP_INTERVALS.includes(args.interval)) throw new DomainError(Codes.INVALID_INPUT, "Choose monthly or annual.", { field: "interval" });
+    const discount = Number(args.discountPct);
+    if (!Number.isFinite(discount) || discount < 0 || discount > 100) throw new DomainError(Codes.INVALID_INPUT, "The discount is a percent from 0 to 100.", { field: "discountPct" });
+    const termsText = requireText(args.termsText, "termsText", 4e3);
+    if (!args.locationIds?.length) throw new DomainError(Codes.INVALID_INPUT, "Choose at least one office.", { field: "locationIds" });
+    for (const id of args.locationIds) assertLocation(locationIds, id);
+    if (await uow.tx.membershipPlan.findUnique({ where: { name } })) throw new DomainError(Codes.INVALID_INPUT, "A plan with that name already exists.", { field: "name" });
+    const benefits = parseBenefits(args.benefits ?? []);
+    const row = await uow.tx.membershipPlan.create({
+      data: {
+        name,
+        ageBand: args.ageBand,
+        priceMinor,
+        interval: args.interval,
+        discountPct: discount.toFixed(4),
+        includedBenefits: benefits,
+        termsText,
+        termsHash: sha2562(termsText),
+        renewalNoticeDays: args.renewalNoticeDays ?? 30,
+        status: "active",
+        locations: { connect: args.locationIds.map((id) => ({ id })) }
+      }
+    });
+    auditCreate(uow, actor3, "MembershipPlan", row.id, "membership_plan.created", { name, priceMinor: priceMinor.toString(), interval: args.interval });
+    return { id: row.id, status: "active" };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function retireMembershipPlan(_root, args, context) {
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManageMemberships");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "membership_plan.retire", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const row = await transition(uow, { model: "MembershipPlan", id: args.planId, from: ["active", "draft"], to: "retired", expectedVersion: args.expectedVersion, actor: actor3, eventType: "membership_plan.retired" });
+    return { id: row.id, status: "retired" };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function enrolMembership(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageMemberships");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "membership.enrol", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    assertLocation(locationIds, args.locationId);
+    const patientId = await resolvePatientRef(tx, args.patientId);
+    await assertPatientInScope(tx, locationIds, patientId);
+    const plan = await tx.membershipPlan.findUnique({ where: { id: args.planId }, include: { locations: { select: { id: true } } } });
+    if (!plan || plan.status !== "active") throw new DomainError(Codes.NOT_FOUND, "That plan is not available.", { field: "planId" });
+    if (!plan.locations.some((l) => l.id === args.locationId)) throw new DomainError(Codes.GUARD_FAILED, "That plan is not offered at this office.", { field: "planId" });
+    await membershipGate(tx, args.locationId, await todayAt(tx, args.locationId, uow.now));
+    const live = await tx.patientMembership.findFirst({ where: { patientId, planId: plan.id, status: { in: ["pending_agreement", "active", "past_due", "frozen"] } }, select: { ref: true } });
+    if (live) throw new DomainError(Codes.INVALID_INPUT, `This patient already has ${live.ref} on that plan.`);
+    const account = await accountFor(uow, patientId);
+    const ref = await nextReference(tx, "MEM", uow.now);
+    const row = await tx.patientMembership.create({ data: { ref, patientId, planId: plan.id, locationId: args.locationId, payerId: account.id, status: "pending_agreement" } });
+    auditCreate(uow, actor3, "PatientMembership", row.id, "membership.enrolled", { plan: plan.name, ref });
+    return { id: row.id, ref, status: "pending_agreement" };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function chargePeriod(uow, membership, plan, kind, periodStart, periodEnd, postedById) {
+  const { tx } = uow;
+  const today2 = await todayAt(tx, membership.locationId, uow.now);
+  const entry = await postEntry(tx, {
+    accountId: membership.payerId,
+    patientId: membership.patientId,
+    kind: "charge",
+    amountMinor: plan.priceMinor,
+    currencyCode: await currencyOf3(tx),
+    businessDate: dayOf(today2),
+    locationId: membership.locationId,
+    memo: `${plan.name}, ${periodStart} to ${periodEnd}`,
+    postedById
+  }, uow.now);
+  await tx.membershipLedgerEntry.create({ data: { membershipId: membership.id, kind, ledgerEntryId: entry.id, at: uow.now } });
+  await tx.membershipLedgerEntry.create({ data: { membershipId: membership.id, kind: "charge", ledgerEntryId: entry.id, at: uow.now } });
+  for (const b of parseBenefits(plan.includedBenefits)) {
+    await tx.membershipLedgerEntry.create({ data: { membershipId: membership.id, kind: "benefit_issue", codeFamily: b.codeFamily, quantity: b.countPerPeriod, at: uow.now } });
+  }
+  return entry;
+}
+async function signMembershipAgreement(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageMemberships");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "membership.sign", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const row = await lockRow(tx, "PatientMembership", args.membershipId);
+    assertLocation(locationIds, row.locationId);
+    const signer = requireText(args.signerName, "signerName", 120);
+    if (args.consent !== true) throw new DomainError(Codes.CONSENT_REQUIRED, "The member must agree to the terms before the plan starts.", { field: "consent" });
+    const plan = await tx.membershipPlan.findUniqueOrThrow({ where: { id: row.planId } });
+    if (plan.status !== "active") throw new DomainError(Codes.GUARD_FAILED, "That plan is no longer offered.");
+    const today2 = await todayAt(tx, row.locationId, uow.now);
+    await membershipGate(tx, row.locationId, today2);
+    const start = args.startsOn || today2;
+    if (start < today2) throw new DomainError(Codes.INVALID_INPUT, "The plan cannot start in the past.", { field: "startsOn" });
+    const end = nextPeriodEnd(start, plan.interval);
+    const agreement = await tx.membershipAgreement.create({
+      data: { membershipId: row.id, termsHash: plan.termsHash, priceSnapshotMinor: plan.priceMinor, disclosures: DISCLOSURES, affirmativeConsentHash: sha2562(`${plan.termsHash}|${signer}|agreed`), signerName: signer, signedAt: uow.now }
+    });
+    await tx.patientMembership.update({ where: { id: row.id }, data: { agreementId: agreement.id, currentPeriodStart: dayOf(start), currentPeriodEnd: dayOf(end) } });
+    const active = await transition(uow, { model: "PatientMembership", id: row.id, from: ["pending_agreement"], to: "active", expectedVersion: args.expectedVersion, actor: actor3, eventType: "membership.activated" });
+    const entry = await chargePeriod(uow, { ...row, id: row.id }, plan, "activate", start, end, actor3.kind === "user" ? actor3.userId : null);
+    auditCreate(uow, actor3, "MembershipAgreement", agreement.id, "membership.agreement_signed", { termsHash: plan.termsHash, priceMinor: plan.priceMinor.toString(), signer });
+    return { id: active.id, status: "active", periodEnd: end, chargeEntryId: entry.id, charged: formatMinor(plan.priceMinor) };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function freezeMembership(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageMemberships");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: args.freeze ? "membership.freeze" : "membership.unfreeze", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "PatientMembership", args.membershipId);
+    assertLocation(locationIds, row.locationId);
+    const to = args.freeze ? "frozen" : "active";
+    const next = await transition(uow, { model: "PatientMembership", id: row.id, from: args.freeze ? ["active"] : ["frozen"], to, expectedVersion: args.expectedVersion, actor: actor3, eventType: args.freeze ? "membership.frozen" : "membership.unfrozen", reason });
+    await uow.tx.membershipLedgerEntry.create({ data: { membershipId: row.id, kind: args.freeze ? "freeze" : "unfreeze", at: uow.now } });
+    return { id: next.id, status: to };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function cancelMembership(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageMemberships");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "membership.cancel", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "PatientMembership", args.membershipId);
+    assertLocation(locationIds, row.locationId);
+    const next = await transition(uow, { model: "PatientMembership", id: row.id, from: ["pending_agreement", "active", "past_due", "frozen"], to: "cancelled", expectedVersion: args.expectedVersion, actor: actor3, eventType: "membership.cancelled", reason, data: { cancelledReason: reason, autoRenew: false } });
+    await uow.tx.membershipLedgerEntry.create({ data: { membershipId: row.id, kind: "cancel", at: uow.now } });
+    return { id: next.id, status: "cancelled" };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/mutations/phase2Ops.ts
+init_close();
+
 // features/keystone/mutations/phase2Args.ts
 var PHASE2_ARGS = {
   // Chart
@@ -11902,7 +13000,21 @@ var PHASE2_ARGS = {
   proposePaymentPlan: { patientId: "ID!", locationId: "ID!", downPayment: "String", installments: "Int!", firstDueDate: "String!", intervalDays: "Int", autopayTokenId: "ID", amount: "String" },
   activatePaymentPlan: { planId: "ID!", expectedVersion: "Int!", agreedByName: "String!" },
   cancelPaymentPlan: { planId: "ID!", expectedVersion: "Int!", reason: "String!" },
-  rebuildAccountBalance: { accountId: "ID!" }
+  rebuildAccountBalance: { accountId: "ID!" },
+  // Phase 4 slice 4: memberships, day and month close
+  recordLicence: { kind: "String!", jurisdiction: "String!", number: "String!", effectiveFrom: "String", effectiveTo: "String", evidence: "String" },
+  defineMembershipPlan: { name: "String!", ageBand: "String!", price: "String!", interval: "String!", discountPct: "String!", benefits: "[JSON!]", termsText: "String!", locationIds: "[ID!]!", renewalNoticeDays: "Int" },
+  retireMembershipPlan: { planId: "ID!", expectedVersion: "Int!" },
+  enrolMembership: { patientId: "ID!", planId: "ID!", locationId: "ID!" },
+  signMembershipAgreement: { membershipId: "ID!", expectedVersion: "Int!", signerName: "String!", consent: "Boolean!", startsOn: "String" },
+  freezeMembership: { membershipId: "ID!", expectedVersion: "Int!", freeze: "Boolean!", reason: "String!" },
+  cancelMembership: { membershipId: "ID!", expectedVersion: "Int!", reason: "String!" },
+  closeDay: { locationId: "ID!", businessDate: "String!" },
+  bankDeposit: { depositId: "ID!", expectedVersion: "Int!" },
+  closePeriod: { locationId: "ID!", period: "String!" },
+  requestPeriodReopen: { periodCloseId: "ID!", reason: "String!" },
+  postRestatement: { periodCloseId: "ID!", patientId: "ID!", typeId: "ID!", amount: "String!", businessDate: "String!", reason: "String!" },
+  reclosePeriod: { periodCloseId: "ID!" }
 };
 
 // features/keystone/mutations/phase2Ops.ts
@@ -11963,6 +13075,19 @@ var RESOLVERS = {
   requestAdjustment,
   reverseLedgerEntry,
   rebuildAccountBalance,
+  recordLicence,
+  defineMembershipPlan,
+  retireMembershipPlan,
+  enrolMembership,
+  signMembershipAgreement,
+  freezeMembership,
+  cancelMembership,
+  closeDay,
+  bankDeposit,
+  closePeriod,
+  requestPeriodReopen,
+  postRestatement,
+  reclosePeriod,
   buildClaim: createClaim,
   scrubClaim: scrubClaimCommand,
   overrideScrub,
@@ -12222,6 +13347,9 @@ function withMcpBearerSessions(strategy, listKey = "User") {
   };
 }
 
+// features/keystone/index.ts
+init_access();
+
 // features/keystone/prismaConstraints.ts
 var COMPOUND_UNIQUES = {
   StaffAssignment: ['@@index([userId, locationId], map: "StaffAssignment_user_location_idx")'],
@@ -12321,7 +13449,7 @@ var { withAuth } = (0, import_auth.createAuth)({
   `
 });
 var keystone_default = withAuth(
-  (0, import_core21.config)({
+  (0, import_core22.config)({
     db: {
       provider: "postgresql",
       url: databaseURL,

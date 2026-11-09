@@ -7,6 +7,8 @@ import * as insurance from './insurance'
 import * as claims from './claims'
 import * as ledger from './ledger'
 import * as payments from './payments'
+import * as memberships from './memberships'
+import * as close from './close'
 import { PHASE2_ARGS } from './phase2Args'
 
 /* Every Phase 2 command's resolver. index.ts builds the GraphQL schema from this table and PHASE2_ARGS. */
@@ -70,6 +72,19 @@ const RESOLVERS: Record<string, Resolver> = {
   requestAdjustment: ledger.requestAdjustment,
   reverseLedgerEntry: ledger.reverseLedgerEntry,
   rebuildAccountBalance: ledger.rebuildAccountBalance,
+  recordLicence: memberships.recordLicence,
+  defineMembershipPlan: memberships.defineMembershipPlan,
+  retireMembershipPlan: memberships.retireMembershipPlan,
+  enrolMembership: memberships.enrolMembership,
+  signMembershipAgreement: memberships.signMembershipAgreement,
+  freezeMembership: memberships.freezeMembership,
+  cancelMembership: memberships.cancelMembership,
+  closeDay: close.closeDay,
+  bankDeposit: close.bankDeposit,
+  closePeriod: close.closePeriod,
+  requestPeriodReopen: close.requestPeriodReopen,
+  postRestatement: close.postRestatement,
+  reclosePeriod: close.reclosePeriod,
   buildClaim: claims.createClaim,
   scrubClaim: claims.scrubClaimCommand,
   overrideScrub: claims.overrideScrub,

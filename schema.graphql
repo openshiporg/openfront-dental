@@ -15474,6 +15474,640 @@ input PaymentRelateToManyForCreateInput {
   connect: [PaymentWhereUniqueInput!]
 }
 
+type DepositBatch {
+  id: ID!
+  ref: String
+  location: Location
+  businessDate: CalendarDay
+  dayClose: DayClose
+  totalMinor: BigInt
+  status: String
+  lines(where: DepositLineWhereInput! = {}, orderBy: [DepositLineOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: DepositLineWhereUniqueInput): [DepositLine!]
+  linesCount(where: DepositLineWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DepositBatchWhereUniqueInput {
+  id: ID
+  ref: String
+}
+
+input DepositBatchWhereInput {
+  AND: [DepositBatchWhereInput!]
+  OR: [DepositBatchWhereInput!]
+  NOT: [DepositBatchWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  location: LocationWhereInput
+  businessDate: CalendarDayNullableFilter
+  dayClose: DayCloseWhereInput
+  totalMinor: BigIntFilter
+  status: StringFilter
+  lines: DepositLineManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input DepositLineManyRelationFilter {
+  every: DepositLineWhereInput
+  some: DepositLineWhereInput
+  none: DepositLineWhereInput
+}
+
+input DepositBatchOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  businessDate: OrderDirection
+  totalMinor: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input DepositBatchUpdateInput {
+  ref: String
+  location: LocationRelateToOneForUpdateInput
+  businessDate: CalendarDay
+  dayClose: DayCloseRelateToOneForUpdateInput
+  totalMinor: BigInt
+  status: String
+  lines: DepositLineRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DepositLineRelateToManyForUpdateInput {
+  disconnect: [DepositLineWhereUniqueInput!]
+  set: [DepositLineWhereUniqueInput!]
+  create: [DepositLineCreateInput!]
+  connect: [DepositLineWhereUniqueInput!]
+}
+
+input DepositBatchUpdateArgs {
+  where: DepositBatchWhereUniqueInput!
+  data: DepositBatchUpdateInput!
+}
+
+input DepositBatchCreateInput {
+  ref: String
+  location: LocationRelateToOneForCreateInput
+  businessDate: CalendarDay
+  dayClose: DayCloseRelateToOneForCreateInput
+  totalMinor: BigInt
+  status: String
+  lines: DepositLineRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DepositLineRelateToManyForCreateInput {
+  create: [DepositLineCreateInput!]
+  connect: [DepositLineWhereUniqueInput!]
+}
+
+type DepositLine {
+  id: ID!
+  batch: DepositBatch
+  payment: Payment
+  tender: String
+  amountMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DepositLineWhereUniqueInput {
+  id: ID
+}
+
+input DepositLineWhereInput {
+  AND: [DepositLineWhereInput!]
+  OR: [DepositLineWhereInput!]
+  NOT: [DepositLineWhereInput!]
+  id: IDFilter
+  batch: DepositBatchWhereInput
+  payment: PaymentWhereInput
+  tender: StringFilter
+  amountMinor: BigIntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input DepositLineOrderByInput {
+  id: OrderDirection
+  tender: OrderDirection
+  amountMinor: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input DepositLineUpdateInput {
+  batch: DepositBatchRelateToOneForUpdateInput
+  payment: PaymentRelateToOneForUpdateInput
+  tender: String
+  amountMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DepositBatchRelateToOneForUpdateInput {
+  create: DepositBatchCreateInput
+  connect: DepositBatchWhereUniqueInput
+  disconnect: Boolean
+}
+
+input DepositLineUpdateArgs {
+  where: DepositLineWhereUniqueInput!
+  data: DepositLineUpdateInput!
+}
+
+input DepositLineCreateInput {
+  batch: DepositBatchRelateToOneForCreateInput
+  payment: PaymentRelateToOneForCreateInput
+  tender: String
+  amountMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DepositBatchRelateToOneForCreateInput {
+  create: DepositBatchCreateInput
+  connect: DepositBatchWhereUniqueInput
+}
+
+type MembershipAgreement {
+  id: ID!
+  membership: PatientMembership
+  termsHash: String
+  priceSnapshotMinor: BigInt
+  disclosures: JSON
+  affirmativeConsentHash: String
+  signerName: String
+  signedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MembershipAgreementWhereUniqueInput {
+  id: ID
+}
+
+input MembershipAgreementWhereInput {
+  AND: [MembershipAgreementWhereInput!]
+  OR: [MembershipAgreementWhereInput!]
+  NOT: [MembershipAgreementWhereInput!]
+  id: IDFilter
+  membership: PatientMembershipWhereInput
+  termsHash: StringFilter
+  priceSnapshotMinor: BigIntFilter
+  affirmativeConsentHash: StringFilter
+  signerName: StringFilter
+  signedAt: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input MembershipAgreementOrderByInput {
+  id: OrderDirection
+  termsHash: OrderDirection
+  priceSnapshotMinor: OrderDirection
+  affirmativeConsentHash: OrderDirection
+  signerName: OrderDirection
+  signedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MembershipAgreementUpdateInput {
+  membership: PatientMembershipRelateToOneForUpdateInput
+  termsHash: String
+  priceSnapshotMinor: BigInt
+  disclosures: JSON
+  affirmativeConsentHash: String
+  signerName: String
+  signedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PatientMembershipRelateToOneForUpdateInput {
+  create: PatientMembershipCreateInput
+  connect: PatientMembershipWhereUniqueInput
+  disconnect: Boolean
+}
+
+input MembershipAgreementUpdateArgs {
+  where: MembershipAgreementWhereUniqueInput!
+  data: MembershipAgreementUpdateInput!
+}
+
+input MembershipAgreementCreateInput {
+  membership: PatientMembershipRelateToOneForCreateInput
+  termsHash: String
+  priceSnapshotMinor: BigInt
+  disclosures: JSON
+  affirmativeConsentHash: String
+  signerName: String
+  signedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PatientMembershipRelateToOneForCreateInput {
+  create: PatientMembershipCreateInput
+  connect: PatientMembershipWhereUniqueInput
+}
+
+type MembershipLedgerEntry {
+  id: ID!
+  membership: PatientMembership
+  kind: String
+  codeFamily: String
+  quantity: Int
+  chartEntry: ChartEntry
+  ledgerEntry: LedgerEntry
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MembershipLedgerEntryWhereUniqueInput {
+  id: ID
+}
+
+input MembershipLedgerEntryWhereInput {
+  AND: [MembershipLedgerEntryWhereInput!]
+  OR: [MembershipLedgerEntryWhereInput!]
+  NOT: [MembershipLedgerEntryWhereInput!]
+  id: IDFilter
+  membership: PatientMembershipWhereInput
+  kind: StringFilter
+  codeFamily: StringFilter
+  quantity: IntNullableFilter
+  chartEntry: ChartEntryWhereInput
+  ledgerEntry: LedgerEntryWhereInput
+  at: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input MembershipLedgerEntryOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  codeFamily: OrderDirection
+  quantity: OrderDirection
+  at: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MembershipLedgerEntryUpdateInput {
+  membership: PatientMembershipRelateToOneForUpdateInput
+  kind: String
+  codeFamily: String
+  quantity: Int
+  chartEntry: ChartEntryRelateToOneForUpdateInput
+  ledgerEntry: LedgerEntryRelateToOneForUpdateInput
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MembershipLedgerEntryUpdateArgs {
+  where: MembershipLedgerEntryWhereUniqueInput!
+  data: MembershipLedgerEntryUpdateInput!
+}
+
+input MembershipLedgerEntryCreateInput {
+  membership: PatientMembershipRelateToOneForCreateInput
+  kind: String
+  codeFamily: String
+  quantity: Int
+  chartEntry: ChartEntryRelateToOneForCreateInput
+  ledgerEntry: LedgerEntryRelateToOneForCreateInput
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type MembershipPlan {
+  id: ID!
+  name: String
+  ageBand: String
+  priceMinor: BigInt
+  interval: String
+  includedBenefits: JSON
+  discountPct: Decimal
+  termsText: String
+  termsHash: String
+  renewalNoticeDays: Int
+  cancellationPolicy: JSON
+  locations(where: LocationWhereInput! = {}, orderBy: [LocationOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: LocationWhereUniqueInput): [Location!]
+  locationsCount(where: LocationWhereInput! = {}): Int
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MembershipPlanWhereUniqueInput {
+  id: ID
+  name: String
+}
+
+input MembershipPlanWhereInput {
+  AND: [MembershipPlanWhereInput!]
+  OR: [MembershipPlanWhereInput!]
+  NOT: [MembershipPlanWhereInput!]
+  id: IDFilter
+  name: StringFilter
+  ageBand: StringFilter
+  priceMinor: BigIntFilter
+  interval: StringFilter
+  discountPct: DecimalFilter
+  termsText: StringFilter
+  termsHash: StringFilter
+  renewalNoticeDays: IntNullableFilter
+  locations: LocationManyRelationFilter
+  status: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input MembershipPlanOrderByInput {
+  id: OrderDirection
+  name: OrderDirection
+  ageBand: OrderDirection
+  priceMinor: OrderDirection
+  interval: OrderDirection
+  discountPct: OrderDirection
+  termsText: OrderDirection
+  termsHash: OrderDirection
+  renewalNoticeDays: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input MembershipPlanUpdateInput {
+  name: String
+  ageBand: String
+  priceMinor: BigInt
+  interval: String
+  includedBenefits: JSON
+  discountPct: Decimal
+  termsText: String
+  termsHash: String
+  renewalNoticeDays: Int
+  cancellationPolicy: JSON
+  locations: LocationRelateToManyForUpdateInput
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MembershipPlanUpdateArgs {
+  where: MembershipPlanWhereUniqueInput!
+  data: MembershipPlanUpdateInput!
+}
+
+input MembershipPlanCreateInput {
+  name: String
+  ageBand: String
+  priceMinor: BigInt
+  interval: String
+  includedBenefits: JSON
+  discountPct: Decimal
+  termsText: String
+  termsHash: String
+  renewalNoticeDays: Int
+  cancellationPolicy: JSON
+  locations: LocationRelateToManyForCreateInput
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PatientMembership {
+  id: ID!
+  ref: String
+  patient: Patient
+  plan: MembershipPlan
+  location: Location
+  payer: GuarantorAccount
+  status: String
+  currentPeriodStart: CalendarDay
+  currentPeriodEnd: CalendarDay
+  autoRenew: Boolean
+  agreement: MembershipAgreement
+  cancelledReason: String
+  entries(where: MembershipLedgerEntryWhereInput! = {}, orderBy: [MembershipLedgerEntryOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: MembershipLedgerEntryWhereUniqueInput): [MembershipLedgerEntry!]
+  entriesCount(where: MembershipLedgerEntryWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PatientMembershipWhereUniqueInput {
+  id: ID
+  ref: String
+}
+
+input PatientMembershipWhereInput {
+  AND: [PatientMembershipWhereInput!]
+  OR: [PatientMembershipWhereInput!]
+  NOT: [PatientMembershipWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  patient: PatientWhereInput
+  plan: MembershipPlanWhereInput
+  location: LocationWhereInput
+  payer: GuarantorAccountWhereInput
+  status: StringFilter
+  currentPeriodStart: CalendarDayNullableFilter
+  currentPeriodEnd: CalendarDayNullableFilter
+  autoRenew: BooleanFilter
+  agreement: MembershipAgreementWhereInput
+  cancelledReason: StringFilter
+  entries: MembershipLedgerEntryManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input MembershipLedgerEntryManyRelationFilter {
+  every: MembershipLedgerEntryWhereInput
+  some: MembershipLedgerEntryWhereInput
+  none: MembershipLedgerEntryWhereInput
+}
+
+input PatientMembershipOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  status: OrderDirection
+  currentPeriodStart: OrderDirection
+  currentPeriodEnd: OrderDirection
+  autoRenew: OrderDirection
+  cancelledReason: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PatientMembershipUpdateInput {
+  ref: String
+  patient: PatientRelateToOneForUpdateInput
+  plan: MembershipPlanRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  payer: GuarantorAccountRelateToOneForUpdateInput
+  status: String
+  currentPeriodStart: CalendarDay
+  currentPeriodEnd: CalendarDay
+  autoRenew: Boolean
+  agreement: MembershipAgreementRelateToOneForUpdateInput
+  cancelledReason: String
+  entries: MembershipLedgerEntryRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MembershipPlanRelateToOneForUpdateInput {
+  create: MembershipPlanCreateInput
+  connect: MembershipPlanWhereUniqueInput
+  disconnect: Boolean
+}
+
+input MembershipAgreementRelateToOneForUpdateInput {
+  create: MembershipAgreementCreateInput
+  connect: MembershipAgreementWhereUniqueInput
+  disconnect: Boolean
+}
+
+input MembershipLedgerEntryRelateToManyForUpdateInput {
+  disconnect: [MembershipLedgerEntryWhereUniqueInput!]
+  set: [MembershipLedgerEntryWhereUniqueInput!]
+  create: [MembershipLedgerEntryCreateInput!]
+  connect: [MembershipLedgerEntryWhereUniqueInput!]
+}
+
+input PatientMembershipUpdateArgs {
+  where: PatientMembershipWhereUniqueInput!
+  data: PatientMembershipUpdateInput!
+}
+
+input PatientMembershipCreateInput {
+  ref: String
+  patient: PatientRelateToOneForCreateInput
+  plan: MembershipPlanRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  payer: GuarantorAccountRelateToOneForCreateInput
+  status: String
+  currentPeriodStart: CalendarDay
+  currentPeriodEnd: CalendarDay
+  autoRenew: Boolean
+  agreement: MembershipAgreementRelateToOneForCreateInput
+  cancelledReason: String
+  entries: MembershipLedgerEntryRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input MembershipPlanRelateToOneForCreateInput {
+  create: MembershipPlanCreateInput
+  connect: MembershipPlanWhereUniqueInput
+}
+
+input MembershipAgreementRelateToOneForCreateInput {
+  create: MembershipAgreementCreateInput
+  connect: MembershipAgreementWhereUniqueInput
+}
+
+input MembershipLedgerEntryRelateToManyForCreateInput {
+  create: [MembershipLedgerEntryCreateInput!]
+  connect: [MembershipLedgerEntryWhereUniqueInput!]
+}
+
+type RegulatoryLicence {
+  id: ID!
+  kind: String
+  jurisdiction: String
+  number: String
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  evidence: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RegulatoryLicenceWhereUniqueInput {
+  id: ID
+}
+
+input RegulatoryLicenceWhereInput {
+  AND: [RegulatoryLicenceWhereInput!]
+  OR: [RegulatoryLicenceWhereInput!]
+  NOT: [RegulatoryLicenceWhereInput!]
+  id: IDFilter
+  kind: StringFilter
+  jurisdiction: StringFilter
+  number: StringFilter
+  effectiveFrom: CalendarDayNullableFilter
+  effectiveTo: CalendarDayNullableFilter
+  evidence: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input RegulatoryLicenceOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  jurisdiction: OrderDirection
+  number: OrderDirection
+  effectiveFrom: OrderDirection
+  effectiveTo: OrderDirection
+  evidence: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RegulatoryLicenceUpdateInput {
+  kind: String
+  jurisdiction: String
+  number: String
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  evidence: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RegulatoryLicenceUpdateArgs {
+  where: RegulatoryLicenceWhereUniqueInput!
+  data: RegulatoryLicenceUpdateInput!
+}
+
+input RegulatoryLicenceCreateInput {
+  kind: String
+  jurisdiction: String
+  number: String
+  effectiveFrom: CalendarDay
+  effectiveTo: CalendarDay
+  evidence: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -16362,6 +16996,48 @@ type Mutation {
   updateStatements(data: [StatementUpdateArgs!]!): [Statement]
   deleteStatement(where: StatementWhereUniqueInput!): Statement
   deleteStatements(where: [StatementWhereUniqueInput!]!): [Statement]
+  createDepositBatch(data: DepositBatchCreateInput!): DepositBatch
+  createDepositBatches(data: [DepositBatchCreateInput!]!): [DepositBatch]
+  updateDepositBatch(where: DepositBatchWhereUniqueInput!, data: DepositBatchUpdateInput!): DepositBatch
+  updateDepositBatches(data: [DepositBatchUpdateArgs!]!): [DepositBatch]
+  deleteDepositBatch(where: DepositBatchWhereUniqueInput!): DepositBatch
+  deleteDepositBatches(where: [DepositBatchWhereUniqueInput!]!): [DepositBatch]
+  createDepositLine(data: DepositLineCreateInput!): DepositLine
+  createDepositLines(data: [DepositLineCreateInput!]!): [DepositLine]
+  updateDepositLine(where: DepositLineWhereUniqueInput!, data: DepositLineUpdateInput!): DepositLine
+  updateDepositLines(data: [DepositLineUpdateArgs!]!): [DepositLine]
+  deleteDepositLine(where: DepositLineWhereUniqueInput!): DepositLine
+  deleteDepositLines(where: [DepositLineWhereUniqueInput!]!): [DepositLine]
+  createMembershipAgreement(data: MembershipAgreementCreateInput!): MembershipAgreement
+  createMembershipAgreements(data: [MembershipAgreementCreateInput!]!): [MembershipAgreement]
+  updateMembershipAgreement(where: MembershipAgreementWhereUniqueInput!, data: MembershipAgreementUpdateInput!): MembershipAgreement
+  updateMembershipAgreements(data: [MembershipAgreementUpdateArgs!]!): [MembershipAgreement]
+  deleteMembershipAgreement(where: MembershipAgreementWhereUniqueInput!): MembershipAgreement
+  deleteMembershipAgreements(where: [MembershipAgreementWhereUniqueInput!]!): [MembershipAgreement]
+  createMembershipLedgerEntry(data: MembershipLedgerEntryCreateInput!): MembershipLedgerEntry
+  createMembershipLedgerEntries(data: [MembershipLedgerEntryCreateInput!]!): [MembershipLedgerEntry]
+  updateMembershipLedgerEntry(where: MembershipLedgerEntryWhereUniqueInput!, data: MembershipLedgerEntryUpdateInput!): MembershipLedgerEntry
+  updateMembershipLedgerEntries(data: [MembershipLedgerEntryUpdateArgs!]!): [MembershipLedgerEntry]
+  deleteMembershipLedgerEntry(where: MembershipLedgerEntryWhereUniqueInput!): MembershipLedgerEntry
+  deleteMembershipLedgerEntries(where: [MembershipLedgerEntryWhereUniqueInput!]!): [MembershipLedgerEntry]
+  createMembershipPlan(data: MembershipPlanCreateInput!): MembershipPlan
+  createMembershipPlans(data: [MembershipPlanCreateInput!]!): [MembershipPlan]
+  updateMembershipPlan(where: MembershipPlanWhereUniqueInput!, data: MembershipPlanUpdateInput!): MembershipPlan
+  updateMembershipPlans(data: [MembershipPlanUpdateArgs!]!): [MembershipPlan]
+  deleteMembershipPlan(where: MembershipPlanWhereUniqueInput!): MembershipPlan
+  deleteMembershipPlans(where: [MembershipPlanWhereUniqueInput!]!): [MembershipPlan]
+  createPatientMembership(data: PatientMembershipCreateInput!): PatientMembership
+  createPatientMemberships(data: [PatientMembershipCreateInput!]!): [PatientMembership]
+  updatePatientMembership(where: PatientMembershipWhereUniqueInput!, data: PatientMembershipUpdateInput!): PatientMembership
+  updatePatientMemberships(data: [PatientMembershipUpdateArgs!]!): [PatientMembership]
+  deletePatientMembership(where: PatientMembershipWhereUniqueInput!): PatientMembership
+  deletePatientMemberships(where: [PatientMembershipWhereUniqueInput!]!): [PatientMembership]
+  createRegulatoryLicence(data: RegulatoryLicenceCreateInput!): RegulatoryLicence
+  createRegulatoryLicences(data: [RegulatoryLicenceCreateInput!]!): [RegulatoryLicence]
+  updateRegulatoryLicence(where: RegulatoryLicenceWhereUniqueInput!, data: RegulatoryLicenceUpdateInput!): RegulatoryLicence
+  updateRegulatoryLicences(data: [RegulatoryLicenceUpdateArgs!]!): [RegulatoryLicence]
+  deleteRegulatoryLicence(where: RegulatoryLicenceWhereUniqueInput!): RegulatoryLicence
+  deleteRegulatoryLicences(where: [RegulatoryLicenceWhereUniqueInput!]!): [RegulatoryLicence]
   endSession: Boolean!
   authenticateUserWithPassword(email: String!, password: String!): UserAuthenticationWithPasswordResult
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
@@ -16460,6 +17136,19 @@ type Mutation {
   activatePaymentPlan(planId: ID!, expectedVersion: Int!, agreedByName: String!, idempotencyKey: String!): JSON
   cancelPaymentPlan(planId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
   rebuildAccountBalance(accountId: ID!, idempotencyKey: String!): JSON
+  recordLicence(kind: String!, jurisdiction: String!, number: String!, effectiveFrom: String, effectiveTo: String, evidence: String, idempotencyKey: String!): JSON
+  defineMembershipPlan(name: String!, ageBand: String!, price: String!, interval: String!, discountPct: String!, benefits: [JSON!], termsText: String!, locationIds: [ID!]!, renewalNoticeDays: Int, idempotencyKey: String!): JSON
+  retireMembershipPlan(planId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+  enrolMembership(patientId: ID!, planId: ID!, locationId: ID!, idempotencyKey: String!): JSON
+  signMembershipAgreement(membershipId: ID!, expectedVersion: Int!, signerName: String!, consent: Boolean!, startsOn: String, idempotencyKey: String!): JSON
+  freezeMembership(membershipId: ID!, expectedVersion: Int!, freeze: Boolean!, reason: String!, idempotencyKey: String!): JSON
+  cancelMembership(membershipId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+  closeDay(locationId: ID!, businessDate: String!, idempotencyKey: String!): JSON
+  bankDeposit(depositId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+  closePeriod(locationId: ID!, period: String!, idempotencyKey: String!): JSON
+  requestPeriodReopen(periodCloseId: ID!, reason: String!, idempotencyKey: String!): JSON
+  postRestatement(periodCloseId: ID!, patientId: ID!, typeId: ID!, amount: String!, businessDate: String!, reason: String!, idempotencyKey: String!): JSON
+  reclosePeriod(periodCloseId: ID!, idempotencyKey: String!): JSON
   addPatientAlert(patientId: ID!, kind: String!, severity: String!, text: String!, idempotencyKey: String!): JSON
   endPatientAlert(alertId: ID!, reason: String!, idempotencyKey: String!): JSON
   linkGuarantor(patientId: ID!, guarantorPatientId: ID, personName: JSON, relationship: String!, idempotencyKey: String!): JSON
@@ -16964,6 +17653,27 @@ type Query {
   statement(where: StatementWhereUniqueInput!): Statement
   statements(where: StatementWhereInput! = {}, orderBy: [StatementOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: StatementWhereUniqueInput): [Statement!]
   statementsCount(where: StatementWhereInput! = {}): Int
+  depositBatch(where: DepositBatchWhereUniqueInput!): DepositBatch
+  depositBatches(where: DepositBatchWhereInput! = {}, orderBy: [DepositBatchOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: DepositBatchWhereUniqueInput): [DepositBatch!]
+  depositBatchesCount(where: DepositBatchWhereInput! = {}): Int
+  depositLine(where: DepositLineWhereUniqueInput!): DepositLine
+  depositLines(where: DepositLineWhereInput! = {}, orderBy: [DepositLineOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: DepositLineWhereUniqueInput): [DepositLine!]
+  depositLinesCount(where: DepositLineWhereInput! = {}): Int
+  membershipAgreement(where: MembershipAgreementWhereUniqueInput!): MembershipAgreement
+  membershipAgreements(where: MembershipAgreementWhereInput! = {}, orderBy: [MembershipAgreementOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: MembershipAgreementWhereUniqueInput): [MembershipAgreement!]
+  membershipAgreementsCount(where: MembershipAgreementWhereInput! = {}): Int
+  membershipLedgerEntry(where: MembershipLedgerEntryWhereUniqueInput!): MembershipLedgerEntry
+  membershipLedgerEntries(where: MembershipLedgerEntryWhereInput! = {}, orderBy: [MembershipLedgerEntryOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: MembershipLedgerEntryWhereUniqueInput): [MembershipLedgerEntry!]
+  membershipLedgerEntriesCount(where: MembershipLedgerEntryWhereInput! = {}): Int
+  membershipPlan(where: MembershipPlanWhereUniqueInput!): MembershipPlan
+  membershipPlans(where: MembershipPlanWhereInput! = {}, orderBy: [MembershipPlanOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: MembershipPlanWhereUniqueInput): [MembershipPlan!]
+  membershipPlansCount(where: MembershipPlanWhereInput! = {}): Int
+  patientMembership(where: PatientMembershipWhereUniqueInput!): PatientMembership
+  patientMemberships(where: PatientMembershipWhereInput! = {}, orderBy: [PatientMembershipOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PatientMembershipWhereUniqueInput): [PatientMembership!]
+  patientMembershipsCount(where: PatientMembershipWhereInput! = {}): Int
+  regulatoryLicence(where: RegulatoryLicenceWhereUniqueInput!): RegulatoryLicence
+  regulatoryLicences(where: RegulatoryLicenceWhereInput! = {}, orderBy: [RegulatoryLicenceOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RegulatoryLicenceWhereUniqueInput): [RegulatoryLicence!]
+  regulatoryLicencesCount(where: RegulatoryLicenceWhereInput! = {}): Int
   keystone: KeystoneMeta!
   authenticatedItem: AuthenticatedItem
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult

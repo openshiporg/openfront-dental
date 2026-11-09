@@ -98,6 +98,11 @@ describe('hidden fields cannot be filtered or sorted (GraphQL)', { skip: !hasTes
     'paymentMethodTokensCount(where: { last4: { equals: "4242" } })',
     'paymentMethodTokens(orderBy: { providerMethodId: asc }, take: 5) { id }',
     'ledgerNotesCount(where: { text: { contains: "x" } })',
+    'depositBatchesCount(where: { totalMinor: { gt: "0" } })',
+    'depositBatches(orderBy: { totalMinor: asc }, take: 1) { id }',
+    'depositLinesCount(where: { amountMinor: { gt: "0" } })',
+    'membershipAgreementsCount(where: { priceSnapshotMinor: { gt: "0" } })',
+    'membershipAgreementsCount(where: { disclosures: { equals: {} } })',
   ]) {
     it(`a reader without the money tier: ${selection} is refused`, async () => {
       const r = await run(sessionOf(['canAccessDashboard', 'canManagePatients', 'canCloseDay']), `{ ${selection} }`)

@@ -31,6 +31,10 @@ export async function decideApprovalRequest(_root: unknown, args: { requestId: s
         if (refund.accountId) await uow.tx.creditBalance.updateMany({ where: { accountId: refund.accountId, status: 'refund_requested' }, data: { status: 'open', version: { increment: 1 } } })
       }
     }
+    if (args.decision === 'reject' && decided.targetList === 'PeriodClose') {
+      const { periodReopenRejected } = await import('./close')
+      await periodReopenRejected(uow, actor, String(decided.targetId))
+    }
     return { id: decided.id, status: decided.status, applied }
   })
   return { replay: result.replay, ...result.value }

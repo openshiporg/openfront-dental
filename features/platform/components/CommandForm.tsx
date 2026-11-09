@@ -61,6 +61,13 @@ const SHAPES = {
   acceptItems: (v: Values) => ({ selectedItemIds: Object.entries(v).filter(([k, on]) => k.startsWith('item_') && on).map(([k]) => k.slice(5)), signer: v.signer, signerName: v.signerName, password: v.password }),
   /** New plan: one checkbox per diagnosed entry (named entry_<id>). */
   planFromEntries: (v: Values) => ({ title: v.title, chartEntryIds: Object.entries(v).filter(([k, on]) => k.startsWith('entry_') && on).map(([k]) => k.slice(6)) }),
+  /** Membership plan: covered visits per period become the benefit list; offices are chosen by one select. */
+  membershipPlan: (v: Values) => ({
+    name: v.name, ageBand: v.ageBand, price: v.price, interval: v.interval, discountPct: v.discountPct, termsText: v.termsText, locationIds: [v.locationId],
+    benefits: Number(v.coveredVisits) > 0 ? [{ codeFamily: 'preventive', countPerPeriod: Number(v.coveredVisits) }] : [],
+  }),
+  /** Agreement: the consent box is a boolean. */
+  signAgreement: (v: Values) => ({ membershipId: v.membershipId, expectedVersion: Number(v.expectedVersion), signerName: v.signerName, consent: v.consent === true, startsOn: v.startsOn || undefined }),
   /** Fee entry: dollars become whole minor units. */
   feeDollars: (v: Values) => ({ codeId: v.codeId, amountMinor: String(Math.round(Number(String(v.dollars).replace(/[$,]/g, '')) * 100)) }),
   /** Signed form: the signer attests; no extra answers are collected at the desk. */

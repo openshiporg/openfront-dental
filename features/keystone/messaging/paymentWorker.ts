@@ -1,3 +1,4 @@
+import { runMembershipRenewals } from '../mutations/memberships'
 import { systemActor } from '../lib/actor'
 import type { Db } from '../lib/db'
 import { auditCreate } from '../lib/cas'
@@ -145,4 +146,5 @@ export const paymentJobs = (db: Db, now: () => Date): [string, () => Promise<unk
   ['job:plan-installments', () => chargeDueInstallments(db, now())],
   ['job:statements-overdue', () => markOverdueStatements(db, now())],
   ['job:credit-balances', () => refreshCreditBalances(db, now())],
+  ['job:membership-renewals', () => runMembershipRenewals(db, now())],
 ]
