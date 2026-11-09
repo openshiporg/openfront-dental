@@ -600,12 +600,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
               foundModel.charAt(0).toLowerCase() + foundModel.slice(1)        // Products -> product
             ];
             
-            for (const name of possibleNames) {
-              if (queryFields[name]) {
-                operationName = name;
-                break;
-              }
-            }
+            // The list query is the one returning [Model!]; naming guesses miss plurals like outsideHistories.
+            const returnsList = (name: string) => {
+              let t: any = queryFields[name]?.type;
+              if (t && isNonNullType(t)) t = t.ofType;
+              return Boolean(t && isListType(t));
+            };
+            operationName = Object.keys(queryFields).find(name => {
+              if (!returnsList(name)) return false;
+              let t: any = queryFields[name].type;
+              while (t && (isListType(t) || isNonNullType(t))) t = t.ofType;
+              return t?.name === foundModel;
+            }) ?? possibleNames.find(name => queryFields[name] && returnsList(name)) ?? null;
           }
           
           if (!operationName) {
