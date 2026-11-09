@@ -6,7 +6,13 @@ import type { Actor } from './actor'
 import { DomainError, Codes } from './errors'
 import { postEntry } from './ledger'
 import type { UnitOfWork } from './unitOfWork'
-import { dayOf, locationToday } from '../mutations/clinicalShared'
+import { localDate } from './time'
+
+const dayOf = (date: string) => new Date(`${date}T00:00:00Z`)
+async function locationToday(tx: Tx, locationId: string, now: Date) {
+  const location = await tx.location.findUnique({ where: { id: locationId }, select: { timeZone: true } })
+  return localDate(location?.timeZone ?? 'America/New_York', now)
+}
 
 /*
  * Payment settlement shared by the front desk, the worker and the webhook (STATE-MACHINES §6.2, DOMAIN I-L4).
