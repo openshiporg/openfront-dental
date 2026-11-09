@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import { keystoneContext } from '@/features/keystone/context'
 import { openPayLink } from '@/features/keystone/lib/payLink'
 import { formatMinor } from '@/features/keystone/lib/money'
@@ -9,15 +10,6 @@ export const metadata: Metadata = { title: 'Pay your statement', robots: { index
 
 const day = (iso: string) => { const [y, m, d] = iso.split('-'); return `${m}/${d}/${y}` }
 
-function Unavailable() {
-  return (
-    <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-5 py-10">
-      <h1 className="text-xl font-semibold">This link is not available</h1>
-      <p className="mt-2 text-sm text-neutral-600">The link may have expired or been replaced by a newer statement. Please call your dental office and we will help you.</p>
-    </main>
-  )
-}
-
 export default async function PayPage({ params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
   let view: Awaited<ReturnType<typeof openPayLink>>
@@ -27,7 +19,7 @@ export default async function PayPage({ params }: { params: Promise<{ code: stri
     const h = await headers()
     await enforcePublicLimit(keystoneContext.prisma, { scope: 'paylink:view', req: { headers: Object.fromEntries(h) }, limits: { perClientPerHour: 60, perContactPerDay: 5, globalPerMinute: 240 } })
     view = await openPayLink(keystoneContext.prisma as never, code)
-  } catch { return <Unavailable /> }
+  } catch { notFound() }
   const owed = BigInt(view.owedMinor)
   return (
     <main className="mx-auto min-h-dvh max-w-xl px-5 py-8">
