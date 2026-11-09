@@ -320,7 +320,7 @@ export async function proposePaymentPlan(_root: unknown, args: { patientId: stri
     const account = await accountFor(uow, patientId)
     if (await tx.paymentPlan.findFirst({ where: { accountId: account.id, status: { in: ['proposed', 'active', 'delinquent'] } }, select: { id: true } })) throw new DomainError(Codes.GUARD_FAILED, 'This account already has a payment plan.')
     const balance = await accountBalance(tx, account.id)
-    const down = args.downPayment ? parseMoney(args.downPayment, 'down payment') : 0n
+    const down = args.downPayment && Number(String(args.downPayment).replace(/[$,\s]/g, '')) !== 0 ? parseMoney(args.downPayment, 'down payment') : 0n
     const covered = args.amount ? parseMoney(args.amount) : balance
     if (covered > balance) throw new DomainError(Codes.GUARD_FAILED, `The plan can cover at most the balance, ${formatMinor(balance > 0n ? balance : 0n)}.`, { field: 'amount' })
     const principal = covered - down
