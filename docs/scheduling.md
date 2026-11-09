@@ -57,7 +57,7 @@ the current rule with the board before relying on it.
 ## Transitions
 
 Every transition is a command (`features/keystone/mutations/scheduling.ts`):
-compare-and-set on the version, an audit event, outbox messages and an
+compare-and-set on the version, an audit event and an
 idempotency key.
 
 | Command | From → to | Notes |
@@ -77,28 +77,9 @@ When the practice withdraws a visit (the patient died, or an online booking was
 spam) it is cancelled without the late-cancel rule and no broken-appointment
 event is recorded.
 
-## Confirmations
+## Reminders
 
-Booking creates `ConfirmationAttempt`s 48 and 24 hours ahead for each primary
-mobile/email. The outbox worker (`npx tsx features/keystone/messaging/run-worker.ts --loop`) dispatches each one and
-**re-checks at send time**:
-
-- the visit is still scheduled and unconfirmed;
-- the contact is still active;
-- an active consent grant covers this channel, purpose (`appointment_reminders`)
-  and address;
-- it is not quiet hours where the location is (from the jurisdiction pack,
-  default 20:00–08:00). Quiet hours defer the message rather than drop it.
-
-Reminders carry no clinical detail. Sample-practice data always goes to the
-manual queue. SMS stays manual until a texting provider with a BAA is
-configured (Phase 7). Email goes through SMTP when it is configured, recorded
-as `accepted` (never "delivered").
-
-Replies: `C`/`YES` confirms the most recent pending reminder; `STOP` (and
-variants) revokes SMS consent at once; `START` restores it, flagged for
-reconfirmation; `HELP` answers. **Free text never cancels a visit**: it becomes
-a task for the front desk.
+This app sends no texts or emails. Reminder attempts are not created. Outside notification of events is for Openfront Commerce webhooks only.
 
 ## Staff screens
 

@@ -654,32 +654,6 @@ model Notification {
   @@index([recipientId])
 }
 
-model OutboxEvent {
-  id                                String             @id @default(cuid())
-  topic                             String             @default("")
-  aggregateType                     String             @default("")
-  aggregateId                       String             @default("")
-  dedupeKey                         String             @unique @default("")
-  payload                           Json?
-  adapterKey                        String             @default("")
-  mode                              String?            @default("manual_export")
-  isSynthetic                       Boolean            @default(false)
-  status                            String             @default("pending")
-  attempts                          Int?               @default(0)
-  nextAttemptAt                     DateTime?          @default(now())
-  leaseOwner                        String             @default("")
-  leaseExpiresAt                    DateTime?
-  fencingToken                      Int?               @default(0)
-  lastError                         String             @default("")
-  deliveredAt                       DateTime?
-  createdAt                         DateTime           @default(now())
-  updatedAt                         DateTime           @default(now()) @updatedAt
-  from_EligibilityCheck_outboxEvent EligibilityCheck[] @relation("EligibilityCheck_outboxEvent")
-
-  @@index([topic])
-  @@index([aggregateId])
-}
-
 model PhiReadAudit {
   id                   String           @id @default(cuid())
   actorUser            User?            @relation("PhiReadAudit_actorUser", fields: [actorUserId], references: [id])
@@ -2865,8 +2839,6 @@ model EligibilityCheck {
   observation    InboundObservation?  @relation("EligibilityCheck_observation", fields: [observationId], references: [id])
   observationId  String?              @map("observation")
   respondedAt    DateTime?
-  outboxEvent    OutboxEvent?         @relation("EligibilityCheck_outboxEvent", fields: [outboxEventId], references: [id])
-  outboxEventId  String?              @map("outboxEvent")
   isSynthetic    Boolean              @default(false)
   version        Int                  @default(0)
   createdAt      DateTime             @default(now())
@@ -2876,7 +2848,6 @@ model EligibilityCheck {
   @@index([coverageId])
   @@index([requestHash])
   @@index([observationId])
-  @@index([outboxEventId])
 }
 
 model Employer {

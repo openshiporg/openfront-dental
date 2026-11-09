@@ -13,7 +13,7 @@ Payer, Employer, InsurancePlan, BenefitRule, Subscriber, Coverage, BenefitVerifi
 - One open coverage per patient and order; one verification in flight per coverage; one in-flight eligibility check per coverage and request hash; one open task per subject and key.
 
 ## Eligibility (`features/integrations/clearinghouse`, `messaging/eligibilityWorker.ts`)
-`requestVerification` creates a verification and an `EligibilityCheck` plus an outbox message. The worker claims the check (`queued → sent`), calls the clearinghouse with **no transaction open**, and applies the outcome in a second guarded transaction:
+`requestVerification` creates a verification and an `EligibilityCheck` and runs it straight after the commit. The step claims the check (`queued → sent`), calls the clearinghouse with **no transaction open**, and applies the outcome in a second guarded transaction:
 
 | Outcome | Check status | Effect |
 |---|---|---|

@@ -4,8 +4,6 @@ import { hasTestDatabase, resetDatabase, testPrisma, uniqueKey } from '../../../
 import { NEVER_DEFAULT, permissionNames, type Permission } from '../access'
 import { verifyAuditChain } from '../lib/audit'
 import { addDays, localDate, localTime, weekdayOf, zonedInstant } from '../lib/time'
-import { dispatchConfirmation, handleInbound } from '../messaging/dispatch'
-import type { MessagingAdapter } from '../messaging/adapters'
 import { decideApprovalRequest } from './approvals'
 import { registerPatient, proposeMerge, revertMerge, recordConsent, setPatientStatus } from './patients'
 import { grantPortalAccess, issuePortalCode, portalAppointments, portalCancel, portalMe, portalSession, signPortalToken, suspendPortalAccount } from './portal'
@@ -467,49 +465,6 @@ describe.skipIf(!hasTestDatabase)('Phase 1: patients, scheduling, public and por
     expect(await prisma.auditEvent.count({ where: { entityId: visit.appointmentId, eventType: 'appointment.cancelled' } })).toBe(1)
   })
 
-  // ── Confirmations: consent and quiet hours at dispatch; replies ─────────────────────────────
-
-  it('a reminder goes only with consent and outside quiet hours; synthetic data goes to the manual queue; "C" confirms and STOP revokes', async () => {
-    const p = await prisma.patient.findFirstOrThrow({ where: { status: 'active', homeLocationId: TPA, contactPoints: { some: { kind: 'mobile', isPrimary: true, isActive: true, consentGrants: { some: { status: 'granted', channel: 'sms' } } } }, appointments: { none: { status: { in: ['scheduled', 'confirmed'] }, startsAt: { gt: new Date() } } } }, include: { contactPoints: true } })
-    const slot = await freeOp3Slot(11)
-    const visit = await bookAppointment(null, { ...slot, patientId: p.id, idempotencyKey: uniqueKey() }, desk)
-    const attempts = await prisma.confirmationAttempt.findMany({ where: { appointmentId: visit.appointmentId }, orderBy: { scheduledFor: 'asc' } })
-    const sms = attempts.find(a => a.channel === 'sms')!
-    expect(sms).toBeTruthy()
-    const sent: unknown[] = []
-    const spy = (): MessagingAdapter => ({ key: 'spy', mode: 'manual_export', channels: ['sms', 'email'], send: async m => { sent.push(m); return { status: 'queued_manual', providerMessageId: 'spy-1', adapterKey: 'spy', adapterMode: 'manual_export' } } })
-    // 22:30 local: quiet hours, deferred (nothing sent, still scheduled).
-    const night = () => zonedInstant(TZ, addDays(slot.date, -2), '22:30')
-    await expect(dispatchConfirmation(prisma, sms.id, { now: night, adapter: spy })).rejects.toThrow(/quiet hours/)
-    expect(sent).toHaveLength(0)
-    expect((await prisma.confirmationAttempt.findUniqueOrThrow({ where: { id: sms.id } })).status).toBe('scheduled')
-    // 10:00 local: sent through the adapter (synthetic → manual queue by default).
-    const morning = () => zonedInstant(TZ, addDays(slot.date, -2), '10:00')
-    const result = await dispatchConfirmation(prisma, sms.id, { now: morning })
-    expect(result).toMatchObject({ adapterKey: 'manual', adapterMode: 'manual_export' })
-    expect((await prisma.confirmationAttempt.findUniqueOrThrow({ where: { id: sms.id } })).status).toBe('sent')
-    const phone = p.contactPoints.find(c => c.kind === 'mobile' && c.isPrimary)!.valueNormalized
-    // Free text never cancels; it becomes a staff task.
-    expect((await handleInbound(prisma, { channel: 'sms', from: phone, body: 'can I come later?', providerMessageId: uniqueKey('in') })).value).toMatchObject({ handled: 'task' })
-    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: visit.appointmentId } })).status).toBe('scheduled')
-    // Reset the attempt to sent and reply C → confirmed.
-    await prisma.confirmationAttempt.update({ where: { id: sms.id }, data: { status: 'sent' } })
-    expect((await handleInbound(prisma, { channel: 'sms', from: phone, body: 'C', providerMessageId: uniqueKey('in') })).value).toMatchObject({ handled: 'confirm' })
-    expect((await prisma.appointment.findUniqueOrThrow({ where: { id: visit.appointmentId } })).status).toBe('confirmed')
-    // STOP revokes SMS consent; a later reminder is suppressed for no consent.
-    await handleInbound(prisma, { channel: 'sms', from: phone, body: 'STOP', providerMessageId: uniqueKey('in') })
-    expect(await prisma.consentGrant.count({ where: { contactPoint: { valueNormalized: phone }, channel: 'sms', status: 'granted' } })).toBe(0)
-    const slot2 = await freeOp3Slot(12)
-    const visit2 = await bookAppointment(null, { ...slot2, patientId: p.id, idempotencyKey: uniqueKey() }, desk)
-    const sms2 = (await prisma.confirmationAttempt.findMany({ where: { appointmentId: visit2.appointmentId, channel: 'sms' } }))[0]
-    expect(await dispatchConfirmation(prisma, sms2.id, { now: () => zonedInstant(TZ, addDays(slot2.date, -2), '10:00'), adapter: spy })).toMatchObject({ status: 'suppressed', reason: 'no_consent' })
-    expect(sent).toHaveLength(0)
-    // Staff can record a verbal consent only with a note.
-    const contact = p.contactPoints.find(c => c.kind === 'mobile' && c.isPrimary)!
-    await expect(recordConsent(null, { contactPointId: contact.id, channel: 'sms', purpose: 'appointment_reminders', granted: true, source: 'verbal_staff', idempotencyKey: uniqueKey() }, desk)).rejects.toMatchObject({ code: 'INVALID_INPUT' })
-    await recordConsent(null, { contactPointId: contact.id, channel: 'sms', purpose: 'appointment_reminders', granted: true, source: 'verbal_staff', reason: 'Patient asked at the desk on the phone to get texts again', idempotencyKey: uniqueKey() }, desk)
-    expect(await prisma.consentGrant.count({ where: { contactPointId: contact.id, channel: 'sms', status: 'granted' } })).toBe(1)
-  })
 
   it('the audit chain is intact after everything above', async () => {
     expect((await verifyAuditChain(prisma)).ok).toBe(true)

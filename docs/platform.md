@@ -55,7 +55,6 @@ The same map drives three things:
 - `AuditEvent` is a hash chain: each row carries the previous row's hash.
   `AuditEvent`, `ApprovalDecision` and `PhiReadAudit` are append-only at the
   database. Triggers refuse UPDATE, DELETE and TRUNCATE.
-- `OutboxEvent` holds outbound work: messages, clearinghouse calls, webhooks.
   - It is written in the same transaction as the state change.
   - A CHECK stops synthetic rows from ever being queued for a `live` adapter.
 - `CommandReceipt` makes every command idempotent by `idempotencyKey`. A replay

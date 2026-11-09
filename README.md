@@ -28,7 +28,7 @@ npm install
 npm run dev            # builds Keystone, applies migrations, starts Next.js
 ```
 
-`npm run verify` runs type checks, lint, unit and Node tests. Database tests run when `DENTAL_TEST_DATABASE_URL` is set. The message worker runs with `npx tsx features/keystone/messaging/run-worker.ts --loop`.
+`npm run verify` runs type checks, lint, unit and Node tests. Database tests run when `DENTAL_TEST_DATABASE_URL` is set. There is no worker service: scheduled steps run from the Day and month close screen (Run pending work).
 
 ## License
 

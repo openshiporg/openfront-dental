@@ -33,7 +33,6 @@ async function postAdjustmentRow(uow: any, actor: any, request: any, type: any, 
     businessDate: dayOf(date), locationId: request.locationId, adjustmentId: request.id, memo: `${type.name}`, postedById: actor.kind === 'user' ? actor.userId : approverId,
   }, uow.now)
   auditCreate(uow, actor, 'LedgerEntry', entry.id, 'ledger.adjustment_posted', { adjustmentId: request.id, type: type.code, amountMinor: signed.toString() }, { reason: request.reason })
-  uow.emit({ topic: 'ledger.adjustment_posted', aggregateType: 'LedgerEntry', aggregateId: entry.id, payload: { adjustmentId: request.id }, dedupeKey: `ledger.adjustment_posted:${entry.id}` })
   return entry
 }
 

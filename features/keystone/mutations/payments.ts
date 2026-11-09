@@ -83,13 +83,13 @@ export async function takePayment(_root: unknown, args: TakePaymentArgs, context
     if (args.saveCard && args.testMethod) {
       const consent = optionalText(args.consentText, 400)
       if (!consent) throw new DomainError(Codes.CONSENT_REQUIRED, 'Record what the cardholder agreed to before saving the card.', { field: 'consentText' })
-      uow.emit({ topic: 'payment.save_method', aggregateType: 'Payment', aggregateId: payment.id, payload: { paymentId: payment.id, accountId: account.id, consentText: consent, consentBy: actor.kind === 'user' ? actor.userId : '' }, dedupeKey: `payment.save_method:${payment.id}` })
+      { const saveInput = { paymentId: payment.id, accountId: account.id, consentText: consent, consentBy: actor.kind === 'user' ? actor.userId : '' }; uow.after(async () => (await import('../messaging/paymentWorker')).runSaveMethod(uow.db, saveInput)) }
     }
     if (tender !== 'card') {
       const settled = await settlePaymentWithAllocation(uow, actor, payment.id, explicit)
       return { id: payment.id, ref, status: 'succeeded', allocated: settled.allocated.toString(), unallocated: settled.unallocated.toString() }
     }
-    uow.emit({ topic: 'payment.create', aggregateType: 'Payment', aggregateId: payment.id, payload: { paymentId: payment.id }, dedupeKey: `payment.create:${payment.id}` })
+    uow.after(async () => (await import('../messaging/paymentWorker')).runPaymentCreate(uow.db, payment.id))
     return { id: payment.id, ref, status: 'initiated' }
   })
   return { replay: result.replay, ...result.value }
@@ -153,7 +153,7 @@ registerApplier('refund.execute', async (uow, actor, request) => {
   if (!approverId || approverId === row.requestedById) throw new DomainError(Codes.SELF_APPROVAL, 'A refund needs a second person to approve it.')
   const card = row.method === 'original_tender'
   await transition<any>(uow, { model: 'Refund', id: row.id, from: ['requested'], to: card ? 'executing' : 'approved', actor, eventType: 'refund.approved', approverId, data: { approvedById: approverId } })
-  if (card) uow.emit({ topic: 'payment.refund', aggregateType: 'Refund', aggregateId: row.id, payload: { refundId: row.id }, dedupeKey: `payment.refund:${row.id}` })
+  if (card) uow.after(async () => (await import('../messaging/paymentWorker')).runRefund(uow.db, row.id))
   return { refundId: row.id, status: card ? 'executing' : 'approved' }
 }, { applyOnApprove: true })
 
@@ -295,8 +295,7 @@ export async function markOverdueStatements(db: any, now: Date) {
   for (const s of due) {
     await command(db, { name: 'statement.overdue', actor: systemActor('statements'), idempotencyKey: `statement.overdue:${s.id}`, params: { id: s.id }, now }, async uow => {
       await transition<any>(uow, { model: 'Statement', id: s.id, from: ['sent', 'partially_paid'], to: 'overdue', actor: systemActor('statements'), eventType: 'statement.overdue' })
-      uow.emit({ topic: 'notify.staff', aggregateType: 'Statement', aggregateId: s.id, payload: { kind: 'ledger.overdue_balance' }, dedupeKey: `notify.staff:overdue:${s.id}` })
-    }).then(() => { moved += 1 }).catch(() => undefined)
+          }).then(() => { moved += 1 }).catch(() => undefined)
   }
   return { moved }
 }
@@ -392,7 +391,7 @@ export async function chargeDueInstallments(db: any, now: Date) {
       const ref = await nextReference(tx, 'PAY', uow.now)
       const pay = await tx.payment.create({ data: { ref, accountId: i.plan.accountId, patientId: i.plan.patientId, locationId: i.plan.locationId, amountMinor: i.amountMinor, currencyCode: 'USD', tender: 'card', status: 'initiated', adapterKey: 'stripe', idempotencyKey: `plan:${i.id}:${i.attempts}`, methodTokenId: token.id, providerMethodId: token.providerMethodId, source: 'payment_plan' } })
       await tx.paymentPlanInstallment.update({ where: { id: i.id }, data: { paymentId: pay.id, lastAttemptOn: dayOf(today), version: { increment: 1 } } })
-      uow.emit({ topic: 'payment.create', aggregateType: 'Payment', aggregateId: pay.id, payload: { paymentId: pay.id, offSession: true }, dedupeKey: `payment.create:${pay.id}` })
+      uow.after(async () => (await import('../messaging/paymentWorker')).runPaymentCreate(uow.db, pay.id, {}))
     }).then(() => { queued += 1 }).catch(() => undefined)
   }
   return { queued }

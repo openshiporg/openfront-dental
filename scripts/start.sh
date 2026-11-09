@@ -11,11 +11,4 @@ npm run migrate || exit 1
 ./node_modules/.bin/tsx scripts/rebuild-balances.ts || true
 ./node_modules/.bin/tsx scripts/seed-claim-reference.ts || true
 ./node_modules/.bin/tsx scripts/hash-statements.ts || true
-(
-  while true; do
-    ./node_modules/.bin/tsx features/keystone/messaging/run-worker.ts --loop
-    echo "worker exited with $?; restarting in 5s"
-    sleep 5
-  done
-) &
 exec ./node_modules/.bin/next start

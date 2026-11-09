@@ -152,7 +152,7 @@ export async function releaseClaim(_root: unknown, args: { claimId: string; expe
     const key = `claim:${claim.ref}:v${number}:${hash.slice(0, 16)}`
     const version = await tx.claimVersion.create({ data: { claimId: claim.id, number, frequency: payload.frequency, payload: payload as never, payloadHash: hash, idempotencyKey: key, releasedById: actor.kind === 'user' ? actor.userId : null, releasedAt: uow.now } })
     await transition<any>(uow, { model: 'Claim', id: claim.id, from: ['ready'], to: 'released', expectedVersion: args.expectedVersion, actor, eventType: 'claim.released', metadata: { version: number }, data: { currentVersionId: version.id } })
-    uow.emit({ topic: 'claim.submit', aggregateType: 'Claim', aggregateId: claim.id, payload: { claimId: claim.id, versionId: version.id }, dedupeKey: `claim.submit:${version.id}` })
+    uow.after(async () => (await import('../messaging/claimWorker')).runClaimSubmit(uow.db, claim.id))
     return { id: claim.id, versionId: version.id, versionNumber: number }
   })
   return { replay: result.replay, ...result.value }
@@ -190,7 +190,7 @@ export async function voidClaim(_root: unknown, args: { claimId: string; expecte
     const hash = payloadHash(payload)
     const version = await tx.claimVersion.create({ data: { claimId: claim.id, number, frequency: 'void', payload: payload as never, payloadHash: hash, idempotencyKey: `claim:${claim.ref}:v${number}:${hash.slice(0, 16)}`, releasedById: actor.kind === 'user' ? actor.userId : null, releasedAt: uow.now } })
     const moved = await transition<any>(uow, { model: 'Claim', id: claim.id, from: [...SENT, 'rejected'], to: 'void_requested', expectedVersion: args.expectedVersion, actor, eventType: 'claim.void_requested', reason, data: { currentVersionId: version.id } })
-    uow.emit({ topic: 'claim.submit', aggregateType: 'Claim', aggregateId: claim.id, payload: { claimId: claim.id, versionId: version.id }, dedupeKey: `claim.submit:${version.id}` })
+    uow.after(async () => (await import('../messaging/claimWorker')).runClaimSubmit(uow.db, claim.id))
     return { id: claim.id, status: moved.status }
   })
   return { replay: result.replay, ...result.value }
@@ -234,7 +234,7 @@ export async function requestClaimStatus(_root: unknown, args: { claimId: string
     const claim = await scopedClaim(uow.tx, locationIds, args.claimId)
     if (!SENT.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, 'This claim has not been sent.')
     const inquiry = await uow.tx.claimStatusInquiry.create({ data: { claimId: claim.id, status: 'queued' } })
-    uow.emit({ topic: 'claim.status', aggregateType: 'Claim', aggregateId: claim.id, payload: { inquiryId: inquiry.id }, dedupeKey: `claim.status:${inquiry.id}` })
+    uow.after(async () => (await import('../messaging/claimWorker')).runClaimStatus(uow.db, inquiry.id))
     return { id: inquiry.id }
   })
   return { replay: result.replay, ...result.value }

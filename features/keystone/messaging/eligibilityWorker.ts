@@ -1,7 +1,6 @@
 import { sha256, canonicalJson } from '../lib/canonical'
 import type { Db } from '../lib/db'
 import { log } from '../lib/log'
-import type { ClaimedMessage, OutboxHandlers } from '../lib/outbox'
 import { readSecret, storeSecret } from '../lib/secretBox'
 import { runInTransaction } from '../lib/unitOfWork'
 import { clearinghouseFor, type AdapterCtx, type EligibilityOutcome, type EligibilityRequest } from '../../integrations/clearinghouse'
@@ -120,15 +119,6 @@ export async function runEligibilityCheck(db: Db, checkId: string, deps: Eligibi
   })
 }
 
-export function eligibilityHandlers(db: Db, deps: EligibilityDeps = {}): OutboxHandlers {
-  return {
-    'eligibility.check': async (message: ClaimedMessage) => {
-      const payload = (message.payload ?? {}) as { checkId?: string }
-      if (!payload.checkId) return
-      await runEligibilityCheck(db, payload.checkId, deps)
-    },
-  }
-}
 
 /**
  * A check left `sent` by a worker that died between claiming and applying may or may not have reached the

@@ -182,7 +182,6 @@ export async function publicSubmitBooking(_root: unknown, args: { slug: string; 
         ipHash: fingerprint, userAgentHash: userAgentFingerprint(context.req), captchaScore: captcha.score, isSynthetic: policy.location.isSynthetic,
       },
     })
-    uow.emit({ topic: 'notify.staff', aggregateType: 'PublicBookingRequest', aggregateId: publicRef, payload: { kind: 'online_booking', matchStatus, locationId: held.locationId }, dedupeKey: `notify.staff:online_booking:${publicRef}` })
     return { publicRef, status: 'booked', startsAt: appointment.startsAt.toISOString(), endsAt: appointment.endsAt.toISOString(), locationName: policy.location.name }
   })
   return { replay: result.replay, ...result.value }

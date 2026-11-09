@@ -223,30 +223,6 @@ export const OUTBOX_TOPICS = [
   'erx.send', 'lab.send', 'review.reply', 'inference.call', 'webhook.out', 'audit.anchor', 'notify.approval', 'notify.staff', 'confirmation.dispatch',
 ] as const
 
-export const OutboxEvent = list({
-  access: governed(['canManagePractice', 'canManageAdapters']),
-  ui: { listView: { initialColumns: ['topic', 'status', 'attempts', 'nextAttemptAt', 'aggregateType', 'aggregateId'] } },
-  fields: {
-    topic: systemText({ indexed: true, required: true }),
-    aggregateType: systemText({ required: true }),
-    aggregateId: systemText({ indexed: true, required: true }),
-    dedupeKey: systemText({ indexed: 'unique', required: true }),
-    payload: json({ ...readOnly, access: { read: anyOf('canManageAdapters'), create: sys, update: sys } }),
-    adapterKey: systemText(),
-    mode: select({ type: 'string', options: ['manual_export', 'sandbox', 'live'].map(value => ({ label: value.replace('_', ' '), value })), defaultValue: 'manual_export', ...readOnly }),
-    isSynthetic: checkbox({ defaultValue: false, ...readOnly }),
-    status: lifecycle(['pending', 'leased', 'delivered', 'failed', 'dead', 'blocked']),
-    attempts: integer({ defaultValue: 0, ...readOnly }),
-    nextAttemptAt: timestamp({ defaultValue: { kind: 'now' }, ...readOnly }),
-    leaseOwner: systemText(),
-    leaseExpiresAt: timestamp({ ...readOnly }),
-    fencingToken: integer({ defaultValue: 0, ...readOnly }),
-    lastError: systemText(),
-    deliveredAt: timestamp({ ...readOnly }),
-    ...trackingFields,
-  },
-})
-
 export const InboundObservation = list({
   access: governed(['canManageAdapters']),
   ui: { listView: { initialColumns: ['source', 'kind', 'externalId', 'receivedAt', 'appliedAt'] } },

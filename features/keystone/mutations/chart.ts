@@ -171,7 +171,6 @@ export async function completeProcedure(_root: unknown, args: { chartEntryId: st
     await rebuildBalance(uow.tx, account.id, uow.now)
     if (member) auditCreate(uow, actor, 'LedgerEntry', member.ledgerEntryId, 'membership.applied', { chartEntryId: row.id, covered: member.covered, amountMinor: member.creditMinor.toString() })
     auditCreate(uow, actor, 'LedgerEntry', charge.id, 'ledger.charge_posted', { chartEntryId: row.id, amountMinor: feeMinor.toString(), businessDate: date })
-    uow.emit({ topic: 'ledger.charge_posted', aggregateType: 'LedgerEntry', aggregateId: charge.id, payload: { chartEntryId: row.id, patientId: row.patientId }, dedupeKey: `ledger.charge_posted:${charge.id}` })
     return { chartEntryId: entry.id, ledgerEntryId: charge.id, feeMinor: feeMinor.toString() }
   })
   return { replay: result.replay, ...result.value }

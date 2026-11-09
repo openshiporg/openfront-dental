@@ -107,5 +107,6 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   requestPeriodReopen: { periodCloseId: 'ID!', reason: 'String!' },
   postRestatement: { periodCloseId: 'ID!', patientId: 'ID!', typeId: 'ID!', amount: 'String!', businessDate: 'String!', reason: 'String!' },
   reclosePeriod: { periodCloseId: 'ID!' },
+  runPendingWork: {},
 }
 

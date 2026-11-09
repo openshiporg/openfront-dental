@@ -2607,125 +2607,6 @@ input NotificationCreateInput {
   updatedAt: DateTime
 }
 
-type OutboxEvent {
-  id: ID!
-  topic: String
-  aggregateType: String
-  aggregateId: String
-  dedupeKey: String
-  payload: JSON
-  adapterKey: String
-  mode: String
-  isSynthetic: Boolean
-  status: String
-  attempts: Int
-  nextAttemptAt: DateTime
-  leaseOwner: String
-  leaseExpiresAt: DateTime
-  fencingToken: Int
-  lastError: String
-  deliveredAt: DateTime
-  createdAt: DateTime
-  updatedAt: DateTime
-}
-
-input OutboxEventWhereUniqueInput {
-  id: ID
-  dedupeKey: String
-}
-
-input OutboxEventWhereInput {
-  AND: [OutboxEventWhereInput!]
-  OR: [OutboxEventWhereInput!]
-  NOT: [OutboxEventWhereInput!]
-  id: IDFilter
-  topic: StringFilter
-  aggregateType: StringFilter
-  aggregateId: StringFilter
-  dedupeKey: StringFilter
-  adapterKey: StringFilter
-  mode: StringNullableFilter
-  isSynthetic: BooleanFilter
-  status: StringFilter
-  attempts: IntNullableFilter
-  nextAttemptAt: DateTimeNullableFilter
-  leaseOwner: StringFilter
-  leaseExpiresAt: DateTimeNullableFilter
-  fencingToken: IntNullableFilter
-  lastError: StringFilter
-  deliveredAt: DateTimeNullableFilter
-  createdAt: DateTimeFilter
-  updatedAt: DateTimeFilter
-}
-
-input OutboxEventOrderByInput {
-  id: OrderDirection
-  topic: OrderDirection
-  aggregateType: OrderDirection
-  aggregateId: OrderDirection
-  dedupeKey: OrderDirection
-  adapterKey: OrderDirection
-  mode: OrderDirection
-  isSynthetic: OrderDirection
-  status: OrderDirection
-  attempts: OrderDirection
-  nextAttemptAt: OrderDirection
-  leaseOwner: OrderDirection
-  leaseExpiresAt: OrderDirection
-  fencingToken: OrderDirection
-  lastError: OrderDirection
-  deliveredAt: OrderDirection
-  createdAt: OrderDirection
-  updatedAt: OrderDirection
-}
-
-input OutboxEventUpdateInput {
-  topic: String
-  aggregateType: String
-  aggregateId: String
-  dedupeKey: String
-  payload: JSON
-  adapterKey: String
-  mode: String
-  isSynthetic: Boolean
-  status: String
-  attempts: Int
-  nextAttemptAt: DateTime
-  leaseOwner: String
-  leaseExpiresAt: DateTime
-  fencingToken: Int
-  lastError: String
-  deliveredAt: DateTime
-  createdAt: DateTime
-  updatedAt: DateTime
-}
-
-input OutboxEventUpdateArgs {
-  where: OutboxEventWhereUniqueInput!
-  data: OutboxEventUpdateInput!
-}
-
-input OutboxEventCreateInput {
-  topic: String
-  aggregateType: String
-  aggregateId: String
-  dedupeKey: String
-  payload: JSON
-  adapterKey: String
-  mode: String
-  isSynthetic: Boolean
-  status: String
-  attempts: Int
-  nextAttemptAt: DateTime
-  leaseOwner: String
-  leaseExpiresAt: DateTime
-  fencingToken: Int
-  lastError: String
-  deliveredAt: DateTime
-  createdAt: DateTime
-  updatedAt: DateTime
-}
-
 type PhiReadAudit {
   id: ID!
   actorUser: User
@@ -11645,7 +11526,6 @@ type EligibilityCheck {
   attempts: Int
   observation: InboundObservation
   respondedAt: DateTime
-  outboxEvent: OutboxEvent
   isSynthetic: Boolean
   version: Int
   createdAt: DateTime
@@ -11671,7 +11551,6 @@ input EligibilityCheckWhereInput {
   attempts: IntFilter
   observation: InboundObservationWhereInput
   respondedAt: DateTimeNullableFilter
-  outboxEvent: OutboxEventWhereInput
   isSynthetic: BooleanFilter
   version: IntFilter
   createdAt: DateTimeFilter
@@ -11705,17 +11584,10 @@ input EligibilityCheckUpdateInput {
   attempts: Int
   observation: InboundObservationRelateToOneForUpdateInput
   respondedAt: DateTime
-  outboxEvent: OutboxEventRelateToOneForUpdateInput
   isSynthetic: Boolean
   version: Int
   createdAt: DateTime
   updatedAt: DateTime
-}
-
-input OutboxEventRelateToOneForUpdateInput {
-  create: OutboxEventCreateInput
-  connect: OutboxEventWhereUniqueInput
-  disconnect: Boolean
 }
 
 input EligibilityCheckUpdateArgs {
@@ -11735,16 +11607,10 @@ input EligibilityCheckCreateInput {
   attempts: Int
   observation: InboundObservationRelateToOneForCreateInput
   respondedAt: DateTime
-  outboxEvent: OutboxEventRelateToOneForCreateInput
   isSynthetic: Boolean
   version: Int
   createdAt: DateTime
   updatedAt: DateTime
-}
-
-input OutboxEventRelateToOneForCreateInput {
-  create: OutboxEventCreateInput
-  connect: OutboxEventWhereUniqueInput
 }
 
 type Employer {
@@ -16240,12 +16106,6 @@ type Mutation {
   updateNotifications(data: [NotificationUpdateArgs!]!): [Notification]
   deleteNotification(where: NotificationWhereUniqueInput!): Notification
   deleteNotifications(where: [NotificationWhereUniqueInput!]!): [Notification]
-  createOutboxEvent(data: OutboxEventCreateInput!): OutboxEvent
-  createOutboxEvents(data: [OutboxEventCreateInput!]!): [OutboxEvent]
-  updateOutboxEvent(where: OutboxEventWhereUniqueInput!, data: OutboxEventUpdateInput!): OutboxEvent
-  updateOutboxEvents(data: [OutboxEventUpdateArgs!]!): [OutboxEvent]
-  deleteOutboxEvent(where: OutboxEventWhereUniqueInput!): OutboxEvent
-  deleteOutboxEvents(where: [OutboxEventWhereUniqueInput!]!): [OutboxEvent]
   createPhiReadAudit(data: PhiReadAuditCreateInput!): PhiReadAudit
   createPhiReadAudits(data: [PhiReadAuditCreateInput!]!): [PhiReadAudit]
   updatePhiReadAudit(where: PhiReadAuditWhereUniqueInput!, data: PhiReadAuditUpdateInput!): PhiReadAudit
@@ -17149,6 +17009,7 @@ type Mutation {
   requestPeriodReopen(periodCloseId: ID!, reason: String!, idempotencyKey: String!): JSON
   postRestatement(periodCloseId: ID!, patientId: ID!, typeId: ID!, amount: String!, businessDate: String!, reason: String!, idempotencyKey: String!): JSON
   reclosePeriod(periodCloseId: ID!, idempotencyKey: String!): JSON
+  runPendingWork(idempotencyKey: String!): JSON
   addPatientAlert(patientId: ID!, kind: String!, severity: String!, text: String!, idempotencyKey: String!): JSON
   endPatientAlert(alertId: ID!, reason: String!, idempotencyKey: String!): JSON
   linkGuarantor(patientId: ID!, guarantorPatientId: ID, personName: JSON, relationship: String!, idempotencyKey: String!): JSON
@@ -17275,9 +17136,6 @@ type Query {
   notification(where: NotificationWhereUniqueInput!): Notification
   notifications(where: NotificationWhereInput! = {}, orderBy: [NotificationOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: NotificationWhereUniqueInput): [Notification!]
   notificationsCount(where: NotificationWhereInput! = {}): Int
-  outboxEvent(where: OutboxEventWhereUniqueInput!): OutboxEvent
-  outboxEvents(where: OutboxEventWhereInput! = {}, orderBy: [OutboxEventOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: OutboxEventWhereUniqueInput): [OutboxEvent!]
-  outboxEventsCount(where: OutboxEventWhereInput! = {}): Int
   phiReadAudit(where: PhiReadAuditWhereUniqueInput!): PhiReadAudit
   phiReadAudits(where: PhiReadAuditWhereInput! = {}, orderBy: [PhiReadAuditOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PhiReadAuditWhereUniqueInput): [PhiReadAudit!]
   phiReadAuditsCount(where: PhiReadAuditWhereInput! = {}): Int

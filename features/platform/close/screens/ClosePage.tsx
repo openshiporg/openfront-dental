@@ -60,6 +60,10 @@ export default async function ClosePage() {
           ]} /></div>
         </details>
       </Section>
+      <Section title="Scheduled steps">
+        <Meta>Hold expiry, the no-show sweep, the remittance check, card reconciliation, plan installments, overdue statements and membership renewals run when you ask. Nothing runs in the background.</Meta>
+        <ActionButton op="runPendingWork" vars={{}} paths={paths}>Run pending work</ActionButton>
+      </Section>
     </Page>
   );
 }

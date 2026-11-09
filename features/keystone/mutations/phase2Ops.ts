@@ -9,6 +9,7 @@ import * as ledger from './ledger'
 import * as payments from './payments'
 import * as memberships from './memberships'
 import * as close from './close'
+import * as pendingWork from './pendingWork'
 import { PHASE2_ARGS } from './phase2Args'
 
 /* Every Phase 2 command's resolver. index.ts builds the GraphQL schema from this table and PHASE2_ARGS. */
@@ -85,6 +86,7 @@ const RESOLVERS: Record<string, Resolver> = {
   requestPeriodReopen: close.requestPeriodReopen,
   postRestatement: close.postRestatement,
   reclosePeriod: close.reclosePeriod,
+  runPendingWork: pendingWork.runPendingWorkNow,
   buildClaim: claims.createClaim,
   scrubClaim: claims.scrubClaimCommand,
   overrideScrub: claims.overrideScrub,

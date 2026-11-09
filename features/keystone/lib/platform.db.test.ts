@@ -8,7 +8,6 @@ import { auditCreate, transition } from './cas'
 import { command } from './command'
 import { DomainError } from './errors'
 import { acquireLease, assertFence } from './lease'
-import { drainOutbox } from './outbox'
 import { consumeApproval, decideApproval, requestApproval } from './approval'
 import { nextReference } from './sequence'
 import { runInTransaction } from './unitOfWork'
@@ -70,18 +69,18 @@ describe.skipIf(!hasTestDatabase)('platform spine (database)', () => {
       expect((await prisma.approvalRequest.findUniqueOrThrow({ where: { id: request.id } })).status).toBe('pending')
     })
 
-    it('rolls back the state change, audit and outbox together when a later step fails', async () => {
+    it('rolls back the state change and audit together, and runs no after-commit step, when a later step fails', async () => {
       const request = await newRequest()
       const auditBefore = await prisma.auditEvent.count()
-      const outboxBefore = await prisma.outboxEvent.count()
+      let ran = false
       await expect(runInTransaction(prisma, async uow => {
         await transition(uow, { model: 'ApprovalRequest', id: request.id, from: ['pending'], to: 'cancelled', actor: maker, eventType: 'approval.cancelled' })
-        uow.emit({ topic: 'test.never', aggregateType: 'ApprovalRequest', aggregateId: request.id, payload: {} })
+        uow.after(async () => { ran = true })
         throw new Error('posting failed')
       })).rejects.toThrow('posting failed')
       expect((await prisma.approvalRequest.findUniqueOrThrow({ where: { id: request.id } })).status).toBe('pending')
       expect(await prisma.auditEvent.count()).toBe(auditBefore)
-      expect(await prisma.outboxEvent.count()).toBe(outboxBefore)
+      expect(ran).toBe(false)
     })
   })
 
@@ -156,62 +155,23 @@ describe.skipIf(!hasTestDatabase)('platform spine (database)', () => {
     })
   })
 
-  describe('outbox delivery', () => {
-    it('delivers each message exactly once in effect, even when a worker crashes after the side effect', async () => {
-      const topic = uniqueKey('topic')
-      const ids = await runInTransaction(prisma, async uow => {
-        for (let i = 0; i < 5; i += 1) uow.emit({ topic, aggregateType: 'Test', aggregateId: `agg-${i}`, payload: { i }, dedupeKey: `${topic}:${i}` })
-        // Same dedupe key again: kept once.
-        uow.emit({ topic, aggregateType: 'Test', aggregateId: 'agg-0', payload: { i: 0 }, dedupeKey: `${topic}:0` })
-        return true
-      })
-      expect(ids).toBe(true)
-      expect(await prisma.outboxEvent.count({ where: { topic } })).toBe(5)
-
-      // The receiving side is idempotent on the dedupe key (as venues are on client order ids).
-      const effects = new Map<string, number>()
-      const receive = (dedupeKey: string) => effects.set(dedupeKey, (effects.get(dedupeKey) ?? 0) + 1)
-      const applied = new Set<string>()
-      const handler = async (message: { dedupeKey: string }) => {
-        if (!applied.has(message.dedupeKey)) { applied.add(message.dedupeKey); receive(message.dedupeKey) }
+  describe('after-commit steps', () => {
+    it('run once after the commit, and a failing step does not undo the committed work', async () => {
+      const prior = process.env.DENTAL_INLINE_EFFECTS
+      process.env.DENTAL_INLINE_EFFECTS = 'on'
+      try {
+        const request = await newRequest()
+        const order: string[] = []
+        await runInTransaction(prisma, async uow => {
+          await transition(uow, { model: 'ApprovalRequest', id: request.id, from: ['pending'], to: 'cancelled', actor: maker, eventType: 'approval.cancelled' })
+          uow.after(async () => { order.push('first'); throw new Error('processor unreachable') })
+          uow.after(async () => { order.push('second') })
+        })
+        expect(order).toEqual(['first', 'second'])
+        expect((await prisma.approvalRequest.findUniqueOrThrow({ where: { id: request.id } })).status).toBe('cancelled')
+      } finally {
+        process.env.DENTAL_INLINE_EFFECTS = prior
       }
-
-      const t0 = new Date(Date.now() + 1_000)
-      // Worker A delivers message effects but "crashes" before acknowledging two of them.
-      let crashes = 0
-      const crashing = await drainOutbox(prisma, {
-        workerId: 'worker-a', topics: [topic], leaseMs: 5_000, now: () => t0,
-        handlers: { [topic]: async message => { await handler(message); if (crashes < 2) { crashes += 1; throw new Error('worker crashed after send') } } },
-      })
-      expect(crashing.claimed).toBe(5)
-      expect(crashing.failed).toBe(2)
-
-      // Worker B runs after the retry delay and redelivers only the unacknowledged ones.
-      const t1 = new Date(t0.getTime() + 10_000)
-      const second = await drainOutbox(prisma, { workerId: 'worker-b', topics: [topic], now: () => t1, handlers: { [topic]: handler } })
-      expect(second.delivered).toBe(2)
-      expect(await prisma.outboxEvent.count({ where: { topic, status: 'delivered' } })).toBe(5)
-      expect([...effects.values()].every(count => count === 1)).toBe(true)
-      expect(effects.size).toBe(5)
-    })
-
-    it('refuses the acknowledgement of a worker whose lease was taken over', async () => {
-      const topic = uniqueKey('slow')
-      await runInTransaction(prisma, async uow => uow.emit({ topic, aggregateType: 'Test', aggregateId: 'x', payload: {}, dedupeKey: `${topic}:x` }))
-      const t0 = new Date(Date.now() + 1_000)
-      let resultB: Awaited<ReturnType<typeof drainOutbox>> | null = null
-      const resultA = await drainOutbox(prisma, {
-        workerId: 'slow-a', topics: [topic], leaseMs: 1_000, now: () => t0,
-        handlers: {
-          // While A is still working, its lease expires and B claims and delivers the message.
-          [topic]: async () => { resultB = await drainOutbox(prisma, { workerId: 'fast-b', topics: [topic], now: () => new Date(t0.getTime() + 5_000), handlers: { [topic]: async () => undefined } }) },
-        },
-      })
-      expect(resultB!.delivered).toBe(1)
-      expect(resultA.staleAcks).toBe(1)
-      const row = await prisma.outboxEvent.findFirstOrThrow({ where: { topic } })
-      expect(row.status).toBe('delivered')
-      expect(row.attempts).toBe(2)
     })
   })
 

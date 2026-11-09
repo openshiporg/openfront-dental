@@ -135,7 +135,6 @@ export async function postClaimPayment(uow: UnitOfWork, actor: Actor, input: { r
     await transition<any>(uow, { ...spec, from: ADJUSTABLE_FROM.filter(s => s !== 'adjudicated') })
   }
   auditCreate(uow, actor, 'PaymentPosting', posting.id, 'remittance.posted', { remittance: remittance.ref, claim: claim.ref, paidMinor: parsed.paidMinor.toString(), writeOffMinor: writeoff.toString(), patientRespMinor: parsed.patientRespMinor.toString() })
-  uow.emit({ topic: 'claim.adjudicated', aggregateType: 'Claim', aggregateId: claim.id, payload: { outcome }, dedupeKey: `claim.adjudicated:${posting.id}` })
   return posting
 }
 

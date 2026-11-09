@@ -222,7 +222,6 @@ export const EligibilityCheck = list({
     attempts: integer({ defaultValue: 0, validation: { isRequired: true }, ...readOnly }),
     observation: relationship({ ref: 'InboundObservation', ...readOnly }),
     respondedAt: timestamp({ ...readOnly }),
-    outboxEvent: relationship({ ref: 'OutboxEvent', ...readOnly }),
     isSynthetic: checkbox({ defaultValue: false, ...readOnly }),
     version: versionField(),
     ...trackingFields,

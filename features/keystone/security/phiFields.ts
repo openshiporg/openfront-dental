@@ -49,7 +49,6 @@ export function withTier<T extends { access?: Record<string, unknown> }>(tier: P
 export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   // Snapshots and payloads can carry any tier; they are read under the strictest relevant tier.
   AuditEvent: { before: 'clin', after: 'clin', reason: 'clin' },
-  OutboxEvent: { payload: 'clin' },
   ApprovalRequest: { payload: 'fin' },
   Proposal: { payload: 'clin', validation: 'clin', execution: 'clin', realised: 'clin' },
   Document: { title: 'clin' },

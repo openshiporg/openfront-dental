@@ -46,7 +46,6 @@ export const platformNavItems: PlatformNavItem[] = [
   { title: 'Locations & operatories', href: '/platform/settings/locations', color: 'slate', description: 'Offices, chairs, appointment types and schedule templates.', icon: MapPin, group: 'practice' },
   { title: 'Audit log', href: '/platform/audit', color: 'slate', description: 'Hash-chained audit events and chain verification.', icon: BookOpenCheck, group: 'practice' },
   { title: 'Privacy', href: '/platform/privacy', color: 'rose', description: 'PHI access log and break-glass reviews.', icon: ShieldCheck, group: 'practice' },
-  { title: 'Operations', href: '/platform/operations', color: 'slate', description: 'Outbox, jobs and leases.', icon: Activity, group: 'practice' },
   { title: 'Sign-in security', href: '/platform/settings/security', color: 'slate', description: 'Two-step verification and recovery codes.', icon: KeyRound, group: 'practice' },
   { title: 'Practice settings', href: '/platform/settings', color: 'slate', description: 'Practice profile, jurisdiction packs and approval policies.', icon: Settings, group: 'practice' },
 ]

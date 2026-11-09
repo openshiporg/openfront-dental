@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { zonedInstant, localTime } from '../lib/time'
-import { keywordOf, renderTemplate } from '../messaging/adapters'
 import {
   chairClash, dentistsOnSite, expandPattern, findSlots, inQuietHours, materialiseBlocks, parsePattern, patternUnits, planSegments, providerClashes,
   MS_PER_MINUTE, type OpenWindow, type TemplateBlockInput,
@@ -126,17 +125,5 @@ describe('messaging helpers', () => {
     expect(inQuietHours('08:00', '20:00', '08:00')).toBe(false)
     expect(inQuietHours('12:00', '12:00', '13:00')).toBe(true)
     expect(inQuietHours('13:00', '12:00', '13:00')).toBe(false)
-  })
-  it('inbound keywords: STOP family, START, HELP, confirmations; anything else is free text', () => {
-    expect(keywordOf(' stop ')).toBe('stop')
-    expect(keywordOf('UNSUBSCRIBE')).toBe('stop')
-    expect(keywordOf('start')).toBe('start')
-    expect(keywordOf('Help')).toBe('help')
-    expect(keywordOf('c')).toBe('confirm')
-    expect(keywordOf('Yes!')).toBe('confirm')
-    expect(keywordOf('can we do Tuesday instead')).toBeNull()
-  })
-  it('templates fill dotted variables and leave missing ones blank', () => {
-    expect(renderTemplate('Hi {{ patient.name }}, {{appointment.when}}{{missing}}.', { patient: { name: 'Ava' }, appointment: { when: 'Mon 9:00' } })).toBe('Hi Ava, Mon 9:00.')
   })
 })

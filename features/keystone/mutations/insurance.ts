@@ -233,7 +233,7 @@ export async function openChecklist(tx: Tx, verificationId: string, coverageId: 
 export type VerifyOptions = { trigger: string; viaClearinghouse: boolean }
 
 /** Shared by the staff command, the plan-year job and booking intake. Returns the verification in flight if there already is one. */
-export async function openVerification(uow: { tx: Tx; now: Date; emit: (m: any) => void; audit: (e: any) => void }, actor: Actor, coverageId: string, options: VerifyOptions) {
+export async function openVerification(uow: Pick<UnitOfWork, 'tx' | 'now' | 'audit' | 'after' | 'db'>, actor: Actor, coverageId: string, options: VerifyOptions) {
   const { tx } = uow
   // Two Verify presses at the same moment queue on the coverage row: the second sees the first one's verification.
   await lockRow(tx as never, 'Coverage', coverageId)
@@ -260,7 +260,7 @@ export async function openVerification(uow: { tx: Tx; now: Date; emit: (m: any) 
     const requestHash = sha256(canonicalJson({ coverage: coverage.id, subscriber: coverage.subscriber.memberIdHash, payer: payerId, serviceType: '35' }))
     const check = await tx.eligibilityCheck.create({ data: { verificationId: verification.id, coverageId, adapterKey: 'stedi', mode: installation.mode, requestHash, status: 'queued', isSynthetic: coverage.isSynthetic } })
     checkId = check.id
-    uow.emit({ topic: 'eligibility.check', aggregateType: 'EligibilityCheck', aggregateId: check.id, payload: { checkId: check.id, attempt: 1 }, dedupeKey: `eligibility.check:${check.id}:1` })
+    uow.after(async () => (await import('../messaging/eligibilityWorker')).runEligibilityCheck(uow.db, check.id))
   } else {
     // No clearinghouse for this payer: everything is a person's task.
     await openChecklist(tx, verification.id, coverageId, plan.planType, uow.now, coverage.isSynthetic, [...new Set(['coverage_pct', 'annual_max', ...(CHECKLIST_BY_PLAN[plan.planType] ?? CHECKLIST_BY_PLAN.other)])])
@@ -296,7 +296,7 @@ export async function recheckEligibility(_root: unknown, args: { checkId: string
     await assertPatientInScope(uow.tx, locationIds, coverage!.patientId!)
     if (!['pending_verification', 'active'].includes(coverage!.status)) throw new DomainError(Codes.INVALID_TRANSITION, 'This coverage has ended, so there is nothing to check.')
     await transition<any>(uow, { model: 'EligibilityCheck', id: check.id, from: ['unknown', 'error_retryable', 'rejected'], to: 'queued', actor, eventType: 'eligibility.requeued', data: { resultNote: '' } })
-    uow.emit({ topic: 'eligibility.check', aggregateType: 'EligibilityCheck', aggregateId: check.id, payload: { checkId: check.id, attempt: Number(check.attempts) + 1 }, dedupeKey: `eligibility.check:${check.id}:${Number(check.attempts) + 1}` })
+    uow.after(async () => (await import('../messaging/eligibilityWorker')).runEligibilityCheck(uow.db, check.id))
     return { checkId: check.id }
   })
   return { replay: result.replay, ...result.value }

@@ -2,7 +2,6 @@ import { systemActor } from '../lib/actor'
 import type { Db } from '../lib/db'
 import { auditCreate, transition } from '../lib/cas'
 import { log } from '../lib/log'
-import type { ClaimedMessage, OutboxHandlers } from '../lib/outbox'
 import { readSecret, storeSecret } from '../lib/secretBox'
 import { runInTransaction } from '../lib/unitOfWork'
 import { parseStediEra } from '../lib/era'
@@ -152,15 +151,3 @@ export async function importEraBody(db: Db, body: unknown, options: { externalId
   })
 }
 
-export function claimHandlers(db: Db, deps: EligibilityDeps = {}): OutboxHandlers {
-  return {
-    'claim.submit': async (message: ClaimedMessage) => {
-      const payload = (message.payload ?? {}) as { claimId?: string }
-      if (payload.claimId) await runClaimSubmit(db, payload.claimId, deps)
-    },
-    'claim.status': async (message: ClaimedMessage) => {
-      const payload = (message.payload ?? {}) as { inquiryId?: string }
-      if (payload.inquiryId) await runClaimStatus(db, payload.inquiryId, deps)
-    },
-  }
-}

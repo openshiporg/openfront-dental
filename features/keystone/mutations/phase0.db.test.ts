@@ -145,8 +145,7 @@ describe.skipIf(!hasTestDatabase)('Phase 0 commands (database)', () => {
     await expect(prisma.auditEvent.delete({ where: { id: event.id } })).rejects.toThrow(/append-only/)
   })
 
-  it('synthetic records can never be queued for a live adapter, and a PHI adapter cannot go live without a BAA', async () => {
-    await expect(prisma.outboxEvent.create({ data: { topic: 'notification.send', isSynthetic: true, mode: 'live', dedupeKey: uniqueKey('o') } })).rejects.toThrow(/OutboxEvent_synthetic_not_live/)
+  it('a PHI adapter cannot go live without a BAA', async () => {
     await expect(prisma.adapterInstallation.create({ data: { area: 'clearinghouse', adapterKey: 'stedi', mode: 'live', handlesPhi: true } })).rejects.toThrow(/AdapterInstallation_live_phi_baa/)
   })
 })

@@ -216,8 +216,6 @@ export async function createAppointment(uow: UnitOfWork, actor: Actor, input: Bo
     ref, startsAt: appointment.startsAt, endsAt: appointment.endsAt, operatoryId: input.operatoryId, providerId: check.providerId, typeId: input.typeId,
     source: appointment.source, warnings: check.warnings, holdId: hold?.id ?? null,
   }, { reason: overrideReason || null })
-  await scheduleConfirmations(uow, appointment)
-  uow.emit({ topic: 'notify.staff', aggregateType: 'Appointment', aggregateId: appointment.id, payload: { kind: 'appointment.booked', locationId: input.locationId }, dedupeKey: `notify.staff:appointment.booked:${appointment.id}` })
   return appointment
 }
 
@@ -238,22 +236,6 @@ export async function bookAppointment(_root: unknown, args: BookInput & { idempo
   return { replay: result.replay, ...result.value }
 }
 
-/** Reminder schedule (SM§2.3): 2 days and 1 day before by default; consent is checked at dispatch. */
-async function scheduleConfirmations(uow: UnitOfWork, appointment: { id: string; startsAt: Date; patientId: string | null; isSynthetic: boolean }) {
-  if (!appointment.patientId) return
-  const contacts = await uow.tx.contactPoint.findMany({ where: { patientId: appointment.patientId, isActive: true, isPrimary: true }, select: { id: true, kind: true } })
-  const offsets = [48, 24]
-  for (const contact of contacts) {
-    const channel = contact.kind === 'email' ? 'email' : contact.kind === 'mobile' ? 'sms' : null
-    if (!channel) continue
-    for (const hours of offsets) {
-      const scheduledFor = new Date(appointment.startsAt.getTime() - hours * 3_600_000)
-      if (scheduledFor.getTime() <= uow.now.getTime()) continue
-      const attempt = await uow.tx.confirmationAttempt.create({ data: { appointmentId: appointment.id, channel, scheduledFor, contactPointId: contact.id, status: 'scheduled' } })
-      uow.emit({ topic: 'confirmation.dispatch', aggregateType: 'ConfirmationAttempt', aggregateId: attempt.id, payload: { attemptId: attempt.id }, dedupeKey: `confirmation.dispatch:${attempt.id}`, availableAt: scheduledFor })
-    }
-  }
-}
 
 // ── Lifecycle transitions ───────────────────────────────────────────────────────────────────────
 
@@ -352,7 +334,6 @@ export async function completeAppointment(_root: unknown, args: TransitionArgs, 
     const updated = await transition<any>(uow, { model: 'Appointment', id: appointment.id, from: ['ready_for_checkout'], to: 'completed', expectedVersion: args.expectedVersion, actor, eventType: 'appointment.completed', data: { completedAt: uow.now } })
     await uow.tx.patient.update({ where: { id: appointment.patientId! }, data: { lastVisitOn: new Date(`${localDate(location.timeZone, appointment.startsAt)}T00:00:00Z`) } })
     // Recall recompute (§9) and claim drafts (§7.1) subscribe to this event in later phases.
-    uow.emit({ topic: 'notify.staff', aggregateType: 'Appointment', aggregateId: appointment.id, payload: { kind: 'appointment.completed' }, dedupeKey: `notify.staff:appointment.completed:${appointment.id}` })
     return updated
   })
 }
@@ -417,7 +398,6 @@ export async function breakIn(uow: UnitOfWork, actor: Actor, appointmentId: stri
 }
 
 function emitOpenTime(uow: UnitOfWork, appointment: { id: string; locationId: string | null; operatoryId: string | null; startsAt: Date; endsAt: Date }) {
-  uow.emit({ topic: 'notify.staff', aggregateType: 'Appointment', aggregateId: appointment.id, payload: { kind: 'schedule.open_time', locationId: appointment.locationId, operatoryId: appointment.operatoryId, startsAt: appointment.startsAt, endsAt: appointment.endsAt }, dedupeKey: `notify.staff:open_time:${appointment.id}` })
 }
 
 /** Book the new time and retire the old appointment in one transaction (SM§2.1 → rescheduled). */

@@ -1,62 +1,41 @@
 import { appendAuditEvents, type AuditInput } from './audit'
-import { canonicalJson, sha256, toJsonValue } from './canonical'
 import { TRANSACTION_OPTIONS, type Db, type Tx } from './db'
+import { log } from './log'
 
 /**
- * One business transaction: state changes, ledger postings, the audit events and the outbox
- * messages all commit together or not at all (SM§0). No network I/O happens inside; external effects
- * are outbox messages delivered after commit by the outbox worker.
+ * One business transaction: state changes, ledger postings and the audit events commit together or not at all (SM§0).
+ * No network I/O happens inside. An external call (card processor, clearinghouse) is registered with `after` and runs
+ * once, straight after the commit, in the same request. If it never completes, the row it belongs to stays in its
+ * waiting state and `runPendingWork` (messaging/worker.ts) picks it up from an admin action. There is no queue table.
  */
-export type OutboxInput = {
-  topic: string
-  aggregateType: string
-  aggregateId: string
-  payload: unknown
-  /** Same key → one message, however often the transaction is retried. Defaults to a payload hash. */
-  dedupeKey?: string
-  availableAt?: Date
-}
-
 export class UnitOfWork {
   readonly audits: AuditInput[] = []
-  readonly outbox: OutboxInput[] = []
-  constructor(readonly tx: Tx, readonly now: Date, readonly requestId: string | null) {}
+  readonly afterCommit: (() => Promise<unknown>)[] = []
+  constructor(readonly tx: Tx, readonly now: Date, readonly requestId: string | null, readonly db: Db) {}
   audit(event: AuditInput) {
     this.audits.push({ requestId: this.requestId, ...event })
   }
-  emit(message: OutboxInput) {
-    this.outbox.push(message)
-  }
-}
-
-export async function flushOutbox(tx: Tx, messages: OutboxInput[], now: Date) {
-  for (const message of messages) {
-    const payload = toJsonValue(message.payload)
-    const dedupeKey = message.dedupeKey ?? `${message.topic}:${message.aggregateType}:${message.aggregateId}:${sha256(canonicalJson(payload))}`
-    // A retried command produces the same dedupe key; the unique index keeps one message.
-    await tx.outboxEvent.upsert({
-      where: { dedupeKey },
-      create: {
-        topic: message.topic,
-        aggregateType: message.aggregateType,
-        aggregateId: message.aggregateId,
-        dedupeKey,
-        payload: payload as never,
-        status: 'pending',
-        nextAttemptAt: message.availableAt ?? now,
-      },
-      update: {},
-    })
+  /** Run this after the transaction commits. A failure is logged and never undoes the committed work. */
+  after(effect: () => Promise<unknown>) {
+    this.afterCommit.push(effect)
   }
 }
 
 export async function runInTransaction<T>(db: Db, work: (uow: UnitOfWork) => Promise<T>, options: { requestId?: string | null; now?: Date } = {}): Promise<T> {
-  return db.$transaction(async tx => {
-    const uow = new UnitOfWork(tx, options.now ?? new Date(), options.requestId ?? null)
-    const result = await work(uow)
-    await flushOutbox(tx, uow.outbox, uow.now)
+  let uowRef: UnitOfWork | null = null
+  const result = await db.$transaction(async tx => {
+    const uow = new UnitOfWork(tx, options.now ?? new Date(), options.requestId ?? null, db)
+    uowRef = uow
+    const value = await work(uow)
     // Last: the chain lock is held only for the final moments of the transaction.
     await appendAuditEvents(tx, uow.audits, uow.now)
-    return result
+    return value
   }, TRANSACTION_OPTIONS)
+  // Tests turn this off so they can call each step with a fake processor.
+  if (process.env.DENTAL_INLINE_EFFECTS !== 'off') {
+    for (const effect of (uowRef as UnitOfWork | null)?.afterCommit ?? []) {
+      try { await effect() } catch (error) { log.error('after-commit step failed', { error }) }
+    }
+  }
+  return result
 }

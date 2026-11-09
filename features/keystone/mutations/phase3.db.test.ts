@@ -5,8 +5,7 @@ import { fakeStedi } from '../../../tests/fakes/stedi'
 import { hasTestDatabase, resetDatabase, testPrisma, uniqueKey } from '../../../tests/helpers/db'
 import { NEVER_DEFAULT, permissionNames, type Permission } from '../access'
 import { verifyAuditChain } from '../lib/audit'
-import { drainOutbox } from '../lib/outbox'
-import { eligibilityHandlers, runEligibilityCheck } from '../messaging/eligibilityWorker'
+import { runEligibilityCheck } from '../messaging/eligibilityWorker'
 import { PHASE2_OPS } from './phase2Ops'
 import { loadPracticeSetup } from './setup'
 
@@ -60,8 +59,8 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     // a second request while one is open is a plain refusal, and no second verification is made
     await expect(run('requestVerification', { coverageId: coverage.id }, owner)).rejects.toThrow(/already open for this plan/)
     expect(await prisma.benefitVerification.count({ where: { coverageId: coverage.id, status: { in: ['requested', 'in_progress'] } } })).toBe(1)
-    const drained = await drainOutbox(prisma, { workerId: 'w1', handlers: eligibilityHandlers(prisma, { fetch: stedi.fetch }), topics: ['eligibility.check'] })
-    expect(drained.delivered).toBe(1)
+    const ran = await runEligibilityCheck(prisma, started.checkId, { fetch: stedi.fetch })
+    expect(ran).not.toHaveProperty('skipped')
     expect(stedi.calls).toHaveLength(1)
     const check = await prisma.eligibilityCheck.findUniqueOrThrow({ where: { id: started.checkId } })
     expect(check.status).toBe('responded')
@@ -81,7 +80,7 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
   it('a payer rejection (AAA 75) is kept as rejected, with no facts, and a person gets the tasks', async () => {
     const coverage = await coverageOf('SUM-4403-C')
     const started = await run('requestVerification', { coverageId: coverage.id }, owner)
-    await drainOutbox(prisma, { workerId: 'w3', handlers: eligibilityHandlers(prisma, { fetch: fakeStedi().fetch }), topics: ['eligibility.check'] })
+    await runEligibilityCheck(prisma, started.checkId, { fetch: fakeStedi().fetch })
     const check = await prisma.eligibilityCheck.findUniqueOrThrow({ where: { id: started.checkId } })
     expect(check.status).toBe('rejected')
     expect(await prisma.benefitFact.count({ where: { verificationId: started.verificationId } })).toBe(0)
@@ -93,13 +92,13 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     const stedi = fakeStedi()
     const started = await run('requestVerification', { coverageId: coverage.id }, owner)
     expect(started.checkId).toBeTruthy()
-    await drainOutbox(prisma, { workerId: 'w2', handlers: eligibilityHandlers(prisma, { fetch: stedi.fetch }), topics: ['eligibility.check'] })
+    await runEligibilityCheck(prisma, started.checkId, { fetch: stedi.fetch })
     const check = await prisma.eligibilityCheck.findUniqueOrThrow({ where: { id: started.checkId } })
     expect(check.status).toBe('unknown')
     expect(await prisma.benefitFact.count({ where: { verificationId: started.verificationId } })).toBe(0)
     expect(await prisma.workTask.count({ where: { verificationId: started.verificationId, status: 'open' } })).toBeGreaterThan(0)
     await run('recheckEligibility', { checkId: check.id }, owner)
-    await drainOutbox(prisma, { workerId: 'w2', handlers: eligibilityHandlers(prisma, { fetch: stedi.fetch }), topics: ['eligibility.check'] })
+    await runEligibilityCheck(prisma, check.id, { fetch: stedi.fetch })
     expect(await prisma.eligibilityCheck.count({ where: { coverageId: coverage.id } })).toBe(1)
     expect((await prisma.eligibilityCheck.findUniqueOrThrow({ where: { id: check.id } })).attempts).toBe(2)
   })
@@ -188,7 +187,7 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     const evergreen = await prisma.coverage.findUniqueOrThrow({ where: { id: 'seed_cov_evg_1' } })
     expect(evergreen.patientId).toBe(harbor.patientId)
     const started = await run('requestVerification', { coverageId: evergreen.id }, owner)
-    await drainOutbox(prisma, { workerId: 'w4', handlers: eligibilityHandlers(prisma, { fetch: fakeStedi().fetch }), topics: ['eligibility.check'] })
+    await runEligibilityCheck(prisma, started.checkId, { fetch: fakeStedi().fetch })
     const facts = await prisma.benefitFact.findMany({ where: { verificationId: started.verificationId, field: 'coverage_pct' } })
     expect(facts.map(f => [(f.appliesTo as any).category, String((f.valueJson as any).pct)]).sort()).toEqual([['basic', '70.0000'], ['major', '40.0000'], ['preventive', '100.0000']])
     expect((await prisma.coverage.findUniqueOrThrow({ where: { id: evergreen.id } })).verificationLevel).toBe('verified_electronic')

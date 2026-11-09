@@ -85,7 +85,6 @@ export async function settlePayment(uow: UnitOfWork, actor: Actor, paymentId: st
   const split = await allocatePayment(tx, { paymentId: pay.id, accountId: pay.accountId!, amountMinor: pay.amountMinor, explicit: extra.explicit })
   await tx.payment.update({ where: { id: pay.id }, data: { status: 'succeeded', ledgerEntryId: entry.id, businessDate: dayOf(date), ...(extra.providerIntentId ? { providerIntentId: extra.providerIntentId } : {}), failureNote: '', version: { increment: 1 } } })
   auditCreate(uow, actor, 'Payment', pay.id, 'payment.succeeded', { amountMinor: pay.amountMinor.toString(), tender: pay.tender, allocated: split.allocated.toString(), ledgerEntryId: entry.id })
-  uow.emit({ topic: 'notify.staff', aggregateType: 'Payment', aggregateId: pay.id, payload: { kind: 'payment.received', locationId: pay.locationId }, dedupeKey: `notify.staff:payment.received:${pay.id}` })
   if (pay.statementId) await refreshStatementStatus(tx, pay.statementId)
   const installment = extra.installmentId ?? (await tx.paymentPlanInstallment.findFirst({ where: { paymentId: pay.id }, select: { id: true } }))?.id ?? null
   if (installment) await markInstallmentPaid(uow, actor, installment, pay.id)

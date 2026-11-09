@@ -1,3 +1,4 @@
+/* eslint-disable openfront-dental/no-number-on-money -- toFixed here formats PDF layout coordinates, never money */
 /* adapted from openfront-home-services@07ad9fc lib/pdf.ts */
 /**
  * A small, dependency-free PDF writer for text documents (estimates, invoices). US Letter pages,

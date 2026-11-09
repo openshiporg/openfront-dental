@@ -3,7 +3,6 @@ import { systemActor } from '../lib/actor'
 import type { Db } from '../lib/db'
 import { auditCreate } from '../lib/cas'
 import { log } from '../lib/log'
-import type { ClaimedMessage, OutboxHandlers } from '../lib/outbox'
 import { runInTransaction } from '../lib/unitOfWork'
 import { completeRefund, failPayment, settlePayment, sha256 } from '../lib/payments'
 import { createIntent, refundIntent, retrieveIntent, saveMethod, type PaymentCtx } from '../../integrations/payments/stripe'
@@ -110,13 +109,11 @@ export async function applyPaymentEvent(db: Db, event: { id: string; type: strin
     if (event.type === 'charge.dispute.created') {
       await uow.tx.payment.update({ where: { id: pay.id }, data: { disputedAt: uow.now, version: { increment: 1 } } })
       auditCreate(uow, actor, 'Payment', pay.id, 'payment.disputed', { reason: String(object.reason ?? '') })
-      uow.emit({ topic: 'notify.staff', aggregateType: 'Payment', aggregateId: pay.id, payload: { kind: 'payment.disputed', locationId: pay.locationId }, dedupeKey: `notify.staff:dispute:${pay.id}` })
       return { matched: true, disputed: true }
     }
     if (event.type === 'charge.refunded') {
       // A refund started in the processor's own dashboard is flagged for staff, never posted silently.
       const known = await uow.tx.refund.findFirst({ where: { paymentId: pay.id, status: { in: ['executing', 'completed', 'unknown'] } }, select: { id: true } })
-      if (!known) uow.emit({ topic: 'notify.staff', aggregateType: 'Payment', aggregateId: pay.id, payload: { kind: 'payment.refund_outside', locationId: pay.locationId }, dedupeKey: `notify.staff:refund_outside:${event.id}` })
       return { matched: true, refund: Boolean(known) }
     }
     return { matched: true, ignored: true }
@@ -133,13 +130,6 @@ export async function receiveStripeEvent(db: Db, rawBody: string, event: { id: s
   return { replay: false, result }
 }
 
-export function paymentHandlers(db: Db, deps: PaymentCtx = {}): OutboxHandlers {
-  return {
-    'payment.create': async (m: ClaimedMessage) => { const p = (m.payload ?? {}) as { paymentId?: string }; if (p.paymentId) await runPaymentCreate(db, p.paymentId, deps) },
-    'payment.refund': async (m: ClaimedMessage) => { const p = (m.payload ?? {}) as { refundId?: string }; if (p.refundId) await runRefund(db, p.refundId, deps) },
-    'payment.save_method': async (m: ClaimedMessage) => { const p = (m.payload ?? {}) as any; if (p.paymentId) await runSaveMethod(db, p, deps) },
-  }
-}
 
 export const paymentJobs = (db: Db, now: () => Date): [string, () => Promise<unknown>][] => [
   ['job:payment-reconcile', () => reconcilePayments(db, now())],
