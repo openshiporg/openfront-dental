@@ -31,6 +31,9 @@ export const platformNavItems: PlatformNavItem[] = [
   { title: 'Procedure codes', href: '/platform/codes', color: 'sky', description: 'Practice codes, licensed code imports and approvals.', icon: ListChecks, group: 'clinical' },
   { title: 'Fee schedules', href: '/platform/fees', color: 'lime', description: 'Fee versions: draft, second-person publish.', icon: Receipt, group: 'clinical' },
 
+  { title: 'Claims', href: '/platform/claims', color: 'teal', description: 'Build, check and send claims; follow them to payment.', icon: Receipt, group: 'billing' },
+  { title: 'Insurance payments', href: '/platform/remittances', color: 'emerald', description: 'Payments received, lines to match, denied lines to work.', icon: Landmark, group: 'billing' },
+
   { title: 'Insurance plans', href: '/platform/insurance', color: 'sky', description: 'Payers, plans, fee schedules and coordination rules.', icon: Landmark, group: 'front-desk' },
   { title: 'Verification', href: '/platform/verifications', color: 'teal', description: 'Benefit checks, failed checks and questions still to ask.', icon: BadgeCheck, group: 'front-desk' },
   { title: 'ASAP list', href: '/platform/schedule/asap', color: 'cyan', description: 'Patients who want an earlier appointment.', icon: CalendarClock, group: 'front-desk' },
@@ -54,6 +57,8 @@ export const SHIPPED_ROUTES = new Set<string>([
   '/platform/forms', '/platform/codes', '/platform/fees',
   // Phase 3
   '/platform/insurance', '/platform/verifications',
+  // Phase 4
+  '/platform/claims', '/platform/remittances',
 ])
 
 const shipped = () => platformNavItems.filter(item => SHIPPED_ROUTES.has(item.href))
@@ -62,6 +67,7 @@ export const platformStandaloneItems = shipped().filter(item => item.group === '
 
 export const platformNavGroups: PlatformNavGroup[] = [
   { id: 'clinical', title: 'Clinical', icon: ListChecks, items: shipped().filter(i => i.group === 'clinical') },
+  { id: 'billing', title: 'Billing', icon: Receipt, items: shipped().filter(i => i.group === 'billing') },
   { id: 'front-desk', title: 'Front desk', icon: CalendarCheck2, items: shipped().filter(i => i.group === 'front-desk') },
   { id: 'practice', title: 'Practice', icon: Settings, items: shipped().filter(i => i.group === 'practice') },
 ]

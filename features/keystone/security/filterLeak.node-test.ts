@@ -68,6 +68,25 @@ describe('hidden fields cannot be filtered or sorted (GraphQL)', { skip: !hasTes
     })
   }
 
+  for (const selection of [
+    'claimsCount(where: { totalChargeMinor: { gt: "100" } })',
+    'claims(orderBy: { narrative: asc }, take: 5) { id }',
+    'claimLinesCount(where: { paidMinor: { gt: "0" } })',
+    'denialsCount(where: { resolutionNote: { contains: "x" } })',
+    'remittancesCount(where: { totalPaidMinor: { gt: "0" } })',
+    'remittanceLinesCount(where: { chargeMinor: { gt: "0" } })',
+    'remittanceClaimsCount(where: { paidMinor: { gt: "0" } })',
+    'appealsCount(where: { letter: { contains: "x" } })',
+    'claimVersionsCount(where: { payload: { equals: {} } })',
+  ]) {
+    it(`a reader without the money tier: ${selection} is refused`, async () => {
+      const r = await run(sessionOf(['canAccessDashboard', 'canManagePatients', 'canCloseDay']), `{ ${selection} }`)
+      if (r.errors?.length) { assert.match(message(r), /filter|order|Access denied|not allowed|Cannot query|not defined by type/i); return }
+      const value: any = Object.values(r.data ?? {})[0]
+      assert.ok(value === 0 || (Array.isArray(value) && value.length === 0), `expected a refusal or nothing, got ${JSON.stringify(r.data)}`)
+    })
+  }
+
   it('a reader who can see the field can still filter and sort on it', async () => {
     const r = await run(sessionOf([...FRONT, 'canReadClinical']), '{ outsideHistoriesCount(where: { codeText: { contains: "Seaside" } }) outsideHistories(orderBy: { codeText: asc }, take: 1) { id } }')
     assert.equal(r.errors, undefined, message(r))

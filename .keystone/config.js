@@ -36,7 +36,7 @@ module.exports = __toCommonJS(keystone_exports);
 
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
-var import_core19 = require("@keystone-6/core");
+var import_core20 = require("@keystone-6/core");
 var import_config = require("dotenv/config");
 
 // features/keystone/models/User.ts
@@ -2258,6 +2258,8 @@ var LedgerEntry = (0, import_core13.list)({
     adjustment: (0, import_fields13.relationship)({ ref: "AdjustmentRequest", ...readOnly }),
     dayClose: (0, import_fields13.relationship)({ ref: "DayClose.entries", ...readOnly }),
     restatement: (0, import_fields13.relationship)({ ref: "Restatement.entries", ...readOnly }),
+    paymentPosting: (0, import_fields13.relationship)({ ref: "PaymentPosting.entries", ...readOnly }),
+    claim: (0, import_fields13.relationship)({ ref: "Claim", ...readOnly }),
     memo: systemText(),
     postedBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
     postedAt: (0, import_fields13.timestamp)({ ...readOnly }),
@@ -3230,6 +3232,358 @@ var Restatement = (0, import_core17.list)({
   }
 });
 
+// features/keystone/models/claims.ts
+var claims_exports = {};
+__export(claims_exports, {
+  ACK_OUTCOMES: () => ACK_OUTCOMES,
+  ACK_SOURCES: () => ACK_SOURCES,
+  APPEAL_OUTCOMES: () => APPEAL_OUTCOMES,
+  APPEAL_VIA: () => APPEAL_VIA,
+  ATTACHMENT_KINDS: () => ATTACHMENT_KINDS,
+  ATTACHMENT_ROUTES: () => ATTACHMENT_ROUTES,
+  ATTACHMENT_STATUSES: () => ATTACHMENT_STATUSES,
+  Appeal: () => Appeal,
+  CLAIM_FREQUENCIES: () => CLAIM_FREQUENCIES,
+  CLAIM_KINDS: () => CLAIM_KINDS,
+  CLAIM_LINE_STATUSES: () => CLAIM_LINE_STATUSES,
+  CLAIM_OUTCOMES: () => CLAIM_OUTCOMES,
+  CLAIM_STATUSES: () => CLAIM_STATUSES,
+  Claim: () => Claim,
+  ClaimAcknowledgement: () => ClaimAcknowledgement,
+  ClaimAttachment: () => ClaimAttachment,
+  ClaimLine: () => ClaimLine,
+  ClaimScrubResult: () => ClaimScrubResult,
+  ClaimStatusInquiry: () => ClaimStatusInquiry,
+  ClaimVersion: () => ClaimVersion,
+  DENIAL_CLASSES: () => DENIAL_CLASSES,
+  DENIAL_STATUSES: () => DENIAL_STATUSES,
+  Denial: () => Denial,
+  DenialReasonMap: () => DenialReasonMap,
+  ENROLLMENT_STATUSES: () => ENROLLMENT_STATUSES,
+  ENROLLMENT_TRANSACTIONS: () => ENROLLMENT_TRANSACTIONS,
+  INQUIRY_STATUSES: () => INQUIRY_STATUSES,
+  PAYMENT_METHODS: () => PAYMENT_METHODS,
+  POSTED_COMPLETENESS: () => POSTED_COMPLETENESS,
+  POSTING_STATUSES: () => POSTING_STATUSES,
+  PayerEnrollment: () => PayerEnrollment,
+  PaymentPosting: () => PaymentPosting,
+  REMITTANCE_SOURCES: () => REMITTANCE_SOURCES,
+  REMITTANCE_STATUSES: () => REMITTANCE_STATUSES,
+  Remittance: () => Remittance,
+  RemittanceClaim: () => RemittanceClaim,
+  RemittanceLine: () => RemittanceLine,
+  SCRUB_RULE_KINDS: () => SCRUB_RULE_KINDS,
+  SCRUB_SEVERITIES: () => SCRUB_SEVERITIES,
+  ScrubRule: () => ScrubRule
+});
+var import_core18 = require("@keystone-6/core");
+var import_fields18 = require("@keystone-6/core/fields");
+var CLAIM_KINDS = ["original", "predetermination", "secondary", "tertiary"];
+var CLAIM_STATUSES = ["draft", "scrubbed", "ready", "released", "submitted", "submission_unknown", "acknowledged", "rejected", "pending_payer", "adjudicated", "correction_required", "void_requested", "voided", "appealed", "appeal_decided", "responded", "closed"];
+var CLAIM_OUTCOMES = ["paid", "partially_paid", "denied", "zero_applied_to_deductible"];
+var CLAIM_LINE_STATUSES = ["pending", "paid", "partially_paid", "denied", "reversed"];
+var CLAIM_FREQUENCIES = ["original", "replacement", "void"];
+var SCRUB_RULE_KINDS = ["attachment_required", "narrative_required", "tooth_required", "surface_required", "crosswalk_required", "enrollment_required", "timely_filing", "duplicate", "coverage_active", "primary_first"];
+var SCRUB_SEVERITIES = ["blocking", "warning"];
+var ATTACHMENT_KINDS = ["radiograph", "perio_chart", "narrative", "photo", "eob_primary", "other"];
+var ATTACHMENT_ROUTES = ["with_claim", "stedi_attachment", "nea", "hipaa_275", "manual_reference"];
+var ATTACHMENT_STATUSES = ["draft", "uploaded", "sent", "acknowledged", "rejected", "manual_reference"];
+var ACK_SOURCES = ["clearinghouse", "payer"];
+var ACK_OUTCOMES = ["accepted", "rejected"];
+var INQUIRY_STATUSES = ["queued", "sent", "responded", "error", "unknown"];
+var REMITTANCE_SOURCES = ["era_835", "manual_eob"];
+var PAYMENT_METHODS = ["eft", "check", "virtual_card", "none"];
+var REMITTANCE_STATUSES = ["received", "parsed", "matched", "posting", "posted", "reconciled", "exception", "duplicate"];
+var POSTED_COMPLETENESS = ["", "partial", "complete"];
+var POSTING_STATUSES = ["posted", "reversed"];
+var DENIAL_CLASSES = ["frequency", "eligibility", "attachment", "coding", "timely_filing", "coordination", "non_covered", "duplicate", "other"];
+var DENIAL_STATUSES = ["open", "working", "appealed", "corrected", "written_off", "billed_to_patient", "resolved"];
+var APPEAL_VIA = ["mail", "portal", "fax", "clearinghouse"];
+var APPEAL_OUTCOMES = ["pending", "overturned", "upheld"];
+var ENROLLMENT_TRANSACTIONS = ["claims", "era", "eligibility", "claim_status", "attachments"];
+var ENROLLMENT_STATUSES = ["draft", "submitted", "in_progress", "provisioning", "live", "rejected", "canceled"];
+var CLAIM_READ = ["canReadInsurance", "canManageClaims", "canSubmitClaims", "canPostRemittances", "canReadLedger"];
+var claimScoped = () => scopedGoverned(CLAIM_READ, locationFilter(["location"]));
+var childScoped = () => scopedGoverned(CLAIM_READ, locationFilter(["claim", "location"]));
+var ScrubRule = (0, import_core18.list)({
+  access: governed(CLAIM_READ),
+  ui: { labelField: "key", listView: { initialColumns: ["key", "kind", "severity", "isActive", "rulesetVersion"] } },
+  fields: {
+    key: (0, import_fields18.text)({ isIndexed: "unique", validation: { isRequired: true } }),
+    kind: fixedChoice(SCRUB_RULE_KINDS),
+    appliesTo: (0, import_fields18.json)({ defaultValue: {}, ...readOnly }),
+    severity: fixedChoice(SCRUB_SEVERITIES),
+    message: systemText({ required: true }),
+    isActive: (0, import_fields18.checkbox)({ defaultValue: true, ...readOnly }),
+    rulesetVersion: systemText({ required: true }),
+    ...trackingFields
+  }
+});
+var Claim = (0, import_core18.list)({
+  access: claimScoped(),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "kind", "patient", "status", "totalChargeMinor", "timelyFilingDeadline"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    ref: (0, import_fields18.text)({ isIndexed: "unique", validation: { isRequired: true }, ...readOnly }),
+    kind: fixedChoice(CLAIM_KINDS),
+    patient: (0, import_fields18.relationship)({ ref: "Patient", ...readOnly }),
+    coverage: (0, import_fields18.relationship)({ ref: "Coverage", ...readOnly }),
+    location: (0, import_fields18.relationship)({ ref: "Location", ...readOnly }),
+    billingEntity: (0, import_fields18.relationship)({ ref: "BillingEntity", ...readOnly }),
+    renderingProvider: (0, import_fields18.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    placeOfServiceCode: systemText(),
+    status: lifecycle(CLAIM_STATUSES),
+    adjudicationOutcome: systemText(),
+    currentVersion: (0, import_fields18.relationship)({ ref: "ClaimVersion", ...readOnly }),
+    versions: (0, import_fields18.relationship)({ ref: "ClaimVersion.claim", many: true, ...readOnly }),
+    lines: (0, import_fields18.relationship)({ ref: "ClaimLine.claim", many: true, ...readOnly }),
+    attachments: (0, import_fields18.relationship)({ ref: "ClaimAttachment.claim", many: true, ...readOnly }),
+    scrubResults: (0, import_fields18.relationship)({ ref: "ClaimScrubResult.claim", many: true, ...readOnly }),
+    acknowledgements: (0, import_fields18.relationship)({ ref: "ClaimAcknowledgement.claim", many: true, ...readOnly }),
+    payerClaimControlNumber: systemText(),
+    patientControlNumber: (0, import_fields18.text)({ isIndexed: "unique", validation: { isRequired: true }, ...readOnly }),
+    clearinghouseRefs: (0, import_fields18.json)({ defaultValue: {}, ...readOnly }),
+    totalChargeMinor: minor({ defaultValue: 0n }),
+    timelyFilingDeadline: (0, import_fields18.calendarDay)({ ...readOnly }),
+    submittedAt: (0, import_fields18.timestamp)({ ...readOnly }),
+    adjudicatedAt: (0, import_fields18.timestamp)({ ...readOnly }),
+    recouped: (0, import_fields18.checkbox)({ defaultValue: false, ...readOnly }),
+    primaryClaim: (0, import_fields18.relationship)({ ref: "Claim", ...readOnly }),
+    primaryAdjudicationSnapshot: (0, import_fields18.json)({ defaultValue: {}, ...readOnly }),
+    narrative: systemText(),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ClaimVersion = (0, import_core18.list)({
+  access: childScoped(),
+  ui: { labelField: "number", listView: { initialColumns: ["claim", "number", "frequency", "releasedAt"] } },
+  fields: {
+    claim: (0, import_fields18.relationship)({ ref: "Claim.versions", ...readOnly }),
+    number: (0, import_fields18.integer)({ validation: { isRequired: true }, access: { create: () => false, update: () => false } }),
+    frequency: fixedChoice(CLAIM_FREQUENCIES),
+    /** Our canonical claim: no member ID, only its last four digits. The full request is sealed. */
+    payload: (0, import_fields18.json)({ defaultValue: {}, ...readOnly }),
+    payloadHash: systemText({ required: true }),
+    idempotencyKey: systemText(),
+    releasedBy: (0, import_fields18.relationship)({ ref: "User", ...readOnly }),
+    releasedAt: (0, import_fields18.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var ClaimLine = (0, import_core18.list)({
+  access: childScoped(),
+  ui: { labelField: "lineControlNumber", listView: { initialColumns: ["claim", "code", "tooth", "dateOfService", "feeMinor", "paidMinor", "status"] } },
+  fields: {
+    claim: (0, import_fields18.relationship)({ ref: "Claim.lines", ...readOnly }),
+    chartEntry: (0, import_fields18.relationship)({ ref: "ChartEntry", ...readOnly }),
+    code: (0, import_fields18.relationship)({ ref: "ProcedureCode", ...readOnly }),
+    localCode: (0, import_fields18.relationship)({ ref: "ProcedureCode", ...readOnly }),
+    tooth: systemText(),
+    surfaces: systemText(),
+    dateOfService: (0, import_fields18.calendarDay)({ ...readOnly }),
+    units: (0, import_fields18.integer)({ defaultValue: 1, validation: { isRequired: true }, access: { create: () => false, update: () => false } }),
+    feeMinor: minor({ defaultValue: 0n }),
+    allowedMinor: minor({ defaultValue: 0n }),
+    paidMinor: minor({ defaultValue: 0n }),
+    patientRespMinor: minor({ defaultValue: 0n }),
+    lineControlNumber: systemText({ required: true }),
+    status: lifecycle(CLAIM_LINE_STATUSES),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ClaimAttachment = (0, import_core18.list)({
+  access: childScoped(),
+  ui: { labelField: "kind", listView: { initialColumns: ["claim", "kind", "route", "status"] } },
+  fields: {
+    claim: (0, import_fields18.relationship)({ ref: "Claim.attachments", ...readOnly }),
+    kind: fixedChoice(ATTACHMENT_KINDS),
+    route: fixedChoice(ATTACHMENT_ROUTES),
+    description: systemText(),
+    externalAttachmentId: systemText(),
+    trackingNumber: systemText(),
+    status: lifecycle(ATTACHMENT_STATUSES),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var ClaimScrubResult = (0, import_core18.list)({
+  access: childScoped(),
+  ui: { labelField: "rulesetVersion", listView: { initialColumns: ["claim", "versionNumber", "rulesetVersion", "ranAt"] } },
+  fields: {
+    claim: (0, import_fields18.relationship)({ ref: "Claim.scrubResults", ...readOnly }),
+    versionNumber: (0, import_fields18.integer)({ defaultValue: 0, validation: { isRequired: true }, access: { create: () => false, update: () => false } }),
+    rulesetVersion: systemText({ required: true }),
+    ranAt: (0, import_fields18.timestamp)({ ...readOnly }),
+    findings: (0, import_fields18.json)({ defaultValue: [], ...readOnly }),
+    ...trackingFields
+  }
+});
+var ClaimAcknowledgement = (0, import_core18.list)({
+  access: childScoped(),
+  ui: { labelField: "senderName", listView: { initialColumns: ["claim", "source", "senderName", "outcome", "at"] } },
+  fields: {
+    claim: (0, import_fields18.relationship)({ ref: "Claim.acknowledgements", ...readOnly }),
+    versionNumber: (0, import_fields18.integer)({ defaultValue: 0, validation: { isRequired: true }, access: { create: () => false, update: () => false } }),
+    source: fixedChoice(ACK_SOURCES),
+    senderName: systemText(),
+    outcome: fixedChoice(ACK_OUTCOMES),
+    statusCodes: (0, import_fields18.json)({ defaultValue: [], ...readOnly }),
+    errors: (0, import_fields18.json)({ defaultValue: [], ...readOnly }),
+    observation: (0, import_fields18.relationship)({ ref: "InboundObservation", ...readOnly }),
+    at: (0, import_fields18.timestamp)({ ...readOnly }),
+    ...trackingFields
+  }
+});
+var ClaimStatusInquiry = (0, import_core18.list)({
+  access: childScoped(),
+  ui: { labelField: "status", listView: { initialColumns: ["claim", "status", "createdAt"] } },
+  fields: {
+    claim: (0, import_fields18.relationship)({ ref: "Claim", ...readOnly }),
+    status: lifecycle(INQUIRY_STATUSES),
+    responseSummary: (0, import_fields18.json)({ defaultValue: {}, ...readOnly }),
+    observation: (0, import_fields18.relationship)({ ref: "InboundObservation", ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var Remittance = (0, import_core18.list)({
+  access: governed(CLAIM_READ),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "payer", "traceNumber", "paymentDate", "totalPaidMinor", "status"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    ref: (0, import_fields18.text)({ isIndexed: "unique", validation: { isRequired: true }, ...readOnly }),
+    payer: (0, import_fields18.relationship)({ ref: "Payer", ...readOnly }),
+    source: fixedChoice(REMITTANCE_SOURCES),
+    adapterKey: systemText(),
+    traceNumber: systemText({ required: true }),
+    paymentMethod: fixedChoice(PAYMENT_METHODS),
+    paymentDate: (0, import_fields18.calendarDay)({ ...readOnly }),
+    totalPaidMinor: minor({ defaultValue: 0n }),
+    status: lifecycle(REMITTANCE_STATUSES),
+    postedCompleteness: systemText(),
+    exceptionNote: systemText(),
+    duplicateOf: (0, import_fields18.relationship)({ ref: "Remittance", ...readOnly }),
+    observation: (0, import_fields18.relationship)({ ref: "InboundObservation", ...readOnly }),
+    providerAdjustments: (0, import_fields18.json)({ defaultValue: [], ...readOnly }),
+    claims: (0, import_fields18.relationship)({ ref: "RemittanceClaim.remittance", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var RemittanceClaim = (0, import_core18.list)({
+  access: childScoped(),
+  ui: { labelField: "patientControlNumber", listView: { initialColumns: ["remittance", "patientControlNumber", "claimStatusCode", "chargeMinor", "paidMinor"] } },
+  fields: {
+    remittance: (0, import_fields18.relationship)({ ref: "Remittance.claims", ...readOnly }),
+    claim: (0, import_fields18.relationship)({ ref: "Claim", ...readOnly }),
+    patientControlNumber: systemText(),
+    payerClaimControlNumber: systemText(),
+    claimStatusCode: systemText(),
+    chargeMinor: minor({ defaultValue: 0n }),
+    paidMinor: minor({ defaultValue: 0n }),
+    patientRespMinor: minor({ defaultValue: 0n }),
+    crossoverCarrier: (0, import_fields18.json)({ defaultValue: {}, ...readOnly }),
+    lines: (0, import_fields18.relationship)({ ref: "RemittanceLine.remittanceClaim", many: true, ...readOnly }),
+    ...trackingFields
+  }
+});
+var RemittanceLine = (0, import_core18.list)({
+  access: scopedGoverned(CLAIM_READ, locationFilter(["remittanceClaim", "claim", "location"])),
+  ui: { labelField: "code", listView: { initialColumns: ["remittanceClaim", "code", "dateOfService", "chargeMinor", "paidMinor", "conservationOk"] } },
+  fields: {
+    remittanceClaim: (0, import_fields18.relationship)({ ref: "RemittanceClaim.lines", ...readOnly }),
+    claimLine: (0, import_fields18.relationship)({ ref: "ClaimLine", ...readOnly }),
+    code: systemText(),
+    tooth: systemText(),
+    dateOfService: (0, import_fields18.calendarDay)({ ...readOnly }),
+    lineControlNumber: systemText(),
+    chargeMinor: minor({ defaultValue: 0n }),
+    allowedMinor: minor({ defaultValue: 0n }),
+    paidMinor: minor({ defaultValue: 0n }),
+    /** Signed sum of every adjustment on the line (payer-reduces-payment positive). The database checks charge = paid + this. */
+    adjustmentsTotalMinor: minor({ defaultValue: 0n }),
+    adjustments: (0, import_fields18.json)({ defaultValue: [], ...readOnly }),
+    rarc: (0, import_fields18.json)({ defaultValue: [], ...readOnly }),
+    conservationOk: (0, import_fields18.checkbox)({ defaultValue: false, ...readOnly }),
+    ...trackingFields
+  }
+});
+var PaymentPosting = (0, import_core18.list)({
+  access: scopedGoverned(CLAIM_READ, locationFilter(["remittanceClaim", "claim", "location"])),
+  ui: { labelField: "status", listView: { initialColumns: ["remittance", "status", "at"] } },
+  fields: {
+    remittance: (0, import_fields18.relationship)({ ref: "Remittance", ...readOnly }),
+    remittanceClaim: (0, import_fields18.relationship)({ ref: "RemittanceClaim", ...readOnly }),
+    postedBy: (0, import_fields18.relationship)({ ref: "User", ...readOnly }),
+    at: (0, import_fields18.timestamp)({ ...readOnly }),
+    status: lifecycle(POSTING_STATUSES),
+    entries: (0, import_fields18.relationship)({ ref: "LedgerEntry.paymentPosting", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var DenialReasonMap = (0, import_core18.list)({
+  access: governed(CLAIM_READ),
+  ui: { labelField: "carc", listView: { initialColumns: ["carc", "rarc", "preventableClass", "suggestedAction"] } },
+  fields: {
+    carc: systemText({ required: true }),
+    rarc: systemText(),
+    preventableClass: fixedChoice(DENIAL_CLASSES),
+    suggestedAction: systemText(),
+    ...trackingFields
+  }
+});
+var Denial = (0, import_core18.list)({
+  access: childScoped(),
+  ui: { labelField: "carc", listView: { initialColumns: ["claim", "carc", "preventableClass", "status", "amountMinor", "createdAt"] } },
+  fields: {
+    claim: (0, import_fields18.relationship)({ ref: "Claim", ...readOnly }),
+    claimLine: (0, import_fields18.relationship)({ ref: "ClaimLine", ...readOnly }),
+    remittanceLine: (0, import_fields18.relationship)({ ref: "RemittanceLine", ...readOnly }),
+    carc: systemText({ required: true }),
+    rarc: (0, import_fields18.json)({ defaultValue: [], ...readOnly }),
+    preventableClass: fixedChoice(DENIAL_CLASSES),
+    status: lifecycle(DENIAL_STATUSES),
+    assignedTo: (0, import_fields18.relationship)({ ref: "User", ...readOnly }),
+    amountMinor: minor({ defaultValue: 0n }),
+    resolutionNote: systemText(),
+    appeals: (0, import_fields18.relationship)({ ref: "Appeal.denial", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var Appeal = (0, import_core18.list)({
+  access: scopedGoverned(CLAIM_READ, locationFilter(["denial", "claim", "location"])),
+  ui: { labelField: "level", listView: { initialColumns: ["denial", "level", "submittedVia", "outcome", "submittedAt"] } },
+  fields: {
+    denial: (0, import_fields18.relationship)({ ref: "Denial.appeals", ...readOnly }),
+    level: (0, import_fields18.integer)({ defaultValue: 1, validation: { isRequired: true }, access: { create: () => false, update: () => false } }),
+    letter: systemText(),
+    submittedVia: fixedChoice(APPEAL_VIA),
+    submittedAt: (0, import_fields18.timestamp)({ ...readOnly }),
+    outcome: lifecycle(APPEAL_OUTCOMES),
+    decidedAt: (0, import_fields18.timestamp)({ ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PayerEnrollment = (0, import_core18.list)({
+  access: governed(CLAIM_READ),
+  ui: { labelField: "transaction", listView: { initialColumns: ["payer", "transaction", "status", "adapterKey"] } },
+  fields: {
+    billingEntity: (0, import_fields18.relationship)({ ref: "BillingEntity", ...readOnly }),
+    provider: (0, import_fields18.relationship)({ ref: "ProviderProfile", ...readOnly }),
+    payer: (0, import_fields18.relationship)({ ref: "Payer", ...readOnly }),
+    adapterKey: systemText(),
+    transaction: fixedChoice(ENROLLMENT_TRANSACTIONS),
+    status: lifecycle(ENROLLMENT_STATUSES),
+    externalId: systemText(),
+    notes: systemText(),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+
 // features/keystone/security/phiFields.ts
 var TIER_PERMISSION = {
   dem: "canReadDemographics",
@@ -3316,17 +3670,31 @@ var PHI_FIELDS = {
   Estimate: { inputs: "ins", feeMinor: "ins", allowedMinor: "ins", writeOffMinor: "ins", insuranceMinor: "ins", patientMinor: "ins", deductibleAppliedMinor: "ins", maxAppliedMinor: "ins", secondaryInsuranceMinor: "ins", reasons: "ins" },
   BenefitUsage: { maxUsedMinor: "ins", deductibleUsedMinor: "ins", pendingMinor: "ins", frequencyUse: "ins" },
   LedgerEntry: { amountMinor: "fin", memo: "fin" },
-  GuarantorAccount: { balanceCache: "fin" }
+  GuarantorAccount: { balanceCache: "fin" },
+  AdjustmentRequest: { amountMinor: "fin", reason: "fin" },
+  DayClose: { daySheet: "fin" },
+  Claim: { totalChargeMinor: "ins", narrative: "ins", primaryAdjudicationSnapshot: "ins", clearinghouseRefs: "ins" },
+  ClaimVersion: { payload: "ins" },
+  ClaimLine: { feeMinor: "ins", allowedMinor: "ins", paidMinor: "ins", patientRespMinor: "ins", tooth: "ins", surfaces: "ins" },
+  ClaimAttachment: { description: "ins" },
+  ClaimScrubResult: { findings: "ins" },
+  ClaimAcknowledgement: { errors: "ins", statusCodes: "ins" },
+  ClaimStatusInquiry: { responseSummary: "ins" },
+  Remittance: { totalPaidMinor: "fin", exceptionNote: "fin", providerAdjustments: "fin" },
+  RemittanceClaim: { chargeMinor: "fin", paidMinor: "fin", patientRespMinor: "fin", crossoverCarrier: "fin" },
+  RemittanceLine: { chargeMinor: "fin", allowedMinor: "fin", paidMinor: "fin", adjustmentsTotalMinor: "fin", adjustments: "fin", rarc: "fin" },
+  Denial: { amountMinor: "ins", rarc: "ins", resolutionNote: "ins" },
+  Appeal: { letter: "ins" }
 };
 var PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap((fields) => Object.keys(fields)));
 function applyPhiTiers(models2) {
-  for (const [listKey, list16] of Object.entries(models2)) {
+  for (const [listKey, list17] of Object.entries(models2)) {
     const tiers = PHI_FIELDS[listKey];
     if (!tiers) continue;
     for (const [fieldKey, tier] of Object.entries(tiers)) {
-      const original = list16.fields?.[fieldKey];
+      const original = list17.fields?.[fieldKey];
       if (typeof original !== "function") throw new Error(`PHI_FIELDS names ${listKey}.${fieldKey}, which does not exist.`);
-      list16.fields[fieldKey] = (args) => {
+      list17.fields[fieldKey] = (args) => {
         const field = original(args);
         const access = field.access;
         const baseRead = typeof access === "function" ? access : access?.read;
@@ -3341,10 +3709,10 @@ function applyPhiTiers(models2) {
   return gateFilterAndOrder(models2);
 }
 function gateFilterAndOrder(models2) {
-  for (const list16 of Object.values(models2)) {
-    for (const [fieldKey, original] of Object.entries(list16.fields ?? {})) {
+  for (const list17 of Object.values(models2)) {
+    for (const [fieldKey, original] of Object.entries(list17.fields ?? {})) {
       if (typeof original !== "function" || fieldKey.startsWith("__group")) continue;
-      list16.fields[fieldKey] = (args) => {
+      list17.fields[fieldKey] = (args) => {
         const field = original(args);
         const read = typeof field.access === "function" ? field.access : field.access?.read;
         if (typeof read !== "function") return field;
@@ -3390,7 +3758,8 @@ var models = boundTake(hideRefusedActions(applyPhiTiers({
   ...listsOf(clinical_exports),
   ...listsOf(treatment_exports),
   ...listsOf(insurance_exports),
-  ...listsOf(ledger_exports)
+  ...listsOf(ledger_exports),
+  ...listsOf(claims_exports)
 })));
 
 // features/keystone/mutations/index.ts
@@ -3473,13 +3842,24 @@ var UNIQUE_MESSAGES = {
   BenefitVerification: "A verification is already open for this plan. Refresh to see it.",
   EligibilityCheck: "An eligibility check for this plan is already running. Refresh to see it.",
   Coverage: "This patient already has a current coverage in that order. Refresh and try again.",
-  WorkTask: "That task is already open."
+  WorkTask: "That task is already open.",
+  Remittance: "That payment was already received. Nothing was posted twice.",
+  PaymentPosting: "That payment was already posted. Nothing was posted twice.",
+  Denial: "That denial is already open on this line.",
+  ClaimVersion: "That claim version already exists. Refresh to see it.",
+  ClaimLine: "That claim line already exists."
 };
 var CHECK_MESSAGES = [
   [/^Estimate_/, "The estimate could not be saved: its amounts break an insurance rule (for example a plan paying on a line it does not cover). Nothing was changed. Check the plans\u2019 benefits, then estimate again."],
   [/^BenefitFact_/, "That benefit answer was refused: it does not fit the plan\u2019s rules (for example a value on an unknown answer, or a percentage out of range)."],
   [/^Coverage_/, "That coverage change was refused: it would leave the coverage in an impossible state."],
   [/^EligibilityCheck_/, "That eligibility check change was refused: the check is not in a state that allows it."],
+  [/^Claim_frozen_version/, "A claim past the review stage must point at the exact version that was sent. Nothing was changed."],
+  [/^Claim_|^ClaimLine_/, "That claim change was refused: the amounts or state do not make sense together. Nothing was changed."],
+  [/^RemittanceLine_conservation/, "A remittance line must balance: the charge equals the payment plus the adjustments. Nothing was posted."],
+  [/^(Remittance|PaymentPosting|Denial|Appeal)_/, "That payment change was refused: it would break a payment rule. Nothing was changed."],
+  [/^(LedgerEntry|AdjustmentRequest|AdjustmentType|DayClose|PeriodClose|Restatement)_/, "That ledger change was refused: the ledger only grows, and a closed period takes no new entries. Nothing was changed."],
+  [/_bound$/, "That amount is larger than the system allows. Check it and try again."],
   [/^BenefitVerification_/, "That verification change was refused: the verification is not in a state that allows it."]
 ];
 var textOf = (error) => [error?.message, error?.extensions?.prisma?.message, error?.meta?.message, error?.originalError?.message].filter((x) => typeof x === "string").join("\n");
@@ -3487,21 +3867,21 @@ var prismaCodeOf = (error) => String(error?.code ?? error?.extensions?.prisma?.c
 var isUniqueConflict = (error) => prismaCodeOf(error) === "P2002" || /Unique constraint failed|duplicate key value violates unique constraint/i.test(textOf(error));
 function dbRefusal(error) {
   const e = error;
-  const text17 = textOf(e);
+  const text18 = textOf(e);
   if (isUniqueConflict(e)) {
     const model = String(e?.meta?.modelName ?? e?.extensions?.prisma?.meta?.modelName ?? "");
-    const index = /unique constraint "([^"]+)"/i.exec(text17)?.[1] ?? "";
-    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text17) ? "BenefitVerification" : /EligibilityCheck/.test(text17) ? "EligibilityCheck" : "");
+    const index = /unique constraint "([^"]+)"/i.exec(text18)?.[1] ?? "";
+    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text18) ? "BenefitVerification" : /EligibilityCheck/.test(text18) ? "EligibilityCheck" : "");
     return new DomainError(Codes.STALE_STATE, UNIQUE_MESSAGES[key] ?? "Someone else made the same change at the same moment. Refresh and try again.");
   }
-  const check = /violates check constraint "([^"]+)"/i.exec(text17)?.[1];
+  const check = /violates check constraint "([^"]+)"/i.exec(text18)?.[1];
   if (check) {
     const message = CHECK_MESSAGES.find(([pattern]) => pattern.test(check))?.[1] ?? "The change was refused because it would break a practice rule. Nothing was changed.";
     return new DomainError(Codes.GUARD_FAILED, message, { reason: check });
   }
-  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text17)?.[1];
-  if (raised && /23514|check_violation|RAISE|P0001/i.test(text17 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
-  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text17)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
+  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text18)?.[1];
+  if (raised && /23514|check_violation|RAISE|P0001/i.test(text18 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
+  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text18)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
   return null;
 }
 
@@ -3627,9 +4007,9 @@ function dec(value) {
     if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
     return new Decimal(value);
   }
-  const text17 = String(value).trim();
-  if (!DECIMAL_TEXT.test(text17)) throw new Error(`Not a decimal number: ${JSON.stringify(text17).slice(0, 40)}`);
-  return new Decimal(text17);
+  const text18 = String(value).trim();
+  if (!DECIMAL_TEXT.test(text18)) throw new Error(`Not a decimal number: ${JSON.stringify(text18).slice(0, 40)}`);
+  return new Decimal(text18);
 }
 function toScale(value, scale, rounding = Decimal.ROUND_HALF_EVEN) {
   const places = typeof scale === "number" ? scale : Scale[scale];
@@ -3661,11 +4041,11 @@ function canonicalize(value) {
   throw new Error(`Canonical JSON cannot hold a ${typeof value}`);
 }
 var canonicalJson = (value) => JSON.stringify(canonicalize(value));
-var sha256 = (text17) => (0, import_node_crypto2.createHash)("sha256").update(text17).digest("hex");
+var sha256 = (text18) => (0, import_node_crypto2.createHash)("sha256").update(text18).digest("hex");
 var memberIdHash = (memberId, keyText = process.env.DENTAL_SECRET_KEY) => {
-  const text17 = String(keyText || "").trim();
-  if (!text17) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
-  const root = /^[a-f0-9]{64}$/i.test(text17) ? Buffer.from(text17, "hex") : Buffer.from(text17, "base64");
+  const text18 = String(keyText || "").trim();
+  if (!text18) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
+  const root = /^[a-f0-9]{64}$/i.test(text18) ? Buffer.from(text18, "hex") : Buffer.from(text18, "base64");
   const key = (0, import_node_crypto2.createHmac)("sha256", root).update("dental.member-id-hash.v1").digest();
   return `h1:${(0, import_node_crypto2.createHmac)("sha256", key).update(memberId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")).digest("hex")}`;
 };
@@ -4013,7 +4393,7 @@ function parsePattern(value) {
     return { role, units };
   });
 }
-var patternUnits = (pattern) => pattern.reduce((sum, unit) => sum + unit.units, 0);
+var patternUnits = (pattern) => pattern.reduce((sum2, unit) => sum2 + unit.units, 0);
 function expandPattern(pattern, unitMinutes, startMs, providers) {
   const segments = [];
   let at = startMs;
@@ -4189,7 +4569,7 @@ function rng(seed) {
 }
 function samplePatients(today2) {
   const rand = rng(20261107);
-  const pick = (list16) => list16[Math.floor(rand() * list16.length)];
+  const pick = (list17) => list17[Math.floor(rand() * list17.length)];
   const year = Number(today2.slice(0, 4));
   const dobFor = (age) => {
     const month = 1 + Math.floor(rand() * 12);
@@ -4526,6 +4906,97 @@ function nextPatient(people, w, startMs, endMs, busy, next) {
   return null;
 }
 
+// features/keystone/lib/ledger.ts
+var LEDGER_KIND_SIGN = {
+  charge: "debit",
+  finance_charge: "debit",
+  refund: "debit",
+  insurance_payment: "credit",
+  insurance_writeoff: "credit",
+  patient_payment: "credit",
+  insurance_adjustment: "either",
+  patient_adjustment: "either",
+  transfer_out: "either",
+  transfer_in: "either",
+  reversal: "either"
+};
+var DAY = 864e5;
+var dayNumber = (date) => Math.floor(date.getTime() / DAY);
+function computeBalance(entries, today2) {
+  let total = 0n;
+  for (const e of entries) total += e.amountMinor;
+  const debits = entries.filter((e) => e.amountMinor > 0n).sort((a, b) => (a.businessDate?.getTime() ?? 0) - (b.businessDate?.getTime() ?? 0));
+  let credit = entries.filter((e) => e.amountMinor < 0n).reduce((sum2, e) => sum2 - e.amountMinor, 0n);
+  const buckets = { current: 0n, d31: 0n, d61: 0n, d91: 0n };
+  for (const d of debits) {
+    const applied = credit < d.amountMinor ? credit : d.amountMinor;
+    credit -= applied;
+    const left = d.amountMinor - applied;
+    if (left === 0n) continue;
+    const age = d.businessDate ? dayNumber(today2) - dayNumber(d.businessDate) : 0;
+    if (age > 90) buckets.d91 += left;
+    else if (age > 60) buckets.d61 += left;
+    else if (age > 30) buckets.d31 += left;
+    else buckets.current += left;
+  }
+  return {
+    totalMinor: total.toString(),
+    patientMinor: (total > 0n ? total : 0n).toString(),
+    insurancePendingMinor: "0",
+    creditMinor: (total < 0n ? -total : 0n).toString(),
+    aging: { current: buckets.current.toString(), d31: buckets.d31.toString(), d61: buckets.d61.toString(), d91: buckets.d91.toString() },
+    entryCount: entries.length
+  };
+}
+async function rebuildBalance(tx, accountId, now) {
+  await advisoryLock(tx, `ledger:${accountId}`);
+  const entries = await tx.ledgerEntry.findMany({ where: { accountId }, select: { amountMinor: true, businessDate: true, kind: true } });
+  const cache = computeBalance(entries, now);
+  await tx.guarantorAccount.update({ where: { id: accountId }, data: { balanceCache: toJsonValue(cache), balanceRebuiltAt: now, version: { increment: 1 } } });
+  return cache;
+}
+async function postEntry(tx, input, now) {
+  if (input.amountMinor === 0n) throw new DomainError(Codes.INVALID_INPUT, "An amount of zero cannot be posted.", { field: "amountMinor" });
+  const sign = LEDGER_KIND_SIGN[input.kind];
+  if (!sign) throw new DomainError(Codes.INVALID_INPUT, "Unknown ledger kind.");
+  if (sign === "debit" && input.amountMinor < 0n || sign === "credit" && input.amountMinor > 0n) {
+    throw new DomainError(Codes.INVALID_INPUT, sign === "debit" ? "That kind of entry adds to the balance." : "That kind of entry reduces the balance.", { field: "amountMinor" });
+  }
+  const entry = await tx.ledgerEntry.create({
+    data: {
+      accountId: input.accountId,
+      patientId: input.patientId,
+      kind: input.kind,
+      amountMinor: input.amountMinor,
+      currencyCode: input.currencyCode,
+      businessDate: input.businessDate,
+      originalBusinessDate: input.originalBusinessDate ?? input.businessDate,
+      locationId: input.locationId,
+      providerId: input.providerId ?? null,
+      chartEntryId: input.chartEntryId ?? null,
+      adjustmentId: input.adjustmentId ?? null,
+      reversesId: input.reversesId ?? null,
+      restatementId: input.restatementId ?? null,
+      paymentPostingId: input.paymentPostingId ?? null,
+      claimId: input.claimId ?? null,
+      memo: input.memo ?? "",
+      postedById: input.postedById ?? null,
+      postedAt: now,
+      isSynthetic: input.isSynthetic ?? false
+    }
+  });
+  await rebuildBalance(tx, input.accountId, now);
+  return entry;
+}
+function parseMoney(text18, field = "amount") {
+  const raw = String(text18 ?? "").trim().replace(/^\$/, "").replaceAll(",", "");
+  if (!/^\d{1,7}(\.\d{1,2})?$/.test(raw)) throw new DomainError(Codes.INVALID_INPUT, `Enter the ${field} in dollars and cents, like 125.00.`, { field });
+  const [whole2, cents = ""] = raw.split(".");
+  const minor2 = BigInt(whole2) * 100n + BigInt(cents.padEnd(2, "0"));
+  if (minor2 <= 0n) throw new DomainError(Codes.INVALID_INPUT, `The ${field} must be more than zero.`, { field });
+  return minor2;
+}
+
 // features/keystone/seed/clinical.ts
 var day = (d) => /* @__PURE__ */ new Date(`${d}T00:00:00Z`);
 var TZ2 = "America/New_York";
@@ -4755,6 +5226,7 @@ async function seedPhase2(uow, actor2) {
   await tx.chartEntry.createMany({ data: [...E2, ...X] });
   if (L.length) {
     await tx.ledgerEntry.createMany({ data: L });
+    for (const accountId of new Set(L.map((l) => l.accountId))) await rebuildBalance(tx, accountId, now);
     await tx.$executeRawUnsafe(`UPDATE "ChartEntry" c SET "ledgerEntry" = l.id FROM "LedgerEntry" l WHERE l."chartEntry" = c.id AND c."ledgerEntry" IS NULL AND c.id = ANY($1::text[])`, E2.map((e) => e.id));
   }
   if (PL.length) {
@@ -5034,9 +5506,9 @@ async function seedPracticePlatform(uow, actor2) {
 var import_node_crypto4 = require("node:crypto");
 var SECRET_KEY_VERSION = 1;
 function decodeKey(value) {
-  const text17 = String(value || "").trim();
-  if (!text17) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
-  const key = /^[a-f0-9]{64}$/i.test(text17) ? Buffer.from(text17, "hex") : Buffer.from(text17, "base64");
+  const text18 = String(value || "").trim();
+  if (!text18) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
+  const key = /^[a-f0-9]{64}$/i.test(text18) ? Buffer.from(text18, "hex") : Buffer.from(text18, "base64");
   if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
   return key;
 }
@@ -5162,13 +5634,94 @@ async function seedPhase3(uow, actor2) {
   return created;
 }
 
+// features/keystone/seed/ledger.ts
+var ADJUSTMENT_TYPES = [
+  { id: "seed_adjtype_courtesy", code: "COURTESY", name: "Courtesy discount", direction: "credit", category: "courtesy", approvalThresholdMinor: 5000n, requiresApproval: false },
+  { id: "seed_adjtype_professional", code: "PROFESSIONAL", name: "Professional courtesy", direction: "credit", category: "professional", approvalThresholdMinor: 2500n, requiresApproval: false },
+  { id: "seed_adjtype_small", code: "SMALL-BAL", name: "Small balance write-off", direction: "credit", category: "small_balance", approvalThresholdMinor: 1000n, requiresApproval: false },
+  { id: "seed_adjtype_baddebt", code: "BAD-DEBT", name: "Bad debt write-off", direction: "credit", category: "bad_debt", approvalThresholdMinor: 0n, requiresApproval: true },
+  { id: "seed_adjtype_broken", code: "BROKEN-FEE", name: "Missed appointment fee", direction: "debit", category: "broken_appt_fee", approvalThresholdMinor: 5000n, requiresApproval: false },
+  { id: "seed_adjtype_member", code: "MEMBER-DISC", name: "Membership discount", direction: "credit", category: "membership_discount", approvalThresholdMinor: 10000n, requiresApproval: false },
+  { id: "seed_adjtype_other", code: "OTHER-CR", name: "Other credit", direction: "credit", category: "other", approvalThresholdMinor: 2500n, requiresApproval: false }
+];
+async function seedLedger(uow) {
+  const made = await uow.tx.adjustmentType.createMany({ data: ADJUSTMENT_TYPES, skipDuplicates: true });
+  return { adjustmentTypes: made.count };
+}
+
+// features/keystone/seed/claims.ts
+var SCRUB_RULESET = "2026.1";
+var SCRUB_RULES = [
+  { key: "coverage-active", kind: "coverage_active", severity: "blocking", message: "The patient\u2019s coverage is not active. Verify the insurance before the claim goes out." },
+  { key: "primary-first", kind: "primary_first", severity: "blocking", message: "The primary payer has to finish before a secondary claim goes out." },
+  { key: "crosswalk-required", kind: "crosswalk_required", severity: "blocking", message: "A procedure has no confirmed insurance code. Confirm its match in the code crosswalk." },
+  { key: "tooth-required", kind: "tooth_required", severity: "blocking", message: "This procedure needs a tooth number." },
+  { key: "surface-required", kind: "surface_required", severity: "blocking", message: "This procedure needs the tooth surfaces." },
+  { key: "timely-filing", kind: "timely_filing", severity: "blocking", message: "The payer\u2019s filing window has closed." },
+  { key: "duplicate-claim", kind: "duplicate", severity: "blocking", message: "A procedure on this claim is already on another claim to this payer." },
+  { key: "enrollment-required", kind: "enrollment_required", severity: "blocking", message: "The practice is not enrolled with this payer for electronic claims. Finish enrollment or send the claim on paper." },
+  { key: "xray-for-major", kind: "attachment_required", severity: "blocking", message: "Crowns, bridges and implants need an X-ray attached.", appliesTo: { categories: ["prosth_fixed", "implant"] } },
+  { key: "narrative-for-surgery", kind: "narrative_required", severity: "warning", message: "Surgical procedures go through faster with a short narrative.", appliesTo: { categories: ["oral_surgery"] } }
+];
+var DENIAL_REASONS = [
+  { carc: "16", preventableClass: "coding", suggestedAction: "Fix the missing or wrong information and send a corrected claim." },
+  { carc: "18", preventableClass: "duplicate", suggestedAction: "Check whether the first claim was paid. If it was, nothing more is needed." },
+  { carc: "22", preventableClass: "coordination", suggestedAction: "Send the claim to the other payer first, then bill this payer for the rest." },
+  { carc: "27", preventableClass: "eligibility", suggestedAction: "Confirm the coverage dates with the patient, then bill the right payer or the patient." },
+  { carc: "29", preventableClass: "timely_filing", suggestedAction: "Appeal with proof of timely filing, such as the clearinghouse acceptance." },
+  { carc: "96", preventableClass: "non_covered", suggestedAction: "Tell the patient the service is not covered and bill them." },
+  { carc: "119", preventableClass: "non_covered", suggestedAction: "The yearly maximum is used up. Bill the patient for the balance." },
+  { carc: "151", preventableClass: "frequency", suggestedAction: "Check the plan\u2019s frequency limit. Appeal only if the service was needed sooner." },
+  { carc: "204", preventableClass: "non_covered", suggestedAction: "The plan does not cover this service. Bill the patient." }
+];
+async function seedClaimReference(db) {
+  const rules2 = await db.scrubRule.createMany({ data: SCRUB_RULES.map((r) => ({ key: r.key, kind: r.kind, severity: r.severity, message: r.message, appliesTo: "appliesTo" in r ? r.appliesTo : {}, isActive: true, rulesetVersion: SCRUB_RULESET })), skipDuplicates: true });
+  const existing = new Set((await db.denialReasonMap.findMany({ select: { carc: true } })).map((r) => r.carc));
+  const reasons = DENIAL_REASONS.filter((r) => !existing.has(r.carc));
+  if (reasons.length) await db.denialReasonMap.createMany({ data: reasons.map((r) => ({ carc: r.carc, rarc: "", preventableClass: r.preventableClass, suggestedAction: r.suggestedAction })) });
+  return { scrubRules: rules2.count, denialReasons: reasons.length };
+}
+async function seedClaimSample(db) {
+  const system = await db.codeSystem.findUnique({ where: { key: "CDT" } });
+  if (!system) return { codes: 0, crosswalks: 0, enrollments: 0 };
+  let codes = 0;
+  let crosswalks = 0;
+  for (const [index, of] of OF_CODES.entries()) {
+    const local = await db.procedureCode.findFirst({ where: { code: of.code, codeSystem: { key: "OF" } } });
+    if (!local) continue;
+    const theirs = `D${9e3 + index}`;
+    let target = await db.procedureCode.findFirst({ where: { code: theirs, codeSystemId: system.id } });
+    if (!target) {
+      target = await db.procedureCode.create({ data: { codeSystemId: system.id, code: theirs, nomenclature: of.name, patientFriendlyName: of.friendly, category: of.category, areaRule: of.rule, requiresSurfaces: !!of.surfaces, maxSurfaces: of.max ?? null, isSynthetic: true } });
+      codes += 1;
+    }
+    if (!await db.procedureCodeCrosswalk.findFirst({ where: { localCodeId: local.id, targetCodeId: target.id } })) {
+      await db.procedureCodeCrosswalk.create({ data: { localCodeId: local.id, targetCodeId: target.id, status: "confirmed", proposedBasis: "Sample practice" } });
+      crosswalks += 1;
+    }
+  }
+  let enrollments = 0;
+  const entity = await db.billingEntity.findFirst({ orderBy: { createdAt: "asc" } });
+  if (entity) {
+    for (const payer of await db.payer.findMany({ where: { isSynthetic: true } })) {
+      if (!await db.payerEnrollment.findFirst({ where: { billingEntityId: entity.id, payerId: payer.id, transaction: "claims" } })) {
+        await db.payerEnrollment.create({ data: { billingEntityId: entity.id, payerId: payer.id, adapterKey: "stedi", transaction: "claims", status: "live", notes: "Sample practice" } });
+        enrollments += 1;
+      }
+    }
+  }
+  return { codes, crosswalks, enrollments };
+}
+
 // features/keystone/mutations/setup.ts
 async function loadPracticeSetup(_root, args, context) {
   const actor2 = actorFromSession(context.session);
   requirePermission(actor2, "canManageOnboarding");
   const result = await command(context.prisma, { name: "setup.load_practice", actor: actor2, idempotencyKey: args.idempotencyKey, params: {} }, (uow) => seedPracticePlatform(uow, actor2));
   const insurance = await command(context.prisma, { name: "setup.load_insurance", actor: actor2, idempotencyKey: `${args.idempotencyKey}:insurance`, params: {} }, (uow) => seedPhase3(uow, actor2));
-  return { replay: result.replay, created: { ...result.value, ...insurance.value } };
+  const ledger = await command(context.prisma, { name: "setup.load_ledger", actor: actor2, idempotencyKey: `${args.idempotencyKey}:ledger`, params: {} }, (uow) => seedLedger(uow));
+  const claimsSeed = await command(context.prisma, { name: "setup.load_claims", actor: actor2, idempotencyKey: `${args.idempotencyKey}:claims`, params: {} }, async (uow) => ({ ...await seedClaimReference(uow.tx), ...await seedClaimSample(uow.tx) }));
+  return { replay: result.replay, created: { ...result.value, ...insurance.value, ...ledger.value, ...claimsSeed.value } };
 }
 
 // features/keystone/mutations/audit.ts
@@ -5877,10 +6430,10 @@ var toDate = (value, field) => {
   return date;
 };
 var requireText = (value, field, max2 = 500) => {
-  const text17 = String(value ?? "").trim();
-  if (!text17) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-  if (text17.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
-  return text17;
+  const text18 = String(value ?? "").trim();
+  if (!text18) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+  if (text18.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+  return text18;
 };
 var optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
 function normalizeContact(kind, value) {
@@ -6611,11 +7164,11 @@ async function addPatientAlert(_root, args, context) {
   requirePermission(actor2, "canManagePatients", "canChart");
   if (!ALERT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown alert kind.", { field: "kind" });
   if (!["info", "caution", "critical"].includes(args.severity)) throw new DomainError(Codes.INVALID_INPUT, "Choose info, caution or critical.", { field: "severity" });
-  const text17 = requireText(args.text, "alert text", 500);
+  const text18 = requireText(args.text, "alert text", 500);
   const { idempotencyKey, ...params } = args;
   const result = await command(context.prisma, { name: "patient.alert_add", actor: actor2, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text17, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
+    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text18, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
     auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
     return { alertId: alert.id };
   });
@@ -6747,21 +7300,21 @@ async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
   let seq = 0;
   const entries = [];
   const survivorPrimary = new Set((await uow.tx.contactPoint.findMany({ where: { patientId: survivorId, isPrimary: true, isActive: true }, select: { kind: true } })).map((c) => c.kind));
-  for (const { list: list16, field } of MERGE_CHILDREN) {
-    const rows = await delegateOf(uow.tx, list16).findMany({ where: { [field]: mergedId }, select: { id: true, ...list16 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
+  for (const { list: list17, field } of MERGE_CHILDREN) {
+    const rows = await delegateOf(uow.tx, list17).findMany({ where: { [field]: mergedId }, select: { id: true, ...list17 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
     for (const row of rows) {
-      if (list16 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
+      if (list17 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
         await uow.tx.contactPoint.update({ where: { id: row.id }, data: { isPrimary: false } });
-        entries.push({ listKey: list16, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
+        entries.push({ listKey: list17, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
       }
       try {
-        await delegateOf(uow.tx, list16).update({ where: { id: row.id }, data: { [field]: survivorId } });
+        await delegateOf(uow.tx, list17).update({ where: { id: row.id }, data: { [field]: survivorId } });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list16 === "Appointment" ? "overlapping appointments" : list16} rows. Resolve them before merging.`);
+        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list17 === "Appointment" ? "overlapping appointments" : list17} rows. Resolve them before merging.`);
         throw error;
       }
-      entries.push({ listKey: list16, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
+      entries.push({ listKey: list17, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
     }
   }
   if (entries.length) await uow.tx.mergeMap.createMany({ data: entries.map((e) => ({ ...e, mergeCaseId })) });
@@ -6831,12 +7384,12 @@ function verifiedInternalIdentity(headers, socketAddress, secret4, now) {
   const loopback = /^(?:127\.|::1$|::ffff:127\.)/.test(String(socketAddress || ""));
   if (!loopback || secret4.length < 32) return null;
   const identity = String(headers["x-openfront-client-identity"] || "");
-  const timestamp15 = String(headers["x-openfront-client-timestamp"] || "");
+  const timestamp16 = String(headers["x-openfront-client-timestamp"] || "");
   const signature2 = String(headers["x-openfront-client-signature"] || "");
-  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp15) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
-  const age = Math.abs(now - Number(timestamp15) * 1e3);
+  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp16) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
+  const age = Math.abs(now - Number(timestamp16) * 1e3);
   if (!Number.isFinite(age) || age > INTERNAL_IDENTITY_MAX_AGE_MS) return null;
-  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp15}:${identity}`).digest("hex");
+  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp16}:${identity}`).digest("hex");
   return safeEqual(signature2, expected) ? `forwarded:${identity}` : null;
 }
 
@@ -6880,8 +7433,8 @@ var keyHash = (value) => (0, import_node_crypto10.createHash)("sha256").update(v
 var secret2 = () => process.env.SESSION_SECRET || "local-development-session-secret-change-me-now";
 var clientFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(clientKey(req, secret2())).digest("hex").slice(0, 32);
 var userAgentFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(String(req?.headers?.["user-agent"] ?? "")).digest("hex").slice(0, 32);
-function limitsFrom(json14) {
-  const value = json14 && typeof json14 === "object" ? json14 : {};
+function limitsFrom(json15) {
+  const value = json15 && typeof json15 === "object" ? json15 : {};
   const pick = (n, fallback, max2) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max2) : fallback;
   return {
     perClientPerHour: pick(value.perClientPerHour, DEFAULT_PUBLIC_LIMITS.perClientPerHour, 1e3),
@@ -7182,9 +7735,9 @@ var import_node_crypto13 = require("node:crypto");
 // features/keystone/security/phiReadAudit.ts
 var import_node_crypto12 = require("node:crypto");
 var import_graphql4 = require("graphql");
-function referenceToken(secret4, list16, id) {
+function referenceToken(secret4, list17, id) {
   if (!secret4 || secret4.length < 32) throw new Error("A strong PHI audit reference secret (SESSION_SECRET) is required.");
-  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list16}\0${id}`).digest("hex");
+  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list17}\0${id}`).digest("hex");
 }
 async function recordPhiReadAudit(prisma, actor2, descriptor) {
   await prisma.phiReadAudit.create({
@@ -7335,8 +7888,8 @@ function assertPortalScope(principal, patientId, capability) {
   if (!scope || !scope.capabilities.includes(capability)) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
   return scope;
 }
-async function auditPortalRead(context, principal, operationName, list16, ids, fields) {
-  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list16, ids, fields, tiers: ["dem"] });
+async function auditPortalRead(context, principal, operationName, list17, ids, fields) {
+  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list17, ids, fields, tiers: ["dem"] });
 }
 async function portalMe(_root, _args, context) {
   const principal = await portalPrincipal(context);
@@ -7508,6 +8061,7 @@ async function suspendPortalAccount(_root, args, context) {
 
 // features/keystone/mutations/clinicalShared.ts
 var dayOf = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
+var isoDay = (date) => date ? date instanceof Date ? date.toISOString().slice(0, 10) : String(date).slice(0, 10) : null;
 async function locationToday(tx, locationId, now) {
   const location = await tx.location.findUnique({ where: { id: locationId }, select: { timeZone: true } });
   return localDate(location?.timeZone ?? "America/New_York", now);
@@ -7540,9 +8094,9 @@ async function accountFor(uow, patientId) {
   return tx.guarantorAccount.create({ data: { guarantorId, ref } });
 }
 function requireReason(value, what = "reason") {
-  const text17 = String(value ?? "").trim();
-  if (text17.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
-  return text17.slice(0, 1e3);
+  const text18 = String(value ?? "").trim();
+  if (text18.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
+  return text18.slice(0, 1e3);
 }
 var oneOf = (value, allowed, field) => {
   if (!allowed.includes(String(value))) throw new DomainError(Codes.INVALID_INPUT, `Unknown ${field}.`, { field });
@@ -7949,6 +8503,7 @@ async function completeProcedure(_root, args, context) {
       data: { accountId: account.id, patientId: row.patientId, kind: "charge", amountMinor: feeMinor, currencyCode: settingsCurrency, businessDate: dayOf(date), originalBusinessDate: dayOf(date), locationId: row.locationId, providerId: provider.id, chartEntryId: row.id, memo: `${code.code} ${row.tooth}${row.surfaces ? ` ${row.surfaces}` : ""}`.trim(), postedById: actor2.kind === "user" ? actor2.userId : null, postedAt: uow.now }
     });
     await uow.tx.chartEntry.update({ where: { id: row.id }, data: { ledgerEntryId: charge.id } });
+    await rebuildBalance(uow.tx, account.id, uow.now);
     auditCreate(uow, actor2, "LedgerEntry", charge.id, "ledger.charge_posted", { chartEntryId: row.id, amountMinor: feeMinor.toString(), businessDate: date });
     uow.emit({ topic: "ledger.charge_posted", aggregateType: "LedgerEntry", aggregateId: charge.id, payload: { chartEntryId: row.id, patientId: row.patientId }, dedupeKey: `ledger.charge_posted:${charge.id}` });
     return { chartEntryId: entry.id, ledgerEntryId: charge.id, feeMinor: feeMinor.toString() };
@@ -7972,6 +8527,7 @@ async function correctProcedure(_root, args, context) {
         data: { accountId: charge.accountId, patientId: charge.patientId, kind: "reversal", amountMinor: -charge.amountMinor, currencyCode: charge.currencyCode, businessDate: dayOf(today2), originalBusinessDate: charge.originalBusinessDate, locationId: charge.locationId, providerId: charge.providerId, chartEntryId: row.id, reversesId: charge.id, memo: `Reversal: ${reason}`.slice(0, 200), postedById: actor2.kind === "user" ? actor2.userId : null, postedAt: uow.now }
       });
       reversalId = reversal.id;
+      if (charge.accountId) await rebuildBalance(uow.tx, charge.accountId, uow.now);
       auditCreate(uow, actor2, "LedgerEntry", reversal.id, "ledger.charge_reversed", { reverses: charge.id, amountMinor: (-charge.amountMinor).toString() }, { reason });
     }
     let replacementId = null;
@@ -8048,7 +8604,7 @@ function summarize(measurements) {
     sites: n,
     bleedingPct: pct2(recorded.filter((m) => m.bleeding).length),
     plaquePct: pct2(recorded.filter((m) => m.plaque).length),
-    meanPd: n ? Math.round(recorded.reduce((sum, m) => sum + (m.probingDepthMm ?? 0), 0) / n * 10) / 10 : 0,
+    meanPd: n ? Math.round(recorded.reduce((sum2, m) => sum2 + (m.probingDepthMm ?? 0), 0) / n * 10) / 10 : 0,
     sitesGe4: recorded.filter((m) => (m.probingDepthMm ?? 0) >= 4).length,
     sitesGe5: recorded.filter((m) => (m.probingDepthMm ?? 0) >= 5).length,
     maxCal: cals.length ? Math.max(...cals) : null,
@@ -8592,7 +9148,7 @@ async function presentTreatmentPlan(_root, args, context) {
     const version = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: { orderBy: { sortOrder: "asc" } } } });
     if (!version || version.frozenAt) throw new DomainError(Codes.INVALID_TRANSITION, "There is no draft version to present.");
     if (!version.items.length) throw new DomainError(Codes.GUARD_FAILED, "Add at least one procedure before presenting the plan.");
-    const totals = version.items.reduce((sum, item) => sum + item.feeMinor, 0n);
+    const totals = version.items.reduce((sum2, item) => sum2 + item.feeMinor, 0n);
     const contentHash = sha256(canonicalJson({ plan: plan.ref, number: version.number, phases: version.phases, items: version.items.map((i) => [i.chartEntryId, i.phaseKey, i.priority, i.alternateGroup, i.feeMinor.toString()]) }));
     await uow.tx.treatmentPlanVersion.update({ where: { id: version.id }, data: { frozenAt: uow.now, contentHash, presentedById: actor2.kind === "user" ? actor2.userId : null, totalsMinor: { totalMinor: totals.toString(), itemCount: version.items.length } } });
     await uow.tx.planPresentation.create({ data: { planVersionId: version.id, presentedById: actor2.kind === "user" ? actor2.userId : null, channel, at: uow.now } });
@@ -8623,7 +9179,7 @@ async function acceptTreatmentPlan(_root, args, context) {
     for (const item of selected) if (item.alternateGroup) groups.set(item.alternateGroup, (groups.get(item.alternateGroup) ?? 0) + 1);
     const doubled = [...groups.entries()].find(([, n]) => n > 1);
     if (doubled) throw new DomainError(Codes.GUARD_FAILED, `Choose only one option from the alternatives in \u201C${doubled[0]}\u201D.`, { field: "selectedItemIds" });
-    const total = selected.reduce((sum, i) => sum + i.feeMinor, 0n);
+    const total = selected.reduce((sum2, i) => sum2 + i.feeMinor, 0n);
     const acceptance = await uow.tx.planAcceptance.create({
       data: {
         planVersionId: version.id,
@@ -8695,6 +9251,16 @@ function toMinor(amount, currencyCode = "USD", rounding = Decimal.ROUND_HALF_EVE
   const digits = minorDigits(currencyCode);
   const scaled = dec(amount).times(new Decimal(10).pow(digits)).toDecimalPlaces(0, rounding);
   return BigInt(scaled.toFixed(0));
+}
+function formatMinor(minor2, currencyCode = "USD") {
+  const digits = minorDigits(currencyCode);
+  const negative = minor2 < 0n;
+  const abs = negative ? -minor2 : minor2;
+  const base = 10n ** BigInt(digits);
+  const whole2 = (abs / base).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const fraction = digits ? "." + (abs % base).toString().padStart(digits, "0") : "";
+  const symbol = currencyCode === "USD" ? "$" : `${currencyCode} `;
+  return `${negative ? "\u2212" : ""}${symbol}${whole2}${fraction}`;
 }
 function minorOf(value) {
   if (typeof value === "bigint") return value;
@@ -9015,12 +9581,12 @@ function estimate(input) {
     }
   }
   const confidence = results.reduce((acc, r) => weakest(acc, r.confidence), "verified");
-  const sum = (pick) => results.reduce((s, r) => s + pick(r), 0n);
+  const sum2 = (pick) => results.reduce((s, r) => s + pick(r), 0n);
   return {
     estimatorVersion: ESTIMATOR_VERSION,
     lines: input.lines.map((l) => results.find((r) => r.id === l.id)),
     confidence,
-    totals: { feeMinor: sum((r) => r.feeMinor), insuranceMinor: sum((r) => r.insuranceMinor), patientMinor: sum((r) => r.patientMinor), writeOffMinor: sum((r) => r.writeOffMinor) }
+    totals: { feeMinor: sum2((r) => r.feeMinor), insuranceMinor: sum2((r) => r.insuranceMinor), patientMinor: sum2((r) => r.patientMinor), writeOffMinor: sum2((r) => r.writeOffMinor) }
   };
 }
 
@@ -9062,9 +9628,9 @@ var TASK_TITLES = {
 };
 var taskTitle = (field) => TASK_TITLES[field] ?? `Ask the payer: ${field.replaceAll("_", " ")}`;
 var money = (value, field) => {
-  const text17 = String(value ?? "").trim();
-  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text17)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
-  return toMinor(text17, "USD");
+  const text18 = String(value ?? "").trim();
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text18)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
+  return toMinor(text18, "USD");
 };
 var optMoney = (value, field) => value === void 0 || value === null || String(value).trim() === "" ? null : money(value, field);
 async function savePayer(_root, args, context) {
@@ -9125,7 +9691,7 @@ var last4 = (value) => value.replace(/[^A-Za-z0-9]/g, "").slice(-4);
 async function addCoverage(_root, args, context) {
   const { actor: actor2, locationIds } = staff(context);
   requirePermission(actor2, "canManageInsurance");
-  const relationship15 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
+  const relationship16 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
   const ordinal = oneOf(args.ordinal, ORDINALS, "order");
   const memberId = requireText(args.memberId, "member ID", 40);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the effective date.", { field: "effectiveFrom" });
@@ -9136,7 +9702,7 @@ async function addCoverage(_root, args, context) {
     if (!plan) throw new DomainError(Codes.NOT_FOUND, "Insurance plan not found.");
     const open = await uow.tx.coverage.findFirst({ where: { patientId: patient.id, ordinal, status: { in: ["pending_verification", "active"] } } });
     if (open) throw new DomainError(Codes.GUARD_FAILED, `This patient already has a ${ordinal} coverage. Change the order or end that coverage first.`, { field: "ordinal" });
-    const self = relationship15 === "self";
+    const self = relationship16 === "self";
     const patientRow = await uow.tx.patient.findUniqueOrThrow({ where: { id: patient.id }, select: { firstName: true, lastName: true, dateOfBirth: true, isSynthetic: true } });
     const secret4 = await storeSecret(uow.tx, "subscriber.memberId", memberId);
     const subscriber = await uow.tx.subscriber.create({
@@ -9153,9 +9719,9 @@ async function addCoverage(_root, args, context) {
       }
     });
     const coverage = await uow.tx.coverage.create({
-      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship15, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
+      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship16, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
     });
-    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship15 });
+    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship16 });
     return { coverageId: coverage.id, subscriberId: subscriber.id };
   });
   return { replay: result.replay, ...result.value };
@@ -9484,7 +10050,7 @@ async function estimatePlanInTx(uow, actor2, planId, locationIds) {
       created2 += 1;
     }
     uow.audit({ eventType: "estimate.computed", entityType: "TreatmentPlan", entityId: plan.id, actorUserId: actorId, after: { lines: version.items.length, created: created2, selfPay: true } });
-    return { estimated: version.items.length, created: created2, noCoverage: true, confidence: "assumed", insuranceMinor: "0", patientMinor: version.items.reduce((sum, i) => sum + i.feeMinor, 0n).toString() };
+    return { estimated: version.items.length, created: created2, noCoverage: true, confidence: "assumed", insuranceMinor: "0", patientMinor: version.items.reduce((sum2, i) => sum2 + i.feeMinor, 0n).toString() };
   }
   const tz = patientRow.homeLocationId ? (await tx.location.findUnique({ where: { id: patientRow.homeLocationId }, select: { timeZone: true } }))?.timeZone : null;
   const today2 = localDate(tz ?? "America/New_York", uow.now);
@@ -9591,6 +10157,723 @@ async function estimateTreatmentPlan(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 
+// features/keystone/lib/claims.ts
+var isoDay2 = (d) => d ? d.toISOString().slice(0, 10) : "";
+function filingDeadline(earliestService, timelyFilingDays) {
+  return timelyFilingDays ? addDays(earliestService, timelyFilingDays) : null;
+}
+async function buildPayload(tx, claimId, frequency, originalPayerClaimControlNumber) {
+  const claim = await tx.claim.findUniqueOrThrow({
+    where: { id: claimId },
+    include: {
+      patient: true,
+      location: true,
+      billingEntity: true,
+      renderingProvider: true,
+      coverage: { include: { subscriber: { include: { plan: { include: { payer: true } }, patient: true } } } },
+      lines: { orderBy: { lineControlNumber: "asc" }, include: { code: true, localCode: true } }
+    }
+  });
+  const subscriber = claim.coverage.subscriber;
+  const payer = subscriber.plan.payer;
+  const named = subscriber.personName ?? {};
+  const person = subscriber.patient ?? null;
+  const entity = claim.billingEntity;
+  const address = entity?.address ?? {};
+  const provider = claim.renderingProvider;
+  const [first, ...rest] = (provider?.displayName ?? "").replace(/^Dr\.?\s+/i, "").split(" ");
+  return {
+    patientControlNumber: claim.patientControlNumber,
+    frequency,
+    kind: claim.kind,
+    payer: { id: payer.id, name: payer.name, adapterPayerId: String(payer.adapterPayerIds?.stedi ?? "") },
+    billing: { legalName: entity?.legalName ?? "", npi: entity?.npiType2 ?? "", address },
+    rendering: { name: { first: first ?? "", last: rest.join(" ") }, npi: provider?.npiType1 ?? "", taxonomy: provider?.taxonomyCode ?? "" },
+    patient: { first: claim.patient.firstName, last: claim.patient.lastName, dateOfBirth: isoDay2(claim.patient.dateOfBirth), sex: claim.patient.sexAssignedAtBirth },
+    subscriber: { first: person?.firstName ?? named.first ?? "", last: person?.lastName ?? named.last ?? "", dateOfBirth: isoDay2(subscriber.dateOfBirth), relationship: claim.coverage.relationship, memberIdLast4: subscriber.memberIdLast4 },
+    placeOfServiceCode: claim.placeOfServiceCode || "11",
+    ...originalPayerClaimControlNumber ? { originalPayerClaimControlNumber } : {},
+    lines: claim.lines.map((l) => ({ controlNumber: l.lineControlNumber, code: l.code?.code ?? "", localCode: l.localCode?.code ?? "", tooth: l.tooth, surfaces: l.surfaces, dateOfService: isoDay2(l.dateOfService), chargeMinor: l.feeMinor.toString(), units: l.units })),
+    totalChargeMinor: claim.totalChargeMinor.toString()
+  };
+}
+async function scrubClaim(tx, claimId, today2) {
+  const rules2 = await tx.scrubRule.findMany({ where: { isActive: true }, orderBy: { key: "asc" } });
+  const rulesetVersion = rules2.length ? String((await tx.scrubRule.findFirst({ where: { isActive: true }, orderBy: { rulesetVersion: "desc" }, select: { rulesetVersion: true } }))?.rulesetVersion ?? "") : "";
+  const claim = await tx.claim.findUniqueOrThrow({
+    where: { id: claimId },
+    include: {
+      coverage: { include: { subscriber: { include: { plan: { include: { payer: true } } } } } },
+      lines: { include: { code: true, localCode: { include: { codeSystem: true } } } },
+      attachments: true
+    }
+  });
+  const payer = claim.coverage?.subscriber?.plan?.payer;
+  const findings = [];
+  const add = (rule3, message, lineId) => findings.push({ rule: rule3.key, kind: rule3.kind, severity: rule3.severity, message: message ?? rule3.message, lineId: lineId ?? null });
+  for (const rule3 of rules2) {
+    switch (rule3.kind) {
+      case "coverage_active":
+        if (!claim.coverage || claim.coverage.status !== "active") add(rule3);
+        break;
+      case "primary_first":
+        if (claim.kind === "secondary" || claim.kind === "tertiary") {
+          const primary = claim.primaryClaimId ? await tx.claim.findUnique({ where: { id: claim.primaryClaimId }, select: { status: true } }) : null;
+          if (!primary || !["adjudicated", "closed"].includes(primary.status)) add(rule3);
+        }
+        break;
+      case "crosswalk_required":
+        for (const line of claim.lines) if (!line.code) add(rule3, `${line.localCode?.code ?? "This procedure"} has no confirmed insurance code. Confirm its match in the code crosswalk.`, line.id);
+        break;
+      case "tooth_required":
+        for (const line of claim.lines) if (["tooth", "tooth_surface"].includes(line.localCode?.areaRule ?? line.code?.areaRule ?? "") && !line.tooth) add(rule3, void 0, line.id);
+        break;
+      case "surface_required":
+        for (const line of claim.lines) if ((line.localCode?.requiresSurfaces || line.code?.requiresSurfaces) && !line.surfaces) add(rule3, void 0, line.id);
+        break;
+      case "timely_filing":
+        if (claim.timelyFilingDeadline && isoDay2(claim.timelyFilingDeadline) < today2) add(rule3, `The payer\u2019s filing window closed on ${isoDay2(claim.timelyFilingDeadline)}. Add proof of timely filing or write the balance off.`);
+        break;
+      case "duplicate": {
+        const entryIds = claim.lines.map((l) => l.chartEntryId).filter(Boolean);
+        if (entryIds.length && claim.kind !== "predetermination") {
+          const other = await tx.claimLine.findFirst({ where: { chartEntryId: { in: entryIds }, claimId: { not: claim.id }, claim: { kind: claim.kind, coverageId: claim.coverageId, status: { notIn: ["voided", "rejected", "draft"] } } }, select: { id: true } });
+          if (other) add(rule3);
+        }
+        break;
+      }
+      case "enrollment_required": {
+        if (payer && claim.billingEntityId) {
+          const live = await tx.payerEnrollment.findFirst({ where: { billingEntityId: claim.billingEntityId, payerId: payer.id, transaction: "claims", status: "live" }, select: { id: true } });
+          if (!live) add(rule3);
+        }
+        break;
+      }
+      case "attachment_required": {
+        const categories = rule3.appliesTo?.categories ?? [];
+        const needs = claim.lines.some((l) => categories.includes(l.localCode?.category ?? l.code?.category ?? ""));
+        if (needs && !claim.attachments.some((a) => a.kind === "radiograph" || a.kind === "perio_chart")) add(rule3);
+        break;
+      }
+      case "narrative_required": {
+        const categories = rule3.appliesTo?.categories ?? [];
+        const needs = claim.lines.some((l) => categories.includes(l.localCode?.category ?? l.code?.category ?? ""));
+        if (needs && !claim.narrative.trim()) add(rule3);
+        break;
+      }
+    }
+  }
+  return { findings, rulesetVersion };
+}
+var hasBlocking = (findings) => findings.some((f) => f.severity === "blocking");
+
+// features/keystone/lib/era.ts
+var lineConserves = (line) => line.chargeMinor === line.paidMinor + line.adjustments.reduce((sum2, a) => sum2 + a.amountMinor, 0n);
+var writeOffMinor = (adjustments) => adjustments.filter((a) => a.group === "CO").reduce((sum2, a) => sum2 + a.amountMinor, 0n);
+var patientRespOf = (adjustments) => adjustments.filter((a) => a.group === "PR").reduce((sum2, a) => sum2 + a.amountMinor, 0n);
+
+// features/keystone/mutations/remittance.ts
+var ADJUSTABLE_FROM = ["submitted", "acknowledged", "pending_payer", "submission_unknown", "adjudicated", "appealed", "appeal_decided"];
+var asJson = (list17) => list17.map((a) => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }));
+var sum = (values) => values.reduce((a, b) => a + b, 0n);
+var lineAdjTotal = (line) => sum(line.adjustments.map((a) => a.amountMinor));
+async function applyParsedEra(uow, actor2, era, origin) {
+  const { tx } = uow;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`era:${era.traceNumber}`}))`;
+  const claimRows = await tx.claim.findMany({ where: { patientControlNumber: { in: era.claims.map((c) => c.patientControlNumber).filter(Boolean) } }, include: { lines: true, coverage: { include: { subscriber: { include: { plan: true } } } } } });
+  const byPcn = new Map(claimRows.map((c) => [c.patientControlNumber, c]));
+  const payerId = origin.payerId ?? claimRows[0]?.coverage?.subscriber?.plan?.payerId ?? (era.payerName ? (await tx.payer.findFirst({ where: { name: era.payerName }, select: { id: true } }))?.id ?? null : null);
+  const earlier = era.traceNumber ? await tx.remittance.findFirst({ where: { traceNumber: era.traceNumber, payerId, status: { not: "duplicate" } }, orderBy: { createdAt: "asc" } }) : null;
+  const ref = await nextReference(tx, "ERA", uow.now);
+  if (earlier) {
+    const dup = await tx.remittance.create({ data: { ref, payerId, source: origin.source, adapterKey: origin.adapterKey, traceNumber: era.traceNumber, paymentMethod: era.paymentMethod, paymentDate: era.paymentDate ? dayOf(era.paymentDate) : null, totalPaidMinor: era.totalPaidMinor, status: "duplicate", duplicateOfId: earlier.id, exceptionNote: `Same payment trace as ${earlier.ref}. Nothing was posted.`, observationId: origin.observationId ?? null } });
+    auditCreate(uow, actor2, "Remittance", dup.id, "remittance.duplicate_ignored", { duplicateOf: earlier.ref, trace: era.traceNumber });
+    return { remittanceId: dup.id, ref, status: "duplicate", claimsPosted: 0, claimsHeld: 0, duplicate: true };
+  }
+  const remittance = await tx.remittance.create({
+    data: { ref, payerId, source: origin.source, adapterKey: origin.adapterKey, traceNumber: era.traceNumber, paymentMethod: era.paymentMethod, paymentDate: era.paymentDate ? dayOf(era.paymentDate) : null, totalPaidMinor: era.totalPaidMinor, status: "parsed", providerAdjustments: era.providerAdjustments, observationId: origin.observationId ?? null }
+  });
+  auditCreate(uow, actor2, "Remittance", remittance.id, "remittance.received", { ref, claims: era.claims.length, totalPaidMinor: era.totalPaidMinor.toString() });
+  let posted = 0;
+  let held = 0;
+  const notes = [];
+  for (const parsed of era.claims) {
+    const claim = byPcn.get(parsed.patientControlNumber) ?? null;
+    const lineByControl = new Map((claim?.lines ?? []).map((l) => [l.lineControlNumber, l]));
+    const rc = await tx.remittanceClaim.create({
+      data: { remittanceId: remittance.id, claimId: claim?.id ?? null, patientControlNumber: parsed.patientControlNumber, payerClaimControlNumber: parsed.payerClaimControlNumber, claimStatusCode: parsed.statusCode, chargeMinor: parsed.chargeMinor, paidMinor: parsed.paidMinor, patientRespMinor: parsed.patientRespMinor, crossoverCarrier: parsed.crossoverCarrier }
+    });
+    const lineRows = [];
+    for (const line of parsed.lines) {
+      const claimLine = lineByControl.get(line.lineControlNumber) ?? null;
+      const conserves = lineConserves(line);
+      const row = await tx.remittanceLine.create({
+        data: { remittanceClaimId: rc.id, claimLineId: claimLine?.id ?? null, code: line.code, tooth: "", dateOfService: line.dateOfService ? dayOf(line.dateOfService) : null, lineControlNumber: line.lineControlNumber, chargeMinor: line.chargeMinor, allowedMinor: line.chargeMinor - sum(line.adjustments.filter((a) => a.group === "CO").map((a) => a.amountMinor)), paidMinor: line.paidMinor, adjustmentsTotalMinor: lineAdjTotal(line), adjustments: asJson(line.adjustments), rarc: line.remarks, conservationOk: conserves }
+      });
+      lineRows.push({ id: row.id, line, claimLineId: claimLine?.id ?? null, conserves });
+    }
+    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : "";
+    if (problem) {
+      held += 1;
+      notes.push(problem);
+      continue;
+    }
+    await postClaimPayment(uow, actor2, { remittance, remittanceClaimId: rc.id, claim, parsed, lineRows });
+    posted += 1;
+  }
+  const status = posted === 0 ? "exception" : "posted";
+  const complete = held === 0;
+  await tx.remittance.update({ where: { id: remittance.id }, data: { status, postedCompleteness: posted === 0 ? "" : complete ? "complete" : "partial", exceptionNote: notes.join(" ").slice(0, 500), version: { increment: 1 } } });
+  return { remittanceId: remittance.id, ref, status, claimsPosted: posted, claimsHeld: held, duplicate: false };
+}
+async function postClaimPayment(uow, actor2, input) {
+  const { tx } = uow;
+  const { claim, parsed, remittance } = input;
+  const account = await accountFor(uow, claim.patientId);
+  const businessDate = dayOf(await locationToday(tx, claim.locationId, uow.now));
+  const currency = (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? "USD";
+  const postedById = actor2.kind === "user" ? actor2.userId : null;
+  const payer = remittance.payerId ? await tx.payer.findUnique({ where: { id: remittance.payerId }, select: { name: true } }) : null;
+  const takeback = parsed.statusCode === "22" || parsed.paidMinor < 0n;
+  const writeoff = parsed.lines.length ? sum(parsed.lines.map((l) => writeOffMinor(l.adjustments))) : writeOffMinor(parsed.adjustments);
+  const posting = await tx.paymentPosting.create({ data: { remittanceId: remittance.id, remittanceClaimId: input.remittanceClaimId, postedById, at: uow.now, status: "posted" } });
+  const base = { accountId: account.id, patientId: claim.patientId, currencyCode: currency, businessDate, locationId: claim.locationId, paymentPostingId: posting.id, claimId: claim.id, postedById };
+  const label = payer?.name ?? "insurance";
+  if (takeback) {
+    const earlier = await tx.paymentPosting.findFirst({ where: { remittanceClaim: { claimId: claim.id }, status: "posted", id: { not: posting.id } }, orderBy: { createdAt: "desc" }, include: { entries: true } });
+    if (!earlier) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} has no earlier payment to take back.`);
+    for (const entry of earlier.entries.filter((e) => e.kind !== "reversal" && !e.reversesId)) {
+      await postEntry(tx, { ...base, kind: "reversal", amountMinor: -entry.amountMinor, originalBusinessDate: entry.originalBusinessDate ?? void 0, reversesId: entry.id, providerId: entry.providerId, chartEntryId: entry.chartEntryId, adjustmentId: entry.adjustmentId, memo: `Payment taken back by ${label} (${remittance.ref})` }, uow.now);
+    }
+    await tx.paymentPosting.update({ where: { id: earlier.id }, data: { status: "reversed", version: { increment: 1 } } });
+    await tx.claim.update({ where: { id: claim.id }, data: { recouped: true, version: { increment: 1 } } });
+    auditCreate(uow, actor2, "Claim", claim.id, "claim.payment_taken_back", { remittance: remittance.ref, reversedPosting: earlier.id });
+    return posting;
+  }
+  if (parsed.paidMinor > 0n) await postEntry(tx, { ...base, kind: "insurance_payment", amountMinor: -parsed.paidMinor, memo: `Insurance payment from ${label} (${remittance.ref}), ${formatMinor(parsed.paidMinor)}` }, uow.now);
+  if (writeoff > 0n) await postEntry(tx, { ...base, kind: "insurance_writeoff", amountMinor: -writeoff, memo: `Contract write-off, ${label} (${remittance.ref})` }, uow.now);
+  else if (writeoff < 0n) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} has a negative write-off. Review the remittance.`);
+  let anyDenied = false;
+  let anyPaid = false;
+  for (const { line, claimLineId } of input.lineRows) {
+    const paid = line.paidMinor;
+    const lineStatus = paid <= 0n ? "denied" : paid < line.chargeMinor - writeOffMinor(line.adjustments) - patientRespOf(line.adjustments) ? "partially_paid" : "paid";
+    if (lineStatus === "denied") anyDenied = true;
+    if (paid > 0n) anyPaid = true;
+    await tx.claimLine.update({ where: { id: claimLineId }, data: { status: lineStatus, paidMinor: paid, allowedMinor: line.chargeMinor - writeOffMinor(line.adjustments), patientRespMinor: patientRespOf(line.adjustments), version: { increment: 1 } } });
+    if (lineStatus === "denied") await openDenial(uow, actor2, claim, claimLineId, line);
+  }
+  const deductibleOnly = parsed.paidMinor === 0n && parsed.lines.length > 0 && parsed.lines.every((l) => l.adjustments.some((a) => a.group === "PR" && a.reason === "1"));
+  const outcome = deductibleOnly ? "zero_applied_to_deductible" : parsed.paidMinor === 0n || parsed.statusCode === "4" ? "denied" : anyDenied && anyPaid ? "partially_paid" : "paid";
+  const forwarded = ["19", "20", "21"].includes(parsed.statusCode);
+  const refs = { ...claim.clearinghouseRefs ?? {}, ...forwarded ? { forwardedByPayer: true } : {} };
+  const spec = { model: "Claim", id: claim.id, to: "adjudicated", actor: actor2, eventType: "claim.adjudicated", metadata: { remittance: remittance.ref, outcome }, data: { adjudicationOutcome: outcome, adjudicatedAt: uow.now, payerClaimControlNumber: parsed.payerClaimControlNumber || claim.payerClaimControlNumber, clearinghouseRefs: refs } };
+  if (claim.status === "adjudicated") {
+    await tx.claim.update({ where: { id: claim.id }, data: { ...spec.data, version: { increment: 1 } } });
+    auditCreate(uow, actor2, "Claim", claim.id, "claim.readjudicated", { remittance: remittance.ref, outcome });
+  } else {
+    await transition(uow, { ...spec, from: ADJUSTABLE_FROM.filter((s) => s !== "adjudicated") });
+  }
+  auditCreate(uow, actor2, "PaymentPosting", posting.id, "remittance.posted", { remittance: remittance.ref, claim: claim.ref, paidMinor: parsed.paidMinor.toString(), writeOffMinor: writeoff.toString(), patientRespMinor: parsed.patientRespMinor.toString() });
+  uow.emit({ topic: "claim.adjudicated", aggregateType: "Claim", aggregateId: claim.id, payload: { outcome }, dedupeKey: `claim.adjudicated:${posting.id}` });
+  return posting;
+}
+async function openDenial(uow, actor2, claim, claimLineId, line) {
+  const { tx } = uow;
+  const reason = line.adjustments.find((a) => a.reason !== "45" && a.group !== "PR")?.reason ?? line.adjustments[0]?.reason ?? "unknown";
+  const open = await tx.denial.findFirst({ where: { claimLineId, carc: reason, status: { in: ["open", "working", "appealed"] } }, select: { id: true } });
+  if (open) return;
+  const mapped = await tx.denialReasonMap.findFirst({ where: { carc: reason } });
+  const denial = await tx.denial.create({ data: { claimId: claim.id, claimLineId, carc: reason, rarc: line.remarks, preventableClass: mapped?.preventableClass ?? "other", status: "open", amountMinor: line.chargeMinor } });
+  auditCreate(uow, actor2, "Denial", denial.id, "denial.opened", { claim: claim.ref, carc: reason, class: denial.preventableClass });
+}
+async function matchRemittanceClaim(uow, actor2, remittanceClaimId, claimId) {
+  const { tx } = uow;
+  const rc = await tx.remittanceClaim.findUnique({ where: { id: remittanceClaimId }, include: { remittance: true, lines: true } });
+  if (!rc) throw new DomainError(Codes.NOT_FOUND, "Remittance claim not found.");
+  if (rc.claimId) throw new DomainError(Codes.GUARD_FAILED, "This payment is already matched to a claim.");
+  await lockRow(tx, "Claim", claimId);
+  const claim = await tx.claim.findUniqueOrThrow({ where: { id: claimId }, include: { lines: true } });
+  if (!ADJUSTABLE_FROM.includes(claim.status)) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.`);
+  const byControl = new Map(claim.lines.map((l) => [l.lineControlNumber, l]));
+  const lineRows = [];
+  for (const row of rc.lines) {
+    const claimLine = byControl.get(row.lineControlNumber);
+    if (!claimLine) throw new DomainError(Codes.GUARD_FAILED, `Line ${row.lineControlNumber || "(blank)"} does not match any line on ${claim.ref}.`);
+    if (!row.conservationOk) throw new DomainError(Codes.GUARD_FAILED, "A line on this remittance does not balance, so it cannot be posted.");
+    const adjustments = (row.adjustments ?? []).map((a) => ({ group: String(a.group), reason: String(a.reason), amountMinor: BigInt(a.amountMinor) }));
+    lineRows.push({ id: row.id, claimLineId: claimLine.id, line: { lineControlNumber: row.lineControlNumber, code: row.code, dateOfService: null, chargeMinor: row.chargeMinor, paidMinor: row.paidMinor, adjustments, remarks: row.rarc ?? [] } });
+    await tx.remittanceLine.update({ where: { id: row.id }, data: { claimLineId: claimLine.id } });
+  }
+  await tx.remittanceClaim.update({ where: { id: rc.id }, data: { claimId } });
+  const parsed = { patientControlNumber: claim.patientControlNumber, payerClaimControlNumber: rc.payerClaimControlNumber, statusCode: rc.claimStatusCode, chargeMinor: rc.chargeMinor, paidMinor: rc.paidMinor, patientRespMinor: rc.patientRespMinor, adjustments: [], lines: lineRows.map((l) => l.line), crossoverCarrier: {} };
+  await postClaimPayment(uow, actor2, { remittance: rc.remittance, remittanceClaimId: rc.id, claim, parsed, lineRows });
+  const open = await tx.remittanceClaim.count({ where: { remittanceId: rc.remittanceId, claimId: null } });
+  await tx.remittance.update({ where: { id: rc.remittanceId }, data: { status: "posted", postedCompleteness: open ? "partial" : "complete", exceptionNote: open ? rc.remittance?.exceptionNote ?? "" : "", version: { increment: 1 } } });
+  return { claimId };
+}
+
+// features/keystone/mutations/claims.ts
+var EDITABLE = ["draft", "scrubbed", "ready", "rejected", "correction_required"];
+var SENT = ["submitted", "submission_unknown", "acknowledged", "pending_payer", "adjudicated", "appealed", "appeal_decided"];
+async function scopedClaim(tx, locationIds, claimId) {
+  const claim = await lockRow(tx, "Claim", claimId);
+  assertLocation(locationIds, claim.locationId);
+  return claim;
+}
+async function createClaim(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const kind = oneOf(args.kind || "original", ["original", "predetermination", "secondary", "tertiary"], "kind");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.create", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    assertLocation(locationIds, args.locationId);
+    const patientId = await resolvePatientRef(tx, args.patientId);
+    await assertPatientInScope(tx, locationIds, patientId);
+    const coverage = await tx.coverage.findUnique({ where: { id: args.coverageId }, include: { subscriber: { include: { plan: { include: { payer: true } } } } } });
+    if (!coverage || coverage.patientId !== patientId) throw new DomainError(Codes.NOT_FOUND, "Coverage not found for this patient.", { field: "coverageId" });
+    const location = await tx.location.findUniqueOrThrow({ where: { id: args.locationId } });
+    const payer = coverage.subscriber.plan.payer;
+    const secondary = kind === "secondary" || kind === "tertiary";
+    let sourceLines = [];
+    let primary = null;
+    if (secondary) {
+      if (!args.primaryClaimId) throw new DomainError(Codes.INVALID_INPUT, "Choose the primary claim this one follows.", { field: "primaryClaimId" });
+      primary = await tx.claim.findUnique({ where: { id: args.primaryClaimId }, include: { lines: true } });
+      if (!primary || primary.patientId !== patientId) throw new DomainError(Codes.NOT_FOUND, "Primary claim not found.", { field: "primaryClaimId" });
+      if (!["adjudicated", "closed"].includes(primary.status)) throw new DomainError(Codes.GUARD_FAILED, "The primary payer has to finish before a secondary claim is made.");
+      const entries = await tx.chartEntry.findMany({ where: { id: { in: primary.lines.map((l) => l.chartEntryId).filter(Boolean) } }, include: { code: { include: { codeSystem: true } } } });
+      sourceLines = entries.map((entry) => ({ chartEntryId: entry.id, entry }));
+    } else {
+      const statuses = kind === "predetermination" ? ["planned", "accepted", "scheduled"] : ["posted"];
+      const where = { patientId, locationId: args.locationId, kind: "procedure", status: { in: statuses } };
+      if (args.chartEntryIds?.length) where.id = { in: args.chartEntryIds };
+      const entries = await tx.chartEntry.findMany({ where, orderBy: [{ dateOfService: "asc" }, { createdAt: "asc" }], include: { code: { include: { codeSystem: true } } } });
+      const claimed = new Set((await tx.claimLine.findMany({ where: { chartEntryId: { in: entries.map((e) => e.id) }, claim: { kind, coverageId: coverage.id, status: { notIn: ["voided"] } } }, select: { chartEntryId: true } })).map((l) => l.chartEntryId));
+      sourceLines = entries.filter((e) => !claimed.has(e.id)).map((entry) => ({ chartEntryId: entry.id, entry }));
+    }
+    if (!sourceLines.length) throw new DomainError(Codes.GUARD_FAILED, kind === "predetermination" ? "There is no planned treatment to send for approval." : "There is no finished, unbilled work for this insurance.");
+    const today2 = await locationToday(tx, args.locationId, uow.now);
+    const ref = await nextReference(tx, "CLM", uow.now);
+    const first = sourceLines[0].entry;
+    const dates = sourceLines.map((s) => isoDay(s.entry.dateOfService) ?? today2).sort();
+    const deadline = filingDeadline(dates[0], payer.timelyFilingDays);
+    const claim = await tx.claim.create({
+      data: {
+        ref,
+        kind,
+        patientId,
+        coverageId: coverage.id,
+        locationId: location.id,
+        billingEntityId: location.billingEntityId,
+        renderingProviderId: first.providerId ?? null,
+        placeOfServiceCode: location.placeOfServiceCode || "11",
+        status: "draft",
+        patientControlNumber: ref,
+        timelyFilingDeadline: deadline ? dayOf(deadline) : null,
+        primaryClaimId: primary?.id ?? null,
+        primaryAdjudicationSnapshot: primary ? { ref: primary.ref, outcome: primary.adjudicationOutcome, payerClaimControlNumber: primary.payerClaimControlNumber } : {}
+      }
+    });
+    let total = 0n;
+    let n = 0;
+    for (const { entry } of sourceLines) {
+      n += 1;
+      const own = entry.code;
+      let target = own?.codeSystem?.key === "CDT" ? own : null;
+      if (own && !target) {
+        const cross = await tx.procedureCodeCrosswalk.findFirst({ where: { localCodeId: own.id, status: "confirmed" }, include: { targetCode: true } });
+        target = cross?.targetCode ?? null;
+      }
+      const date = isoDay(entry.dateOfService) ?? today2;
+      let fee = entry.feeMinor;
+      if (fee === null && own) fee = ((await feeFor(tx, own.id, date))?.amountMinor ?? 0n) * BigInt(entry.units ?? 1);
+      total += fee ?? 0n;
+      await tx.claimLine.create({ data: { claimId: claim.id, chartEntryId: entry.id, codeId: target?.id ?? null, localCodeId: own?.id ?? null, tooth: entry.tooth || "", surfaces: entry.surfaces || "", dateOfService: dayOf(date), units: entry.units ?? 1, feeMinor: fee ?? 0n, lineControlNumber: `L${String(n).padStart(2, "0")}`, status: "pending" } });
+    }
+    await tx.claim.update({ where: { id: claim.id }, data: { totalChargeMinor: total } });
+    auditCreate(uow, actor2, "Claim", claim.id, "claim.created", { ref, kind, lines: n, totalChargeMinor: total.toString() });
+    return { id: claim.id, ref, lines: n, totalChargeMinor: total.toString() };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function scrubClaimCommand(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.scrub", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const claim = await scopedClaim(tx, locationIds, args.claimId);
+    if (!EDITABLE.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, "A claim that has been released cannot be scrubbed again. Make a correction instead.");
+    const today2 = await locationToday(tx, claim.locationId, uow.now);
+    const { findings, rulesetVersion } = await scrubClaim(tx, claim.id, today2);
+    const versionNumber = await tx.claimVersion.count({ where: { claimId: claim.id } }) + 1;
+    await tx.claimScrubResult.create({ data: { claimId: claim.id, versionNumber, rulesetVersion, findings } });
+    const blocked = hasBlocking(findings);
+    const to = blocked ? "scrubbed" : "ready";
+    const from = EDITABLE;
+    const moved = await transition(uow, { model: "Claim", id: claim.id, from, to, expectedVersion: args.expectedVersion, actor: actor2, eventType: blocked ? "claim.scrub_blocked" : "claim.scrub_clean", metadata: { findings: findings.length } });
+    return { id: claim.id, status: moved.status, findings };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function overrideScrub(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canOverrideScrub");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.override_scrub", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const claim = await scopedClaim(tx, locationIds, args.claimId);
+    if (claim.status !== "scrubbed") throw new DomainError(Codes.INVALID_TRANSITION, "Only a claim with scrub findings needs an override.");
+    const last = await tx.claimScrubResult.findFirst({ where: { claimId: claim.id }, orderBy: { ranAt: "desc" } });
+    const versionNumber = await tx.claimVersion.count({ where: { claimId: claim.id } }) + 1;
+    await tx.claimScrubResult.create({ data: { claimId: claim.id, versionNumber, rulesetVersion: last?.rulesetVersion ?? "", findings: [...last?.findings ?? [], { rule: "override", kind: "override", severity: "warning", message: `Sent anyway: ${reason}`, overriddenBy: actor2.kind === "user" ? actor2.userId : null }] } });
+    const moved = await transition(uow, { model: "Claim", id: claim.id, from: ["scrubbed"], to: "ready", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.scrub_overridden", reason });
+    return { id: claim.id, status: moved.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function releaseClaim(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canSubmitClaims");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.release", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const claim = await scopedClaim(tx, locationIds, args.claimId);
+    if (claim.status !== "ready") throw new DomainError(Codes.INVALID_TRANSITION, "Scrub the claim first. Only a ready claim can be released.");
+    const number = await tx.claimVersion.count({ where: { claimId: claim.id } }) + 1;
+    const priorRef = number > 1 ? claim.payerClaimControlNumber : "";
+    if (claim.kind === "predetermination") {
+    }
+    const payload = await buildPayload(tx, claim.id, number > 1 ? "replacement" : "original", priorRef || void 0);
+    const hash = payloadHash(payload);
+    const key = `claim:${claim.ref}:v${number}:${hash.slice(0, 16)}`;
+    const version = await tx.claimVersion.create({ data: { claimId: claim.id, number, frequency: payload.frequency, payload, payloadHash: hash, idempotencyKey: key, releasedById: actor2.kind === "user" ? actor2.userId : null, releasedAt: uow.now } });
+    await transition(uow, { model: "Claim", id: claim.id, from: ["ready"], to: "released", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.released", metadata: { version: number }, data: { currentVersionId: version.id } });
+    uow.emit({ topic: "claim.submit", aggregateType: "Claim", aggregateId: claim.id, payload: { claimId: claim.id, versionId: version.id }, dedupeKey: `claim.submit:${version.id}` });
+    return { id: claim.id, versionId: version.id, versionNumber: number };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function correctClaim(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.correct", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
+    const moved = await transition(uow, { model: "Claim", id: claim.id, from: ["acknowledged", "pending_payer", "adjudicated", "rejected", "submission_unknown", "appeal_decided"], to: "correction_required", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.correction_started", reason });
+    return { id: claim.id, status: moved.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function voidClaim(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canSubmitClaims");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.void", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const claim = await scopedClaim(tx, locationIds, args.claimId);
+    if (["draft", "scrubbed", "ready", "correction_required"].includes(claim.status)) {
+      const moved2 = await transition(uow, { model: "Claim", id: claim.id, from: ["draft", "scrubbed", "ready", "correction_required"], to: "voided", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.voided", reason });
+      return { id: claim.id, status: moved2.status };
+    }
+    if (!SENT.includes(claim.status) && claim.status !== "rejected") throw new DomainError(Codes.INVALID_TRANSITION, "This claim cannot be voided from where it is.");
+    const number = await tx.claimVersion.count({ where: { claimId: claim.id } }) + 1;
+    const payload = await buildPayload(tx, claim.id, "void", claim.payerClaimControlNumber || void 0);
+    const hash = payloadHash(payload);
+    const version = await tx.claimVersion.create({ data: { claimId: claim.id, number, frequency: "void", payload, payloadHash: hash, idempotencyKey: `claim:${claim.ref}:v${number}:${hash.slice(0, 16)}`, releasedById: actor2.kind === "user" ? actor2.userId : null, releasedAt: uow.now } });
+    const moved = await transition(uow, { model: "Claim", id: claim.id, from: [...SENT, "rejected"], to: "void_requested", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.void_requested", reason, data: { currentVersionId: version.id } });
+    uow.emit({ topic: "claim.submit", aggregateType: "Claim", aggregateId: claim.id, payload: { claimId: claim.id, versionId: version.id }, dedupeKey: `claim.submit:${version.id}` });
+    return { id: claim.id, status: moved.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function addClaimAttachment(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const kind = oneOf(args.kind, ATTACHMENT_KINDS, "kind");
+  const route = oneOf(args.route, ATTACHMENT_ROUTES, "route");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.add_attachment", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
+    if (!EDITABLE.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, "Attachments are added before the claim is released.");
+    const row = await uow.tx.claimAttachment.create({ data: { claimId: claim.id, kind, route, description: String(args.description ?? "").slice(0, 300), status: route === "manual_reference" ? "manual_reference" : "draft" } });
+    auditCreate(uow, actor2, "ClaimAttachment", row.id, "claim.attachment_added", { claim: claim.ref, kind, route });
+    return { id: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function saveClaimNarrative(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.save_narrative", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
+    if (!EDITABLE.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, "The narrative is edited before the claim is released.");
+    await uow.tx.claim.update({ where: { id: claim.id }, data: { narrative: String(args.narrative ?? "").slice(0, 2e3), version: { increment: 1 } } });
+    return { id: claim.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function requestClaimStatus(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims", "canSubmitClaims");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.request_status", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
+    if (!SENT.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This claim has not been sent.");
+    const inquiry = await uow.tx.claimStatusInquiry.create({ data: { claimId: claim.id, status: "queued" } });
+    uow.emit({ topic: "claim.status", aggregateType: "Claim", aggregateId: claim.id, payload: { inquiryId: inquiry.id }, dedupeKey: `claim.status:${inquiry.id}` });
+    return { id: inquiry.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function enterManualEob(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canPostRemittances");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "remittance.manual_eob", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const method = oneOf(args.method, ["eft", "check", "virtual_card", "none"], "method");
+    const trace = String(args.traceNumber ?? "").trim();
+    if (!trace) throw new DomainError(Codes.INVALID_INPUT, "Enter the check or payment number.", { field: "traceNumber" });
+    const claims = (args.claims ?? []).map((c) => ({
+      patientControlNumber: String(c.claimRef ?? ""),
+      payerClaimControlNumber: String(c.payerClaimNumber ?? ""),
+      statusCode: String(c.statusCode ?? "1"),
+      chargeMinor: parseMoney(c.charge ?? "0.01"),
+      paidMinor: BigInt(String(c.paidMinor ?? "0")),
+      patientRespMinor: 0n,
+      adjustments: [],
+      crossoverCarrier: {},
+      lines: (c.lines ?? []).map((l) => ({
+        lineControlNumber: String(l.lineControl ?? ""),
+        code: String(l.code ?? ""),
+        dateOfService: null,
+        chargeMinor: BigInt(String(l.chargeMinor)),
+        paidMinor: BigInt(String(l.paidMinor)),
+        remarks: [],
+        adjustments: (l.adjustments ?? []).map((a) => ({ group: String(a.group), reason: String(a.reason), amountMinor: BigInt(String(a.amountMinor)) }))
+      }))
+    }));
+    const era = { traceNumber: trace, paymentMethod: method, paymentDate: args.paymentDate || null, totalPaidMinor: claims.reduce((s, c) => s + c.paidMinor, 0n), payerName: "", claims, providerAdjustments: [] };
+    return applyParsedEra(uow, actor2, era, { source: "manual_eob", adapterKey: "manual", payerId: args.payerId });
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function matchRemittance(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canPostRemittances");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "remittance.match", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const claim = await uow.tx.claim.findUnique({ where: { id: args.claimId }, select: { locationId: true } });
+    if (!claim) throw new DomainError(Codes.NOT_FOUND, "Claim not found.");
+    assertLocation(locationIds, claim.locationId);
+    return matchRemittanceClaim(uow, actor2, args.remittanceClaimId, args.claimId);
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function startDenialWork(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "denial.start", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const denial = await lockRow(uow.tx, "Denial", args.denialId);
+    const claim = await uow.tx.claim.findUniqueOrThrow({ where: { id: denial.claimId }, select: { locationId: true } });
+    assertLocation(locationIds, claim.locationId);
+    const moved = await transition(uow, { model: "Denial", id: denial.id, from: ["open"], to: "working", expectedVersion: args.expectedVersion, actor: actor2, eventType: "denial.work_started", data: { assignedToId: actor2.kind === "user" ? actor2.userId : null } });
+    return { id: denial.id, status: moved.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function resolveDenial(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const resolution = oneOf(args.resolution, ["corrected", "written_off", "billed_to_patient", "resolved"], "resolution");
+  const note = requireReason(args.note, "note");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "denial.resolve", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const denial = await lockRow(uow.tx, "Denial", args.denialId);
+    const claim = await uow.tx.claim.findUniqueOrThrow({ where: { id: denial.claimId }, select: { locationId: true } });
+    assertLocation(locationIds, claim.locationId);
+    const moved = await transition(uow, { model: "Denial", id: denial.id, from: ["open", "working", "appealed"], to: resolution, expectedVersion: args.expectedVersion, actor: actor2, eventType: "denial.resolved", reason: note, data: { resolutionNote: note } });
+    return { id: denial.id, status: moved.status };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function fileAppeal(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const via = oneOf(args.via, APPEAL_VIA, "via");
+  const letter = requireReason(args.letter, "letter");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "denial.appeal", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const denial = await lockRow(tx, "Denial", args.denialId);
+    const claim = await lockRow(tx, "Claim", denial.claimId);
+    assertLocation(locationIds, claim.locationId);
+    const level = await tx.appeal.count({ where: { denialId: denial.id } }) + 1;
+    const appeal = await tx.appeal.create({ data: { denialId: denial.id, level, letter, submittedVia: via, submittedAt: uow.now, outcome: "pending" } });
+    await transition(uow, { model: "Denial", id: denial.id, from: ["open", "working"], to: "appealed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "denial.appealed" });
+    await transition(uow, { model: "Claim", id: claim.id, from: ["adjudicated", "appeal_decided"], to: "appealed", actor: actor2, eventType: "claim.appealed" });
+    return { id: appeal.id, level };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function recordAppealOutcome(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageClaims");
+  const outcome = oneOf(args.outcome, ["overturned", "upheld"], "outcome");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "denial.appeal_outcome", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const appeal = await lockRow(tx, "Appeal", args.appealId);
+    const denial = await tx.denial.findUniqueOrThrow({ where: { id: appeal.denialId } });
+    const claim = await lockRow(tx, "Claim", denial.claimId);
+    assertLocation(locationIds, claim.locationId);
+    await transition(uow, { model: "Appeal", id: appeal.id, from: ["pending"], to: outcome, expectedVersion: args.expectedVersion, actor: actor2, eventType: "appeal.decided", statusField: "outcome", data: { decidedAt: uow.now } });
+    await transition(uow, { model: "Claim", id: claim.id, from: ["appealed"], to: "appeal_decided", actor: actor2, eventType: "claim.appeal_decided", metadata: { outcome } });
+    if (outcome === "upheld") await transition(uow, { model: "Denial", id: denial.id, from: ["appealed"], to: "working", actor: actor2, eventType: "denial.appeal_upheld" });
+    else await transition(uow, { model: "Denial", id: denial.id, from: ["appealed"], to: "resolved", actor: actor2, eventType: "denial.appeal_overturned", data: { resolutionNote: "Overturned on appeal. Await the new remittance." } });
+    return { id: appeal.id, outcome };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/mutations/ledger.ts
+var currencyOf = async (tx) => (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? "USD";
+async function accountTotal(tx, accountId) {
+  const sum2 = await tx.ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } });
+  return sum2._sum.amountMinor ?? 0n;
+}
+async function postAdjustmentRow(uow, actor2, request, type, approverId) {
+  const { tx } = uow;
+  const total = await accountTotal(tx, request.accountId);
+  const signed = type.direction === "credit" ? -request.amountMinor : request.amountMinor;
+  if (signed < 0n && total + signed < 0n) throw new DomainError(Codes.GUARD_FAILED, "That credit is more than the balance owed. Reduce the amount.", { field: "amount" });
+  const date = await locationToday(tx, request.locationId, uow.now);
+  const entry = await postEntry(tx, {
+    accountId: request.accountId,
+    patientId: request.patientId,
+    kind: "patient_adjustment",
+    amountMinor: signed,
+    currencyCode: await currencyOf(tx),
+    businessDate: dayOf(date),
+    locationId: request.locationId,
+    adjustmentId: request.id,
+    memo: `${type.name}`,
+    postedById: actor2.kind === "user" ? actor2.userId : approverId
+  }, uow.now);
+  auditCreate(uow, actor2, "LedgerEntry", entry.id, "ledger.adjustment_posted", { adjustmentId: request.id, type: type.code, amountMinor: signed.toString() }, { reason: request.reason });
+  uow.emit({ topic: "ledger.adjustment_posted", aggregateType: "LedgerEntry", aggregateId: entry.id, payload: { adjustmentId: request.id }, dedupeKey: `ledger.adjustment_posted:${entry.id}` });
+  return entry;
+}
+async function requestAdjustment(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canAdjust");
+  const reason = requireReason(args.reason);
+  const amountMinor = parseMoney(args.amount);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "ledger.request_adjustment", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    assertLocation(locationIds, args.locationId);
+    const patientId = await resolvePatientRef(tx, args.patientId);
+    await assertPatientInScope(tx, locationIds, patientId);
+    const type = await tx.adjustmentType.findUnique({ where: { id: args.typeId } });
+    if (!type || !type.isActive) throw new DomainError(Codes.NOT_FOUND, "Adjustment type not found.", { field: "typeId" });
+    const account = await accountFor(uow, patientId);
+    if (args.relatedEntryId) {
+      const related = await tx.ledgerEntry.findUnique({ where: { id: args.relatedEntryId }, select: { accountId: true } });
+      if (!related || related.accountId !== account.id) throw new DomainError(Codes.INVALID_INPUT, "That entry belongs to a different account.", { field: "relatedEntryId" });
+    }
+    if (type.direction === "credit" && await accountTotal(tx, account.id) < amountMinor) throw new DomainError(Codes.GUARD_FAILED, "That credit is more than the balance owed. Reduce the amount.", { field: "amount" });
+    const needsSecondPerson = type.requiresApproval || amountMinor >= type.approvalThresholdMinor;
+    const row = await tx.adjustmentRequest.create({
+      data: { accountId: account.id, patientId, locationId: args.locationId, typeId: type.id, amountMinor, reason, relatedEntryId: args.relatedEntryId ?? null, status: "requested", requestedById: actor2.kind === "user" ? actor2.userId : null }
+    });
+    auditCreate(uow, actor2, "AdjustmentRequest", row.id, "ledger.adjustment_requested", { type: type.code, amountMinor: amountMinor.toString() }, { reason });
+    if (!needsSecondPerson) {
+      const entry = await postAdjustmentRow(uow, actor2, row, type, null);
+      await tx.adjustmentRequest.update({ where: { id: row.id }, data: { status: "posted", postedEntryId: entry.id, version: { increment: 1 } } });
+      return { id: row.id, status: "posted", ledgerEntryId: entry.id };
+    }
+    const approval = await requestApproval(uow, actor2, {
+      action: "ledger.adjustment",
+      targetList: "AdjustmentRequest",
+      targetId: row.id,
+      requiredPermission: "canApproveAdjustments",
+      payload: { adjustmentId: row.id, typeId: type.id, amountMinor: amountMinor.toString(), accountId: account.id },
+      summary: `${type.name}: ${formatMinor(amountMinor)} (${reason.slice(0, 80)})`
+    });
+    await tx.adjustmentRequest.update({ where: { id: row.id }, data: { approvalId: approval.id, version: { increment: 1 } } });
+    return { id: row.id, status: "requested", approvalId: approval.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+registerApplier("ledger.adjustment", async (uow, actor2, request) => {
+  const row = await lockRow(uow.tx, "AdjustmentRequest", request.targetId);
+  const type = await uow.tx.adjustmentType.findUniqueOrThrow({ where: { id: row.typeId } });
+  if (String(row.amountMinor) !== String(request.payload.amountMinor) || row.typeId !== request.payload.typeId) throw new DomainError(Codes.APPROVAL_MISMATCH, "The adjustment changed after approval was requested.");
+  const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
+  await transition(uow, { model: "AdjustmentRequest", id: row.id, from: ["requested"], to: "approved", actor: actor2, eventType: "ledger.adjustment_approved", approverId: decision?.decidedById ?? null });
+  const entry = await postAdjustmentRow(uow, actor2, row, type, decision?.decidedById ?? null);
+  await transition(uow, { model: "AdjustmentRequest", id: row.id, from: ["approved"], to: "posted", actor: actor2, eventType: "ledger.adjustment_applied", approverId: decision?.decidedById ?? null, data: { postedEntryId: entry.id } });
+  return { adjustmentId: row.id, ledgerEntryId: entry.id };
+}, { applyOnApprove: true });
+async function reverseLedgerEntry(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canAdjust");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "ledger.reverse_entry", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    const original = await tx.ledgerEntry.findUnique({ where: { id: args.entryId } });
+    if (!original) throw new DomainError(Codes.NOT_FOUND, "Ledger entry not found.");
+    assertLocation(locationIds, original.locationId);
+    if (!["patient_adjustment", "insurance_adjustment"].includes(original.kind)) {
+      throw new DomainError(Codes.GUARD_FAILED, original.kind === "charge" ? "Correct a charge from the chart; the reversal follows." : "Only adjustments are reversed here. Payments are refunded.");
+    }
+    if (await tx.ledgerEntry.findFirst({ where: { reversesId: original.id }, select: { id: true } })) throw new DomainError(Codes.GUARD_FAILED, "This entry was already reversed.");
+    const date = await locationToday(tx, original.locationId, uow.now);
+    const reversal = await postEntry(tx, {
+      accountId: original.accountId,
+      patientId: original.patientId,
+      kind: "reversal",
+      amountMinor: -original.amountMinor,
+      currencyCode: original.currencyCode,
+      businessDate: dayOf(date),
+      originalBusinessDate: original.originalBusinessDate ?? void 0,
+      locationId: original.locationId,
+      providerId: original.providerId,
+      chartEntryId: original.chartEntryId,
+      adjustmentId: original.adjustmentId,
+      reversesId: original.id,
+      memo: `Reversal: ${reason.slice(0, 120)}`,
+      postedById: actor2.kind === "user" ? actor2.userId : null
+    }, uow.now);
+    auditCreate(uow, actor2, "LedgerEntry", reversal.id, "ledger.entry_reversed", { reverses: original.id, amountMinor: (-original.amountMinor).toString() }, { reason });
+    return { id: reversal.id, reverses: original.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function rebuildAccountBalance(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canAdjust", "canCloseDay");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "ledger.rebuild_balance", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const before = await uow.tx.guarantorAccount.findUnique({ where: { id: args.accountId }, select: { balanceCache: true } });
+    if (!before) throw new DomainError(Codes.NOT_FOUND, "Account not found.");
+    const cache = await rebuildBalance(uow.tx, args.accountId, uow.now);
+    const drifted = JSON.stringify(before.balanceCache?.totalMinor ?? null) !== JSON.stringify(cache.totalMinor);
+    if (drifted) auditCreate(uow, actor2, "GuarantorAccount", args.accountId, "ledger.balance_drift_repaired", { totalMinor: cache.totalMinor });
+    return { accountId: args.accountId, totalMinor: cache.totalMinor, drifted };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
 // features/keystone/mutations/phase2Args.ts
 var PHASE2_ARGS = {
   // Chart
@@ -9653,7 +10936,27 @@ var PHASE2_ARGS = {
   completeVerification: { verificationId: "ID!", expectedVersion: "Int!" },
   failVerification: { verificationId: "ID!", expectedVersion: "Int!", reason: "String!" },
   addOutsideHistory: { patientId: "ID!", codeId: "ID", codeText: "String", frequencyGroup: "String", tooth: "String", dateOfService: "String!", providerName: "String", source: "String!" },
-  estimateTreatmentPlan: { planId: "ID!" }
+  estimateTreatmentPlan: { planId: "ID!" },
+  // Ledger
+  requestAdjustment: { patientId: "ID!", locationId: "ID!", typeId: "ID!", amount: "String!", reason: "String!", relatedEntryId: "ID" },
+  reverseLedgerEntry: { entryId: "ID!", reason: "String!" },
+  // Phase 4: claims and remittances
+  buildClaim: { patientId: "ID!", coverageId: "ID!", locationId: "ID!", kind: "String", chartEntryIds: "[ID!]", primaryClaimId: "ID" },
+  scrubClaim: { claimId: "ID!", expectedVersion: "Int!" },
+  overrideScrub: { claimId: "ID!", expectedVersion: "Int!", reason: "String!" },
+  releaseClaim: { claimId: "ID!", expectedVersion: "Int!" },
+  correctClaim: { claimId: "ID!", expectedVersion: "Int!", reason: "String!" },
+  voidClaim: { claimId: "ID!", expectedVersion: "Int!", reason: "String!" },
+  addClaimAttachment: { claimId: "ID!", kind: "String!", route: "String!", description: "String!" },
+  saveClaimNarrative: { claimId: "ID!", narrative: "String!" },
+  requestClaimStatus: { claimId: "ID!" },
+  enterManualEob: { payerId: "ID!", traceNumber: "String!", paymentDate: "String", method: "String!", claims: "[JSON!]!" },
+  matchRemittance: { remittanceClaimId: "ID!", claimId: "ID!" },
+  startDenialWork: { denialId: "ID!", expectedVersion: "Int!" },
+  resolveDenial: { denialId: "ID!", expectedVersion: "Int!", resolution: "String!", note: "String!" },
+  fileAppeal: { denialId: "ID!", expectedVersion: "Int!", letter: "String!", via: "String!" },
+  recordAppealOutcome: { appealId: "ID!", expectedVersion: "Int!", outcome: "String!" },
+  rebuildAccountBalance: { accountId: "ID!" }
 };
 
 // features/keystone/mutations/phase2Ops.ts
@@ -9710,7 +11013,25 @@ var RESOLVERS = {
   completeVerification,
   failVerification,
   addOutsideHistory,
-  estimateTreatmentPlan
+  estimateTreatmentPlan,
+  requestAdjustment,
+  reverseLedgerEntry,
+  rebuildAccountBalance,
+  buildClaim: createClaim,
+  scrubClaim: scrubClaimCommand,
+  overrideScrub,
+  releaseClaim,
+  correctClaim,
+  voidClaim,
+  addClaimAttachment,
+  saveClaimNarrative,
+  requestClaimStatus,
+  enterManualEob,
+  matchRemittance,
+  startDenialWork,
+  resolveDenial,
+  fileAppeal,
+  recordAppealOutcome
 };
 var PHASE2_OPS = Object.fromEntries(Object.entries(PHASE2_ARGS).map(([name, args]) => [name, { args, fn: RESOLVERS[name] }]));
 var signature = (args) => [...Object.entries(args).map(([k, v]) => `${k}: ${v}`), "idempotencyKey: String!"].join(", ");
@@ -10044,7 +11365,7 @@ var { withAuth } = (0, import_auth.createAuth)({
   `
 });
 var keystone_default = withAuth(
-  (0, import_core19.config)({
+  (0, import_core20.config)({
     db: {
       provider: "postgresql",
       url: databaseURL,

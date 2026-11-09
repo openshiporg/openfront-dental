@@ -65,6 +65,22 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   // Ledger
   requestAdjustment: { patientId: 'ID!', locationId: 'ID!', typeId: 'ID!', amount: 'String!', reason: 'String!', relatedEntryId: 'ID' },
   reverseLedgerEntry: { entryId: 'ID!', reason: 'String!' },
+  // Phase 4: claims and remittances
+  buildClaim: { patientId: 'ID!', coverageId: 'ID!', locationId: 'ID!', kind: 'String', chartEntryIds: '[ID!]', primaryClaimId: 'ID' },
+  scrubClaim: { claimId: 'ID!', expectedVersion: 'Int!' },
+  overrideScrub: { claimId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
+  releaseClaim: { claimId: 'ID!', expectedVersion: 'Int!' },
+  correctClaim: { claimId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
+  voidClaim: { claimId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
+  addClaimAttachment: { claimId: 'ID!', kind: 'String!', route: 'String!', description: 'String!' },
+  saveClaimNarrative: { claimId: 'ID!', narrative: 'String!' },
+  requestClaimStatus: { claimId: 'ID!' },
+  enterManualEob: { payerId: 'ID!', traceNumber: 'String!', paymentDate: 'String', method: 'String!', claims: '[JSON!]!' },
+  matchRemittance: { remittanceClaimId: 'ID!', claimId: 'ID!' },
+  startDenialWork: { denialId: 'ID!', expectedVersion: 'Int!' },
+  resolveDenial: { denialId: 'ID!', expectedVersion: 'Int!', resolution: 'String!', note: 'String!' },
+  fileAppeal: { denialId: 'ID!', expectedVersion: 'Int!', letter: 'String!', via: 'String!' },
+  recordAppealOutcome: { appealId: 'ID!', expectedVersion: 'Int!', outcome: 'String!' },
   rebuildAccountBalance: { accountId: 'ID!' },
 }
 

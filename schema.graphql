@@ -7738,6 +7738,8 @@ type LedgerEntry {
   adjustment: AdjustmentRequest
   dayClose: DayClose
   restatement: Restatement
+  paymentPosting: PaymentPosting
+  claim: Claim
   memo: String
   postedBy: User
   postedAt: DateTime
@@ -7769,6 +7771,8 @@ input LedgerEntryWhereInput {
   adjustment: AdjustmentRequestWhereInput
   dayClose: DayCloseWhereInput
   restatement: RestatementWhereInput
+  paymentPosting: PaymentPostingWhereInput
+  claim: ClaimWhereInput
   memo: StringFilter
   postedBy: UserWhereInput
   postedAt: DateTimeNullableFilter
@@ -7806,6 +7810,8 @@ input LedgerEntryUpdateInput {
   adjustment: AdjustmentRequestRelateToOneForUpdateInput
   dayClose: DayCloseRelateToOneForUpdateInput
   restatement: RestatementRelateToOneForUpdateInput
+  paymentPosting: PaymentPostingRelateToOneForUpdateInput
+  claim: ClaimRelateToOneForUpdateInput
   memo: String
   postedBy: UserRelateToOneForUpdateInput
   postedAt: DateTime
@@ -7850,6 +7856,18 @@ input RestatementRelateToOneForUpdateInput {
   disconnect: Boolean
 }
 
+input PaymentPostingRelateToOneForUpdateInput {
+  create: PaymentPostingCreateInput
+  connect: PaymentPostingWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ClaimRelateToOneForUpdateInput {
+  create: ClaimCreateInput
+  connect: ClaimWhereUniqueInput
+  disconnect: Boolean
+}
+
 input LedgerEntryUpdateArgs {
   where: LedgerEntryWhereUniqueInput!
   data: LedgerEntryUpdateInput!
@@ -7870,6 +7888,8 @@ input LedgerEntryCreateInput {
   adjustment: AdjustmentRequestRelateToOneForCreateInput
   dayClose: DayCloseRelateToOneForCreateInput
   restatement: RestatementRelateToOneForCreateInput
+  paymentPosting: PaymentPostingRelateToOneForCreateInput
+  claim: ClaimRelateToOneForCreateInput
   memo: String
   postedBy: UserRelateToOneForCreateInput
   postedAt: DateTime
@@ -7906,6 +7926,16 @@ input DayCloseRelateToOneForCreateInput {
 input RestatementRelateToOneForCreateInput {
   create: RestatementCreateInput
   connect: RestatementWhereUniqueInput
+}
+
+input PaymentPostingRelateToOneForCreateInput {
+  create: PaymentPostingCreateInput
+  connect: PaymentPostingWhereUniqueInput
+}
+
+input ClaimRelateToOneForCreateInput {
+  create: ClaimCreateInput
+  connect: ClaimWhereUniqueInput
 }
 
 type ProcedureCode {
@@ -12836,6 +12866,1617 @@ input PeriodCloseRelateToOneForCreateInput {
   connect: PeriodCloseWhereUniqueInput
 }
 
+type Appeal {
+  id: ID!
+  denial: Denial
+  level: Int
+  letter: String
+  submittedVia: String
+  submittedAt: DateTime
+  outcome: String
+  decidedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AppealWhereUniqueInput {
+  id: ID
+}
+
+input AppealWhereInput {
+  AND: [AppealWhereInput!]
+  OR: [AppealWhereInput!]
+  NOT: [AppealWhereInput!]
+  id: IDFilter
+  denial: DenialWhereInput
+  level: IntFilter
+  letter: StringFilter
+  submittedVia: StringFilter
+  submittedAt: DateTimeNullableFilter
+  outcome: StringFilter
+  decidedAt: DateTimeNullableFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input AppealOrderByInput {
+  id: OrderDirection
+  level: OrderDirection
+  letter: OrderDirection
+  submittedVia: OrderDirection
+  submittedAt: OrderDirection
+  outcome: OrderDirection
+  decidedAt: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input AppealUpdateInput {
+  denial: DenialRelateToOneForUpdateInput
+  level: Int
+  letter: String
+  submittedVia: String
+  submittedAt: DateTime
+  outcome: String
+  decidedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DenialRelateToOneForUpdateInput {
+  create: DenialCreateInput
+  connect: DenialWhereUniqueInput
+  disconnect: Boolean
+}
+
+input AppealUpdateArgs {
+  where: AppealWhereUniqueInput!
+  data: AppealUpdateInput!
+}
+
+input AppealCreateInput {
+  denial: DenialRelateToOneForCreateInput
+  level: Int
+  letter: String
+  submittedVia: String
+  submittedAt: DateTime
+  outcome: String
+  decidedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DenialRelateToOneForCreateInput {
+  create: DenialCreateInput
+  connect: DenialWhereUniqueInput
+}
+
+type Claim {
+  id: ID!
+  ref: String
+  kind: String
+  patient: Patient
+  coverage: Coverage
+  location: Location
+  billingEntity: BillingEntity
+  renderingProvider: ProviderProfile
+  placeOfServiceCode: String
+  status: String
+  adjudicationOutcome: String
+  currentVersion: ClaimVersion
+  versions(where: ClaimVersionWhereInput! = {}, orderBy: [ClaimVersionOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimVersionWhereUniqueInput): [ClaimVersion!]
+  versionsCount(where: ClaimVersionWhereInput! = {}): Int
+  lines(where: ClaimLineWhereInput! = {}, orderBy: [ClaimLineOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimLineWhereUniqueInput): [ClaimLine!]
+  linesCount(where: ClaimLineWhereInput! = {}): Int
+  attachments(where: ClaimAttachmentWhereInput! = {}, orderBy: [ClaimAttachmentOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimAttachmentWhereUniqueInput): [ClaimAttachment!]
+  attachmentsCount(where: ClaimAttachmentWhereInput! = {}): Int
+  scrubResults(where: ClaimScrubResultWhereInput! = {}, orderBy: [ClaimScrubResultOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimScrubResultWhereUniqueInput): [ClaimScrubResult!]
+  scrubResultsCount(where: ClaimScrubResultWhereInput! = {}): Int
+  acknowledgements(where: ClaimAcknowledgementWhereInput! = {}, orderBy: [ClaimAcknowledgementOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimAcknowledgementWhereUniqueInput): [ClaimAcknowledgement!]
+  acknowledgementsCount(where: ClaimAcknowledgementWhereInput! = {}): Int
+  payerClaimControlNumber: String
+  patientControlNumber: String
+  clearinghouseRefs: JSON
+  totalChargeMinor: BigInt
+  timelyFilingDeadline: CalendarDay
+  submittedAt: DateTime
+  adjudicatedAt: DateTime
+  recouped: Boolean
+  primaryClaim: Claim
+  primaryAdjudicationSnapshot: JSON
+  narrative: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimWhereUniqueInput {
+  id: ID
+  ref: String
+  patientControlNumber: String
+}
+
+input ClaimWhereInput {
+  AND: [ClaimWhereInput!]
+  OR: [ClaimWhereInput!]
+  NOT: [ClaimWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  kind: StringFilter
+  patient: PatientWhereInput
+  coverage: CoverageWhereInput
+  location: LocationWhereInput
+  billingEntity: BillingEntityWhereInput
+  renderingProvider: ProviderProfileWhereInput
+  placeOfServiceCode: StringFilter
+  status: StringFilter
+  adjudicationOutcome: StringFilter
+  currentVersion: ClaimVersionWhereInput
+  versions: ClaimVersionManyRelationFilter
+  lines: ClaimLineManyRelationFilter
+  attachments: ClaimAttachmentManyRelationFilter
+  scrubResults: ClaimScrubResultManyRelationFilter
+  acknowledgements: ClaimAcknowledgementManyRelationFilter
+  payerClaimControlNumber: StringFilter
+  patientControlNumber: StringFilter
+  totalChargeMinor: BigIntFilter
+  timelyFilingDeadline: CalendarDayNullableFilter
+  submittedAt: DateTimeNullableFilter
+  adjudicatedAt: DateTimeNullableFilter
+  recouped: BooleanFilter
+  primaryClaim: ClaimWhereInput
+  narrative: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ClaimVersionManyRelationFilter {
+  every: ClaimVersionWhereInput
+  some: ClaimVersionWhereInput
+  none: ClaimVersionWhereInput
+}
+
+input ClaimLineManyRelationFilter {
+  every: ClaimLineWhereInput
+  some: ClaimLineWhereInput
+  none: ClaimLineWhereInput
+}
+
+input ClaimAttachmentManyRelationFilter {
+  every: ClaimAttachmentWhereInput
+  some: ClaimAttachmentWhereInput
+  none: ClaimAttachmentWhereInput
+}
+
+input ClaimScrubResultManyRelationFilter {
+  every: ClaimScrubResultWhereInput
+  some: ClaimScrubResultWhereInput
+  none: ClaimScrubResultWhereInput
+}
+
+input ClaimAcknowledgementManyRelationFilter {
+  every: ClaimAcknowledgementWhereInput
+  some: ClaimAcknowledgementWhereInput
+  none: ClaimAcknowledgementWhereInput
+}
+
+input ClaimOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  kind: OrderDirection
+  placeOfServiceCode: OrderDirection
+  status: OrderDirection
+  adjudicationOutcome: OrderDirection
+  payerClaimControlNumber: OrderDirection
+  patientControlNumber: OrderDirection
+  totalChargeMinor: OrderDirection
+  timelyFilingDeadline: OrderDirection
+  submittedAt: OrderDirection
+  adjudicatedAt: OrderDirection
+  recouped: OrderDirection
+  narrative: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ClaimUpdateInput {
+  ref: String
+  kind: String
+  patient: PatientRelateToOneForUpdateInput
+  coverage: CoverageRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  billingEntity: BillingEntityRelateToOneForUpdateInput
+  renderingProvider: ProviderProfileRelateToOneForUpdateInput
+  placeOfServiceCode: String
+  status: String
+  adjudicationOutcome: String
+  currentVersion: ClaimVersionRelateToOneForUpdateInput
+  versions: ClaimVersionRelateToManyForUpdateInput
+  lines: ClaimLineRelateToManyForUpdateInput
+  attachments: ClaimAttachmentRelateToManyForUpdateInput
+  scrubResults: ClaimScrubResultRelateToManyForUpdateInput
+  acknowledgements: ClaimAcknowledgementRelateToManyForUpdateInput
+  payerClaimControlNumber: String
+  patientControlNumber: String
+  clearinghouseRefs: JSON
+  totalChargeMinor: BigInt
+  timelyFilingDeadline: CalendarDay
+  submittedAt: DateTime
+  adjudicatedAt: DateTime
+  recouped: Boolean
+  primaryClaim: ClaimRelateToOneForUpdateInput
+  primaryAdjudicationSnapshot: JSON
+  narrative: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimVersionRelateToOneForUpdateInput {
+  create: ClaimVersionCreateInput
+  connect: ClaimVersionWhereUniqueInput
+  disconnect: Boolean
+}
+
+input ClaimVersionRelateToManyForUpdateInput {
+  disconnect: [ClaimVersionWhereUniqueInput!]
+  set: [ClaimVersionWhereUniqueInput!]
+  create: [ClaimVersionCreateInput!]
+  connect: [ClaimVersionWhereUniqueInput!]
+}
+
+input ClaimLineRelateToManyForUpdateInput {
+  disconnect: [ClaimLineWhereUniqueInput!]
+  set: [ClaimLineWhereUniqueInput!]
+  create: [ClaimLineCreateInput!]
+  connect: [ClaimLineWhereUniqueInput!]
+}
+
+input ClaimAttachmentRelateToManyForUpdateInput {
+  disconnect: [ClaimAttachmentWhereUniqueInput!]
+  set: [ClaimAttachmentWhereUniqueInput!]
+  create: [ClaimAttachmentCreateInput!]
+  connect: [ClaimAttachmentWhereUniqueInput!]
+}
+
+input ClaimScrubResultRelateToManyForUpdateInput {
+  disconnect: [ClaimScrubResultWhereUniqueInput!]
+  set: [ClaimScrubResultWhereUniqueInput!]
+  create: [ClaimScrubResultCreateInput!]
+  connect: [ClaimScrubResultWhereUniqueInput!]
+}
+
+input ClaimAcknowledgementRelateToManyForUpdateInput {
+  disconnect: [ClaimAcknowledgementWhereUniqueInput!]
+  set: [ClaimAcknowledgementWhereUniqueInput!]
+  create: [ClaimAcknowledgementCreateInput!]
+  connect: [ClaimAcknowledgementWhereUniqueInput!]
+}
+
+input ClaimUpdateArgs {
+  where: ClaimWhereUniqueInput!
+  data: ClaimUpdateInput!
+}
+
+input ClaimCreateInput {
+  ref: String
+  kind: String
+  patient: PatientRelateToOneForCreateInput
+  coverage: CoverageRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  billingEntity: BillingEntityRelateToOneForCreateInput
+  renderingProvider: ProviderProfileRelateToOneForCreateInput
+  placeOfServiceCode: String
+  status: String
+  adjudicationOutcome: String
+  currentVersion: ClaimVersionRelateToOneForCreateInput
+  versions: ClaimVersionRelateToManyForCreateInput
+  lines: ClaimLineRelateToManyForCreateInput
+  attachments: ClaimAttachmentRelateToManyForCreateInput
+  scrubResults: ClaimScrubResultRelateToManyForCreateInput
+  acknowledgements: ClaimAcknowledgementRelateToManyForCreateInput
+  payerClaimControlNumber: String
+  patientControlNumber: String
+  clearinghouseRefs: JSON
+  totalChargeMinor: BigInt
+  timelyFilingDeadline: CalendarDay
+  submittedAt: DateTime
+  adjudicatedAt: DateTime
+  recouped: Boolean
+  primaryClaim: ClaimRelateToOneForCreateInput
+  primaryAdjudicationSnapshot: JSON
+  narrative: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimVersionRelateToOneForCreateInput {
+  create: ClaimVersionCreateInput
+  connect: ClaimVersionWhereUniqueInput
+}
+
+input ClaimVersionRelateToManyForCreateInput {
+  create: [ClaimVersionCreateInput!]
+  connect: [ClaimVersionWhereUniqueInput!]
+}
+
+input ClaimLineRelateToManyForCreateInput {
+  create: [ClaimLineCreateInput!]
+  connect: [ClaimLineWhereUniqueInput!]
+}
+
+input ClaimAttachmentRelateToManyForCreateInput {
+  create: [ClaimAttachmentCreateInput!]
+  connect: [ClaimAttachmentWhereUniqueInput!]
+}
+
+input ClaimScrubResultRelateToManyForCreateInput {
+  create: [ClaimScrubResultCreateInput!]
+  connect: [ClaimScrubResultWhereUniqueInput!]
+}
+
+input ClaimAcknowledgementRelateToManyForCreateInput {
+  create: [ClaimAcknowledgementCreateInput!]
+  connect: [ClaimAcknowledgementWhereUniqueInput!]
+}
+
+type ClaimAcknowledgement {
+  id: ID!
+  claim: Claim
+  versionNumber: Int
+  source: String
+  senderName: String
+  outcome: String
+  statusCodes: JSON
+  errors: JSON
+  observation: InboundObservation
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimAcknowledgementWhereUniqueInput {
+  id: ID
+}
+
+input ClaimAcknowledgementWhereInput {
+  AND: [ClaimAcknowledgementWhereInput!]
+  OR: [ClaimAcknowledgementWhereInput!]
+  NOT: [ClaimAcknowledgementWhereInput!]
+  id: IDFilter
+  claim: ClaimWhereInput
+  versionNumber: IntFilter
+  source: StringFilter
+  senderName: StringFilter
+  outcome: StringFilter
+  observation: InboundObservationWhereInput
+  at: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ClaimAcknowledgementOrderByInput {
+  id: OrderDirection
+  versionNumber: OrderDirection
+  source: OrderDirection
+  senderName: OrderDirection
+  outcome: OrderDirection
+  at: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ClaimAcknowledgementUpdateInput {
+  claim: ClaimRelateToOneForUpdateInput
+  versionNumber: Int
+  source: String
+  senderName: String
+  outcome: String
+  statusCodes: JSON
+  errors: JSON
+  observation: InboundObservationRelateToOneForUpdateInput
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimAcknowledgementUpdateArgs {
+  where: ClaimAcknowledgementWhereUniqueInput!
+  data: ClaimAcknowledgementUpdateInput!
+}
+
+input ClaimAcknowledgementCreateInput {
+  claim: ClaimRelateToOneForCreateInput
+  versionNumber: Int
+  source: String
+  senderName: String
+  outcome: String
+  statusCodes: JSON
+  errors: JSON
+  observation: InboundObservationRelateToOneForCreateInput
+  at: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ClaimAttachment {
+  id: ID!
+  claim: Claim
+  kind: String
+  route: String
+  description: String
+  externalAttachmentId: String
+  trackingNumber: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimAttachmentWhereUniqueInput {
+  id: ID
+}
+
+input ClaimAttachmentWhereInput {
+  AND: [ClaimAttachmentWhereInput!]
+  OR: [ClaimAttachmentWhereInput!]
+  NOT: [ClaimAttachmentWhereInput!]
+  id: IDFilter
+  claim: ClaimWhereInput
+  kind: StringFilter
+  route: StringFilter
+  description: StringFilter
+  externalAttachmentId: StringFilter
+  trackingNumber: StringFilter
+  status: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ClaimAttachmentOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  route: OrderDirection
+  description: OrderDirection
+  externalAttachmentId: OrderDirection
+  trackingNumber: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ClaimAttachmentUpdateInput {
+  claim: ClaimRelateToOneForUpdateInput
+  kind: String
+  route: String
+  description: String
+  externalAttachmentId: String
+  trackingNumber: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimAttachmentUpdateArgs {
+  where: ClaimAttachmentWhereUniqueInput!
+  data: ClaimAttachmentUpdateInput!
+}
+
+input ClaimAttachmentCreateInput {
+  claim: ClaimRelateToOneForCreateInput
+  kind: String
+  route: String
+  description: String
+  externalAttachmentId: String
+  trackingNumber: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ClaimLine {
+  id: ID!
+  claim: Claim
+  chartEntry: ChartEntry
+  code: ProcedureCode
+  localCode: ProcedureCode
+  tooth: String
+  surfaces: String
+  dateOfService: CalendarDay
+  units: Int
+  feeMinor: BigInt
+  allowedMinor: BigInt
+  paidMinor: BigInt
+  patientRespMinor: BigInt
+  lineControlNumber: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimLineWhereUniqueInput {
+  id: ID
+}
+
+input ClaimLineWhereInput {
+  AND: [ClaimLineWhereInput!]
+  OR: [ClaimLineWhereInput!]
+  NOT: [ClaimLineWhereInput!]
+  id: IDFilter
+  claim: ClaimWhereInput
+  chartEntry: ChartEntryWhereInput
+  code: ProcedureCodeWhereInput
+  localCode: ProcedureCodeWhereInput
+  tooth: StringFilter
+  surfaces: StringFilter
+  dateOfService: CalendarDayNullableFilter
+  units: IntFilter
+  feeMinor: BigIntFilter
+  allowedMinor: BigIntFilter
+  paidMinor: BigIntFilter
+  patientRespMinor: BigIntFilter
+  lineControlNumber: StringFilter
+  status: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ClaimLineOrderByInput {
+  id: OrderDirection
+  tooth: OrderDirection
+  surfaces: OrderDirection
+  dateOfService: OrderDirection
+  units: OrderDirection
+  feeMinor: OrderDirection
+  allowedMinor: OrderDirection
+  paidMinor: OrderDirection
+  patientRespMinor: OrderDirection
+  lineControlNumber: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ClaimLineUpdateInput {
+  claim: ClaimRelateToOneForUpdateInput
+  chartEntry: ChartEntryRelateToOneForUpdateInput
+  code: ProcedureCodeRelateToOneForUpdateInput
+  localCode: ProcedureCodeRelateToOneForUpdateInput
+  tooth: String
+  surfaces: String
+  dateOfService: CalendarDay
+  units: Int
+  feeMinor: BigInt
+  allowedMinor: BigInt
+  paidMinor: BigInt
+  patientRespMinor: BigInt
+  lineControlNumber: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimLineUpdateArgs {
+  where: ClaimLineWhereUniqueInput!
+  data: ClaimLineUpdateInput!
+}
+
+input ClaimLineCreateInput {
+  claim: ClaimRelateToOneForCreateInput
+  chartEntry: ChartEntryRelateToOneForCreateInput
+  code: ProcedureCodeRelateToOneForCreateInput
+  localCode: ProcedureCodeRelateToOneForCreateInput
+  tooth: String
+  surfaces: String
+  dateOfService: CalendarDay
+  units: Int
+  feeMinor: BigInt
+  allowedMinor: BigInt
+  paidMinor: BigInt
+  patientRespMinor: BigInt
+  lineControlNumber: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ClaimScrubResult {
+  id: ID!
+  claim: Claim
+  versionNumber: Int
+  rulesetVersion: String
+  ranAt: DateTime
+  findings: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimScrubResultWhereUniqueInput {
+  id: ID
+}
+
+input ClaimScrubResultWhereInput {
+  AND: [ClaimScrubResultWhereInput!]
+  OR: [ClaimScrubResultWhereInput!]
+  NOT: [ClaimScrubResultWhereInput!]
+  id: IDFilter
+  claim: ClaimWhereInput
+  versionNumber: IntFilter
+  rulesetVersion: StringFilter
+  ranAt: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ClaimScrubResultOrderByInput {
+  id: OrderDirection
+  versionNumber: OrderDirection
+  rulesetVersion: OrderDirection
+  ranAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ClaimScrubResultUpdateInput {
+  claim: ClaimRelateToOneForUpdateInput
+  versionNumber: Int
+  rulesetVersion: String
+  ranAt: DateTime
+  findings: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimScrubResultUpdateArgs {
+  where: ClaimScrubResultWhereUniqueInput!
+  data: ClaimScrubResultUpdateInput!
+}
+
+input ClaimScrubResultCreateInput {
+  claim: ClaimRelateToOneForCreateInput
+  versionNumber: Int
+  rulesetVersion: String
+  ranAt: DateTime
+  findings: JSON
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ClaimStatusInquiry {
+  id: ID!
+  claim: Claim
+  status: String
+  responseSummary: JSON
+  observation: InboundObservation
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimStatusInquiryWhereUniqueInput {
+  id: ID
+}
+
+input ClaimStatusInquiryWhereInput {
+  AND: [ClaimStatusInquiryWhereInput!]
+  OR: [ClaimStatusInquiryWhereInput!]
+  NOT: [ClaimStatusInquiryWhereInput!]
+  id: IDFilter
+  claim: ClaimWhereInput
+  status: StringFilter
+  observation: InboundObservationWhereInput
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ClaimStatusInquiryOrderByInput {
+  id: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ClaimStatusInquiryUpdateInput {
+  claim: ClaimRelateToOneForUpdateInput
+  status: String
+  responseSummary: JSON
+  observation: InboundObservationRelateToOneForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimStatusInquiryUpdateArgs {
+  where: ClaimStatusInquiryWhereUniqueInput!
+  data: ClaimStatusInquiryUpdateInput!
+}
+
+input ClaimStatusInquiryCreateInput {
+  claim: ClaimRelateToOneForCreateInput
+  status: String
+  responseSummary: JSON
+  observation: InboundObservationRelateToOneForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ClaimVersion {
+  id: ID!
+  claim: Claim
+  number: Int
+  frequency: String
+  payload: JSON
+  payloadHash: String
+  idempotencyKey: String
+  releasedBy: User
+  releasedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimVersionWhereUniqueInput {
+  id: ID
+}
+
+input ClaimVersionWhereInput {
+  AND: [ClaimVersionWhereInput!]
+  OR: [ClaimVersionWhereInput!]
+  NOT: [ClaimVersionWhereInput!]
+  id: IDFilter
+  claim: ClaimWhereInput
+  number: IntFilter
+  frequency: StringFilter
+  payloadHash: StringFilter
+  idempotencyKey: StringFilter
+  releasedBy: UserWhereInput
+  releasedAt: DateTimeNullableFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ClaimVersionOrderByInput {
+  id: OrderDirection
+  number: OrderDirection
+  frequency: OrderDirection
+  payloadHash: OrderDirection
+  idempotencyKey: OrderDirection
+  releasedAt: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ClaimVersionUpdateInput {
+  claim: ClaimRelateToOneForUpdateInput
+  number: Int
+  frequency: String
+  payload: JSON
+  payloadHash: String
+  idempotencyKey: String
+  releasedBy: UserRelateToOneForUpdateInput
+  releasedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimVersionUpdateArgs {
+  where: ClaimVersionWhereUniqueInput!
+  data: ClaimVersionUpdateInput!
+}
+
+input ClaimVersionCreateInput {
+  claim: ClaimRelateToOneForCreateInput
+  number: Int
+  frequency: String
+  payload: JSON
+  payloadHash: String
+  idempotencyKey: String
+  releasedBy: UserRelateToOneForCreateInput
+  releasedAt: DateTime
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Denial {
+  id: ID!
+  claim: Claim
+  claimLine: ClaimLine
+  remittanceLine: RemittanceLine
+  carc: String
+  rarc: JSON
+  preventableClass: String
+  status: String
+  assignedTo: User
+  amountMinor: BigInt
+  resolutionNote: String
+  appeals(where: AppealWhereInput! = {}, orderBy: [AppealOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: AppealWhereUniqueInput): [Appeal!]
+  appealsCount(where: AppealWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DenialWhereUniqueInput {
+  id: ID
+}
+
+input DenialWhereInput {
+  AND: [DenialWhereInput!]
+  OR: [DenialWhereInput!]
+  NOT: [DenialWhereInput!]
+  id: IDFilter
+  claim: ClaimWhereInput
+  claimLine: ClaimLineWhereInput
+  remittanceLine: RemittanceLineWhereInput
+  carc: StringFilter
+  preventableClass: StringFilter
+  status: StringFilter
+  assignedTo: UserWhereInput
+  amountMinor: BigIntFilter
+  resolutionNote: StringFilter
+  appeals: AppealManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input AppealManyRelationFilter {
+  every: AppealWhereInput
+  some: AppealWhereInput
+  none: AppealWhereInput
+}
+
+input DenialOrderByInput {
+  id: OrderDirection
+  carc: OrderDirection
+  preventableClass: OrderDirection
+  status: OrderDirection
+  amountMinor: OrderDirection
+  resolutionNote: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input DenialUpdateInput {
+  claim: ClaimRelateToOneForUpdateInput
+  claimLine: ClaimLineRelateToOneForUpdateInput
+  remittanceLine: RemittanceLineRelateToOneForUpdateInput
+  carc: String
+  rarc: JSON
+  preventableClass: String
+  status: String
+  assignedTo: UserRelateToOneForUpdateInput
+  amountMinor: BigInt
+  resolutionNote: String
+  appeals: AppealRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimLineRelateToOneForUpdateInput {
+  create: ClaimLineCreateInput
+  connect: ClaimLineWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RemittanceLineRelateToOneForUpdateInput {
+  create: RemittanceLineCreateInput
+  connect: RemittanceLineWhereUniqueInput
+  disconnect: Boolean
+}
+
+input AppealRelateToManyForUpdateInput {
+  disconnect: [AppealWhereUniqueInput!]
+  set: [AppealWhereUniqueInput!]
+  create: [AppealCreateInput!]
+  connect: [AppealWhereUniqueInput!]
+}
+
+input DenialUpdateArgs {
+  where: DenialWhereUniqueInput!
+  data: DenialUpdateInput!
+}
+
+input DenialCreateInput {
+  claim: ClaimRelateToOneForCreateInput
+  claimLine: ClaimLineRelateToOneForCreateInput
+  remittanceLine: RemittanceLineRelateToOneForCreateInput
+  carc: String
+  rarc: JSON
+  preventableClass: String
+  status: String
+  assignedTo: UserRelateToOneForCreateInput
+  amountMinor: BigInt
+  resolutionNote: String
+  appeals: AppealRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ClaimLineRelateToOneForCreateInput {
+  create: ClaimLineCreateInput
+  connect: ClaimLineWhereUniqueInput
+}
+
+input RemittanceLineRelateToOneForCreateInput {
+  create: RemittanceLineCreateInput
+  connect: RemittanceLineWhereUniqueInput
+}
+
+input AppealRelateToManyForCreateInput {
+  create: [AppealCreateInput!]
+  connect: [AppealWhereUniqueInput!]
+}
+
+type DenialReasonMap {
+  id: ID!
+  carc: String
+  rarc: String
+  preventableClass: String
+  suggestedAction: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DenialReasonMapWhereUniqueInput {
+  id: ID
+}
+
+input DenialReasonMapWhereInput {
+  AND: [DenialReasonMapWhereInput!]
+  OR: [DenialReasonMapWhereInput!]
+  NOT: [DenialReasonMapWhereInput!]
+  id: IDFilter
+  carc: StringFilter
+  rarc: StringFilter
+  preventableClass: StringFilter
+  suggestedAction: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input DenialReasonMapOrderByInput {
+  id: OrderDirection
+  carc: OrderDirection
+  rarc: OrderDirection
+  preventableClass: OrderDirection
+  suggestedAction: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input DenialReasonMapUpdateInput {
+  carc: String
+  rarc: String
+  preventableClass: String
+  suggestedAction: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input DenialReasonMapUpdateArgs {
+  where: DenialReasonMapWhereUniqueInput!
+  data: DenialReasonMapUpdateInput!
+}
+
+input DenialReasonMapCreateInput {
+  carc: String
+  rarc: String
+  preventableClass: String
+  suggestedAction: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PayerEnrollment {
+  id: ID!
+  billingEntity: BillingEntity
+  provider: ProviderProfile
+  payer: Payer
+  adapterKey: String
+  transaction: String
+  status: String
+  externalId: String
+  notes: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayerEnrollmentWhereUniqueInput {
+  id: ID
+}
+
+input PayerEnrollmentWhereInput {
+  AND: [PayerEnrollmentWhereInput!]
+  OR: [PayerEnrollmentWhereInput!]
+  NOT: [PayerEnrollmentWhereInput!]
+  id: IDFilter
+  billingEntity: BillingEntityWhereInput
+  provider: ProviderProfileWhereInput
+  payer: PayerWhereInput
+  adapterKey: StringFilter
+  transaction: StringFilter
+  status: StringFilter
+  externalId: StringFilter
+  notes: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PayerEnrollmentOrderByInput {
+  id: OrderDirection
+  adapterKey: OrderDirection
+  transaction: OrderDirection
+  status: OrderDirection
+  externalId: OrderDirection
+  notes: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PayerEnrollmentUpdateInput {
+  billingEntity: BillingEntityRelateToOneForUpdateInput
+  provider: ProviderProfileRelateToOneForUpdateInput
+  payer: PayerRelateToOneForUpdateInput
+  adapterKey: String
+  transaction: String
+  status: String
+  externalId: String
+  notes: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PayerEnrollmentUpdateArgs {
+  where: PayerEnrollmentWhereUniqueInput!
+  data: PayerEnrollmentUpdateInput!
+}
+
+input PayerEnrollmentCreateInput {
+  billingEntity: BillingEntityRelateToOneForCreateInput
+  provider: ProviderProfileRelateToOneForCreateInput
+  payer: PayerRelateToOneForCreateInput
+  adapterKey: String
+  transaction: String
+  status: String
+  externalId: String
+  notes: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PaymentPosting {
+  id: ID!
+  remittance: Remittance
+  remittanceClaim: RemittanceClaim
+  postedBy: User
+  at: DateTime
+  status: String
+  entries(where: LedgerEntryWhereInput! = {}, orderBy: [LedgerEntryOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: LedgerEntryWhereUniqueInput): [LedgerEntry!]
+  entriesCount(where: LedgerEntryWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentPostingWhereUniqueInput {
+  id: ID
+}
+
+input PaymentPostingWhereInput {
+  AND: [PaymentPostingWhereInput!]
+  OR: [PaymentPostingWhereInput!]
+  NOT: [PaymentPostingWhereInput!]
+  id: IDFilter
+  remittance: RemittanceWhereInput
+  remittanceClaim: RemittanceClaimWhereInput
+  postedBy: UserWhereInput
+  at: DateTimeNullableFilter
+  status: StringFilter
+  entries: LedgerEntryManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PaymentPostingOrderByInput {
+  id: OrderDirection
+  at: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentPostingUpdateInput {
+  remittance: RemittanceRelateToOneForUpdateInput
+  remittanceClaim: RemittanceClaimRelateToOneForUpdateInput
+  postedBy: UserRelateToOneForUpdateInput
+  at: DateTime
+  status: String
+  entries: LedgerEntryRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceRelateToOneForUpdateInput {
+  create: RemittanceCreateInput
+  connect: RemittanceWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RemittanceClaimRelateToOneForUpdateInput {
+  create: RemittanceClaimCreateInput
+  connect: RemittanceClaimWhereUniqueInput
+  disconnect: Boolean
+}
+
+input PaymentPostingUpdateArgs {
+  where: PaymentPostingWhereUniqueInput!
+  data: PaymentPostingUpdateInput!
+}
+
+input PaymentPostingCreateInput {
+  remittance: RemittanceRelateToOneForCreateInput
+  remittanceClaim: RemittanceClaimRelateToOneForCreateInput
+  postedBy: UserRelateToOneForCreateInput
+  at: DateTime
+  status: String
+  entries: LedgerEntryRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceRelateToOneForCreateInput {
+  create: RemittanceCreateInput
+  connect: RemittanceWhereUniqueInput
+}
+
+input RemittanceClaimRelateToOneForCreateInput {
+  create: RemittanceClaimCreateInput
+  connect: RemittanceClaimWhereUniqueInput
+}
+
+type Remittance {
+  id: ID!
+  ref: String
+  payer: Payer
+  source: String
+  adapterKey: String
+  traceNumber: String
+  paymentMethod: String
+  paymentDate: CalendarDay
+  totalPaidMinor: BigInt
+  status: String
+  postedCompleteness: String
+  exceptionNote: String
+  duplicateOf: Remittance
+  observation: InboundObservation
+  providerAdjustments: JSON
+  claims(where: RemittanceClaimWhereInput! = {}, orderBy: [RemittanceClaimOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RemittanceClaimWhereUniqueInput): [RemittanceClaim!]
+  claimsCount(where: RemittanceClaimWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceWhereUniqueInput {
+  id: ID
+  ref: String
+}
+
+input RemittanceWhereInput {
+  AND: [RemittanceWhereInput!]
+  OR: [RemittanceWhereInput!]
+  NOT: [RemittanceWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  payer: PayerWhereInput
+  source: StringFilter
+  adapterKey: StringFilter
+  traceNumber: StringFilter
+  paymentMethod: StringFilter
+  paymentDate: CalendarDayNullableFilter
+  totalPaidMinor: BigIntFilter
+  status: StringFilter
+  postedCompleteness: StringFilter
+  exceptionNote: StringFilter
+  duplicateOf: RemittanceWhereInput
+  observation: InboundObservationWhereInput
+  claims: RemittanceClaimManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input RemittanceClaimManyRelationFilter {
+  every: RemittanceClaimWhereInput
+  some: RemittanceClaimWhereInput
+  none: RemittanceClaimWhereInput
+}
+
+input RemittanceOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  source: OrderDirection
+  adapterKey: OrderDirection
+  traceNumber: OrderDirection
+  paymentMethod: OrderDirection
+  paymentDate: OrderDirection
+  totalPaidMinor: OrderDirection
+  status: OrderDirection
+  postedCompleteness: OrderDirection
+  exceptionNote: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RemittanceUpdateInput {
+  ref: String
+  payer: PayerRelateToOneForUpdateInput
+  source: String
+  adapterKey: String
+  traceNumber: String
+  paymentMethod: String
+  paymentDate: CalendarDay
+  totalPaidMinor: BigInt
+  status: String
+  postedCompleteness: String
+  exceptionNote: String
+  duplicateOf: RemittanceRelateToOneForUpdateInput
+  observation: InboundObservationRelateToOneForUpdateInput
+  providerAdjustments: JSON
+  claims: RemittanceClaimRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceClaimRelateToManyForUpdateInput {
+  disconnect: [RemittanceClaimWhereUniqueInput!]
+  set: [RemittanceClaimWhereUniqueInput!]
+  create: [RemittanceClaimCreateInput!]
+  connect: [RemittanceClaimWhereUniqueInput!]
+}
+
+input RemittanceUpdateArgs {
+  where: RemittanceWhereUniqueInput!
+  data: RemittanceUpdateInput!
+}
+
+input RemittanceCreateInput {
+  ref: String
+  payer: PayerRelateToOneForCreateInput
+  source: String
+  adapterKey: String
+  traceNumber: String
+  paymentMethod: String
+  paymentDate: CalendarDay
+  totalPaidMinor: BigInt
+  status: String
+  postedCompleteness: String
+  exceptionNote: String
+  duplicateOf: RemittanceRelateToOneForCreateInput
+  observation: InboundObservationRelateToOneForCreateInput
+  providerAdjustments: JSON
+  claims: RemittanceClaimRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceClaimRelateToManyForCreateInput {
+  create: [RemittanceClaimCreateInput!]
+  connect: [RemittanceClaimWhereUniqueInput!]
+}
+
+type RemittanceClaim {
+  id: ID!
+  remittance: Remittance
+  claim: Claim
+  patientControlNumber: String
+  payerClaimControlNumber: String
+  claimStatusCode: String
+  chargeMinor: BigInt
+  paidMinor: BigInt
+  patientRespMinor: BigInt
+  crossoverCarrier: JSON
+  lines(where: RemittanceLineWhereInput! = {}, orderBy: [RemittanceLineOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RemittanceLineWhereUniqueInput): [RemittanceLine!]
+  linesCount(where: RemittanceLineWhereInput! = {}): Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceClaimWhereUniqueInput {
+  id: ID
+}
+
+input RemittanceClaimWhereInput {
+  AND: [RemittanceClaimWhereInput!]
+  OR: [RemittanceClaimWhereInput!]
+  NOT: [RemittanceClaimWhereInput!]
+  id: IDFilter
+  remittance: RemittanceWhereInput
+  claim: ClaimWhereInput
+  patientControlNumber: StringFilter
+  payerClaimControlNumber: StringFilter
+  claimStatusCode: StringFilter
+  chargeMinor: BigIntFilter
+  paidMinor: BigIntFilter
+  patientRespMinor: BigIntFilter
+  lines: RemittanceLineManyRelationFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input RemittanceLineManyRelationFilter {
+  every: RemittanceLineWhereInput
+  some: RemittanceLineWhereInput
+  none: RemittanceLineWhereInput
+}
+
+input RemittanceClaimOrderByInput {
+  id: OrderDirection
+  patientControlNumber: OrderDirection
+  payerClaimControlNumber: OrderDirection
+  claimStatusCode: OrderDirection
+  chargeMinor: OrderDirection
+  paidMinor: OrderDirection
+  patientRespMinor: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RemittanceClaimUpdateInput {
+  remittance: RemittanceRelateToOneForUpdateInput
+  claim: ClaimRelateToOneForUpdateInput
+  patientControlNumber: String
+  payerClaimControlNumber: String
+  claimStatusCode: String
+  chargeMinor: BigInt
+  paidMinor: BigInt
+  patientRespMinor: BigInt
+  crossoverCarrier: JSON
+  lines: RemittanceLineRelateToManyForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceLineRelateToManyForUpdateInput {
+  disconnect: [RemittanceLineWhereUniqueInput!]
+  set: [RemittanceLineWhereUniqueInput!]
+  create: [RemittanceLineCreateInput!]
+  connect: [RemittanceLineWhereUniqueInput!]
+}
+
+input RemittanceClaimUpdateArgs {
+  where: RemittanceClaimWhereUniqueInput!
+  data: RemittanceClaimUpdateInput!
+}
+
+input RemittanceClaimCreateInput {
+  remittance: RemittanceRelateToOneForCreateInput
+  claim: ClaimRelateToOneForCreateInput
+  patientControlNumber: String
+  payerClaimControlNumber: String
+  claimStatusCode: String
+  chargeMinor: BigInt
+  paidMinor: BigInt
+  patientRespMinor: BigInt
+  crossoverCarrier: JSON
+  lines: RemittanceLineRelateToManyForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceLineRelateToManyForCreateInput {
+  create: [RemittanceLineCreateInput!]
+  connect: [RemittanceLineWhereUniqueInput!]
+}
+
+type RemittanceLine {
+  id: ID!
+  remittanceClaim: RemittanceClaim
+  claimLine: ClaimLine
+  code: String
+  tooth: String
+  dateOfService: CalendarDay
+  lineControlNumber: String
+  chargeMinor: BigInt
+  allowedMinor: BigInt
+  paidMinor: BigInt
+  adjustmentsTotalMinor: BigInt
+  adjustments: JSON
+  rarc: JSON
+  conservationOk: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceLineWhereUniqueInput {
+  id: ID
+}
+
+input RemittanceLineWhereInput {
+  AND: [RemittanceLineWhereInput!]
+  OR: [RemittanceLineWhereInput!]
+  NOT: [RemittanceLineWhereInput!]
+  id: IDFilter
+  remittanceClaim: RemittanceClaimWhereInput
+  claimLine: ClaimLineWhereInput
+  code: StringFilter
+  tooth: StringFilter
+  dateOfService: CalendarDayNullableFilter
+  lineControlNumber: StringFilter
+  chargeMinor: BigIntFilter
+  allowedMinor: BigIntFilter
+  paidMinor: BigIntFilter
+  adjustmentsTotalMinor: BigIntFilter
+  conservationOk: BooleanFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input RemittanceLineOrderByInput {
+  id: OrderDirection
+  code: OrderDirection
+  tooth: OrderDirection
+  dateOfService: OrderDirection
+  lineControlNumber: OrderDirection
+  chargeMinor: OrderDirection
+  allowedMinor: OrderDirection
+  paidMinor: OrderDirection
+  adjustmentsTotalMinor: OrderDirection
+  conservationOk: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RemittanceLineUpdateInput {
+  remittanceClaim: RemittanceClaimRelateToOneForUpdateInput
+  claimLine: ClaimLineRelateToOneForUpdateInput
+  code: String
+  tooth: String
+  dateOfService: CalendarDay
+  lineControlNumber: String
+  chargeMinor: BigInt
+  allowedMinor: BigInt
+  paidMinor: BigInt
+  adjustmentsTotalMinor: BigInt
+  adjustments: JSON
+  rarc: JSON
+  conservationOk: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RemittanceLineUpdateArgs {
+  where: RemittanceLineWhereUniqueInput!
+  data: RemittanceLineUpdateInput!
+}
+
+input RemittanceLineCreateInput {
+  remittanceClaim: RemittanceClaimRelateToOneForCreateInput
+  claimLine: ClaimLineRelateToOneForCreateInput
+  code: String
+  tooth: String
+  dateOfService: CalendarDay
+  lineControlNumber: String
+  chargeMinor: BigInt
+  allowedMinor: BigInt
+  paidMinor: BigInt
+  adjustmentsTotalMinor: BigInt
+  adjustments: JSON
+  rarc: JSON
+  conservationOk: Boolean
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ScrubRule {
+  id: ID!
+  key: String
+  kind: String
+  appliesTo: JSON
+  severity: String
+  message: String
+  isActive: Boolean
+  rulesetVersion: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ScrubRuleWhereUniqueInput {
+  id: ID
+  key: String
+}
+
+input ScrubRuleWhereInput {
+  AND: [ScrubRuleWhereInput!]
+  OR: [ScrubRuleWhereInput!]
+  NOT: [ScrubRuleWhereInput!]
+  id: IDFilter
+  key: StringFilter
+  kind: StringFilter
+  severity: StringFilter
+  message: StringFilter
+  isActive: BooleanFilter
+  rulesetVersion: StringFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ScrubRuleOrderByInput {
+  id: OrderDirection
+  key: OrderDirection
+  kind: OrderDirection
+  severity: OrderDirection
+  message: OrderDirection
+  isActive: OrderDirection
+  rulesetVersion: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ScrubRuleUpdateInput {
+  key: String
+  kind: String
+  appliesTo: JSON
+  severity: String
+  message: String
+  isActive: Boolean
+  rulesetVersion: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ScrubRuleUpdateArgs {
+  where: ScrubRuleWhereUniqueInput!
+  data: ScrubRuleUpdateInput!
+}
+
+input ScrubRuleCreateInput {
+  key: String
+  kind: String
+  appliesTo: JSON
+  severity: String
+  message: String
+  isActive: Boolean
+  rulesetVersion: String
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -13574,6 +15215,102 @@ type Mutation {
   updateRestatements(data: [RestatementUpdateArgs!]!): [Restatement]
   deleteRestatement(where: RestatementWhereUniqueInput!): Restatement
   deleteRestatements(where: [RestatementWhereUniqueInput!]!): [Restatement]
+  createAppeal(data: AppealCreateInput!): Appeal
+  createAppeals(data: [AppealCreateInput!]!): [Appeal]
+  updateAppeal(where: AppealWhereUniqueInput!, data: AppealUpdateInput!): Appeal
+  updateAppeals(data: [AppealUpdateArgs!]!): [Appeal]
+  deleteAppeal(where: AppealWhereUniqueInput!): Appeal
+  deleteAppeals(where: [AppealWhereUniqueInput!]!): [Appeal]
+  createClaim(data: ClaimCreateInput!): Claim
+  createClaims(data: [ClaimCreateInput!]!): [Claim]
+  updateClaim(where: ClaimWhereUniqueInput!, data: ClaimUpdateInput!): Claim
+  updateClaims(data: [ClaimUpdateArgs!]!): [Claim]
+  deleteClaim(where: ClaimWhereUniqueInput!): Claim
+  deleteClaims(where: [ClaimWhereUniqueInput!]!): [Claim]
+  createClaimAcknowledgement(data: ClaimAcknowledgementCreateInput!): ClaimAcknowledgement
+  createClaimAcknowledgements(data: [ClaimAcknowledgementCreateInput!]!): [ClaimAcknowledgement]
+  updateClaimAcknowledgement(where: ClaimAcknowledgementWhereUniqueInput!, data: ClaimAcknowledgementUpdateInput!): ClaimAcknowledgement
+  updateClaimAcknowledgements(data: [ClaimAcknowledgementUpdateArgs!]!): [ClaimAcknowledgement]
+  deleteClaimAcknowledgement(where: ClaimAcknowledgementWhereUniqueInput!): ClaimAcknowledgement
+  deleteClaimAcknowledgements(where: [ClaimAcknowledgementWhereUniqueInput!]!): [ClaimAcknowledgement]
+  createClaimAttachment(data: ClaimAttachmentCreateInput!): ClaimAttachment
+  createClaimAttachments(data: [ClaimAttachmentCreateInput!]!): [ClaimAttachment]
+  updateClaimAttachment(where: ClaimAttachmentWhereUniqueInput!, data: ClaimAttachmentUpdateInput!): ClaimAttachment
+  updateClaimAttachments(data: [ClaimAttachmentUpdateArgs!]!): [ClaimAttachment]
+  deleteClaimAttachment(where: ClaimAttachmentWhereUniqueInput!): ClaimAttachment
+  deleteClaimAttachments(where: [ClaimAttachmentWhereUniqueInput!]!): [ClaimAttachment]
+  createClaimLine(data: ClaimLineCreateInput!): ClaimLine
+  createClaimLines(data: [ClaimLineCreateInput!]!): [ClaimLine]
+  updateClaimLine(where: ClaimLineWhereUniqueInput!, data: ClaimLineUpdateInput!): ClaimLine
+  updateClaimLines(data: [ClaimLineUpdateArgs!]!): [ClaimLine]
+  deleteClaimLine(where: ClaimLineWhereUniqueInput!): ClaimLine
+  deleteClaimLines(where: [ClaimLineWhereUniqueInput!]!): [ClaimLine]
+  createClaimScrubResult(data: ClaimScrubResultCreateInput!): ClaimScrubResult
+  createClaimScrubResults(data: [ClaimScrubResultCreateInput!]!): [ClaimScrubResult]
+  updateClaimScrubResult(where: ClaimScrubResultWhereUniqueInput!, data: ClaimScrubResultUpdateInput!): ClaimScrubResult
+  updateClaimScrubResults(data: [ClaimScrubResultUpdateArgs!]!): [ClaimScrubResult]
+  deleteClaimScrubResult(where: ClaimScrubResultWhereUniqueInput!): ClaimScrubResult
+  deleteClaimScrubResults(where: [ClaimScrubResultWhereUniqueInput!]!): [ClaimScrubResult]
+  createClaimStatusInquiry(data: ClaimStatusInquiryCreateInput!): ClaimStatusInquiry
+  createClaimStatusInquiries(data: [ClaimStatusInquiryCreateInput!]!): [ClaimStatusInquiry]
+  updateClaimStatusInquiry(where: ClaimStatusInquiryWhereUniqueInput!, data: ClaimStatusInquiryUpdateInput!): ClaimStatusInquiry
+  updateClaimStatusInquiries(data: [ClaimStatusInquiryUpdateArgs!]!): [ClaimStatusInquiry]
+  deleteClaimStatusInquiry(where: ClaimStatusInquiryWhereUniqueInput!): ClaimStatusInquiry
+  deleteClaimStatusInquiries(where: [ClaimStatusInquiryWhereUniqueInput!]!): [ClaimStatusInquiry]
+  createClaimVersion(data: ClaimVersionCreateInput!): ClaimVersion
+  createClaimVersions(data: [ClaimVersionCreateInput!]!): [ClaimVersion]
+  updateClaimVersion(where: ClaimVersionWhereUniqueInput!, data: ClaimVersionUpdateInput!): ClaimVersion
+  updateClaimVersions(data: [ClaimVersionUpdateArgs!]!): [ClaimVersion]
+  deleteClaimVersion(where: ClaimVersionWhereUniqueInput!): ClaimVersion
+  deleteClaimVersions(where: [ClaimVersionWhereUniqueInput!]!): [ClaimVersion]
+  createDenial(data: DenialCreateInput!): Denial
+  createDenials(data: [DenialCreateInput!]!): [Denial]
+  updateDenial(where: DenialWhereUniqueInput!, data: DenialUpdateInput!): Denial
+  updateDenials(data: [DenialUpdateArgs!]!): [Denial]
+  deleteDenial(where: DenialWhereUniqueInput!): Denial
+  deleteDenials(where: [DenialWhereUniqueInput!]!): [Denial]
+  createDenialReasonMap(data: DenialReasonMapCreateInput!): DenialReasonMap
+  createDenialReasonMaps(data: [DenialReasonMapCreateInput!]!): [DenialReasonMap]
+  updateDenialReasonMap(where: DenialReasonMapWhereUniqueInput!, data: DenialReasonMapUpdateInput!): DenialReasonMap
+  updateDenialReasonMaps(data: [DenialReasonMapUpdateArgs!]!): [DenialReasonMap]
+  deleteDenialReasonMap(where: DenialReasonMapWhereUniqueInput!): DenialReasonMap
+  deleteDenialReasonMaps(where: [DenialReasonMapWhereUniqueInput!]!): [DenialReasonMap]
+  createPayerEnrollment(data: PayerEnrollmentCreateInput!): PayerEnrollment
+  createPayerEnrollments(data: [PayerEnrollmentCreateInput!]!): [PayerEnrollment]
+  updatePayerEnrollment(where: PayerEnrollmentWhereUniqueInput!, data: PayerEnrollmentUpdateInput!): PayerEnrollment
+  updatePayerEnrollments(data: [PayerEnrollmentUpdateArgs!]!): [PayerEnrollment]
+  deletePayerEnrollment(where: PayerEnrollmentWhereUniqueInput!): PayerEnrollment
+  deletePayerEnrollments(where: [PayerEnrollmentWhereUniqueInput!]!): [PayerEnrollment]
+  createPaymentPosting(data: PaymentPostingCreateInput!): PaymentPosting
+  createPaymentPostings(data: [PaymentPostingCreateInput!]!): [PaymentPosting]
+  updatePaymentPosting(where: PaymentPostingWhereUniqueInput!, data: PaymentPostingUpdateInput!): PaymentPosting
+  updatePaymentPostings(data: [PaymentPostingUpdateArgs!]!): [PaymentPosting]
+  deletePaymentPosting(where: PaymentPostingWhereUniqueInput!): PaymentPosting
+  deletePaymentPostings(where: [PaymentPostingWhereUniqueInput!]!): [PaymentPosting]
+  createRemittance(data: RemittanceCreateInput!): Remittance
+  createRemittances(data: [RemittanceCreateInput!]!): [Remittance]
+  updateRemittance(where: RemittanceWhereUniqueInput!, data: RemittanceUpdateInput!): Remittance
+  updateRemittances(data: [RemittanceUpdateArgs!]!): [Remittance]
+  deleteRemittance(where: RemittanceWhereUniqueInput!): Remittance
+  deleteRemittances(where: [RemittanceWhereUniqueInput!]!): [Remittance]
+  createRemittanceClaim(data: RemittanceClaimCreateInput!): RemittanceClaim
+  createRemittanceClaims(data: [RemittanceClaimCreateInput!]!): [RemittanceClaim]
+  updateRemittanceClaim(where: RemittanceClaimWhereUniqueInput!, data: RemittanceClaimUpdateInput!): RemittanceClaim
+  updateRemittanceClaims(data: [RemittanceClaimUpdateArgs!]!): [RemittanceClaim]
+  deleteRemittanceClaim(where: RemittanceClaimWhereUniqueInput!): RemittanceClaim
+  deleteRemittanceClaims(where: [RemittanceClaimWhereUniqueInput!]!): [RemittanceClaim]
+  createRemittanceLine(data: RemittanceLineCreateInput!): RemittanceLine
+  createRemittanceLines(data: [RemittanceLineCreateInput!]!): [RemittanceLine]
+  updateRemittanceLine(where: RemittanceLineWhereUniqueInput!, data: RemittanceLineUpdateInput!): RemittanceLine
+  updateRemittanceLines(data: [RemittanceLineUpdateArgs!]!): [RemittanceLine]
+  deleteRemittanceLine(where: RemittanceLineWhereUniqueInput!): RemittanceLine
+  deleteRemittanceLines(where: [RemittanceLineWhereUniqueInput!]!): [RemittanceLine]
+  createScrubRule(data: ScrubRuleCreateInput!): ScrubRule
+  createScrubRules(data: [ScrubRuleCreateInput!]!): [ScrubRule]
+  updateScrubRule(where: ScrubRuleWhereUniqueInput!, data: ScrubRuleUpdateInput!): ScrubRule
+  updateScrubRules(data: [ScrubRuleUpdateArgs!]!): [ScrubRule]
+  deleteScrubRule(where: ScrubRuleWhereUniqueInput!): ScrubRule
+  deleteScrubRules(where: [ScrubRuleWhereUniqueInput!]!): [ScrubRule]
   endSession: Boolean!
   authenticateUserWithPassword(email: String!, password: String!): UserAuthenticationWithPasswordResult
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
@@ -13644,6 +15381,24 @@ type Mutation {
   failVerification(verificationId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
   addOutsideHistory(patientId: ID!, codeId: ID, codeText: String, frequencyGroup: String, tooth: String, dateOfService: String!, providerName: String, source: String!, idempotencyKey: String!): JSON
   estimateTreatmentPlan(planId: ID!, idempotencyKey: String!): JSON
+  requestAdjustment(patientId: ID!, locationId: ID!, typeId: ID!, amount: String!, reason: String!, relatedEntryId: ID, idempotencyKey: String!): JSON
+  reverseLedgerEntry(entryId: ID!, reason: String!, idempotencyKey: String!): JSON
+  buildClaim(patientId: ID!, coverageId: ID!, locationId: ID!, kind: String, chartEntryIds: [ID!], primaryClaimId: ID, idempotencyKey: String!): JSON
+  scrubClaim(claimId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+  overrideScrub(claimId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+  releaseClaim(claimId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+  correctClaim(claimId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+  voidClaim(claimId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
+  addClaimAttachment(claimId: ID!, kind: String!, route: String!, description: String!, idempotencyKey: String!): JSON
+  saveClaimNarrative(claimId: ID!, narrative: String!, idempotencyKey: String!): JSON
+  requestClaimStatus(claimId: ID!, idempotencyKey: String!): JSON
+  enterManualEob(payerId: ID!, traceNumber: String!, paymentDate: String, method: String!, claims: [JSON!]!, idempotencyKey: String!): JSON
+  matchRemittance(remittanceClaimId: ID!, claimId: ID!, idempotencyKey: String!): JSON
+  startDenialWork(denialId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+  resolveDenial(denialId: ID!, expectedVersion: Int!, resolution: String!, note: String!, idempotencyKey: String!): JSON
+  fileAppeal(denialId: ID!, expectedVersion: Int!, letter: String!, via: String!, idempotencyKey: String!): JSON
+  recordAppealOutcome(appealId: ID!, expectedVersion: Int!, outcome: String!, idempotencyKey: String!): JSON
+  rebuildAccountBalance(accountId: ID!, idempotencyKey: String!): JSON
   addPatientAlert(patientId: ID!, kind: String!, severity: String!, text: String!, idempotencyKey: String!): JSON
   endPatientAlert(alertId: ID!, reason: String!, idempotencyKey: String!): JSON
   linkGuarantor(patientId: ID!, guarantorPatientId: ID, personName: JSON, relationship: String!, idempotencyKey: String!): JSON
@@ -14073,6 +15828,54 @@ type Query {
   restatement(where: RestatementWhereUniqueInput!): Restatement
   restatements(where: RestatementWhereInput! = {}, orderBy: [RestatementOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RestatementWhereUniqueInput): [Restatement!]
   restatementsCount(where: RestatementWhereInput! = {}): Int
+  appeal(where: AppealWhereUniqueInput!): Appeal
+  appeals(where: AppealWhereInput! = {}, orderBy: [AppealOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: AppealWhereUniqueInput): [Appeal!]
+  appealsCount(where: AppealWhereInput! = {}): Int
+  claim(where: ClaimWhereUniqueInput!): Claim
+  claims(where: ClaimWhereInput! = {}, orderBy: [ClaimOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimWhereUniqueInput): [Claim!]
+  claimsCount(where: ClaimWhereInput! = {}): Int
+  claimAcknowledgement(where: ClaimAcknowledgementWhereUniqueInput!): ClaimAcknowledgement
+  claimAcknowledgements(where: ClaimAcknowledgementWhereInput! = {}, orderBy: [ClaimAcknowledgementOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimAcknowledgementWhereUniqueInput): [ClaimAcknowledgement!]
+  claimAcknowledgementsCount(where: ClaimAcknowledgementWhereInput! = {}): Int
+  claimAttachment(where: ClaimAttachmentWhereUniqueInput!): ClaimAttachment
+  claimAttachments(where: ClaimAttachmentWhereInput! = {}, orderBy: [ClaimAttachmentOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimAttachmentWhereUniqueInput): [ClaimAttachment!]
+  claimAttachmentsCount(where: ClaimAttachmentWhereInput! = {}): Int
+  claimLine(where: ClaimLineWhereUniqueInput!): ClaimLine
+  claimLines(where: ClaimLineWhereInput! = {}, orderBy: [ClaimLineOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimLineWhereUniqueInput): [ClaimLine!]
+  claimLinesCount(where: ClaimLineWhereInput! = {}): Int
+  claimScrubResult(where: ClaimScrubResultWhereUniqueInput!): ClaimScrubResult
+  claimScrubResults(where: ClaimScrubResultWhereInput! = {}, orderBy: [ClaimScrubResultOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimScrubResultWhereUniqueInput): [ClaimScrubResult!]
+  claimScrubResultsCount(where: ClaimScrubResultWhereInput! = {}): Int
+  claimStatusInquiry(where: ClaimStatusInquiryWhereUniqueInput!): ClaimStatusInquiry
+  claimStatusInquiries(where: ClaimStatusInquiryWhereInput! = {}, orderBy: [ClaimStatusInquiryOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimStatusInquiryWhereUniqueInput): [ClaimStatusInquiry!]
+  claimStatusInquiriesCount(where: ClaimStatusInquiryWhereInput! = {}): Int
+  claimVersion(where: ClaimVersionWhereUniqueInput!): ClaimVersion
+  claimVersions(where: ClaimVersionWhereInput! = {}, orderBy: [ClaimVersionOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ClaimVersionWhereUniqueInput): [ClaimVersion!]
+  claimVersionsCount(where: ClaimVersionWhereInput! = {}): Int
+  denial(where: DenialWhereUniqueInput!): Denial
+  denials(where: DenialWhereInput! = {}, orderBy: [DenialOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: DenialWhereUniqueInput): [Denial!]
+  denialsCount(where: DenialWhereInput! = {}): Int
+  denialReasonMap(where: DenialReasonMapWhereUniqueInput!): DenialReasonMap
+  denialReasonMaps(where: DenialReasonMapWhereInput! = {}, orderBy: [DenialReasonMapOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: DenialReasonMapWhereUniqueInput): [DenialReasonMap!]
+  denialReasonMapsCount(where: DenialReasonMapWhereInput! = {}): Int
+  payerEnrollment(where: PayerEnrollmentWhereUniqueInput!): PayerEnrollment
+  payerEnrollments(where: PayerEnrollmentWhereInput! = {}, orderBy: [PayerEnrollmentOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PayerEnrollmentWhereUniqueInput): [PayerEnrollment!]
+  payerEnrollmentsCount(where: PayerEnrollmentWhereInput! = {}): Int
+  paymentPosting(where: PaymentPostingWhereUniqueInput!): PaymentPosting
+  paymentPostings(where: PaymentPostingWhereInput! = {}, orderBy: [PaymentPostingOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentPostingWhereUniqueInput): [PaymentPosting!]
+  paymentPostingsCount(where: PaymentPostingWhereInput! = {}): Int
+  remittance(where: RemittanceWhereUniqueInput!): Remittance
+  remittances(where: RemittanceWhereInput! = {}, orderBy: [RemittanceOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RemittanceWhereUniqueInput): [Remittance!]
+  remittancesCount(where: RemittanceWhereInput! = {}): Int
+  remittanceClaim(where: RemittanceClaimWhereUniqueInput!): RemittanceClaim
+  remittanceClaims(where: RemittanceClaimWhereInput! = {}, orderBy: [RemittanceClaimOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RemittanceClaimWhereUniqueInput): [RemittanceClaim!]
+  remittanceClaimsCount(where: RemittanceClaimWhereInput! = {}): Int
+  remittanceLine(where: RemittanceLineWhereUniqueInput!): RemittanceLine
+  remittanceLines(where: RemittanceLineWhereInput! = {}, orderBy: [RemittanceLineOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RemittanceLineWhereUniqueInput): [RemittanceLine!]
+  remittanceLinesCount(where: RemittanceLineWhereInput! = {}): Int
+  scrubRule(where: ScrubRuleWhereUniqueInput!): ScrubRule
+  scrubRules(where: ScrubRuleWhereInput! = {}, orderBy: [ScrubRuleOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ScrubRuleWhereUniqueInput): [ScrubRule!]
+  scrubRulesCount(where: ScrubRuleWhereInput! = {}): Int
   keystone: KeystoneMeta!
   authenticatedItem: AuthenticatedItem
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult

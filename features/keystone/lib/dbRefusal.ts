@@ -12,6 +12,11 @@ const UNIQUE_MESSAGES: Record<string, string> = {
   EligibilityCheck: 'An eligibility check for this plan is already running. Refresh to see it.',
   Coverage: 'This patient already has a current coverage in that order. Refresh and try again.',
   WorkTask: 'That task is already open.',
+  Remittance: 'That payment was already received. Nothing was posted twice.',
+  PaymentPosting: 'That payment was already posted. Nothing was posted twice.',
+  Denial: 'That denial is already open on this line.',
+  ClaimVersion: 'That claim version already exists. Refresh to see it.',
+  ClaimLine: 'That claim line already exists.',
 }
 
 /** CHECK constraints and guard triggers, by name prefix, in words a front-desk person can act on. */
@@ -20,6 +25,12 @@ const CHECK_MESSAGES: [RegExp, string][] = [
   [/^BenefitFact_/, 'That benefit answer was refused: it does not fit the plan’s rules (for example a value on an unknown answer, or a percentage out of range).'],
   [/^Coverage_/, 'That coverage change was refused: it would leave the coverage in an impossible state.'],
   [/^EligibilityCheck_/, 'That eligibility check change was refused: the check is not in a state that allows it.'],
+  [/^Claim_frozen_version/, 'A claim past the review stage must point at the exact version that was sent. Nothing was changed.'],
+  [/^Claim_|^ClaimLine_/, 'That claim change was refused: the amounts or state do not make sense together. Nothing was changed.'],
+  [/^RemittanceLine_conservation/, 'A remittance line must balance: the charge equals the payment plus the adjustments. Nothing was posted.'],
+  [/^(Remittance|PaymentPosting|Denial|Appeal)_/, 'That payment change was refused: it would break a payment rule. Nothing was changed.'],
+  [/^(LedgerEntry|AdjustmentRequest|AdjustmentType|DayClose|PeriodClose|Restatement)_/, 'That ledger change was refused: the ledger only grows, and a closed period takes no new entries. Nothing was changed.'],
+  [/_bound$/, 'That amount is larger than the system allows. Check it and try again.'],
   [/^BenefitVerification_/, 'That verification change was refused: the verification is not in a state that allows it.'],
 ]
 

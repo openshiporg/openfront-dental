@@ -33,6 +33,12 @@ const SHAPES = {
   chartSite: (v: Values) => ({ codeId: v.codeId || undefined, conditionId: v.conditionId || undefined, status: v.status || undefined, site: { tooth: v.tooth, surfaces: v.surfaces, quadrant: v.quadrant || undefined, arch: v.arch || undefined } }),
   /** Whole-mouth or arch work: no tooth. */
   chartMouth: (v: Values) => ({ codeId: v.codeId, status: v.status || undefined, site: { arch: v.arch || undefined, quadrant: v.quadrant || undefined } }),
+  /** Paper explanation of benefits for a one-line claim: dollars become exact minor units. */
+  manualEob: (v: Values) => {
+    const minor = (t: unknown) => { const m = /^\s*\$?(\d+)(?:\.(\d{1,2}))?\s*$/.exec(String(t ?? '')); if (!m) throw new Error('Enter amounts like 84.00'); return BigInt(m[1]) * 100n + BigInt((m[2] ?? '').padEnd(2, '0') || '0'); };
+    const charge = minor(v.charge), paid = minor(v.paid), writeOff = v.writeOff ? minor(v.writeOff) : charge - paid;
+    return { payerId: v.payerId, traceNumber: v.traceNumber, paymentDate: v.paymentDate || undefined, method: v.method, claims: [{ claimRef: v.claimRef, charge: String(v.charge), paidMinor: paid.toString(), lines: [{ lineControl: 'L01', code: '', chargeMinor: charge.toString(), paidMinor: paid.toString(), adjustments: writeOff > 0n ? [{ group: 'CO', reason: '45', amountMinor: writeOff.toString() }] : [] }] }] };
+  },
   /** Code import: pasted CSV text (header row first) becomes the row list. */
   csvRows: (v: Values) => {
     const lines = String(v.csv).split(/\r?\n/).filter((l) => l.trim());

@@ -74,6 +74,8 @@ export type PostInput = {
   adjustmentId?: string | null
   reversesId?: string | null
   restatementId?: string | null
+  paymentPostingId?: string | null
+  claimId?: string | null
   memo?: string
   postedById?: string | null
   isSynthetic?: boolean
@@ -95,7 +97,7 @@ export async function postEntry(tx: Tx, input: PostInput, now: Date) {
       accountId: input.accountId, patientId: input.patientId, kind: input.kind, amountMinor: input.amountMinor, currencyCode: input.currencyCode,
       businessDate: input.businessDate, originalBusinessDate: input.originalBusinessDate ?? input.businessDate, locationId: input.locationId,
       providerId: input.providerId ?? null, chartEntryId: input.chartEntryId ?? null, adjustmentId: input.adjustmentId ?? null,
-      reversesId: input.reversesId ?? null, restatementId: input.restatementId ?? null, memo: input.memo ?? '', postedById: input.postedById ?? null, postedAt: now,
+      reversesId: input.reversesId ?? null, restatementId: input.restatementId ?? null, paymentPostingId: input.paymentPostingId ?? null, claimId: input.claimId ?? null, memo: input.memo ?? '', postedById: input.postedById ?? null, postedAt: now,
       isSynthetic: input.isSynthetic ?? false,
     },
   })

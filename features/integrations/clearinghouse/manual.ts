@@ -9,4 +9,8 @@ export const manualAdapter: ClearinghouseAdapter = {
   async checkEligibility(req, ctx) {
     return { outcome: { kind: 'error_retryable', message: 'No clearinghouse is connected. Verify by phone or the payer portal.' }, requestHash: eligibilityRequestHash(req, 'manual'), adapterKey: 'manual', mode: ctx.mode }
   },
+  async submitClaim() { return { kind: 'error_retryable', message: 'No clearinghouse is connected. Print the claim data sheet and send it through the payer portal.' } },
+  async checkClaimStatus() { return { kind: 'unknown', message: 'No clearinghouse is connected.' } },
+  async listTransactions() { return { ok: false, message: 'No clearinghouse is connected. Enter the payer’s explanation of benefits by hand.' } },
+  async fetchTransaction() { return { ok: false, message: 'No clearinghouse is connected.' } },
 }

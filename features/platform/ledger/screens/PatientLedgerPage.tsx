@@ -1,12 +1,27 @@
 import { notFound } from 'next/navigation';
 import { q, practiceTimeZone } from '../../lib/server';
 import { money, title, calendarDate, chartLabel } from '../../lib/format';
-import { Page, Section, Row, Empty, Meta, Stat, TitleLine, ScrollX } from '../../components/ui';
+import { Page, Section, Row, Empty, Meta, Stat, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 
 const AGING = [['current', '0–30 days'], ['d31', '31–60 days'], ['d61', '61–90 days'], ['d91', 'Over 90 days']] as const;
 const KIND_WORDS: Record<string, string> = { patient_payment: 'Payment', insurance_payment: 'Insurance payment', insurance_writeoff: 'Insurance write-off', patient_adjustment: 'Adjustment', insurance_adjustment: 'Insurance adjustment', transfer_in: 'Transfer in', transfer_out: 'Transfer out' };
+
+const SURFACE_WORDS: Record<string, string> = { M: 'mesial', O: 'occlusal', D: 'distal', B: 'buccal', L: 'lingual', F: 'facial', I: 'incisal' };
+const surfaceWords = (letters: string) => letters.split('').map((c) => SURFACE_WORDS[c] ?? c).join(', ');
+/** "Crown, tooth 3" or "Filling, tooth 30 (mesial, occlusal)": the procedure in words, never the code. */
+function entryTitle(e: any, isReversal: boolean) {
+  const base = chargeName(e) ?? (isReversal ? 'Reversal' : e.adjustment?.type?.name ?? KIND_WORDS[e.kind] ?? title(e.kind));
+  return isReversal && chargeName(e) ? `Reversal: ${base}` : base;
+}
+function chargeName(e: any) {
+  const c = e.chartEntry; if (!c?.code) return null;
+  const name = c.code.patientFriendlyName || c.code.nomenclature || 'Procedure';
+  return `${name}${c.tooth ? `, tooth ${c.tooth}` : ''}${c.surfaces ? ` (${surfaceWords(c.surfaces)})` : ''}`;
+}
+/** Free-text notes only; a charge's memo is its code, which the title already spells out. */
+function entryNote(e: any) { return e.chartEntry?.code ? '' : e.kind === 'reversal' ? String(e.memo).replace(/^Reversal: /, '') : e.memo; }
 
 /** The patient's account: what is owed, how old it is, and every entry in order. Entries are never edited; a mistake is a new reversing entry. */
 export default async function PatientLedgerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +29,7 @@ export default async function PatientLedgerPage({ params }: { params: Promise<{ 
   const [d, tz] = await Promise.all([q<any>(`query($id: ID!) {
     patient(where: { id: $id }) { id chartNumber firstName lastName homeLocation { id code } }
     ledgerEntries(where: { patient: { id: { equals: $id } } }, orderBy: [{ businessDate: desc }, { createdAt: desc }], take: 200) {
-      id kind amountMinor businessDate memo reverses { id } provider { abbreviation } location { code } adjustment { id }
+      id kind amountMinor businessDate memo reverses { id } provider { displayName } location { code } adjustment { type { name } } chartEntry { tooth surfaces code { nomenclature patientFriendlyName } }
     }
     guarantorAccounts(where: { guarantor: { links: { some: { patient: { id: { equals: $id } }, status: { equals: "active" } } } } }, take: 1) { id ref balanceCache }
     adjustmentTypes(where: { isActive: { equals: true } }, orderBy: { name: asc }) { id name direction approvalThresholdMinor requiresApproval }
@@ -48,22 +63,29 @@ export default async function PatientLedgerPage({ params }: { params: Promise<{ 
       ) : null}
       <Section title="Entries">
         {entries.length ? (
-          <ScrollX>
-            <div className="min-w-[34rem] space-y-1">
-              {entries.map((e) => {
-                const amount = BigInt(e.amountMinor);
-                const isReversal = e.kind === 'reversal';
-                return (
-                  <Row key={e.id} className="flex-nowrap items-start">
-                    <span className="w-24 shrink-0 text-sm tabular-nums">{calendarDate(e.businessDate, 'date')}</span>
-                    <span className="min-w-0 flex-1"><TitleLine>{isReversal ? 'Reversal' : KIND_WORDS[e.kind] ?? title(e.kind)}{reversed.has(e.id) ? ' (reversed)' : ''}</TitleLine><br /><Meta>{e.memo}{e.provider?.abbreviation ? ` · ${e.provider.abbreviation}` : ''}</Meta></span>
-                    <span className={`w-24 shrink-0 text-right font-medium tabular-nums ${amount < 0n ? 'text-emerald-700' : ''}`}>{money(e.amountMinor)}</span>
-                    {['patient_adjustment', 'insurance_adjustment'].includes(e.kind) && !reversed.has(e.id) ? <ActionButton op="reverseLedgerEntry" vars={{ entryId: e.id }} ask="Why is this entry being reversed?" confirm="Post a reversing entry?" paths={paths}>Reverse</ActionButton> : <span className="w-16" />}
-                  </Row>
-                );
-              })}
-            </div>
-          </ScrollX>
+          <div className="space-y-1">
+            {entries.map((e, i) => {
+              const amount = BigInt(e.amountMinor);
+              const after = BigInt(cache.totalMinor ?? '0') - entries.slice(0, i).reduce((sum, x) => sum + BigInt(x.amountMinor), 0n);
+              const isReversal = e.kind === 'reversal';
+              const canReverse = ['patient_adjustment', 'insurance_adjustment'].includes(e.kind) && !reversed.has(e.id);
+              return (
+                <Row key={e.id} className="items-start">
+                  <span className="min-w-0 flex-1 break-words">
+                    <span className="flex items-baseline justify-between gap-3">
+                      <TitleLine>{entryTitle(e, isReversal)}{reversed.has(e.id) ? ' (reversed)' : ''}</TitleLine>
+                      <span className={`shrink-0 font-medium tabular-nums ${amount < 0n ? 'text-emerald-700' : ''}`}>{money(e.amountMinor)}</span>
+                    </span>
+                    <span className="flex items-baseline justify-between gap-3">
+                      <Meta>{calendarDate(e.businessDate, 'date')}{e.provider?.displayName ? ` · ${e.provider.displayName}` : ''}{entryNote(e) ? ` · ${entryNote(e)}` : ''}</Meta>
+                      <Meta><span className="shrink-0 tabular-nums">Balance {money(String(after))}</span></Meta>
+                    </span>
+                    {canReverse ? <span className="mt-1 block"><ActionButton op="reverseLedgerEntry" vars={{ entryId: e.id }} ask="Why is this entry being reversed?" confirm="Post a reversing entry?" paths={paths}>Reverse</ActionButton></span> : null}
+                  </span>
+                </Row>
+              );
+            })}
+          </div>
         ) : <Empty>No charges or payments yet.</Empty>}
       </Section>
       {account ? (

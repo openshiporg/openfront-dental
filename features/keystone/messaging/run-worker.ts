@@ -13,6 +13,9 @@ async function main() {
       try {
         const summary = await runWorkerTick(db)
         log.info('worker tick', summary)
+        // Heartbeat for /api/health: fresh for 60s after each tick.
+        const expiresAt = new Date(Date.now() + 60_000)
+        await db.lease.upsert({ where: { key: 'heartbeat:worker' }, create: { key: 'heartbeat:worker', owner: 'worker', expiresAt }, update: { expiresAt } })
       } catch (error) {
         // A failed tick must not stop the loop; the next one retries under the same leases.
         log.error('worker tick failed', { error })

@@ -4,6 +4,7 @@ import * as clinical from './clinical'
 import * as forms from './forms'
 import * as plans from './plans'
 import * as insurance from './insurance'
+import * as claims from './claims'
 import * as ledger from './ledger'
 import { PHASE2_ARGS } from './phase2Args'
 
@@ -68,6 +69,21 @@ const RESOLVERS: Record<string, Resolver> = {
   requestAdjustment: ledger.requestAdjustment,
   reverseLedgerEntry: ledger.reverseLedgerEntry,
   rebuildAccountBalance: ledger.rebuildAccountBalance,
+  buildClaim: claims.createClaim,
+  scrubClaim: claims.scrubClaimCommand,
+  overrideScrub: claims.overrideScrub,
+  releaseClaim: claims.releaseClaim,
+  correctClaim: claims.correctClaim,
+  voidClaim: claims.voidClaim,
+  addClaimAttachment: claims.addClaimAttachment,
+  saveClaimNarrative: claims.saveClaimNarrative,
+  requestClaimStatus: claims.requestClaimStatus,
+  enterManualEob: claims.enterManualEob,
+  matchRemittance: claims.matchRemittance,
+  startDenialWork: claims.startDenialWork,
+  resolveDenial: claims.resolveDenial,
+  fileAppeal: claims.fileAppeal,
+  recordAppealOutcome: claims.recordAppealOutcome,
 }
 
 export const PHASE2_OPS = Object.fromEntries(Object.entries(PHASE2_ARGS).map(([name, args]) => [name, { args, fn: RESOLVERS[name] }]))

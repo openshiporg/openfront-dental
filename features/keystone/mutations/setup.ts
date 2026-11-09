@@ -3,6 +3,7 @@ import { command } from '../lib/command'
 import { seedPracticePlatform } from '../seed/platform'
 import { seedPhase3 } from '../seed/insurance'
 import { seedLedger } from '../seed/ledger'
+import { seedClaimReference, seedClaimSample } from '../seed/claims'
 
 /** Onboarding: load the Bayview Family Dental sample practice (synthetic data). Idempotent per key and per record. */
 export async function loadPracticeSetup(_root: unknown, args: { idempotencyKey: string }, context: any) {
@@ -12,5 +13,6 @@ export async function loadPracticeSetup(_root: unknown, args: { idempotencyKey: 
   // Insurance sample data runs in its own transaction: the base load already uses most of the time budget.
   const insurance = await command(context.prisma, { name: 'setup.load_insurance', actor, idempotencyKey: `${args.idempotencyKey}:insurance`, params: {} }, uow => seedPhase3(uow, actor))
   const ledger = await command(context.prisma, { name: 'setup.load_ledger', actor, idempotencyKey: `${args.idempotencyKey}:ledger`, params: {} }, uow => seedLedger(uow))
-  return { replay: result.replay, created: { ...result.value, ...insurance.value, ...ledger.value } }
+  const claimsSeed = await command(context.prisma, { name: 'setup.load_claims', actor, idempotencyKey: `${args.idempotencyKey}:claims`, params: {} }, async uow => ({ ...(await seedClaimReference(uow.tx as never)), ...(await seedClaimSample(uow.tx as never)) }))
+  return { replay: result.replay, created: { ...result.value, ...insurance.value, ...ledger.value, ...claimsSeed.value } }
 }

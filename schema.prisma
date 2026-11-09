@@ -93,6 +93,9 @@ model User {
   from_DayClose_closedBy                  DayClose[]               @relation("DayClose_closedBy")
   from_PeriodClose_closedBy               PeriodClose[]            @relation("PeriodClose_closedBy")
   from_Restatement_approvedBy             Restatement[]            @relation("Restatement_approvedBy")
+  from_ClaimVersion_releasedBy            ClaimVersion[]           @relation("ClaimVersion_releasedBy")
+  from_Denial_assignedTo                  Denial[]                 @relation("Denial_assignedTo")
+  from_PaymentPosting_postedBy            PaymentPosting[]         @relation("PaymentPosting_postedBy")
 
   @@index([roleId])
 }
@@ -341,17 +344,19 @@ model AuditEvent {
 }
 
 model BillingEntity {
-  id                        String     @id @default(cuid())
-  legalName                 String     @default("")
-  tinLast4                  String     @default("")
-  tinSecretId               String     @default("")
-  npiType2                  String     @default("")
-  address                   Json?      @default("{}")
-  payToAddress              Json?      @default("{}")
-  clearinghouseSubmitterIds Json?      @default("{}")
-  locations                 Location[] @relation("Location_billingEntity")
-  createdAt                 DateTime   @default(now())
-  updatedAt                 DateTime   @default(now()) @updatedAt
+  id                                 String            @id @default(cuid())
+  legalName                          String            @default("")
+  tinLast4                           String            @default("")
+  tinSecretId                        String            @default("")
+  npiType2                           String            @default("")
+  address                            Json?             @default("{}")
+  payToAddress                       Json?             @default("{}")
+  clearinghouseSubmitterIds          Json?             @default("{}")
+  locations                          Location[]        @relation("Location_billingEntity")
+  createdAt                          DateTime          @default(now())
+  updatedAt                          DateTime          @default(now()) @updatedAt
+  from_Claim_billingEntity           Claim[]           @relation("Claim_billingEntity")
+  from_PayerEnrollment_billingEntity PayerEnrollment[] @relation("PayerEnrollment_billingEntity")
 }
 
 model BreakGlassEvent {
@@ -470,22 +475,25 @@ model Document {
 }
 
 model InboundObservation {
-  id                                String             @id @default(cuid())
-  source                            String             @default("")
-  kind                              String
-  externalId                        String             @default("")
-  contentHash                       String             @default("")
-  raw                               Document?          @relation("InboundObservation_raw", fields: [rawId], references: [id])
-  rawId                             String?            @map("raw")
-  rawSecretId                       String             @default("")
-  receivedAt                        DateTime?          @default(now())
-  appliedAt                         DateTime?
-  applyResult                       Json?
-  isSynthetic                       Boolean            @default(false)
-  createdAt                         DateTime           @default(now())
-  updatedAt                         DateTime           @default(now()) @updatedAt
-  from_BenefitFact_rawObservation   BenefitFact[]      @relation("BenefitFact_rawObservation")
-  from_EligibilityCheck_observation EligibilityCheck[] @relation("EligibilityCheck_observation")
+  id                                    String                 @id @default(cuid())
+  source                                String                 @default("")
+  kind                                  String
+  externalId                            String                 @default("")
+  contentHash                           String                 @default("")
+  raw                                   Document?              @relation("InboundObservation_raw", fields: [rawId], references: [id])
+  rawId                                 String?                @map("raw")
+  rawSecretId                           String                 @default("")
+  receivedAt                            DateTime?              @default(now())
+  appliedAt                             DateTime?
+  applyResult                           Json?
+  isSynthetic                           Boolean                @default(false)
+  createdAt                             DateTime               @default(now())
+  updatedAt                             DateTime               @default(now()) @updatedAt
+  from_BenefitFact_rawObservation       BenefitFact[]          @relation("BenefitFact_rawObservation")
+  from_EligibilityCheck_observation     EligibilityCheck[]     @relation("EligibilityCheck_observation")
+  from_ClaimAcknowledgement_observation ClaimAcknowledgement[] @relation("ClaimAcknowledgement_observation")
+  from_ClaimStatusInquiry_observation   ClaimStatusInquiry[]   @relation("ClaimStatusInquiry_observation")
+  from_Remittance_observation           Remittance[]           @relation("Remittance_observation")
 
   @@index([source])
   @@index([rawId])
@@ -596,6 +604,7 @@ model Location {
   from_AdjustmentRequest_location    AdjustmentRequest[]    @relation("AdjustmentRequest_location")
   from_DayClose_location             DayClose[]             @relation("DayClose_location")
   from_PeriodClose_location          PeriodClose[]          @relation("PeriodClose_location")
+  from_Claim_location                Claim[]                @relation("Claim_location")
 
   @@index([jurisdictionId])
   @@index([billingEntityId])
@@ -750,6 +759,8 @@ model ProviderProfile {
   from_ClinicalNote_provider          ClinicalNote[]       @relation("ClinicalNote_provider")
   from_PerioExam_examiner             PerioExam[]          @relation("PerioExam_examiner")
   from_Prescription_prescriber        Prescription[]       @relation("Prescription_prescriber")
+  from_Claim_renderingProvider        Claim[]              @relation("Claim_renderingProvider")
+  from_PayerEnrollment_provider       PayerEnrollment[]    @relation("PayerEnrollment_provider")
 }
 
 model RateLimitBucket {
@@ -1096,6 +1107,7 @@ model Patient {
   from_OutsideHistory_patient            OutsideHistory[]         @relation("OutsideHistory_patient")
   from_Subscriber_patient                Subscriber[]             @relation("Subscriber_patient")
   from_AdjustmentRequest_patient         AdjustmentRequest[]      @relation("AdjustmentRequest_patient")
+  from_Claim_patient                     Claim[]                  @relation("Claim_patient")
 
   @@index([mergedIntoId])
   @@index([familyId])
@@ -1894,6 +1906,10 @@ model LedgerEntry {
   dayCloseId                          String?             @map("dayClose")
   restatement                         Restatement?        @relation("LedgerEntry_restatement", fields: [restatementId], references: [id])
   restatementId                       String?             @map("restatement")
+  paymentPosting                      PaymentPosting?     @relation("LedgerEntry_paymentPosting", fields: [paymentPostingId], references: [id])
+  paymentPostingId                    String?             @map("paymentPosting")
+  claim                               Claim?              @relation("LedgerEntry_claim", fields: [claimId], references: [id])
+  claimId                             String?             @map("claim")
   memo                                String              @default("")
   postedBy                            User?               @relation("LedgerEntry_postedBy", fields: [postedById], references: [id])
   postedById                          String?             @map("postedBy")
@@ -1915,6 +1931,8 @@ model LedgerEntry {
   @@index([adjustmentId])
   @@index([dayCloseId])
   @@index([restatementId])
+  @@index([paymentPostingId])
+  @@index([claimId])
   @@index([postedById])
 }
 
@@ -1946,6 +1964,8 @@ model ProcedureCode {
   from_ChartEntry_code                   ChartEntry[]             @relation("ChartEntry_code")
   from_BenefitRule_downgradeToCode       BenefitRule[]            @relation("BenefitRule_downgradeToCode")
   from_OutsideHistory_code               OutsideHistory[]         @relation("OutsideHistory_code")
+  from_ClaimLine_code                    ClaimLine[]              @relation("ClaimLine_code")
+  from_ClaimLine_localCode               ClaimLine[]              @relation("ClaimLine_localCode")
 
   @@unique([codeSystemId, code, effectiveFrom], map: "ProcedureCode_system_code_from_key")
   @@index([codeSystemId])
@@ -2049,6 +2069,7 @@ model ChartEntry {
   from_ChartEntry_correctedBy       ChartEntry[]        @relation("ChartEntry_correctedBy")
   from_ChartEntry_corrects          ChartEntry[]        @relation("ChartEntry_corrects")
   from_TreatmentPlanItem_chartEntry TreatmentPlanItem[] @relation("TreatmentPlanItem_chartEntry")
+  from_ClaimLine_chartEntry         ClaimLine[]         @relation("ClaimLine_chartEntry")
 
   @@index([patientId])
   @@index([codeId])
@@ -2787,6 +2808,7 @@ model Coverage {
   from_BenefitUsage_coverage     BenefitUsage[]        @relation("BenefitUsage_coverage")
   from_EligibilityCheck_coverage EligibilityCheck[]    @relation("EligibilityCheck_coverage")
   from_Estimate_coverage         Estimate[]            @relation("Estimate_coverage")
+  from_Claim_coverage            Claim[]               @relation("Claim_coverage")
 
   @@index([patientId])
   @@index([subscriberId])
@@ -2928,19 +2950,21 @@ model OutsideHistory {
 }
 
 model Payer {
-  id                       String          @id @default(cuid())
-  name                     String          @default("")
-  kind                     String
-  adapterPayerIds          Json?           @default("{}")
-  phone                    String          @default("")
-  portalUrl                String          @default("")
-  timelyFilingDays         Int?            @default(365)
-  attachmentNetwork        String          @default("")
-  notes                    String          @default("")
-  isSynthetic              Boolean         @default(false)
-  createdAt                DateTime        @default(now())
-  updatedAt                DateTime        @default(now()) @updatedAt
-  from_InsurancePlan_payer InsurancePlan[] @relation("InsurancePlan_payer")
+  id                         String            @id @default(cuid())
+  name                       String            @default("")
+  kind                       String
+  adapterPayerIds            Json?             @default("{}")
+  phone                      String            @default("")
+  portalUrl                  String            @default("")
+  timelyFilingDays           Int?              @default(365)
+  attachmentNetwork          String            @default("")
+  notes                      String            @default("")
+  isSynthetic                Boolean           @default(false)
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @default(now()) @updatedAt
+  from_InsurancePlan_payer   InsurancePlan[]   @relation("InsurancePlan_payer")
+  from_PayerEnrollment_payer PayerEnrollment[] @relation("PayerEnrollment_payer")
+  from_Remittance_payer      Remittance[]      @relation("Remittance_payer")
 }
 
 model Subscriber {
@@ -3099,6 +3123,366 @@ model Restatement {
 
   @@index([periodCloseId])
   @@index([approvedById])
+}
+
+model Appeal {
+  id           String    @id @default(cuid())
+  denial       Denial?   @relation("Appeal_denial", fields: [denialId], references: [id])
+  denialId     String?   @map("denial")
+  level        Int       @default(1)
+  letter       String    @default("")
+  submittedVia String
+  submittedAt  DateTime?
+  outcome      String    @default("pending")
+  decidedAt    DateTime?
+  version      Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  @@index([denialId])
+}
+
+model Claim {
+  id                            String                 @id @default(cuid())
+  ref                           String                 @unique @default("")
+  kind                          String
+  patient                       Patient?               @relation("Claim_patient", fields: [patientId], references: [id])
+  patientId                     String?                @map("patient")
+  coverage                      Coverage?              @relation("Claim_coverage", fields: [coverageId], references: [id])
+  coverageId                    String?                @map("coverage")
+  location                      Location?              @relation("Claim_location", fields: [locationId], references: [id])
+  locationId                    String?                @map("location")
+  billingEntity                 BillingEntity?         @relation("Claim_billingEntity", fields: [billingEntityId], references: [id])
+  billingEntityId               String?                @map("billingEntity")
+  renderingProvider             ProviderProfile?       @relation("Claim_renderingProvider", fields: [renderingProviderId], references: [id])
+  renderingProviderId           String?                @map("renderingProvider")
+  placeOfServiceCode            String                 @default("")
+  status                        String                 @default("draft")
+  adjudicationOutcome           String                 @default("")
+  currentVersion                ClaimVersion?          @relation("Claim_currentVersion", fields: [currentVersionId], references: [id])
+  currentVersionId              String?                @map("currentVersion")
+  versions                      ClaimVersion[]         @relation("ClaimVersion_claim")
+  lines                         ClaimLine[]            @relation("ClaimLine_claim")
+  attachments                   ClaimAttachment[]      @relation("ClaimAttachment_claim")
+  scrubResults                  ClaimScrubResult[]     @relation("ClaimScrubResult_claim")
+  acknowledgements              ClaimAcknowledgement[] @relation("ClaimAcknowledgement_claim")
+  payerClaimControlNumber       String                 @default("")
+  patientControlNumber          String                 @unique @default("")
+  clearinghouseRefs             Json?                  @default("{}")
+  totalChargeMinor              BigInt                 @default(0)
+  timelyFilingDeadline          DateTime?              @postgresql.Date
+  submittedAt                   DateTime?
+  adjudicatedAt                 DateTime?
+  recouped                      Boolean                @default(false)
+  primaryClaim                  Claim?                 @relation("Claim_primaryClaim", fields: [primaryClaimId], references: [id])
+  primaryClaimId                String?                @map("primaryClaim")
+  primaryAdjudicationSnapshot   Json?                  @default("{}")
+  narrative                     String                 @default("")
+  version                       Int                    @default(0)
+  createdAt                     DateTime               @default(now())
+  updatedAt                     DateTime               @default(now()) @updatedAt
+  from_LedgerEntry_claim        LedgerEntry[]          @relation("LedgerEntry_claim")
+  from_Claim_primaryClaim       Claim[]                @relation("Claim_primaryClaim")
+  from_ClaimStatusInquiry_claim ClaimStatusInquiry[]   @relation("ClaimStatusInquiry_claim")
+  from_Denial_claim             Denial[]               @relation("Denial_claim")
+  from_RemittanceClaim_claim    RemittanceClaim[]      @relation("RemittanceClaim_claim")
+
+  @@index([patientId])
+  @@index([coverageId])
+  @@index([locationId])
+  @@index([billingEntityId])
+  @@index([renderingProviderId])
+  @@index([currentVersionId])
+  @@index([primaryClaimId])
+}
+
+model ClaimAcknowledgement {
+  id            String              @id @default(cuid())
+  claim         Claim?              @relation("ClaimAcknowledgement_claim", fields: [claimId], references: [id])
+  claimId       String?             @map("claim")
+  versionNumber Int                 @default(0)
+  source        String
+  senderName    String              @default("")
+  outcome       String
+  statusCodes   Json?               @default("[]")
+  errors        Json?               @default("[]")
+  observation   InboundObservation? @relation("ClaimAcknowledgement_observation", fields: [observationId], references: [id])
+  observationId String?             @map("observation")
+  at            DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @default(now()) @updatedAt
+
+  @@index([claimId])
+  @@index([observationId])
+}
+
+model ClaimAttachment {
+  id                   String   @id @default(cuid())
+  claim                Claim?   @relation("ClaimAttachment_claim", fields: [claimId], references: [id])
+  claimId              String?  @map("claim")
+  kind                 String
+  route                String
+  description          String   @default("")
+  externalAttachmentId String   @default("")
+  trackingNumber       String   @default("")
+  status               String   @default("draft")
+  version              Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
+
+  @@index([claimId])
+}
+
+model ClaimLine {
+  id                            String           @id @default(cuid())
+  claim                         Claim?           @relation("ClaimLine_claim", fields: [claimId], references: [id])
+  claimId                       String?          @map("claim")
+  chartEntry                    ChartEntry?      @relation("ClaimLine_chartEntry", fields: [chartEntryId], references: [id])
+  chartEntryId                  String?          @map("chartEntry")
+  code                          ProcedureCode?   @relation("ClaimLine_code", fields: [codeId], references: [id])
+  codeId                        String?          @map("code")
+  localCode                     ProcedureCode?   @relation("ClaimLine_localCode", fields: [localCodeId], references: [id])
+  localCodeId                   String?          @map("localCode")
+  tooth                         String           @default("")
+  surfaces                      String           @default("")
+  dateOfService                 DateTime?        @postgresql.Date
+  units                         Int              @default(1)
+  feeMinor                      BigInt           @default(0)
+  allowedMinor                  BigInt           @default(0)
+  paidMinor                     BigInt           @default(0)
+  patientRespMinor              BigInt           @default(0)
+  lineControlNumber             String           @default("")
+  status                        String           @default("pending")
+  version                       Int              @default(0)
+  createdAt                     DateTime         @default(now())
+  updatedAt                     DateTime         @default(now()) @updatedAt
+  from_Denial_claimLine         Denial[]         @relation("Denial_claimLine")
+  from_RemittanceLine_claimLine RemittanceLine[] @relation("RemittanceLine_claimLine")
+
+  @@index([claimId])
+  @@index([chartEntryId])
+  @@index([codeId])
+  @@index([localCodeId])
+}
+
+model ClaimScrubResult {
+  id             String    @id @default(cuid())
+  claim          Claim?    @relation("ClaimScrubResult_claim", fields: [claimId], references: [id])
+  claimId        String?   @map("claim")
+  versionNumber  Int       @default(0)
+  rulesetVersion String    @default("")
+  ranAt          DateTime?
+  findings       Json?     @default("[]")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  @@index([claimId])
+}
+
+model ClaimStatusInquiry {
+  id              String              @id @default(cuid())
+  claim           Claim?              @relation("ClaimStatusInquiry_claim", fields: [claimId], references: [id])
+  claimId         String?             @map("claim")
+  status          String              @default("queued")
+  responseSummary Json?               @default("{}")
+  observation     InboundObservation? @relation("ClaimStatusInquiry_observation", fields: [observationId], references: [id])
+  observationId   String?             @map("observation")
+  version         Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @default(now()) @updatedAt
+
+  @@index([claimId])
+  @@index([observationId])
+}
+
+model ClaimVersion {
+  id                        String    @id @default(cuid())
+  claim                     Claim?    @relation("ClaimVersion_claim", fields: [claimId], references: [id])
+  claimId                   String?   @map("claim")
+  number                    Int
+  frequency                 String
+  payload                   Json?     @default("{}")
+  payloadHash               String    @default("")
+  idempotencyKey            String    @default("")
+  releasedBy                User?     @relation("ClaimVersion_releasedBy", fields: [releasedById], references: [id])
+  releasedById              String?   @map("releasedBy")
+  releasedAt                DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @default(now()) @updatedAt
+  from_Claim_currentVersion Claim[]   @relation("Claim_currentVersion")
+
+  @@index([claimId])
+  @@index([releasedById])
+}
+
+model Denial {
+  id               String          @id @default(cuid())
+  claim            Claim?          @relation("Denial_claim", fields: [claimId], references: [id])
+  claimId          String?         @map("claim")
+  claimLine        ClaimLine?      @relation("Denial_claimLine", fields: [claimLineId], references: [id])
+  claimLineId      String?         @map("claimLine")
+  remittanceLine   RemittanceLine? @relation("Denial_remittanceLine", fields: [remittanceLineId], references: [id])
+  remittanceLineId String?         @map("remittanceLine")
+  carc             String          @default("")
+  rarc             Json?           @default("[]")
+  preventableClass String
+  status           String          @default("open")
+  assignedTo       User?           @relation("Denial_assignedTo", fields: [assignedToId], references: [id])
+  assignedToId     String?         @map("assignedTo")
+  amountMinor      BigInt          @default(0)
+  resolutionNote   String          @default("")
+  appeals          Appeal[]        @relation("Appeal_denial")
+  version          Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @default(now()) @updatedAt
+
+  @@index([claimId])
+  @@index([claimLineId])
+  @@index([remittanceLineId])
+  @@index([assignedToId])
+}
+
+model DenialReasonMap {
+  id               String   @id @default(cuid())
+  carc             String   @default("")
+  rarc             String   @default("")
+  preventableClass String
+  suggestedAction  String   @default("")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+}
+
+model PayerEnrollment {
+  id              String           @id @default(cuid())
+  billingEntity   BillingEntity?   @relation("PayerEnrollment_billingEntity", fields: [billingEntityId], references: [id])
+  billingEntityId String?          @map("billingEntity")
+  provider        ProviderProfile? @relation("PayerEnrollment_provider", fields: [providerId], references: [id])
+  providerId      String?          @map("provider")
+  payer           Payer?           @relation("PayerEnrollment_payer", fields: [payerId], references: [id])
+  payerId         String?          @map("payer")
+  adapterKey      String           @default("")
+  transaction     String
+  status          String           @default("draft")
+  externalId      String           @default("")
+  notes           String           @default("")
+  version         Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+
+  @@index([billingEntityId])
+  @@index([providerId])
+  @@index([payerId])
+}
+
+model PaymentPosting {
+  id                String           @id @default(cuid())
+  remittance        Remittance?      @relation("PaymentPosting_remittance", fields: [remittanceId], references: [id])
+  remittanceId      String?          @map("remittance")
+  remittanceClaim   RemittanceClaim? @relation("PaymentPosting_remittanceClaim", fields: [remittanceClaimId], references: [id])
+  remittanceClaimId String?          @map("remittanceClaim")
+  postedBy          User?            @relation("PaymentPosting_postedBy", fields: [postedById], references: [id])
+  postedById        String?          @map("postedBy")
+  at                DateTime?
+  status            String           @default("posted")
+  entries           LedgerEntry[]    @relation("LedgerEntry_paymentPosting")
+  version           Int              @default(0)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @default(now()) @updatedAt
+
+  @@index([remittanceId])
+  @@index([remittanceClaimId])
+  @@index([postedById])
+}
+
+model Remittance {
+  id                             String              @id @default(cuid())
+  ref                            String              @unique @default("")
+  payer                          Payer?              @relation("Remittance_payer", fields: [payerId], references: [id])
+  payerId                        String?             @map("payer")
+  source                         String
+  adapterKey                     String              @default("")
+  traceNumber                    String              @default("")
+  paymentMethod                  String
+  paymentDate                    DateTime?           @postgresql.Date
+  totalPaidMinor                 BigInt              @default(0)
+  status                         String              @default("received")
+  postedCompleteness             String              @default("")
+  exceptionNote                  String              @default("")
+  duplicateOf                    Remittance?         @relation("Remittance_duplicateOf", fields: [duplicateOfId], references: [id])
+  duplicateOfId                  String?             @map("duplicateOf")
+  observation                    InboundObservation? @relation("Remittance_observation", fields: [observationId], references: [id])
+  observationId                  String?             @map("observation")
+  providerAdjustments            Json?               @default("[]")
+  claims                         RemittanceClaim[]   @relation("RemittanceClaim_remittance")
+  version                        Int                 @default(0)
+  createdAt                      DateTime            @default(now())
+  updatedAt                      DateTime            @default(now()) @updatedAt
+  from_PaymentPosting_remittance PaymentPosting[]    @relation("PaymentPosting_remittance")
+  from_Remittance_duplicateOf    Remittance[]        @relation("Remittance_duplicateOf")
+
+  @@index([payerId])
+  @@index([duplicateOfId])
+  @@index([observationId])
+}
+
+model RemittanceClaim {
+  id                                  String           @id @default(cuid())
+  remittance                          Remittance?      @relation("RemittanceClaim_remittance", fields: [remittanceId], references: [id])
+  remittanceId                        String?          @map("remittance")
+  claim                               Claim?           @relation("RemittanceClaim_claim", fields: [claimId], references: [id])
+  claimId                             String?          @map("claim")
+  patientControlNumber                String           @default("")
+  payerClaimControlNumber             String           @default("")
+  claimStatusCode                     String           @default("")
+  chargeMinor                         BigInt           @default(0)
+  paidMinor                           BigInt           @default(0)
+  patientRespMinor                    BigInt           @default(0)
+  crossoverCarrier                    Json?            @default("{}")
+  lines                               RemittanceLine[] @relation("RemittanceLine_remittanceClaim")
+  createdAt                           DateTime         @default(now())
+  updatedAt                           DateTime         @default(now()) @updatedAt
+  from_PaymentPosting_remittanceClaim PaymentPosting[] @relation("PaymentPosting_remittanceClaim")
+
+  @@index([remittanceId])
+  @@index([claimId])
+}
+
+model RemittanceLine {
+  id                         String           @id @default(cuid())
+  remittanceClaim            RemittanceClaim? @relation("RemittanceLine_remittanceClaim", fields: [remittanceClaimId], references: [id])
+  remittanceClaimId          String?          @map("remittanceClaim")
+  claimLine                  ClaimLine?       @relation("RemittanceLine_claimLine", fields: [claimLineId], references: [id])
+  claimLineId                String?          @map("claimLine")
+  code                       String           @default("")
+  tooth                      String           @default("")
+  dateOfService              DateTime?        @postgresql.Date
+  lineControlNumber          String           @default("")
+  chargeMinor                BigInt           @default(0)
+  allowedMinor               BigInt           @default(0)
+  paidMinor                  BigInt           @default(0)
+  adjustmentsTotalMinor      BigInt           @default(0)
+  adjustments                Json?            @default("[]")
+  rarc                       Json?            @default("[]")
+  conservationOk             Boolean          @default(false)
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @default(now()) @updatedAt
+  from_Denial_remittanceLine Denial[]         @relation("Denial_remittanceLine")
+
+  @@index([remittanceClaimId])
+  @@index([claimLineId])
+}
+
+model ScrubRule {
+  id             String   @id @default(cuid())
+  key            String   @unique @default("")
+  kind           String
+  appliesTo      Json?    @default("{}")
+  severity       String
+  message        String   @default("")
+  isActive       Boolean  @default(true)
+  rulesetVersion String   @default("")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
 }
 
 enum UserKindType {

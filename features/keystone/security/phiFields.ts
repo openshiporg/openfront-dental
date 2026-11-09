@@ -107,6 +107,18 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   GuarantorAccount: { balanceCache: 'fin' },
   AdjustmentRequest: { amountMinor: 'fin', reason: 'fin' },
   DayClose: { daySheet: 'fin' },
+  Claim: { totalChargeMinor: 'ins', narrative: 'ins', primaryAdjudicationSnapshot: 'ins', clearinghouseRefs: 'ins' },
+  ClaimVersion: { payload: 'ins' },
+  ClaimLine: { feeMinor: 'ins', allowedMinor: 'ins', paidMinor: 'ins', patientRespMinor: 'ins', tooth: 'ins', surfaces: 'ins' },
+  ClaimAttachment: { description: 'ins' },
+  ClaimScrubResult: { findings: 'ins' },
+  ClaimAcknowledgement: { errors: 'ins', statusCodes: 'ins' },
+  ClaimStatusInquiry: { responseSummary: 'ins' },
+  Remittance: { totalPaidMinor: 'fin', exceptionNote: 'fin', providerAdjustments: 'fin' },
+  RemittanceClaim: { chargeMinor: 'fin', paidMinor: 'fin', patientRespMinor: 'fin', crossoverCarrier: 'fin' },
+  RemittanceLine: { chargeMinor: 'fin', allowedMinor: 'fin', paidMinor: 'fin', adjustmentsTotalMinor: 'fin', adjustments: 'fin', rarc: 'fin' },
+  Denial: { amountMinor: 'ins', rarc: 'ins', resolutionNote: 'ins' },
+  Appeal: { letter: 'ins' },
 }
 
 /** Every PHI field name, for log redaction (field names only, never values). */

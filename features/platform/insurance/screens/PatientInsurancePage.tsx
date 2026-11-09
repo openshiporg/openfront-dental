@@ -72,7 +72,7 @@ function EstimateLine({ e, name, currentCoverageIds }: { e: any; name: string; c
 export default async function PatientInsurancePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [d, tz] = await Promise.all([q<any>(`query Ins($id: ID!) {
-    patient(where: { id: $id }) { id chartNumber firstName lastName }
+    patient(where: { id: $id }) { id chartNumber firstName lastName homeLocation { id } }
     coverages(where: { patient: { id: { equals: $id } } }, orderBy: [{ status: asc }, { ordinal: asc }]) {
       id ordinal relationship status verificationLevel version effectiveFrom effectiveTo
       subscriber { memberIdLast4 plan { id groupName planType networkStatus annualMaxMinor payer { name } } }
@@ -120,6 +120,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
             )) : <Empty>No benefits recorded. Insurance is not assumed to pay anything.</Empty>}
             {v?.tasks?.length ? <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Still to ask: {v.tasks.map((t: any) => STILL_TO_ASK[t.title] ?? t.title).join('; ')}</div> : null}
             <div className="flex flex-wrap gap-2">
+              {c.status === 'active' && d.patient.homeLocation?.id ? <ActionButton op="buildClaim" vars={{ patientId: id, coverageId: c.id, locationId: d.patient.homeLocation.id, kind: c.ordinal === 'primary' ? 'original' : c.ordinal === 'secondary' ? 'secondary' : 'tertiary' }} paths={paths} onDone={() => undefined}>Bill finished work</ActionButton> : null}
               {v && ['in_progress'].includes(v.status) ? <ActionButton op="completeVerification" vars={{ verificationId: v.id, expectedVersion: v.version }} paths={paths}>Finish verification</ActionButton> : <ActionButton op="requestVerification" vars={{ coverageId: c.id }} paths={paths}>Verify benefits</ActionButton>}
               {c.ordinal !== 'primary' ? <ActionButton op="setCoverageOrder" vars={{ coverageId: c.id, ordinal: 'primary' }} ask="Why is this now the primary plan?" paths={paths}>Make primary</ActionButton> : null}
               <ActionButton op="terminateCoverage" vars={{ coverageId: c.id, expectedVersion: c.version, endedOn: new Date().toISOString().slice(0, 10) }} ask="Why did this coverage end?" confirm="End this coverage today?" paths={paths}>End coverage</ActionButton>

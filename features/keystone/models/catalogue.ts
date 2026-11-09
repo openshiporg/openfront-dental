@@ -181,6 +181,8 @@ export const LedgerEntry = list({
     adjustment: relationship({ ref: 'AdjustmentRequest', ...readOnly }),
     dayClose: relationship({ ref: 'DayClose.entries', ...readOnly }),
     restatement: relationship({ ref: 'Restatement.entries', ...readOnly }),
+    paymentPosting: relationship({ ref: 'PaymentPosting.entries', ...readOnly }),
+    claim: relationship({ ref: 'Claim', ...readOnly }),
     memo: systemText(),
     postedBy: relationship({ ref: 'User', ...readOnly }),
     postedAt: timestamp({ ...readOnly }),

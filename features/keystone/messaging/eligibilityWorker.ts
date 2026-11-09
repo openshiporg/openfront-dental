@@ -20,7 +20,7 @@ import { openChecklist, CHECKLIST_BY_PLAN } from '../mutations/insurance'
 
 export type EligibilityDeps = { fetch?: typeof fetch; now?: () => Date }
 
-async function adapterContext(db: Db, installationId: string | null, mode: string, deps: EligibilityDeps): Promise<AdapterCtx> {
+export async function adapterContext(db: Db, installationId: string | null, mode: string, deps: EligibilityDeps): Promise<AdapterCtx> {
   const installation = await db.adapterInstallation.findFirst({ where: { area: 'clearinghouse', adapterKey: 'stedi' }, orderBy: { createdAt: 'asc' } })
   const config = (installation?.config ?? {}) as { transport?: string; baseUrl?: string; timeoutMs?: number }
   const ctx: AdapterCtx = { mode: mode as AdapterCtx['mode'], baseUrl: config.baseUrl, timeoutMs: config.timeoutMs ?? 15_000 }
