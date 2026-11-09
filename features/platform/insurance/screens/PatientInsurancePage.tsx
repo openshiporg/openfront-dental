@@ -109,8 +109,8 @@ export default async function PatientInsurancePage({ params }: { params: Promise
               <Stat name="Plan type" value={title(c.subscriber?.plan?.planType)} />
               <Stat name="Since" value={calendarDate(c.effectiveFrom, 'day') || '—'} />
             </div>
-            {c.verificationLevel === 'verified_electronic' ? <Meta>The payer answered electronically. Finish the verification once the questions below are asked.</Meta> : null}
-            {v?.eligibilityChecks?.length ? <Meta>Electronic check: {title(v.eligibilityChecks[0].status).toLowerCase()}{v.eligibilityChecks[0].resultNote ? ` · ${v.eligibilityChecks[0].resultNote}` : ''}</Meta> : null}
+            {c.verificationLevel === 'verified_electronic' ? <p className="min-w-0 break-words text-xs text-muted-foreground">The payer answered electronically. Finish the verification once the questions below are asked.</p> : null}
+            {v?.eligibilityChecks?.length ? <p className="min-w-0 break-words text-xs text-muted-foreground">Electronic check: {title(v.eligibilityChecks[0].status).toLowerCase()}{v.eligibilityChecks[0].resultNote ? ` · ${v.eligibilityChecks[0].resultNote}` : ''}</p> : null}
             {rows.length ? rows.map((f) => (
               <Row key={f.id} className="flex-nowrap items-start">
                 <span className="min-w-0 flex-1"><span className="font-medium">{fieldName(f.field)}</span>{categoryText(f.appliesTo) ? <Meta>{categoryText(f.appliesTo)}</Meta> : null}</span>
