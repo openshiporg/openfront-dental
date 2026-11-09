@@ -10,11 +10,13 @@ export default async function RemittancesPage() {
   const [d, tz] = await Promise.all([q<any>(`{
     remittances(orderBy: { createdAt: desc }, take: 40) { id ref status traceNumber paymentDate totalPaidMinor paymentMethod exceptionNote payer { name } createdAt }
     held: remittanceClaims(where: { claim: { id: { equals: null } } }, orderBy: { createdAt: desc }, take: 40) { id patientControlNumber paidMinor chargeMinor remittance { ref payer { name } } }
-    denials(where: { status: { in: ["open", "working"] } }, orderBy: { createdAt: asc }, take: 40) { id carc reasonText preventableClass status amountMinor claim { id ref patient { firstName lastName } } }
+    denials(where: { status: { in: ["open", "working"] } }, orderBy: { createdAt: asc }, take: 40) { id carc preventableClass status amountMinor claim { id ref patient { firstName lastName } } }
+    denialReasonMaps { carc suggestedAction }
     payers(orderBy: { name: asc }, take: 100) { id name }
     claims(where: { status: { in: ["acknowledged", "pending_payer"] } }, orderBy: { createdAt: asc }, take: 60) { id ref patient { firstName lastName } }
   }`), practiceTimeZone()]);
   const paths = ['/dashboard/platform/remittances'];
+  const advice = new Map<string, string>((d.denialReasonMaps as any[]).map((r) => [r.carc, r.suggestedAction]));
   return (
     <Page title="Insurance payments">
       <Section title="Waiting for a person">
@@ -30,7 +32,7 @@ export default async function RemittancesPage() {
       <Section title="Denied lines to work">
         {(d.denials as any[]).length ? (d.denials as any[]).map((n) => (
           <Row key={n.id} href={`/dashboard/platform/claims/${n.claim?.id}`} className="items-start">
-            <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine status={n.status}>{n.claim?.patient?.firstName} {n.claim?.patient?.lastName}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(n.amountMinor)}</span></span><Meta>{n.reasonText || `Reason ${n.carc}`} · {title(n.preventableClass)}</Meta></span>
+            <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine status={n.status}>{n.claim?.patient?.firstName} {n.claim?.patient?.lastName}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(n.amountMinor)}</span></span><Meta>{advice.get(n.carc) ?? `Payer reason ${n.carc}`} · {title(n.preventableClass)}</Meta></span>
           </Row>
         )) : <Empty>No open denials.</Empty>}
       </Section>

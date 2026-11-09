@@ -22,10 +22,12 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
       attachments { id kind route status description }
       versions(orderBy: { number: desc }) { id number frequency releasedAt }
     }
-    denials(where: { claim: { id: { equals: $id } } }) { id carc reasonText preventableClass status version amountMinor appeals { id level outcome } }
+    denials(where: { claim: { id: { equals: $id } } }) { id carc preventableClass status version amountMinor appeals { id level outcome } }
+    denialReasonMaps { carc suggestedAction }
   }`, { id }), practiceTimeZone()]);
   const c = d.claim;
   if (!c) notFound();
+  const advice = new Map<string, string>((d.denialReasonMaps as any[]).map((r) => [r.carc, r.suggestedAction]));
   const findings = (c.scrubResults[0]?.findings ?? []) as any[];
   const editable = ['draft', 'scrubbed', 'ready', 'rejected', 'correction_required'].includes(c.status);
   const paths = [`/dashboard/platform/claims/${id}`];
@@ -74,7 +76,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         <Section title="Denials">
           {(d.denials as any[]).map((n) => (
             <Row key={n.id} className="items-start">
-              <span className="min-w-0 flex-1"><TitleLine status={n.status}>{n.reasonText || `Reason ${n.carc}`}</TitleLine><Meta>{money(n.amountMinor)} · {title(n.preventableClass)}{n.appeals?.length ? ` · appeal level ${n.appeals.length}` : ''}</Meta></span>
+              <span className="min-w-0 flex-1"><TitleLine status={n.status}>{advice.get(n.carc) ?? `Payer reason ${n.carc}`}</TitleLine><Meta>{money(n.amountMinor)} · {title(n.preventableClass)}{n.appeals?.length ? ` · appeal level ${n.appeals.length}` : ''}</Meta></span>
               <span className="flex flex-wrap gap-2">
                 {n.status === 'open' ? <ActionButton op="startDenialWork" vars={{ denialId: n.id, expectedVersion: n.version }} paths={paths}>Start work</ActionButton> : null}
                 {['open', 'working'].includes(n.status) ? <ActionButton op="resolveDenial" vars={{ denialId: n.id, expectedVersion: n.version, resolution: 'written_off' }} ask="Why is this being written off?" paths={paths}>Write off</ActionButton> : null}
