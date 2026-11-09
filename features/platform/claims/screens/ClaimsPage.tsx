@@ -20,7 +20,7 @@ export default async function ClaimsPage({ searchParams }: { searchParams: Promi
       id ref kind status adjudicationOutcome totalChargeMinor timelyFilingDeadline
       patient { id firstName lastName } coverage { subscriber { plan { payer { name } } } }
     }
-    unmatched: remittanceClaimsCount(where: { claim: { id: { equals: null } } })
+    unmatched: remittanceClaimsCount(where: { claim: { is: null } })
   }`, { statuses: [...active[2]] });
   const claims = d.claims as any[];
   return (
