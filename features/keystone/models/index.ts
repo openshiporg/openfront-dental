@@ -28,11 +28,20 @@ const hideRefusedActions = (lists: Record<string, any>) =>
     return [key, { ...config, ui }]
   }))
 
+/**
+ * Every list query is bounded (`graphql.maxTake`): a caller cannot ask for every row of a table in one request,
+ * at the top level or on a nested relationship. Sizes cover the largest dashboard read (the schedule week view).
+ */
+const MAX_TAKE_DEFAULT = 1000
+const MAX_TAKE: Record<string, number> = { Appointment: 3000 }
+const boundTake = (lists: Record<string, any>) =>
+  Object.fromEntries(Object.entries(lists).map(([key, config]) => [key, config.isSingleton ? config : { ...config, graphql: { ...config.graphql, maxTake: config.graphql?.maxTake ?? MAX_TAKE[key] ?? MAX_TAKE_DEFAULT } }]))
+
 /** Only list configs (modules also export vocabularies such as OUTBOX_TOPICS). */
 const listsOf = (mod: Record<string, unknown>) =>
   Object.fromEntries(Object.entries(mod).filter(([, value]) => value && typeof value === 'object' && 'fields' in (value as object))) as Record<string, any>
 
-export const models = hideRefusedActions(applyPhiTiers({
+export const models = boundTake(hideRefusedActions(applyPhiTiers({
   User,
   Role,
   OAuthApp,
@@ -50,6 +59,6 @@ export const models = hideRefusedActions(applyPhiTiers({
   ...listsOf(clinical),
   ...listsOf(treatment),
   ...listsOf(insurance),
-}))
+})))
 
 export default models

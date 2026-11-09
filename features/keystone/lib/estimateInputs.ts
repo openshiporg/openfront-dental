@@ -52,6 +52,8 @@ export type LoadedCoverage = {
   verificationLevel: string
   /** A frequency limit was reported in words the estimator cannot read: a person must ask. */
   frequencyUnreadable: boolean
+  /** This coverage's frequency and waiting-period answers are both known (a value, or "none"): only then may it pay, as a secondary, on a line the primary refused. */
+  limitsKnown: boolean
 }
 
 export async function loadCoverageForEstimate(tx: Tx, coverageId: string, onDate: string): Promise<LoadedCoverage | null> {
@@ -104,6 +106,7 @@ export async function loadCoverageForEstimate(tx: Tx, coverageId: string, onDate
   return {
     coverageId, ordinal: coverage.ordinal, effectiveFrom: coverage.effectiveFrom ? dayOf(coverage.effectiveFrom) : null, cobMethod,
     factIds: facts.map(f => f.id), feeScheduleVersionId: version?.id ?? null, usageNotes, coveragePct: pct, verificationLevel: coverage.verificationLevel, frequencyUnreadable,
+    limitsKnown: known('frequency_limit').length > 0 && !frequencyUnreadable && known('waiting_period').length > 0,
     plan: { inNetwork: plan.networkStatus === 'in_network', annualMaxMinor: annualMax, deductibleMinor: deductible, coveragePct: pct, frequency, ageLimits: ages, waiting, missingTooth: missing, downgrade, deductibleCategories: ['basic', 'major'] },
     usage: { maxUsedMinor: maxUsed < 0n ? 0n : maxUsed, pendingMinor: 0n, deductibleMetMinor: dedMet < 0n ? 0n : dedMet, history: used },
   }

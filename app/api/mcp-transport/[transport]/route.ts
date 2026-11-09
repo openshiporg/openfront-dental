@@ -17,6 +17,7 @@ import { keystoneContext } from '@/features/keystone/context';
 import { authorizeMcpRequest } from '@/features/keystone/mcp-oauth/http';
 import { internalGraphqlEndpoint } from '@/features/keystone/lib/internal-origin';
 import { DOMAIN_TOOLS, runDomainTool } from '@/features/keystone/mcp/registry';
+import { buildSelection, boundedTake, SelectionError, MCP_MAX_TAKE } from '@/features/keystone/mcp/selection';
 
 // Get simple type name for display
 function getSimpleTypeName(type: any): string {
@@ -30,14 +31,14 @@ function getSimpleTypeName(type: any): string {
 }
 
 // Execute GraphQL query as the caller: their session cookie, or their MCP OAuth bearer token
-async function executeGraphQL(query: string, graphqlEndpoint: string, auth: Record<string, string>): Promise<any> {
+async function executeGraphQL(query: string, graphqlEndpoint: string, auth: Record<string, string>, variables?: Record<string, unknown>): Promise<any> {
   const response = await fetch(graphqlEndpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...auth,
     },
-    body: JSON.stringify({ query }),
+    body: JSON.stringify({ query, variables }),
   });
 
   const result = await response.json();
@@ -140,11 +141,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           properties: {
             operation: {
               type: 'string',
-              description: 'The GraphQL operation name (e.g., "users", "locations", "roles")'
+              description: 'The list query name (e.g., "users", "locations", "roles")'
             },
             fields: {
               type: 'string',
-              description: 'The fields to select (e.g., "id name email" or "id title description")'
+              description: 'Field names to select, with { } for related records (e.g., "id name" or "id patient { id }"). No arguments; at most 3 levels.'
+            },
+            take: {
+              type: 'number',
+              description: `How many records (1–${MCP_MAX_TAKE}, default 10)`
             }
           },
           required: ['operation', 'fields']
@@ -295,19 +300,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
         }
         
         if (name === 'queryData') {
-          const { operation, fields } = args;
-          
-          // Build a simple GraphQL query
-          const queryString = `
-            query ${operation.charAt(0).toUpperCase() + operation.slice(1)} {
-              ${operation} {
-                ${fields}
-              }
-            }
-          `.trim();
-          
-          // Execute the query
-          const result = await executeGraphQL(queryString, graphqlEndpoint, auth);
+          const { operation, fields, take } = args;
+          // The caller's field list is parsed and rebuilt from schema names, never spliced in (no where/orderBy/args).
+          let built;
+          try { built = buildSelection(schema, operation, fields); } catch (error) {
+            if (!(error instanceof SelectionError)) throw error;
+            return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32602, message: error.message } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          }
+          const queryString = `query McpQuery($take: Int!) { ${built.operation}(take: $take) { ${built.selection} } }`;
+          const result = await executeGraphQL(queryString, graphqlEndpoint, auth, { take: boundedTake(take) });
           
           return new Response(JSON.stringify({
             jsonrpc: '2.0',
@@ -547,6 +548,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
         
         if (name === 'modelSpecificSearch') {
           const { modelName, searchQuery, fields, limit = 10 } = args;
+          if (typeof searchQuery !== 'string' || searchQuery.length > 200) {
+            return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32602, message: 'searchQuery must be a short string.' } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          }
           
           // Get all types from schema to find the correct model
           const typeMap = schema.getTypeMap();
@@ -646,15 +650,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
           
           // Add ID search (exact match) - ID should always exist
           if (searchTerm && availableFields.includes('id')) {
-            searchConditions.push(`{ id: { equals: "${searchTerm}" } }`);
+            searchConditions.push(`{ id: { equals: $id } }`);
           }
           
           // Add text field search (case-insensitive contains) for fields that exist
           const commonSearchFields = ['name', 'title', 'label', 'description', 'email'];
-          const validSearchFields = commonSearchFields.filter(field => availableFields.includes(field));
+          const whereInput = schema.getType(`${foundModel}WhereInput`);
+          const filterable = whereInput && isInputObjectType(whereInput) ? Object.keys(whereInput.getFields()) : [];
+          const validSearchFields = commonSearchFields.filter(field => availableFields.includes(field) && filterable.includes(field));
           
-          for (const fieldName of validSearchFields) {
-            searchConditions.push(`{ ${fieldName}: { contains: "${searchTerm}", mode: insensitive } }`);
+          for (const fieldName of searchTerm ? validSearchFields : []) {
+            searchConditions.push(`{ ${fieldName}: { contains: $term, mode: insensitive } }`);
           }
           
           // Build the GraphQL query manually to avoid JSON.stringify issues with enums
@@ -663,19 +669,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ tra
             whereClause = `where: { OR: [${searchConditions.join(', ')}] },`;
           }
           
-          const queryString = `
-            query Search${foundModel} {
-              ${operationName}(
-                ${whereClause}
-                take: ${limit}
-              ) {
-                ${fields}
-              }
-            }
-          `.trim();
-          
-          // Execute the search query
-          const result = await executeGraphQL(queryString, graphqlEndpoint, auth);
+          let built;
+          try { built = buildSelection(schema, operationName, fields); } catch (error) {
+            if (!(error instanceof SelectionError)) throw error;
+            return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, error: { code: -32602, message: error.message } }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+          }
+          // The term travels as a variable, never inside the query text.
+          const declared = [searchConditions.some(c => c.includes('$id')) ? '$id: ID!' : '', validSearchFields.length && searchTerm ? '$term: String!' : '', '$take: Int!'].filter(Boolean).join(', ');
+          const queryString = `query Search${foundModel}(${declared}) { ${built.operation}(${whereClause} take: $take) { ${built.selection} } }`;
+          const variables: Record<string, unknown> = { take: boundedTake(limit) };
+          if (declared.includes('$id')) variables.id = searchTerm;
+          if (declared.includes('$term')) variables.term = searchTerm;
+          const result = await executeGraphQL(queryString, graphqlEndpoint, auth, variables);
           
           return new Response(JSON.stringify({
             jsonrpc: '2.0',

@@ -38,6 +38,15 @@ describe('Stedi eligibility contract (recorded fixtures)', () => {
     const out = mapBenefits(outcome.benefits, false)
     expect(out.find(f => f.field === 'coverage_pct' && f.appliesTo.category === 'basic')?.value).toEqual({ pct: '60.0000' })
   })
+  it('the Evergreen sandbox member answers with its own benefits, not Harbor\'s', async () => {
+    const { outcome } = await clearinghouseFor('stedi').checkEligibility(req('EVG-5501-K'), ctx(fakeStedi().fetch))
+    expect(outcome.kind).toBe('responded')
+    if (outcome.kind !== 'responded') return
+    const facts = mapBenefits(outcome.benefits, true)
+    expect(facts.filter(f => f.field === 'coverage_pct').map(f => [f.appliesTo.category, (f.value as any).pct])).toEqual([['preventive', '100.0000'], ['basic', '70.0000'], ['major', '40.0000']])
+    expect(facts.find(f => f.field === 'annual_max')?.value).toEqual({ amountMinor: '100000' })
+    expect(facts.find(f => f.field === 'deductible')?.value).toEqual({ amountMinor: '2500' })
+  })
   it('maps an inactive plan', async () => {
     const { outcome } = await clearinghouseFor('stedi').checkEligibility(req('SUM-4402-B'), ctx(fakeStedi().fetch))
     expect(outcome.kind === 'responded' && outcome.planActive).toBe(false)

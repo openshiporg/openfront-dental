@@ -60,8 +60,18 @@ export type EstimatorLine = {
   secondaryAllowedMinor?: bigint | null
 }
 
-/** The secondary plan's own COB method and benefits. `confidence` is how well *its* benefits are verified. */
-export type EstimatorSecondary = { method: CobMethod; coveragePct: PctRule[]; confidence?: Confidence }
+/**
+ * The secondary plan's own COB method and benefits. `confidence` is how well *its* benefits are verified.
+ * `limits` are the secondary's own eligibility rules (frequency, age, waiting period, missing tooth). On a line the
+ * primary refused (`not_covered`), the secondary pays only when its own limits are known and none of them block it;
+ * without them it pays nothing there (nothing is assumed).
+ */
+export type EstimatorSecondary = {
+  method: CobMethod
+  coveragePct: PctRule[]
+  confidence?: Confidence
+  limits?: Pick<EstimatorPlan, 'frequency' | 'ageLimits' | 'waiting' | 'missingTooth'> & { coverageEffectiveFrom: string | null }
+}
 
 export type EstimateInput = {
   plan: EstimatorPlan
@@ -232,14 +242,46 @@ export function estimate(input: EstimateInput): Estimate {
   }
 
   if (input.secondary) {
-    for (const result of results) {
+    const secondary = input.secondary
+    const secConsumed: { group: string; date: string }[] = []
+    /** Why the secondary's own rules refuse this line, or null when they allow it. Null `limits` means they are not known. */
+    const secondaryRefusal = (line: EstimatorLine): string | null => {
+      const limits = secondary.limits
+      if (!limits) return 'secondary_limits_unknown'
+      const freq = line.group ? limits.frequency.find(f => f.group === line.group) : undefined
+      if (freq) {
+        const cutoff = addMonths(line.date, -freq.months)
+        const used = [...usage.history, ...secConsumed].filter(h => h.group === freq.group && h.date > cutoff && h.date <= line.date).length
+        if (used >= freq.count) return 'frequency_exceeded'
+      }
+      const age = limits.ageLimits.find(a => a.category === line.category)
+      if (age && ((age.min !== null && input.patientAgeYears < age.min) || (age.max !== null && input.patientAgeYears > age.max))) return 'age_limit'
+      const wait = limits.waiting.find(w => w.category === line.category)
+      if (wait && limits.coverageEffectiveFrom && line.date < addMonths(limits.coverageEffectiveFrom, wait.months)) return 'waiting_period'
+      if (line.missingTooth && limits.missingTooth.includes(line.category)) return 'missing_tooth'
+      return null
+    }
+    for (const result of [...results].sort((a, b) => ordered.findIndex(l => l.id === a.id) - ordered.findIndex(l => l.id === b.id))) {
       const line = ordered.find(l => l.id === result.id)!
-      const rule = input.secondary.coveragePct.find(r => r.category === line.category)
-      if (!rule || rule.pct === null || result.status === 'unknown' || input.secondary.method === 'unknown') {
+      const rule = secondary.coveragePct.find(r => r.category === line.category)
+      if (!rule || rule.pct === null || result.status === 'unknown' || secondary.method === 'unknown') {
         result.trace.push('secondary: benefit or COB method unknown, nothing assumed')
         continue
       }
-      const method = input.secondary.method
+      if (dec(rule.pct).isZero()) { result.trace.push(`secondary: ${line.category} is not covered by the secondary`); continue }
+      if (result.status === 'not_covered') {
+        // The primary refused the line. The secondary pays only on its own plan's terms, and only when those are known.
+        const refusal = secondaryRefusal(line)
+        if (refusal) {
+          result.reasons.push(refusal === 'secondary_limits_unknown' ? 'secondary_limits_unknown' : `secondary_${refusal}`)
+          result.trace.push(refusal === 'secondary_limits_unknown' ? 'secondary: the primary does not cover this line and the secondary\'s own limits are not known, so it pays nothing' : `secondary: its own plan does not cover this line either (${refusal})`)
+          continue
+        }
+      } else if (secondary.limits) {
+        const refusal = secondaryRefusal(line)
+        if (refusal) { result.reasons.push(`secondary_${refusal}`); result.trace.push(`secondary: its own plan does not cover this line (${refusal})`); continue }
+      }
+      const method = secondary.method
       const secAllowed = method === 'non_duplication' ? result.allowedMinor : line.secondaryAllowedMinor ?? result.allowedMinor
       const normal = pctOf(secAllowed, rule.pct)
       // The patient portion left after the primary, and what the plan may pay in total (never more than the allowed amount).
@@ -252,7 +294,13 @@ export function estimate(input: EstimateInput): Estimate {
       const paid = min(raw, min(left, room))
       result.secondaryInsuranceMinor = paid
       result.patientMinor = left - paid
-      if (paid > 0n && input.secondary.confidence) result.confidence = weakest(result.confidence, input.secondary.confidence)
+      if (line.group && paid > 0n) secConsumed.push({ group: line.group, date: line.date })
+      if (paid > 0n && result.status === 'not_covered') {
+        // The secondary alone pays: the line is covered (by the secondary) and says so.
+        result.status = 'covered'
+        result.reasons.push('secondary_only')
+      }
+      if (paid > 0n && secondary.confidence) result.confidence = weakest(result.confidence, secondary.confidence)
       result.trace.push(`secondary (${method}) pays ${paid}; patient owes ${result.patientMinor}`)
     }
   }

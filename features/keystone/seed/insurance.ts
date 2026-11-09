@@ -89,6 +89,25 @@ export async function seedPhase3(uow: UnitOfWork, actor: Actor) {
   await tx.benefitFact.createMany({ data: rows.facts })
   await tx.workTask.createMany({ data: rows.tasks })
   for (const [cid, vid, level] of rows.levels) await tx.$executeRaw`UPDATE "Coverage" SET "verificationLevel" = ${level}, "lastVerification" = ${vid} WHERE id = ${cid}`
+
+  // A second plan for the first patient, on Evergreen's own sandbox member (its own recorded answer, not Harbor's).
+  if (patients[0]) {
+    const evgMember = 'EVG-5501-K'
+    const secret = await storeSecret(tx, 'subscriber.memberId', evgMember)
+    await tx.subscriber.create({ data: { id: 'seed_sub_evg_1', patientId: patients[0].id, planId: 'seed_plan_evergreen_ppo', memberIdSecretId: secret.id, memberIdHash: sha256(evgMember), memberIdLast4: evgMember.slice(-4), dateOfBirth: patients[0].dateOfBirth, effectiveFrom: day('2026-01-01'), isSynthetic: true } })
+    await tx.coverage.create({ data: { id: 'seed_cov_evg_1', patientId: patients[0].id, subscriberId: 'seed_sub_evg_1', ordinal: 'secondary', relationship: 'self', status: 'pending_verification', verificationLevel: 'unverified', effectiveFrom: day('2026-01-01'), isSynthetic: true } })
+    created.coverages += 1
+  }
+
+  // Downgrade (alternate benefit) rules on the PPO plans: a posterior composite is paid as the amalgam of the same surfaces.
+  const amalgam = await tx.procedureCode.findMany({ where: { code: { in: ['OF-R001', 'OF-R002', 'OF-R003'] } }, select: { id: true, code: true } })
+  const amalgamId = new Map(amalgam.map(c => [c.code, c.id]))
+  const downgrades = [['OF-R010', 'OF-R001'], ['OF-R011', 'OF-R002'], ['OF-R012', 'OF-R003']] as const
+  const rules = PLANS.filter(p => p.type === 'ppo').flatMap(p => downgrades.filter(([, to]) => amalgamId.has(to)).map(([from, to]) => ({
+    id: `seed_rule_${p.id}_${from.toLowerCase().replace('-', '_')}`, planId: p.id, kind: 'downgrade', appliesTo: { fromCode: from, category: 'basic' }, downgradeToCodeId: amalgamId.get(to)!,
+    note: 'Posterior composites are paid at the amalgam allowance (alternate benefit).', source: 'payer_portal', observedAt: now,
+  })))
+  if (rules.length) await tx.benefitRule.createMany({ data: rules })
   auditCreate(uow, actor, 'Coverage', rows.coverages[0].id, 'coverage.added', { seeded: rows.coverages.length }, meta)
   Object.assign(created, { coverages: rows.coverages.length, verifications: rows.verifications.length, benefitFacts: rows.facts.length, workTasks: rows.tasks.length })
   void localDate; void TZ

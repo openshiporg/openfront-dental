@@ -39,6 +39,11 @@ function factText(f: any): string {
   }
 }
 
+/** Why a line is not covered, in words (the estimator's reason codes). */
+const NOT_COVERED_WHY: Record<string, string> = {
+  frequency_exceeded: ': over the frequency limit', waiting_period: ': still in the waiting period', age_limit: ': outside the age limit', missing_tooth: ': missing-tooth clause', not_covered: ': the plan does not cover this',
+};
+
 /** What an estimate line shows. Unknown benefits stay "Not estimated": insurance is never assumed to pay. A line whose coverage has ended reads as self-pay. */
 function EstimateLine({ e, name, currentCoverageIds }: { e: any; name: string; currentCoverageIds: Set<string> }) {
   const selfPay = (e.reasons ?? []).includes('no_coverage') || !e.coverage?.id || !currentCoverageIds.has(e.coverage.id);
@@ -46,10 +51,13 @@ function EstimateLine({ e, name, currentCoverageIds }: { e: any; name: string; c
   const confidence = title(e.confidence);
   const detail = selfPay ? 'No insurance on file. You pay the full fee'
     : unknown ? 'Insurance benefit not known. Not estimated.'
-    : e.coverageStatus === 'not_covered' ? 'Not covered by this plan'
+    : e.coverageStatus === 'not_covered' ? `Not covered by this plan${NOT_COVERED_WHY[(e.reasons ?? []).find((r: string) => NOT_COVERED_WHY[r]) ?? ''] ?? ''}`
+    : BigInt(e.insuranceMinor) === 0n && BigInt(e.secondaryInsuranceMinor ?? 0) > 0n ? `Second plan pays ${money(e.secondaryInsuranceMinor)}`
     : BigInt(e.insuranceMinor) === 0n ? 'Covered, nothing payable'
     : `Plan pays ${money(e.insuranceMinor)}${BigInt(e.secondaryInsuranceMinor ?? 0) > 0n ? `, second plan pays ${money(e.secondaryInsuranceMinor)}` : ''}`;
-  const notes = [(e.reasons ?? []).includes('downgraded') ? 'paid at the alternate-benefit amount' : '', (e.reasons ?? []).includes('frequency_unknown') ? 'frequency limit still to be asked' : ''].filter(Boolean);
+  const r = new Set<string>(e.reasons ?? []);
+  const notes = [r.has('downgraded') ? 'paid at the alternate-benefit amount' : '', r.has('downgrade_amount_unknown') ? 'alternate-benefit amount not known' : '', r.has('frequency_unknown') ? 'frequency limit still to be asked' : '',
+    r.has('secondary_only') ? 'the first plan does not cover this; the second plan pays' : '', r.has('secondary_limits_unknown') ? 'second plan pays nothing here until its own limits are known' : ''].filter(Boolean);
   return (
     <Row className="flex-nowrap items-start">
       <span className="min-w-0 flex-1"><span className="font-medium">{name}</span><br />
@@ -101,6 +109,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
               <Stat name="Plan type" value={title(c.subscriber?.plan?.planType)} />
               <Stat name="Since" value={calendarDate(c.effectiveFrom, 'day') || '—'} />
             </div>
+            {c.verificationLevel === 'verified_electronic' ? <Meta>The payer answered electronically. Finish the verification once the questions below are asked.</Meta> : null}
             {v?.eligibilityChecks?.length ? <Meta>Electronic check: {title(v.eligibilityChecks[0].status).toLowerCase()}{v.eligibilityChecks[0].resultNote ? ` · ${v.eligibilityChecks[0].resultNote}` : ''}</Meta> : null}
             {rows.length ? rows.map((f) => (
               <Row key={f.id} className="flex-nowrap items-start">

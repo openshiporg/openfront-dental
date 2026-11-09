@@ -22,7 +22,17 @@ function toInput(c: Record<string, string>): EstimateInput {
   const [fgroup, fcount, fmonths] = c.frequency ? c.frequency.split('/') : []
   const [acat, amin, amax] = c.ageLimit ? c.ageLimit.split('/') : []
   const [wcat, wmonths] = c.waiting ? c.waiting.split('/') : []
-  const [secMethod, secPct] = c.secondary ? c.secondary.split('/') : []
+  const [secMethod, secPct, secLimits] = c.secondary ? c.secondary.split('/') : []
+  // Secondary limits: absent = not known; `none` = known, no limits; else `+`-joined `freq:group:count:months`, `wait:category:months@effectiveFrom`.
+  const limits = secLimits === undefined ? undefined : (() => {
+    const out = { frequency: [] as { group: string; count: number; months: number }[], ageLimits: [], waiting: [] as { category: string; months: number }[], missingTooth: [], coverageEffectiveFrom: c.effectiveFrom || null as string | null }
+    for (const part of secLimits === 'none' ? [] : secLimits.split('+')) {
+      const [kind, a, b, d] = part.split(':')
+      if (kind === 'freq') out.frequency.push({ group: a, count: Number(b), months: Number(d) })
+      if (kind === 'wait') { const [months, from] = b.split('@'); out.waiting.push({ category: a, months: Number(months) }); if (from) out.coverageEffectiveFrom = from }
+    }
+    return out
+  })()
   return {
     plan: {
       inNetwork: c.network === 'in', annualMaxMinor: big(c.annualMax), deductibleMinor: big(c.deductible), coveragePct: rules(c.pct, source),
@@ -33,12 +43,12 @@ function toInput(c: Record<string, string>): EstimateInput {
     },
     usage: { maxUsedMinor: BigInt(c.maxUsed), pendingMinor: BigInt(c.pending), deductibleMetMinor: BigInt(c.dedMet), history: c.history ? c.history.split(';').map(h => { const [group, date] = h.split('@'); return { group, date } }) : [] },
     patientAgeYears: Number(c.age), coverageEffectiveFrom: c.effectiveFrom || null, lines,
-    secondary: secMethod ? { method: secMethod as CobMethod, coveragePct: rules(`basic=${secPct};major=${secPct};preventive=${secPct}`, 'eligibility_271') } : null,
+    secondary: secMethod ? { method: secMethod as CobMethod, coveragePct: rules(`basic=${secPct};major=${secPct};preventive=${secPct}`, 'eligibility_271'), limits } : null,
   }
 }
 
 describe('estimator golden workbook', () => {
-  it('has 44 cases', () => expect(cases).toHaveLength(44))
+  it('has 51 cases', () => expect(cases).toHaveLength(51))
   for (const c of cases) {
     it(`#${c.id} ${c.scenario}`, () => {
       const result = estimate(toInput(c))
@@ -58,6 +68,15 @@ describe('estimator rules', () => {
     for (const c of cases.filter(x => x.expStatus.includes('unknown'))) {
       const result = estimate(toInput(c))
       for (const l of result.lines.filter(x => x.status === 'unknown')) { expect(l.insuranceMinor).toBe(0n); expect(l.patientMinor).toBe(l.allowedMinor) }
+    }
+  })
+  it('a secondary never pays on a line refused by both plans, and every line keeps the database invariants', () => {
+    for (const c of cases) {
+      for (const l of estimate(toInput(c)).lines) {
+        if (l.status !== 'covered') { expect(l.insuranceMinor).toBe(0n); expect(l.secondaryInsuranceMinor).toBe(0n) }
+        expect(l.writeOffMinor + l.insuranceMinor + l.secondaryInsuranceMinor + l.patientMinor).toBe(l.feeMinor)
+        expect(l.insuranceMinor + l.secondaryInsuranceMinor <= l.allowedMinor).toBe(true)
+      }
     }
   })
   it('line order does not change the answer', () => {

@@ -1,0 +1,114 @@
+{
+  "controlNumber": "000000005",
+  "planStatus": [
+    {
+      "statusCode": "1",
+      "status": "Active Coverage",
+      "planDetails": "Evergreen Dental PPO Core"
+    }
+  ],
+  "benefitsInformation": [
+    {
+      "code": "1",
+      "name": "Active Coverage",
+      "serviceTypeCodes": [
+        "35"
+      ],
+      "inPlanNetworkIndicatorCode": "Y"
+    },
+    {
+      "code": "C",
+      "name": "Deductible",
+      "serviceTypeCodes": [
+        "35"
+      ],
+      "coverageLevelCode": "IND",
+      "timeQualifierCode": "23",
+      "benefitAmount": "25",
+      "inPlanNetworkIndicatorCode": "Y"
+    },
+    {
+      "code": "C",
+      "name": "Deductible",
+      "serviceTypeCodes": [
+        "35"
+      ],
+      "coverageLevelCode": "IND",
+      "timeQualifierCode": "29",
+      "benefitAmount": "25",
+      "inPlanNetworkIndicatorCode": "Y"
+    },
+    {
+      "code": "F",
+      "name": "Limitations",
+      "serviceTypeCodes": [
+        "35"
+      ],
+      "coverageLevelCode": "IND",
+      "timeQualifierCode": "23",
+      "benefitAmount": "1000",
+      "inPlanNetworkIndicatorCode": "Y"
+    },
+    {
+      "code": "F",
+      "name": "Limitations",
+      "serviceTypeCodes": [
+        "35"
+      ],
+      "coverageLevelCode": "IND",
+      "timeQualifierCode": "29",
+      "benefitAmount": "1000",
+      "inPlanNetworkIndicatorCode": "Y"
+    },
+    {
+      "code": "A",
+      "name": "Co-Insurance",
+      "serviceTypeCodes": [
+        "41"
+      ],
+      "benefitPercent": "0",
+      "inPlanNetworkIndicatorCode": "Y"
+    },
+    {
+      "code": "A",
+      "name": "Co-Insurance",
+      "serviceTypeCodes": [
+        "24"
+      ],
+      "benefitPercent": "0.3",
+      "inPlanNetworkIndicatorCode": "Y"
+    },
+    {
+      "code": "A",
+      "name": "Co-Insurance",
+      "serviceTypeCodes": [
+        "36"
+      ],
+      "benefitPercent": "0.6",
+      "inPlanNetworkIndicatorCode": "Y"
+    },
+    {
+      "code": "A",
+      "name": "Co-Insurance",
+      "serviceTypeCodes": [
+        "24"
+      ],
+      "benefitPercent": "0.5",
+      "inPlanNetworkIndicatorCode": "N"
+    },
+    {
+      "code": "D",
+      "name": "Dental frequency",
+      "serviceTypeCodes": [
+        "41"
+      ],
+      "benefitQuantity": "2",
+      "quantityQualifier": "VS",
+      "additionalInformation": [
+        {
+          "description": "Two cleanings per calendar year"
+        }
+      ]
+    }
+  ]
+}

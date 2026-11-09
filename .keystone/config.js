@@ -175,8 +175,8 @@ var today = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 function sessionLocationIds(session) {
   if (!isSignedIn({ session })) return [];
   if (session.data.role?.canAccessAllLocations) return null;
-  const day3 = today();
-  return (session.data.assignments ?? []).filter((a) => a.location?.id && (!a.startsOn || a.startsOn <= day3) && (!a.endsOn || a.endsOn >= day3)).map((a) => a.location.id);
+  const day4 = today();
+  return (session.data.assignments ?? []).filter((a) => a.location?.id && (!a.startsOn || a.startsOn <= day4) && (!a.endsOn || a.endsOn >= day4)).map((a) => a.location.id);
 }
 var rules = {
   canReadPeople: ({ session }) => !isSignedIn({ session }) ? false : session.data.role?.canSeeOtherPeople || session.data.role?.canManagePeople ? true : { id: { equals: session.itemId } },
@@ -2856,11 +2856,11 @@ var import_fields16 = require("@keystone-6/core/fields");
 var import_access13 = require("@keystone-6/core/access");
 var PAYER_KINDS = ["commercial", "medicaid", "chip", "medicare_advantage", "tricare", "other"];
 var PLAN_TYPES = ["ppo", "indemnity", "dhmo", "medicaid", "ma_dental", "discount", "other"];
-var COB_METHODS = ["standard", "non_duplication", "carve_out", "unknown"];
+var COB_METHODS = ["standard", "non_duplication", "carve_out", "maintenance_of_benefits", "unknown"];
 var ORDINALS = ["primary", "secondary", "tertiary"];
 var RELATIONSHIPS = ["self", "spouse", "child", "other"];
 var COVERAGE_STATUSES = ["pending_verification", "active", "terminated", "invalid"];
-var VERIFICATION_LEVELS = ["unverified", "verified_partial", "verified_full"];
+var VERIFICATION_LEVELS = ["unverified", "verified_electronic", "verified_partial", "verified_full"];
 var VERIFICATION_STATUSES = ["requested", "in_progress", "completed", "failed"];
 var CHECK_STATUSES = ["queued", "sent", "responded", "rejected", "error_retryable", "unknown"];
 var RULE_KINDS = ["coverage_pct", "deductible_applies", "frequency", "age_limit", "waiting_period", "missing_tooth", "downgrade", "not_covered", "requires_preauth", "requires_attachment"];
@@ -3232,6 +3232,25 @@ function applyPhiTiers(models2) {
       };
     }
   }
+  return gateFilterAndOrder(models2);
+}
+function gateFilterAndOrder(models2) {
+  for (const list15 of Object.values(models2)) {
+    for (const [fieldKey, original] of Object.entries(list15.fields ?? {})) {
+      if (typeof original !== "function" || fieldKey.startsWith("__group")) continue;
+      list15.fields[fieldKey] = (args) => {
+        const field = original(args);
+        const read = typeof field.access === "function" ? field.access : field.access?.read;
+        if (typeof read !== "function") return field;
+        const gate = (base) => base === false ? false : async (input) => {
+          const allowed = await read({ ...input, operation: "read", item: void 0 });
+          if (allowed !== true) return false;
+          return typeof base === "function" ? await base(input) === true : true;
+        };
+        return { ...field, isFilterable: gate(field.isFilterable), isOrderable: gate(field.isOrderable) };
+      };
+    }
+  }
   return models2;
 }
 
@@ -3243,8 +3262,11 @@ var hideRefusedActions = (lists) => Object.fromEntries(Object.entries(lists).map
   if (op2.delete === sys && ui.hideDelete === void 0) ui.hideDelete = true;
   return [key, { ...config2, ui }];
 }));
+var MAX_TAKE_DEFAULT = 1e3;
+var MAX_TAKE = { Appointment: 3e3 };
+var boundTake = (lists) => Object.fromEntries(Object.entries(lists).map(([key, config2]) => [key, config2.isSingleton ? config2 : { ...config2, graphql: { ...config2.graphql, maxTake: config2.graphql?.maxTake ?? MAX_TAKE[key] ?? MAX_TAKE_DEFAULT } }]));
 var listsOf = (mod) => Object.fromEntries(Object.entries(mod).filter(([, value]) => value && typeof value === "object" && "fields" in value));
-var models = hideRefusedActions(applyPhiTiers({
+var models = boundTake(hideRefusedActions(applyPhiTiers({
   User,
   Role,
   OAuthApp,
@@ -3262,7 +3284,7 @@ var models = hideRefusedActions(applyPhiTiers({
   ...listsOf(clinical_exports),
   ...listsOf(treatment_exports),
   ...listsOf(insurance_exports)
-}));
+})));
 
 // features/keystone/mutations/index.ts
 var import_schema = require("@graphql-tools/schema");
@@ -3339,14 +3361,112 @@ var Codes = {
   MERGE_CONFLICT: "MERGE_CONFLICT"
 };
 
+// features/keystone/lib/dbRefusal.ts
+var UNIQUE_MESSAGES = {
+  BenefitVerification: "A verification is already open for this plan. Refresh to see it.",
+  EligibilityCheck: "An eligibility check for this plan is already running. Refresh to see it.",
+  Coverage: "This patient already has a current coverage in that order. Refresh and try again.",
+  WorkTask: "That task is already open."
+};
+var CHECK_MESSAGES = [
+  [/^Estimate_/, "The estimate could not be saved: its amounts break an insurance rule (for example a plan paying on a line it does not cover). Nothing was changed. Check the plans\u2019 benefits, then estimate again."],
+  [/^BenefitFact_/, "That benefit answer was refused: it does not fit the plan\u2019s rules (for example a value on an unknown answer, or a percentage out of range)."],
+  [/^Coverage_/, "That coverage change was refused: it would leave the coverage in an impossible state."],
+  [/^EligibilityCheck_/, "That eligibility check change was refused: the check is not in a state that allows it."],
+  [/^BenefitVerification_/, "That verification change was refused: the verification is not in a state that allows it."]
+];
+var textOf = (error) => [error?.message, error?.extensions?.prisma?.message, error?.meta?.message, error?.originalError?.message].filter((x) => typeof x === "string").join("\n");
+var prismaCodeOf = (error) => String(error?.code ?? error?.extensions?.prisma?.code ?? "");
+var isUniqueConflict = (error) => prismaCodeOf(error) === "P2002" || /Unique constraint failed|duplicate key value violates unique constraint/i.test(textOf(error));
+function dbRefusal(error) {
+  const e = error;
+  const text15 = textOf(e);
+  if (isUniqueConflict(e)) {
+    const model = String(e?.meta?.modelName ?? e?.extensions?.prisma?.meta?.modelName ?? "");
+    const index = /unique constraint "([^"]+)"/i.exec(text15)?.[1] ?? "";
+    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text15) ? "BenefitVerification" : /EligibilityCheck/.test(text15) ? "EligibilityCheck" : "");
+    return new DomainError(Codes.STALE_STATE, UNIQUE_MESSAGES[key] ?? "Someone else made the same change at the same moment. Refresh and try again.");
+  }
+  const check = /violates check constraint "([^"]+)"/i.exec(text15)?.[1];
+  if (check) {
+    const message = CHECK_MESSAGES.find(([pattern]) => pattern.test(check))?.[1] ?? "The change was refused because it would break a practice rule. Nothing was changed.";
+    return new DomainError(Codes.GUARD_FAILED, message, { reason: check });
+  }
+  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text15)?.[1];
+  if (raised && /23514|check_violation|RAISE|P0001/i.test(text15 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
+  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text15)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
+  return null;
+}
+
+// features/keystone/lib/keystonePrismaErrors.ts
+var RAW_METHOD = /^\$(queryRaw|executeRaw|queryRawUnsafe|executeRawUnsafe|queryRawTyped|runCommandRaw)$/;
+var clients = /* @__PURE__ */ new WeakMap();
+var delegates = /* @__PURE__ */ new WeakMap();
+function isKeystonePrismaError(value) {
+  return value instanceof Error && value.extensions?.code === "KS_PRISMA_ERROR";
+}
+function rethrowKeystonePrismaError(value) {
+  if (!isKeystonePrismaError(value)) return value;
+  const prisma = value.extensions.prisma ?? {};
+  throw Object.assign(value, { code: prisma.code, meta: prisma.meta, clientVersion: prisma.clientVersion });
+}
+function throwing(result) {
+  if (!result || typeof result.then !== "function") return rethrowKeystonePrismaError(result);
+  const settled = () => result.then(rethrowKeystonePrismaError);
+  return new Proxy(result, {
+    get(target, key) {
+      if (key === "then") return (ok, fail) => settled().then(ok, fail);
+      if (key === "catch") return (fail) => settled().catch(fail);
+      if (key === "finally") return (done) => settled().finally(done);
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    }
+  });
+}
+function throwingDelegate(delegate) {
+  const cached = delegates.get(delegate);
+  if (cached) return cached;
+  const wrapped = new Proxy(delegate, {
+    get(target, key) {
+      const value = Reflect.get(target, key, target);
+      return typeof value === "function" ? (...args) => throwing(value.apply(target, args)) : value;
+    }
+  });
+  delegates.set(delegate, wrapped);
+  return wrapped;
+}
+function throwKeystonePrismaErrors(client) {
+  const cached = clients.get(client);
+  if (cached) return cached;
+  const wrapped = new Proxy(client, {
+    get(target, key) {
+      const value = Reflect.get(target, key, target);
+      if (key === "$transaction" && typeof value === "function") {
+        return (work, ...options) => {
+          if (typeof work === "function") return value.call(target, (tx) => work(throwKeystonePrismaErrors(tx)), ...options);
+          return Promise.resolve(value.call(target, work, ...options)).then((results) => Array.isArray(results) ? results.map(rethrowKeystonePrismaError) : results);
+        };
+      }
+      if (key === "$extends" && typeof value === "function") return (...args) => throwKeystonePrismaErrors(value.apply(target, args));
+      if (typeof key === "string" && RAW_METHOD.test(key) && typeof value === "function") return (...args) => throwing(value.apply(target, args));
+      if (typeof value === "function") return value.bind(target);
+      if (typeof key === "string" && !key.startsWith("$") && value && typeof value === "object" && typeof value.findFirst === "function") return throwingDelegate(value);
+      return value;
+    }
+  });
+  clients.set(client, wrapped);
+  return wrapped;
+}
+
 // features/keystone/mutations/op.ts
 var UNSAFE = /prisma|invocation|\bat\s+\S+\s*\(|node_modules|postgres(ql)?:\/\/|\bSQL\b|ECONN|query engine|\.ts:\d+|\.js:\d+/i;
 var SAFE_DETAIL_KEYS = /* @__PURE__ */ new Set(["currentStatus", "currentVersion", "to", "reason", "field", "problems", "replay"]);
 var op = (fn) => async (root, args, context) => {
   try {
     return await fn(root, args, context);
-  } catch (error) {
-    if (error instanceof import_graphql.GraphQLError) throw error;
+  } catch (caught) {
+    const error = isDomainError(caught) ? caught : dbRefusal(caught) ?? caught;
+    if (error instanceof import_graphql.GraphQLError && !isKeystonePrismaError(error)) throw error;
     if (isDomainError(error)) {
       const details = Object.fromEntries(Object.entries(error.details).filter(([key]) => SAFE_DETAIL_KEYS.has(key)));
       throw new import_graphql.GraphQLError(error.message, { extensions: { code: error.code, ...details } });
@@ -3391,6 +3511,7 @@ var Decimal = import_decimal.default.clone({
   toExpNeg: -40,
   toExpPos: 60
 });
+var Scale = { px: 10, qty: 18, units: 8, nav: 10, rate: 12 };
 var DECIMAL_TEXT = /^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/;
 function dec(value) {
   if (value instanceof Decimal) return value;
@@ -3402,6 +3523,10 @@ function dec(value) {
   const text15 = String(value).trim();
   if (!DECIMAL_TEXT.test(text15)) throw new Error(`Not a decimal number: ${JSON.stringify(text15).slice(0, 40)}`);
   return new Decimal(text15);
+}
+function toScale(value, scale, rounding = Decimal.ROUND_HALF_EVEN) {
+  const places = typeof scale === "number" ? scale : Scale[scale];
+  return dec(value).toDecimalPlaces(places, rounding).toFixed(places);
 }
 var plain = (value) => dec(value).toFixed();
 var ZERO = new Decimal(0);
@@ -4301,6 +4426,9 @@ var OF_CODES = [
   { code: "OF-P002", name: "Prophylaxis, child", friendly: "Child cleaning", category: "preventive", rule: "mouth", fee: 8500, recall: true },
   { code: "OF-P003", name: "Topical fluoride varnish", friendly: "Fluoride treatment", category: "preventive", rule: "mouth", fee: 4e3 },
   { code: "OF-P004", name: "Sealant, per tooth", friendly: "Sealant", category: "preventive", rule: "tooth", fee: 5500 },
+  { code: "OF-R001", name: "Amalgam, one surface, primary or permanent", friendly: "Silver filling (1 surface)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 1, fee: 16500 },
+  { code: "OF-R002", name: "Amalgam, two surfaces, primary or permanent", friendly: "Silver filling (2 surfaces)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 2, fee: 20500 },
+  { code: "OF-R003", name: "Amalgam, three surfaces, primary or permanent", friendly: "Silver filling (3 surfaces)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 3, fee: 25e3 },
   { code: "OF-R010", name: "Resin composite, one surface, posterior", friendly: "Tooth-coloured filling (1 surface)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 1, fee: 21500 },
   { code: "OF-R011", name: "Resin composite, two surfaces, posterior", friendly: "Tooth-coloured filling (2 surfaces)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 2, fee: 27500 },
   { code: "OF-R012", name: "Resin composite, three surfaces, posterior", friendly: "Tooth-coloured filling (3 surfaces)", category: "restorative", rule: "tooth_surface", surfaces: true, max: 3, fee: 34e3 },
@@ -4788,12 +4916,145 @@ async function seedPracticePlatform(uow, actor2) {
   return created;
 }
 
+// features/keystone/lib/secretBox.ts
+var import_node_crypto4 = require("node:crypto");
+var SECRET_KEY_VERSION = 1;
+function decodeKey(value) {
+  const text15 = String(value || "").trim();
+  if (!text15) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
+  const key = /^[a-f0-9]{64}$/i.test(text15) ? Buffer.from(text15, "hex") : Buffer.from(text15, "base64");
+  if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
+  return key;
+}
+function sealSecret(plaintext, purpose, keyText = process.env.DENTAL_SECRET_KEY) {
+  const key = decodeKey(keyText);
+  const iv = (0, import_node_crypto4.randomBytes)(12);
+  const cipher = (0, import_node_crypto4.createCipheriv)("aes-256-gcm", key, iv);
+  cipher.setAAD(Buffer.from(purpose, "utf8"));
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  return { purpose, ciphertext: ciphertext.toString("base64"), iv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64"), keyVersion: SECRET_KEY_VERSION };
+}
+function openSecret(box, keyText = process.env.DENTAL_SECRET_KEY) {
+  const decipher = (0, import_node_crypto4.createDecipheriv)("aes-256-gcm", decodeKey(keyText), Buffer.from(box.iv, "base64"));
+  decipher.setAAD(Buffer.from(box.purpose, "utf8"));
+  decipher.setAuthTag(Buffer.from(box.authTag, "base64"));
+  return Buffer.concat([decipher.update(Buffer.from(box.ciphertext, "base64")), decipher.final()]).toString("utf8");
+}
+async function storeSecret(tx, purpose, plaintext) {
+  const sealed = sealSecret(plaintext, purpose);
+  return tx.secretBox.create({ data: sealed, select: { id: true } });
+}
+async function readSecret(tx, id) {
+  const box = await tx.secretBox.findUnique({ where: { id } });
+  if (!box) throw new Error("Secret not found");
+  return openSecret(box);
+}
+
+// features/keystone/seed/insurance.ts
+var TZ3 = "America/New_York";
+var day3 = (d) => /* @__PURE__ */ new Date(`${d}T00:00:00Z`);
+var PAYERS = [
+  { id: "seed_payer_harbor", name: "Harbor Mutual Dental", kind: "commercial", stedi: "HRBMD" },
+  { id: "seed_payer_evergreen", name: "Evergreen Benefit Partners", kind: "commercial", stedi: "EVGBP" },
+  { id: "seed_payer_coastal", name: "Coastal State Medicaid Dental", kind: "medicaid", stedi: "" }
+];
+var PLANS = [
+  { id: "seed_plan_harbor_ppo", payer: "seed_payer_harbor", group: "Brightwater Marine Supply", number: "GRP-20418", type: "ppo", net: "in_network", fee: "seed_fee_ppo", cob: "standard", max: 150000n, ded: 5000n },
+  { id: "seed_plan_evergreen_ppo", payer: "seed_payer_evergreen", group: "Lantern Street Bakery", number: "GRP-77310", type: "ppo", net: "in_network", fee: "seed_fee_ppo", cob: "non_duplication", max: 100000n, ded: 5000n },
+  { id: "seed_plan_coastal_mcd", payer: "seed_payer_coastal", group: "Coastal State Medicaid", number: "", type: "medicaid", net: "in_network", fee: null, cob: "unknown", max: null, ded: null }
+];
+var SEED_TASK_TITLES = { frequency_limit: "Ask the payer for frequency limits", waiting_period: "Ask about waiting periods", cob_method: "Ask which coordination-of-benefits method applies" };
+var FULL_FACTS = (maxLeft, dedLeft) => [
+  ["coverage_active", {}, { active: true }],
+  ["annual_max", { level: "individual" }, { amountMinor: "150000" }],
+  ["annual_max_used", { level: "individual" }, { remainingMinor: String(maxLeft) }],
+  ["deductible", { level: "individual", category: "all" }, { amountMinor: "5000" }],
+  ["deductible_met", { level: "individual" }, { remainingMinor: String(dedLeft) }],
+  ["coverage_pct", { category: "preventive" }, { pct: "100.0000" }],
+  ["coverage_pct", { category: "basic" }, { pct: "80.0000" }],
+  ["coverage_pct", { category: "major" }, { pct: "50.0000" }],
+  ["frequency_limit", { group: "recall" }, { count: 2, months: 12, group: "recall" }, "payer_phone"],
+  ["waiting_period", { category: "major" }, { months: 0 }, "payer_phone"],
+  ["missing_tooth_clause", {}, { categories: [] }, "payer_phone"],
+  ["downgrade", {}, { categories: [] }, "payer_phone"],
+  ["cob_method", {}, { method: "standard" }, "payer_phone"]
+];
+async function seedPhase3(uow, actor2) {
+  const { tx, now } = uow;
+  const meta2 = { metadata: { seed: true, synthetic: true } };
+  const created = { payers: 0, insurancePlans: 0, coverages: 0, benefitFacts: 0, verifications: 0, workTasks: 0 };
+  if (await tx.payer.findUnique({ where: { id: PAYERS[0].id } })) return created;
+  await tx.payer.createMany({ data: PAYERS.map((p) => ({ id: p.id, name: p.name, kind: p.kind, adapterPayerIds: p.stedi ? { stedi: p.stedi } : {}, timelyFilingDays: 365, isSynthetic: true })) });
+  created.payers = PAYERS.length;
+  const feeIds = new Set((await tx.feeSchedule.findMany({ select: { id: true } })).map((f) => f.id));
+  await tx.insurancePlan.createMany({ data: PLANS.map((p) => ({ id: p.id, payerId: p.payer, groupName: p.group, groupNumber: p.number, planType: p.type, networkStatus: p.net, feeScheduleId: p.fee && feeIds.has(p.fee) ? p.fee : null, cobMethod: p.cob, annualMaxMinor: p.max, deductibleIndividualMinor: p.ded, benefitYearStartMonth: 1, isSynthetic: true })) });
+  created.insurancePlans = PLANS.length;
+  auditCreate(uow, actor2, "InsurancePlan", PLANS[0].id, "insurance_plan.created", { seeded: PLANS.length }, meta2);
+  if (!await tx.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi" } })) {
+    await tx.adapterInstallation.create({ data: { area: "clearinghouse", adapterKey: "stedi", displayName: "Stedi eligibility (recorded sandbox)", mode: "sandbox", status: "configured", config: { transport: "recorded" }, handlesPhi: false } });
+  }
+  const patients = await tx.patient.findMany({ where: { id: { startsWith: "seed_pt_" } }, orderBy: { id: "asc" }, take: 8 });
+  const members = ["SUM-4401-A", "SUM-4402-B", "SUM-4403-C", "SUM-4404-D", "SUM-4405-E", "SUM-4406-F", "SUM-4407-G", "SUM-4408-H"];
+  const layout = [["seed_plan_harbor_ppo", "full"], ["seed_plan_evergreen_ppo", "partial"], ["seed_plan_harbor_ppo", "none"], ["seed_plan_evergreen_ppo", "full"], ["seed_plan_evergreen_ppo", "none"], ["seed_plan_harbor_ppo", "partial"], ["seed_plan_harbor_ppo", "full"], ["seed_plan_coastal_mcd", "none"]];
+  const rows = { subscribers: [], coverages: [], verifications: [], facts: [], tasks: [], levels: [] };
+  const secrets = await Promise.all(members.slice(0, patients.length).map((m) => storeSecret(tx, "subscriber.memberId", m)));
+  for (const [index, patient] of patients.entries()) {
+    const [planId, state] = layout[index];
+    const memberId = members[index];
+    const sid = `seed_sub_${index + 1}`, cid = `seed_cov_${index + 1}`, vid = `seed_ver_${index + 1}`;
+    rows.subscribers.push({ id: sid, patientId: patient.id, planId, memberIdSecretId: secrets[index].id, memberIdHash: sha256(memberId), memberIdLast4: memberId.slice(-4), dateOfBirth: patient.dateOfBirth, effectiveFrom: day3("2026-01-01"), isSynthetic: true });
+    rows.coverages.push({ id: cid, patientId: patient.id, subscriberId: sid, ordinal: "primary", relationship: "self", status: state === "none" ? "pending_verification" : "active", verificationLevel: "unverified", effectiveFrom: day3("2026-01-01"), isSynthetic: true });
+    if (state === "none") continue;
+    rows.verifications.push({ id: vid, coverageId: cid, trigger: "staff", status: "completed", completeness: state === "full" ? "complete" : "partial", completedAt: now, isSynthetic: true });
+    const facts = state === "full" ? FULL_FACTS(15e4 - 32e3 * (index % 3), index % 2 ? 0 : 5e3) : FULL_FACTS(15e4, 5e3).slice(0, 8);
+    for (const [field, appliesTo, value, source] of facts) rows.facts.push({ verificationId: vid, coverageId: cid, field, appliesTo, valueJson: value, source: source ?? "payer_portal", observedAt: now });
+    if (state === "partial") {
+      for (const field of ["frequency_limit", "waiting_period", "cob_method"]) {
+        rows.facts.push({ verificationId: vid, coverageId: cid, field, appliesTo: {}, valueJson: {}, isUnknown: true, source: "payer_portal", observedAt: now });
+        rows.tasks.push({ kind: "verification_checklist", title: SEED_TASK_TITLES[field] ?? `Confirm ${field.replaceAll("_", " ")}`, taskKey: field, subjectType: "Coverage", subjectId: cid, verificationId: vid, dueAt: new Date(now.getTime() + 2 * 864e5), checklist: { field }, isSynthetic: true });
+      }
+    }
+    rows.levels.push([cid, vid, state === "full" ? "verified_full" : "verified_partial"]);
+  }
+  await tx.subscriber.createMany({ data: rows.subscribers });
+  await tx.coverage.createMany({ data: rows.coverages });
+  await tx.benefitVerification.createMany({ data: rows.verifications });
+  await tx.benefitFact.createMany({ data: rows.facts });
+  await tx.workTask.createMany({ data: rows.tasks });
+  for (const [cid, vid, level] of rows.levels) await tx.$executeRaw`UPDATE "Coverage" SET "verificationLevel" = ${level}, "lastVerification" = ${vid} WHERE id = ${cid}`;
+  if (patients[0]) {
+    const evgMember = "EVG-5501-K";
+    const secret4 = await storeSecret(tx, "subscriber.memberId", evgMember);
+    await tx.subscriber.create({ data: { id: "seed_sub_evg_1", patientId: patients[0].id, planId: "seed_plan_evergreen_ppo", memberIdSecretId: secret4.id, memberIdHash: sha256(evgMember), memberIdLast4: evgMember.slice(-4), dateOfBirth: patients[0].dateOfBirth, effectiveFrom: day3("2026-01-01"), isSynthetic: true } });
+    await tx.coverage.create({ data: { id: "seed_cov_evg_1", patientId: patients[0].id, subscriberId: "seed_sub_evg_1", ordinal: "secondary", relationship: "self", status: "pending_verification", verificationLevel: "unverified", effectiveFrom: day3("2026-01-01"), isSynthetic: true } });
+    created.coverages += 1;
+  }
+  const amalgam = await tx.procedureCode.findMany({ where: { code: { in: ["OF-R001", "OF-R002", "OF-R003"] } }, select: { id: true, code: true } });
+  const amalgamId = new Map(amalgam.map((c) => [c.code, c.id]));
+  const downgrades = [["OF-R010", "OF-R001"], ["OF-R011", "OF-R002"], ["OF-R012", "OF-R003"]];
+  const rules2 = PLANS.filter((p) => p.type === "ppo").flatMap((p) => downgrades.filter(([, to]) => amalgamId.has(to)).map(([from, to]) => ({
+    id: `seed_rule_${p.id}_${from.toLowerCase().replace("-", "_")}`,
+    planId: p.id,
+    kind: "downgrade",
+    appliesTo: { fromCode: from, category: "basic" },
+    downgradeToCodeId: amalgamId.get(to),
+    note: "Posterior composites are paid at the amalgam allowance (alternate benefit).",
+    source: "payer_portal",
+    observedAt: now
+  })));
+  if (rules2.length) await tx.benefitRule.createMany({ data: rules2 });
+  auditCreate(uow, actor2, "Coverage", rows.coverages[0].id, "coverage.added", { seeded: rows.coverages.length }, meta2);
+  Object.assign(created, { coverages: rows.coverages.length, verifications: rows.verifications.length, benefitFacts: rows.facts.length, workTasks: rows.tasks.length });
+  return created;
+}
+
 // features/keystone/mutations/setup.ts
 async function loadPracticeSetup(_root, args, context) {
   const actor2 = actorFromSession(context.session);
   requirePermission(actor2, "canManageOnboarding");
   const result = await command(context.prisma, { name: "setup.load_practice", actor: actor2, idempotencyKey: args.idempotencyKey, params: {} }, (uow) => seedPracticePlatform(uow, actor2));
-  return { replay: result.replay, created: result.value };
+  const insurance = await command(context.prisma, { name: "setup.load_insurance", actor: actor2, idempotencyKey: `${args.idempotencyKey}:insurance`, params: {} }, (uow) => seedPhase3(uow, actor2));
+  return { replay: result.replay, created: { ...result.value, ...insurance.value } };
 }
 
 // features/keystone/mutations/audit.ts
@@ -4990,40 +5251,6 @@ async function requestPracticeControls(_root, args, context) {
 
 // features/keystone/mutations/mfa.ts
 var import_graphql2 = require("graphql");
-
-// features/keystone/lib/secretBox.ts
-var import_node_crypto4 = require("node:crypto");
-var SECRET_KEY_VERSION = 1;
-function decodeKey(value) {
-  const text15 = String(value || "").trim();
-  if (!text15) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
-  const key = /^[a-f0-9]{64}$/i.test(text15) ? Buffer.from(text15, "hex") : Buffer.from(text15, "base64");
-  if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
-  return key;
-}
-function sealSecret(plaintext, purpose, keyText = process.env.DENTAL_SECRET_KEY) {
-  const key = decodeKey(keyText);
-  const iv = (0, import_node_crypto4.randomBytes)(12);
-  const cipher = (0, import_node_crypto4.createCipheriv)("aes-256-gcm", key, iv);
-  cipher.setAAD(Buffer.from(purpose, "utf8"));
-  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
-  return { purpose, ciphertext: ciphertext.toString("base64"), iv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64"), keyVersion: SECRET_KEY_VERSION };
-}
-function openSecret(box, keyText = process.env.DENTAL_SECRET_KEY) {
-  const decipher = (0, import_node_crypto4.createDecipheriv)("aes-256-gcm", decodeKey(keyText), Buffer.from(box.iv, "base64"));
-  decipher.setAAD(Buffer.from(box.purpose, "utf8"));
-  decipher.setAuthTag(Buffer.from(box.authTag, "base64"));
-  return Buffer.concat([decipher.update(Buffer.from(box.ciphertext, "base64")), decipher.final()]).toString("utf8");
-}
-async function storeSecret(tx, purpose, plaintext) {
-  const sealed = sealSecret(plaintext, purpose);
-  return tx.secretBox.create({ data: sealed, select: { id: true } });
-}
-async function readSecret(tx, id) {
-  const box = await tx.secretBox.findUnique({ where: { id } });
-  if (!box) throw new Error("Secret not found");
-  return openSecret(box);
-}
 
 // features/keystone/lib/session.ts
 var import_node_crypto5 = require("node:crypto");
@@ -5334,13 +5561,13 @@ async function loadLocationDay(tx, locationId, date) {
   const location = await tx.location.findUnique({ where: { id: locationId }, select: { id: true, timeZone: true, name: true, isActive: true, jurisdiction: { select: { rules: true } } } });
   if (!location || !location.isActive) throw new DomainError(Codes.NOT_FOUND, "That location does not exist or is closed.");
   const practice = await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } });
-  const day3 = /* @__PURE__ */ new Date(`${date}T00:00:00.000Z`);
+  const day4 = /* @__PURE__ */ new Date(`${date}T00:00:00.000Z`);
   const template = await tx.scheduleTemplate.findFirst({
-    where: { locationId, status: "active", effectiveFrom: { lte: day3 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day3 } }] },
+    where: { locationId, status: "active", effectiveFrom: { lte: day4 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day4 } }] },
     orderBy: { effectiveFrom: "desc" },
     select: { blocks: { select: { id: true, weekday: true, operatoryId: true, providerId: true, startLocal: true, endLocal: true, onlineBookable: true, allowedTypes: { select: { id: true } }, provider: { select: { providerType: true } }, operatory: { select: { isActive: true } } } } }
   });
-  const closures = await tx.closureDay.findMany({ where: { date: day3, OR: [{ locationId }, { locationId: null }] } });
+  const closures = await tx.closureDay.findMany({ where: { date: day4, OR: [{ locationId }, { locationId: null }] } });
   const blocks = (template?.blocks ?? []).filter((b) => b.operatoryId && b.operatory?.isActive !== false).map((b) => ({
     id: b.id,
     weekday: b.weekday,
@@ -5416,9 +5643,9 @@ async function checkSlot(tx, now, req) {
   const chair = await loadChairBusy(tx, [req.operatoryId], startMs, endMs, now, req.ignore);
   if (chairClash(startMs, endMs, bufferAfterMinutes, chair[req.operatoryId] ?? [])) throw new DomainError(Codes.SLOT_TAKEN, "That chair is already booked or held for this time.");
   const date = localDate(operatory.location.timeZone, req.startsAt);
-  const day3 = await loadLocationDay(tx, req.locationId, date);
+  const day4 = await loadLocationDay(tx, req.locationId, date);
   const warnings = [];
-  const window = templateWindowFor(day3.windows, req.operatoryId, req.typeId, startMs, endMs, { onlineOnly: req.onlineOnly });
+  const window = templateWindowFor(day4.windows, req.operatoryId, req.typeId, startMs, endMs, { onlineOnly: req.onlineOnly });
   if (!window) {
     if (!req.overrideTemplate || req.onlineOnly) throw new DomainError(Codes.OUTSIDE_TEMPLATE, "That time is outside the schedule template for this chair and appointment type.");
     warnings.push("outside_template");
@@ -5432,7 +5659,7 @@ async function checkSlot(tx, now, req) {
     if (patientBusy.length) throw new DomainError(Codes.PATIENT_UNAVAILABLE, "The patient already has an appointment at this time.");
   }
   const providerBusy = await loadProviderBusy(tx, startMs, endMs, now, req.ignore);
-  const plan = planSegments({ pattern, unitMinutes, startMs, providerId, windows: day3.windows, providerBusy });
+  const plan = planSegments({ pattern, unitMinutes, startMs, providerId, windows: day4.windows, providerBusy });
   if (plan.clashes.length) {
     if (!req.overrideProviderClash) throw new DomainError(Codes.PROVIDER_UNAVAILABLE, "The provider is already committed for part of this time.");
     for (const c of plan.clashes) c.segment.concurrencyKind = "approved_override";
@@ -5440,11 +5667,11 @@ async function checkSlot(tx, now, req) {
   }
   let supervisingDentistId = plan.examProviderId;
   if (type.requiresDentistOnSite) {
-    const onSite = dentistsOnSite(day3.windows, startMs, endMs);
+    const onSite = dentistsOnSite(day4.windows, startMs, endMs);
     supervisingDentistId = supervisingDentistId && onSite.includes(supervisingDentistId) ? supervisingDentistId : onSite[0] ?? null;
-    if (!supervisingDentistId && day3.supervision.hygieneGeneralAllowed) warnings.push("general_supervision");
+    if (!supervisingDentistId && day4.supervision.hygieneGeneralAllowed) warnings.push("general_supervision");
     else if (!supervisingDentistId) {
-      if (day3.supervision.enforcement === "hard" || req.onlineOnly) throw new DomainError(Codes.SUPERVISION_REQUIRED, "No dentist is scheduled on site for this hygiene visit, and this location\u2019s jurisdiction pack requires one.");
+      if (day4.supervision.enforcement === "hard" || req.onlineOnly) throw new DomainError(Codes.SUPERVISION_REQUIRED, "No dentist is scheduled on site for this hygiene visit, and this location\u2019s jurisdiction pack requires one.");
       warnings.push("no_dentist_on_site");
     }
   }
@@ -5476,10 +5703,10 @@ async function preflight(tx, req) {
   }
   const startMs = req.startsAt.getTime();
   const endMs = startMs + patternUnits(pattern) * (practice?.scheduleUnitMinutes ?? 10) * MS_PER_MINUTE;
-  const day3 = await loadLocationDay(tx, req.locationId, localDate(operatory.location.timeZone, req.startsAt));
-  const window = day3.windows.find((w) => w.operatoryId === req.operatoryId && w.startMs <= startMs && endMs <= w.endMs);
+  const day4 = await loadLocationDay(tx, req.locationId, localDate(operatory.location.timeZone, req.startsAt));
+  const window = day4.windows.find((w) => w.operatoryId === req.operatoryId && w.startMs <= startMs && endMs <= w.endMs);
   const providerIds = [req.providerId ?? window?.providerId ?? null];
-  if (pattern.some((u) => u.role === "exam")) providerIds.push(...dentistsOnSite(day3.windows, startMs, endMs));
+  if (pattern.some((u) => u.role === "exam")) providerIds.push(...dentistsOnSite(day4.windows, startMs, endMs));
   return { providerIds: providerIds.filter((id) => !!id) };
 }
 async function labGate(_tx, _appointmentId) {
@@ -5535,13 +5762,13 @@ var toDate = (value, field) => {
   if (Number.isNaN(date.getTime())) throw new DomainError(Codes.INVALID_INPUT, `Enter a valid ${field}.`, { field });
   return date;
 };
-var requireText = (value, field, max = 500) => {
+var requireText = (value, field, max2 = 500) => {
   const text15 = String(value ?? "").trim();
   if (!text15) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-  if (text15.length > max) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+  if (text15.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
   return text15;
 };
-var optionalText = (value, max = 2e3) => String(value ?? "").trim().slice(0, max);
+var optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
 function normalizeContact(kind, value) {
   const raw = String(value ?? "").trim();
   if (kind === "email") {
@@ -5578,18 +5805,18 @@ async function availability(db, args) {
   const slots = [];
   for (let i = 0; i < days && slots.length < limit; i += 1) {
     const date = addDays(args.fromDate, i);
-    const day3 = await loadLocationDay(db, args.locationId, date);
-    if (!day3.windows.length) continue;
-    const from = Math.min(...day3.windows.map((w) => w.startMs));
-    const to = Math.max(...day3.windows.map((w) => w.endMs));
-    const operatoryIds = [...new Set(day3.windows.map((w) => w.operatoryId))];
+    const day4 = await loadLocationDay(db, args.locationId, date);
+    if (!day4.windows.length) continue;
+    const from = Math.min(...day4.windows.map((w) => w.startMs));
+    const to = Math.max(...day4.windows.map((w) => w.endMs));
+    const operatoryIds = [...new Set(day4.windows.map((w) => w.operatoryId))];
     const [chairBusy, providerBusy, patientBusy] = await Promise.all([
       loadChairBusy(db, operatoryIds, from, to, now),
       loadProviderBusy(db, from, to, now),
       args.patientId ? db.appointment.findMany({ where: { patientId: args.patientId, status: { in: ACTIVE2 }, startsAt: { lt: new Date(to) }, endsAt: { gt: new Date(from) } }, select: { startsAt: true, endsAt: true } }) : Promise.resolve([])
     ]);
     const found = findSlots({
-      windows: day3.windows,
+      windows: day4.windows,
       typeId: type.id,
       durationMinutes: patternUnits(pattern) * unitMinutes,
       unitMinutes,
@@ -5605,7 +5832,7 @@ async function availability(db, args) {
       providerId: args.providerId ?? null,
       limit: limit - slots.length
     });
-    const usable = type.requiresDentistOnSite && (day3.supervision.enforcement === "hard" || args.onlineOnly) && !day3.supervision.hygieneGeneralAllowed ? found.filter((s) => day3.windows.some((w) => w.providerType === "dentist" && w.startMs <= s.startMs && s.endMs <= w.endMs)) : found;
+    const usable = type.requiresDentistOnSite && (day4.supervision.enforcement === "hard" || args.onlineOnly) && !day4.supervision.hygieneGeneralAllowed ? found.filter((s) => day4.windows.some((w) => w.providerType === "dentist" && w.startMs <= s.startMs && s.endMs <= w.endMs)) : found;
     for (const s of usable) slots.push({ operatoryId: s.operatoryId, providerId: s.providerId, startsAt: new Date(s.startMs).toISOString(), endsAt: new Date(s.endMs).toISOString(), localDate: date });
   }
   return { typeId: type.id, unitMinutes, durationMinutes: patternUnits(pattern) * unitMinutes, slots };
@@ -6053,8 +6280,8 @@ async function publishScheduleTemplate(_root, args, context) {
     for (const a of upcoming) {
       const date = localDate(location.timeZone, a.startsAt);
       if (!cache.has(date)) cache.set(date, await loadLocationDay(uow.tx, template.locationId, date));
-      const day3 = cache.get(date);
-      const fits = day3.windows.some((w) => w.operatoryId === a.operatoryId && w.startMs <= a.startsAt.getTime() && a.endsAt.getTime() <= w.endMs && (!w.allowedTypeIds.length || w.allowedTypeIds.includes(a.typeId)));
+      const day4 = cache.get(date);
+      const fits = day4.windows.some((w) => w.operatoryId === a.operatoryId && w.startMs <= a.startsAt.getTime() && a.endsAt.getTime() <= w.endMs && (!w.allowedTypeIds.length || w.allowedTypeIds.includes(a.typeId)));
       if (!fits) outside.push(a.ref);
     }
     return { templateId: published.id, status: published.status, appointmentsOutsideTemplate: outside };
@@ -6541,7 +6768,7 @@ var clientFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", 
 var userAgentFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(String(req?.headers?.["user-agent"] ?? "")).digest("hex").slice(0, 32);
 function limitsFrom(json13) {
   const value = json13 && typeof json13 === "object" ? json13 : {};
-  const pick = (n, fallback, max) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max) : fallback;
+  const pick = (n, fallback, max2) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max2) : fallback;
   return {
     perClientPerHour: pick(value.perClientPerHour, DEFAULT_PUBLIC_LIMITS.perClientPerHour, 1e3),
     perContactPerDay: pick(value.perContactPerDay, DEFAULT_PUBLIC_LIMITS.perContactPerDay, 100),
@@ -7172,11 +7399,11 @@ async function locationToday(tx, locationId, now) {
   return localDate(location?.timeZone ?? "America/New_York", now);
 }
 async function feeFor(tx, codeId, onDate) {
-  const day3 = dayOf(onDate);
+  const day4 = dayOf(onDate);
   const schedule = await tx.feeSchedule.findFirst({ where: { isDefault: true } });
   if (!schedule) return null;
   const version = await tx.feeScheduleVersion.findFirst({
-    where: { scheduleId: schedule.id, status: "published", effectiveFrom: { lte: day3 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day3 } }] },
+    where: { scheduleId: schedule.id, status: "published", effectiveFrom: { lte: day4 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day4 } }] },
     orderBy: { effectiveFrom: "desc" }
   });
   if (!version) return null;
@@ -7399,7 +7626,7 @@ function normalizeTooth(raw) {
   if (!VALID_TEETH.has(tooth)) throw new DomainError(Codes.INVALID_INPUT, "Choose a tooth from 1 to 32 or A to T.", { field: "tooth" });
   return tooth;
 }
-function normalizeSurfaces(raw, max = 5) {
+function normalizeSurfaces(raw, max2 = 5) {
   const letters = String(raw ?? "").toUpperCase().replace(/[^A-Z0-9]/g, "").split("");
   const seen = /* @__PURE__ */ new Set();
   for (const letter of letters) {
@@ -7407,7 +7634,7 @@ function normalizeSurfaces(raw, max = 5) {
     if (seen.has(letter)) throw new DomainError(Codes.INVALID_INPUT, `Surface ${letter} is listed twice.`, { field: "surfaces" });
     seen.add(letter);
   }
-  if (seen.size > max) throw new DomainError(Codes.INVALID_INPUT, `This code allows at most ${max} surfaces.`, { field: "surfaces" });
+  if (seen.size > max2) throw new DomainError(Codes.INVALID_INPUT, `This code allows at most ${max2} surfaces.`, { field: "surfaces" });
   return SURFACE_ORDER.filter((letter) => seen.has(letter)).join("");
 }
 function quadrantOf(tooth) {
@@ -7465,9 +7692,9 @@ var PLANNABLE = ["diagnosed", "planned"];
 async function codeFor(tx, codeId, onDate) {
   const code = await tx.procedureCode.findUnique({ where: { id: codeId } });
   if (!code) throw new DomainError(Codes.NOT_FOUND, "Procedure code not found.", { field: "codeId" });
-  const day3 = dayOf(onDate);
-  if (code.effectiveFrom && code.effectiveFrom > day3) throw new DomainError(Codes.GUARD_FAILED, `${code.code} is not in effect on that date.`, { field: "codeId" });
-  if (code.effectiveTo && code.effectiveTo < day3) throw new DomainError(Codes.GUARD_FAILED, `${code.code} was retired before that date.`, { field: "codeId" });
+  const day4 = dayOf(onDate);
+  if (code.effectiveFrom && code.effectiveFrom > day4) throw new DomainError(Codes.GUARD_FAILED, `${code.code} is not in effect on that date.`, { field: "codeId" });
+  if (code.effectiveTo && code.effectiveTo < day4) throw new DomainError(Codes.GUARD_FAILED, `${code.code} was retired before that date.`, { field: "codeId" });
   return code;
 }
 function siteData(code, site) {
@@ -7669,11 +7896,11 @@ var PD_MIN = 0;
 var PD_MAX = 15;
 var GM_MIN = -10;
 var GM_MAX = 15;
-var whole = (value, field, min, max) => {
+var whole = (value, field, min2, max2) => {
   if (value === null || value === void 0 || value === "") return null;
   const n = typeof value === "number" ? value : /^-?\d+$/.test(String(value).trim()) ? parseInt(String(value).trim(), 10) : Number.NaN;
   if (!Number.isInteger(n)) throw new DomainError(Codes.INVALID_INPUT, `${field} must be a whole number of millimetres.`, { field });
-  if (n < min || n > max) throw new DomainError(Codes.INVALID_INPUT, `${field} must be between ${min} and ${max} mm.`, { field });
+  if (n < min2 || n > max2) throw new DomainError(Codes.INVALID_INPUT, `${field} must be between ${min2} and ${max2} mm.`, { field });
   return n;
 };
 function validateMeasurement(input) {
@@ -7973,9 +8200,9 @@ async function logAnesthetic(_root, args, context) {
 async function recordVitals(_root, args, context) {
   const { actor: actor2, locationIds } = staff(context);
   requirePermission(actor2, "canChart");
-  const within = (value, min, max, field) => {
+  const within = (value, min2, max2, field) => {
     if (value === null || value === void 0) return null;
-    if (!Number.isInteger(value) || value < min || value > max) throw new DomainError(Codes.INVALID_INPUT, `${field} must be a whole number from ${min} to ${max}.`, { field });
+    if (!Number.isInteger(value) || value < min2 || value > max2) throw new DomainError(Codes.INVALID_INPUT, `${field} must be a whole number from ${min2} to ${max2}.`, { field });
     return value;
   };
   const systolic = within(args.systolic, 50, 300, "Systolic pressure");
@@ -8340,6 +8567,912 @@ async function reviseTreatmentPlan(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 
+// features/keystone/mutations/insurance.ts
+var import_node_crypto14 = require("node:crypto");
+
+// features/keystone/lib/money.ts
+var MINOR_DIGITS = { USD: 2, EUR: 2, GBP: 2, CHF: 2, CAD: 2, AUD: 2, SEK: 2, JPY: 0, KRW: 0, BHD: 3, KWD: 3 };
+var isCurrencyCode = (code) => typeof code === "string" && /^[A-Z]{3}$/.test(code);
+function minorDigits(currencyCode) {
+  if (!isCurrencyCode(currencyCode)) throw new Error(`Invalid currency code: ${String(currencyCode).slice(0, 8)}`);
+  return MINOR_DIGITS[currencyCode] ?? 2;
+}
+function toMinor(amount, currencyCode = "USD", rounding = Decimal.ROUND_HALF_EVEN) {
+  const digits = minorDigits(currencyCode);
+  const scaled = dec(amount).times(new Decimal(10).pow(digits)).toDecimalPlaces(0, rounding);
+  return BigInt(scaled.toFixed(0));
+}
+function minorOf(value) {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number" && Number.isSafeInteger(value)) return BigInt(value);
+  if (typeof value === "string" && /^-?\d+$/.test(value.trim())) return BigInt(value.trim());
+  throw new Error("Not an integer minor-unit amount");
+}
+
+// features/keystone/lib/estimateInputs.ts
+var CATEGORY_OF_CODE = {
+  diagnostic: "preventive",
+  preventive: "preventive",
+  restorative: "basic",
+  endodontics: "basic",
+  periodontics: "basic",
+  oral_surgery: "basic",
+  maxillofacial: "major",
+  prosth_removable: "major",
+  prosth_fixed: "major",
+  implant: "major",
+  orthodontics: "orthodontic"
+};
+var ESTIMATING_CATEGORIES = ["preventive", "basic", "major", "orthodontic"];
+var newestFirst = (a, b) => b.observedAt.getTime() - a.observedAt.getTime() || b.createdAt.getTime() - a.createdAt.getTime();
+var factKey = (fact) => {
+  const a = fact.appliesTo ?? {};
+  const category = a.category === "all" || a.category === "dental" ? "" : String(a.category ?? "");
+  const group = fact.field === "frequency_limit" ? String(a.group ?? "") || "recall" : String(a.group ?? "");
+  return `${fact.field}|${category}|${String(a.level ?? "individual")}|${group}`;
+};
+function effectiveFacts(facts) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const fact of facts) groups.set(factKey(fact), [...groups.get(factKey(fact)) ?? [], fact]);
+  const newest = [...groups.values()].map((group) => [...group].sort(newestFirst)[0]);
+  const wide = newest.filter((f) => f.isUnknown && !Object.keys(f.appliesTo ?? {}).length);
+  return newest.filter((f) => f.isUnknown || !wide.some((w) => w.field === f.field && newestFirst(w, f) < 0));
+}
+async function loadCoverageForEstimate(tx, coverageId, onDate) {
+  const coverage = await tx.coverage.findUnique({ where: { id: coverageId }, include: { subscriber: { include: { plan: true } } } });
+  const plan = coverage?.subscriber?.plan;
+  if (!coverage || !plan) return null;
+  const facts = effectiveFacts(await tx.benefitFact.findMany({ where: { coverageId } }));
+  const known = (field, scope) => facts.filter((f) => f.field === field && !f.isUnknown && (!scope || scope(f.appliesTo ?? {})));
+  const one = (field, scope) => known(field, scope)[0];
+  const pct2 = ESTIMATING_CATEGORIES.map((category) => {
+    const fact = facts.find((f) => f.field === "coverage_pct" && f.appliesTo?.category === category);
+    return { category, pct: fact && !fact.isUnknown ? String(fact.valueJson.pct) : null, source: fact?.source ?? "practice_default", ref: fact?.id };
+  });
+  const max2 = one("annual_max", (a) => !a.level || a.level === "individual");
+  const maxLeft = one("annual_max_used", (a) => !a.level || a.level === "individual");
+  const ded = one("deductible", (a) => !a.level || a.level === "individual");
+  const dedLeft = one("deductible_met", (a) => !a.level || a.level === "individual");
+  const annualMax = max2 ? minorOf(max2.valueJson.amountMinor) : null;
+  const deductible = ded ? minorOf(ded.valueJson.amountMinor) : null;
+  const usageNotes = [];
+  let maxUsed = 0n;
+  if (annualMax !== null && maxLeft) maxUsed = annualMax - minorOf(maxLeft.valueJson.remainingMinor);
+  else if (annualMax !== null) usageNotes.push("Maximum used so far was not reported; none is assumed.");
+  let dedMet = 0n;
+  if (deductible !== null && dedLeft) dedMet = deductible - minorOf(dedLeft.valueJson.remainingMinor);
+  else if (deductible !== null) usageNotes.push("Deductible met so far was not reported; none is assumed.");
+  const frequency = known("frequency_limit").filter((f) => f.valueJson?.count && f.valueJson?.months).map((f) => ({ group: String(f.valueJson.group ?? f.appliesTo?.group ?? "recall"), count: Number(f.valueJson.count), months: Number(f.valueJson.months), ref: f.id }));
+  const frequencyUnreadable = known("frequency_limit").some((f) => !(f.valueJson?.count && f.valueJson?.months));
+  const ages = known("age_limit").map((f) => ({ category: String(f.appliesTo.category), min: f.valueJson.min ?? null, max: f.valueJson.max ?? null }));
+  const waiting = known("waiting_period").filter((f) => f.valueJson?.months).map((f) => ({ category: String(f.appliesTo.category), months: Number(f.valueJson.months) }));
+  const missing = known("missing_tooth_clause").flatMap((f) => f.valueJson?.categories ?? []);
+  const downgrade = known("downgrade").flatMap((f) => f.valueJson?.categories ?? []);
+  const cobFact = one("cob_method");
+  const cobMethod = cobFact?.valueJson?.method ?? plan.cobMethod ?? "unknown";
+  const version = plan.feeScheduleId ? await tx.feeScheduleVersion.findFirst({ where: { scheduleId: plan.feeScheduleId, status: "published", effectiveFrom: { lte: /* @__PURE__ */ new Date(`${onDate}T00:00:00Z`) } }, orderBy: { effectiveFrom: "desc" } }) : null;
+  const history = await tx.outsideHistory.findMany({ where: { patientId: coverage.patientId, frequencyGroup: { not: "" } }, select: { frequencyGroup: true, dateOfService: true } });
+  const done = await tx.chartEntry.findMany({ where: { patientId: coverage.patientId, kind: "procedure", status: { in: ["completed", "posted"] } }, include: { code: true }, take: 500 });
+  const dayOf2 = (d) => d ? d.toISOString().slice(0, 10) : "";
+  const used = [
+    ...history.filter((h) => h.dateOfService).map((h) => ({ group: String(h.frequencyGroup), date: dayOf2(h.dateOfService) })),
+    ...done.filter((e) => e.dateOfService).map((e) => ({ group: groupOf(e.code), date: dayOf2(e.dateOfService) }))
+  ];
+  return {
+    coverageId,
+    ordinal: coverage.ordinal,
+    effectiveFrom: coverage.effectiveFrom ? dayOf2(coverage.effectiveFrom) : null,
+    cobMethod,
+    factIds: facts.map((f) => f.id),
+    feeScheduleVersionId: version?.id ?? null,
+    usageNotes,
+    coveragePct: pct2,
+    verificationLevel: coverage.verificationLevel,
+    frequencyUnreadable,
+    limitsKnown: known("frequency_limit").length > 0 && !frequencyUnreadable && known("waiting_period").length > 0,
+    plan: { inNetwork: plan.networkStatus === "in_network", annualMaxMinor: annualMax, deductibleMinor: deductible, coveragePct: pct2, frequency, ageLimits: ages, waiting, missingTooth: missing, downgrade, deductibleCategories: ["basic", "major"] },
+    usage: { maxUsedMinor: maxUsed < 0n ? 0n : maxUsed, pendingMinor: 0n, deductibleMetMinor: dedMet < 0n ? 0n : dedMet, history: used }
+  };
+}
+var groupOf = (code) => code?.isPreventiveRecallTrigger ? "recall" : String(code?.code ?? "");
+var categoryOf = (code) => code?.estimatingCategory || CATEGORY_OF_CODE[String(code?.category)] || "basic";
+
+// features/keystone/lib/estimator.ts
+var ESTIMATOR_VERSION = "est-1.0.0";
+var RANK = { verified: 2, partially_verified: 1, assumed: 0 };
+var weakest = (a, b) => RANK[a] <= RANK[b] ? a : b;
+function pctOf(amount, pct2) {
+  return BigInt(dec(amount).times(dec(pct2)).div(100).toDecimalPlaces(0, Decimal.ROUND_HALF_EVEN).toString());
+}
+function addMonths(isoDate, months) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1 + months, 1));
+  const last = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate();
+  date.setUTCDate(Math.min(d, last));
+  return date.toISOString().slice(0, 10);
+}
+var min = (a, b) => a < b ? a : b;
+var max = (a, b) => a > b ? a : b;
+function estimate(input) {
+  const { plan, usage } = input;
+  const ordered = input.lines.map((line, index) => ({ line, index })).sort((a, b) => a.line.date < b.line.date ? -1 : a.line.date > b.line.date ? 1 : a.index - b.index).map((x) => x.line);
+  const consumed = [];
+  let deductibleUsedInRun = 0n;
+  let insuranceInRun = 0n;
+  const results = [];
+  for (const line of ordered) {
+    const trace = [];
+    const reasons = [];
+    let partial = false;
+    const fee = line.feeMinor;
+    let allowed;
+    if (line.allowedMinor === null || line.allowedMinor === void 0) {
+      allowed = fee;
+      reasons.push("allowed_unknown");
+      partial = true;
+      trace.push("allowed amount unknown: the office fee is used");
+    } else allowed = min(line.allowedMinor, fee);
+    const writeOff = plan.inNetwork ? fee - allowed : 0n;
+    const patientBasis = plan.inNetwork ? allowed : fee;
+    trace.push(`fee ${fee}, allowed ${allowed}, write-off ${writeOff}`);
+    const base = {
+      id: line.id,
+      code: line.code,
+      feeMinor: fee,
+      allowedMinor: allowed,
+      writeOffMinor: writeOff,
+      insuranceMinor: 0n,
+      patientMinor: patientBasis,
+      deductibleAppliedMinor: 0n,
+      maxAppliedMinor: 0n,
+      secondaryInsuranceMinor: 0n,
+      status: "covered",
+      confidence: "verified",
+      reasons,
+      trace
+    };
+    const finish = (patch, confidence2) => {
+      results.push({ ...base, ...patch, reasons, trace, confidence: confidence2 });
+    };
+    const rule3 = plan.coveragePct.find((r) => r.category === line.category);
+    if (!rule3 || rule3.pct === null) {
+      reasons.push("benefit_unknown");
+      trace.push(`coverage for ${line.category} is unknown: insurance 0`);
+      finish({ status: "unknown" }, "assumed");
+      continue;
+    }
+    const assumed = rule3.source === "practice_default";
+    if (assumed) reasons.push("assumed_benefit");
+    const confidenceOf = () => assumed ? "assumed" : partial ? "partially_verified" : "verified";
+    const block = (reason, why) => {
+      reasons.push(reason);
+      trace.push(why);
+      finish({ status: "not_covered" }, confidenceOf());
+    };
+    if (dec(rule3.pct).isZero()) {
+      block("not_covered", `${line.category} is not covered`);
+      continue;
+    }
+    const freq = line.group ? plan.frequency.find((f) => f.group === line.group) : void 0;
+    if (freq) {
+      const cutoff = addMonths(line.date, -freq.months);
+      const used = [...usage.history, ...consumed].filter((h) => h.group === freq.group && h.date > cutoff && h.date <= line.date).length;
+      if (used >= freq.count) {
+        block("frequency_exceeded", `frequency ${freq.count} per ${freq.months} months already used (${used})`);
+        continue;
+      }
+    } else if (line.group && plan.frequencyUnknown) {
+      reasons.push("frequency_unknown");
+      partial = true;
+      trace.push("the plan has a frequency limit that is not known in numbers: not applied, a person must ask");
+    }
+    const age = plan.ageLimits.find((a) => a.category === line.category);
+    if (age && (age.min !== null && input.patientAgeYears < age.min || age.max !== null && input.patientAgeYears > age.max)) {
+      block("age_limit", `age ${input.patientAgeYears} is outside the plan's limit`);
+      continue;
+    }
+    const wait = plan.waiting.find((w) => w.category === line.category);
+    if (wait && input.coverageEffectiveFrom && line.date < addMonths(input.coverageEffectiveFrom, wait.months)) {
+      block("waiting_period", `${wait.months}-month waiting period not yet served`);
+      continue;
+    }
+    if (line.missingTooth && plan.missingTooth.includes(line.category)) {
+      block("missing_tooth", "missing-tooth clause applies");
+      continue;
+    }
+    let basis = allowed;
+    if (plan.downgrade.includes(line.category) && line.downgradeUnknown && line.downgradeAllowedMinor === void 0) {
+      reasons.push("downgrade_amount_unknown");
+      partial = true;
+      trace.push("plan downgrades this category but the alternate benefit is unknown: the full allowed amount is used");
+    }
+    if (plan.downgrade.includes(line.category) && line.downgradeAllowedMinor !== null && line.downgradeAllowedMinor !== void 0 && line.downgradeAllowedMinor < basis) {
+      basis = line.downgradeAllowedMinor;
+      reasons.push("downgraded");
+      trace.push(`downgraded: benefit is based on ${basis}`);
+    }
+    let deductibleApplied = 0n;
+    if (plan.deductibleCategories.includes(line.category)) {
+      if (plan.deductibleMinor === null) {
+        reasons.push("deductible_unknown");
+        partial = true;
+        trace.push("deductible unknown: none applied");
+      } else {
+        const remaining = max(0n, plan.deductibleMinor - usage.deductibleMetMinor - deductibleUsedInRun);
+        deductibleApplied = min(remaining, basis);
+        trace.push(`deductible applied ${deductibleApplied} of ${remaining} remaining`);
+      }
+    }
+    const afterDeductible = basis - deductibleApplied;
+    const candidate = pctOf(afterDeductible, rule3.pct);
+    trace.push(`${rule3.pct}% of ${afterDeductible} = ${candidate}`);
+    let insurance = candidate;
+    let maxApplied = 0n;
+    if (plan.annualMaxMinor === null) {
+      if (candidate > 0n) {
+        reasons.push("annual_max_unknown");
+        partial = true;
+        trace.push("annual maximum unknown: not applied");
+      }
+    } else {
+      const remaining = max(0n, plan.annualMaxMinor - usage.maxUsedMinor - usage.pendingMinor - insuranceInRun);
+      insurance = min(candidate, remaining);
+      maxApplied = candidate - insurance;
+      if (maxApplied > 0n) {
+        reasons.push(insurance === 0n ? "annual_max_reached" : "annual_max_applied");
+        trace.push(`annual maximum leaves ${remaining}`);
+      }
+    }
+    deductibleUsedInRun += deductibleApplied;
+    insuranceInRun += insurance;
+    if (line.group) consumed.push({ group: line.group, date: line.date });
+    finish({
+      insuranceMinor: insurance,
+      patientMinor: patientBasis - insurance,
+      deductibleAppliedMinor: deductibleApplied,
+      maxAppliedMinor: maxApplied,
+      status: "covered"
+    }, confidenceOf());
+  }
+  if (input.secondary) {
+    const secondary = input.secondary;
+    const secConsumed = [];
+    const secondaryRefusal = (line) => {
+      const limits = secondary.limits;
+      if (!limits) return "secondary_limits_unknown";
+      const freq = line.group ? limits.frequency.find((f) => f.group === line.group) : void 0;
+      if (freq) {
+        const cutoff = addMonths(line.date, -freq.months);
+        const used = [...usage.history, ...secConsumed].filter((h) => h.group === freq.group && h.date > cutoff && h.date <= line.date).length;
+        if (used >= freq.count) return "frequency_exceeded";
+      }
+      const age = limits.ageLimits.find((a) => a.category === line.category);
+      if (age && (age.min !== null && input.patientAgeYears < age.min || age.max !== null && input.patientAgeYears > age.max)) return "age_limit";
+      const wait = limits.waiting.find((w) => w.category === line.category);
+      if (wait && limits.coverageEffectiveFrom && line.date < addMonths(limits.coverageEffectiveFrom, wait.months)) return "waiting_period";
+      if (line.missingTooth && limits.missingTooth.includes(line.category)) return "missing_tooth";
+      return null;
+    };
+    for (const result of [...results].sort((a, b) => ordered.findIndex((l) => l.id === a.id) - ordered.findIndex((l) => l.id === b.id))) {
+      const line = ordered.find((l) => l.id === result.id);
+      const rule3 = secondary.coveragePct.find((r) => r.category === line.category);
+      if (!rule3 || rule3.pct === null || result.status === "unknown" || secondary.method === "unknown") {
+        result.trace.push("secondary: benefit or COB method unknown, nothing assumed");
+        continue;
+      }
+      if (dec(rule3.pct).isZero()) {
+        result.trace.push(`secondary: ${line.category} is not covered by the secondary`);
+        continue;
+      }
+      if (result.status === "not_covered") {
+        const refusal = secondaryRefusal(line);
+        if (refusal) {
+          result.reasons.push(refusal === "secondary_limits_unknown" ? "secondary_limits_unknown" : `secondary_${refusal}`);
+          result.trace.push(refusal === "secondary_limits_unknown" ? "secondary: the primary does not cover this line and the secondary's own limits are not known, so it pays nothing" : `secondary: its own plan does not cover this line either (${refusal})`);
+          continue;
+        }
+      } else if (secondary.limits) {
+        const refusal = secondaryRefusal(line);
+        if (refusal) {
+          result.reasons.push(`secondary_${refusal}`);
+          result.trace.push(`secondary: its own plan does not cover this line (${refusal})`);
+          continue;
+        }
+      }
+      const method = secondary.method;
+      const secAllowed = method === "non_duplication" ? result.allowedMinor : line.secondaryAllowedMinor ?? result.allowedMinor;
+      const normal = pctOf(secAllowed, rule3.pct);
+      const left = result.patientMinor;
+      const room = max(0n, result.allowedMinor - result.insuranceMinor);
+      let raw;
+      if (method === "standard") raw = normal;
+      else if (method === "maintenance_of_benefits") raw = max(0n, left - max(0n, secAllowed - normal));
+      else raw = max(0n, normal - result.insuranceMinor);
+      const paid = min(raw, min(left, room));
+      result.secondaryInsuranceMinor = paid;
+      result.patientMinor = left - paid;
+      if (line.group && paid > 0n) secConsumed.push({ group: line.group, date: line.date });
+      if (paid > 0n && result.status === "not_covered") {
+        result.status = "covered";
+        result.reasons.push("secondary_only");
+      }
+      if (paid > 0n && secondary.confidence) result.confidence = weakest(result.confidence, secondary.confidence);
+      result.trace.push(`secondary (${method}) pays ${paid}; patient owes ${result.patientMinor}`);
+    }
+  }
+  const confidence = results.reduce((acc, r) => weakest(acc, r.confidence), "verified");
+  const sum = (pick) => results.reduce((s, r) => s + pick(r), 0n);
+  return {
+    estimatorVersion: ESTIMATOR_VERSION,
+    lines: input.lines.map((l) => results.find((r) => r.id === l.id)),
+    confidence,
+    totals: { feeMinor: sum((r) => r.feeMinor), insuranceMinor: sum((r) => r.insuranceMinor), patientMinor: sum((r) => r.patientMinor), writeOffMinor: sum((r) => r.writeOffMinor) }
+  };
+}
+
+// features/keystone/mutations/insurance.ts
+var WRITE = ["canManageInsurance", "canVerifyBenefits"];
+var REQUIRED_FACTS = [
+  { field: "coverage_active" },
+  { field: "annual_max" },
+  { field: "deductible" },
+  { field: "coverage_pct", category: "preventive" },
+  { field: "coverage_pct", category: "basic" },
+  { field: "coverage_pct", category: "major" },
+  { field: "frequency_limit" },
+  { field: "waiting_period" },
+  { field: "missing_tooth_clause" },
+  { field: "downgrade" },
+  { field: "cob_method" }
+];
+var CHECKLIST_BY_PLAN = {
+  ppo: ["frequency_limit", "waiting_period", "missing_tooth_clause", "downgrade", "cob_method", "frequency_used"],
+  indemnity: ["frequency_limit", "waiting_period", "missing_tooth_clause", "downgrade", "cob_method", "frequency_used"],
+  dhmo: ["frequency_limit", "cob_method"],
+  medicaid: ["frequency_limit", "age_limit"],
+  ma_dental: ["frequency_limit", "annual_max", "waiting_period"],
+  discount: ["coverage_pct"],
+  other: ["frequency_limit", "waiting_period", "cob_method"]
+};
+var TASK_TITLES = {
+  frequency_limit: "Ask the payer for frequency limits",
+  waiting_period: "Ask about waiting periods",
+  missing_tooth_clause: "Ask if a missing-tooth clause applies",
+  downgrade: "Ask about downgrade (alternate benefit) rules",
+  cob_method: "Ask which coordination-of-benefits method applies",
+  frequency_used: "Ask what frequencies are already used this year",
+  history_procedure: "Ask for procedures done elsewhere",
+  age_limit: "Ask about age limits",
+  annual_max: "Ask for the annual maximum",
+  coverage_pct: "Ask for coverage percentages"
+};
+var money = (value, field) => {
+  const text15 = String(value ?? "").trim();
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text15)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
+  return toMinor(text15, "USD");
+};
+var optMoney = (value, field) => value === void 0 || value === null || String(value).trim() === "" ? null : money(value, field);
+async function savePayer(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canManageInsurance");
+  const name = requireText(args.name, "payer name", 120);
+  const kind = oneOf(args.kind, PAYER_KINDS, "payer kind");
+  const days = args.timelyFilingDays ?? 365;
+  if (!Number.isInteger(days) || days < 1 || days > 1500) throw new DomainError(Codes.INVALID_INPUT, "Timely filing days must be between 1 and 1500.", { field: "timelyFilingDays" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "payer.save", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const ids = args.stediPayerId ? { stedi: requireText(args.stediPayerId, "Stedi payer ID", 40) } : {};
+    const data = { name, kind, phone: optionalText(args.phone, 40), timelyFilingDays: days, adapterPayerIds: ids };
+    if (args.payerId) {
+      await uow.tx.payer.update({ where: { id: args.payerId }, data });
+      uow.audit({ eventType: "payer.updated", entityType: "Payer", entityId: args.payerId, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { name, kind } });
+      return { payerId: args.payerId };
+    }
+    const payer = await uow.tx.payer.create({ data });
+    auditCreate(uow, actor2, "Payer", payer.id, "payer.created", { name, kind });
+    return { payerId: payer.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function saveInsurancePlan(_root, args, context) {
+  const { actor: actor2 } = staff(context);
+  requirePermission(actor2, "canManageInsurance");
+  const month = args.benefitYearStartMonth ?? 1;
+  if (!Number.isInteger(month) || month < 1 || month > 12) throw new DomainError(Codes.INVALID_INPUT, "The benefit year starts in a month from 1 to 12.", { field: "benefitYearStartMonth" });
+  const data = {
+    payerId: args.payerId,
+    groupName: requireText(args.groupName, "group name", 120),
+    groupNumber: optionalText(args.groupNumber, 40),
+    planType: oneOf(args.planType, PLAN_TYPES, "plan type"),
+    networkStatus: oneOf(args.networkStatus, ["in_network", "out_of_network"], "network status"),
+    feeScheduleId: args.feeScheduleId || null,
+    cobMethod: oneOf(args.cobMethod ?? "unknown", COB_METHODS, "COB method"),
+    benefitYearStartMonth: month,
+    annualMaxMinor: optMoney(args.annualMax, "annualMax"),
+    deductibleIndividualMinor: optMoney(args.deductible, "deductible"),
+    deductibleFamilyMinor: optMoney(args.deductibleFamily, "deductibleFamily")
+  };
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "plan.save_insurance", actor: actor2, idempotencyKey, params }, async (uow) => {
+    if (!await uow.tx.payer.findUnique({ where: { id: args.payerId }, select: { id: true } })) throw new DomainError(Codes.NOT_FOUND, "Payer not found.");
+    if (args.planId) {
+      await uow.tx.insurancePlan.update({ where: { id: args.planId }, data: { ...data, version: { increment: 1 } } });
+      uow.audit({ eventType: "insurance_plan.updated", entityType: "InsurancePlan", entityId: args.planId, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { groupName: data.groupName, planType: data.planType } });
+      return { planId: args.planId };
+    }
+    const plan = await uow.tx.insurancePlan.create({ data });
+    auditCreate(uow, actor2, "InsurancePlan", plan.id, "insurance_plan.created", { groupName: data.groupName, planType: data.planType });
+    return { planId: plan.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+var last4 = (value) => value.replace(/[^A-Za-z0-9]/g, "").slice(-4);
+async function addCoverage(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageInsurance");
+  const relationship14 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
+  const ordinal = oneOf(args.ordinal, ORDINALS, "order");
+  const memberId = requireText(args.memberId, "member ID", 40);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the effective date.", { field: "effectiveFrom" });
+  const { idempotencyKey, memberId: _member, ...params } = args;
+  const result = await command(context.prisma, { name: "coverage.add", actor: actor2, idempotencyKey, params: { ...params, memberIdHash: sha256(memberId) } }, async (uow) => {
+    const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const plan = await uow.tx.insurancePlan.findUnique({ where: { id: args.planId }, select: { id: true } });
+    if (!plan) throw new DomainError(Codes.NOT_FOUND, "Insurance plan not found.");
+    const open = await uow.tx.coverage.findFirst({ where: { patientId: patient.id, ordinal, status: { in: ["pending_verification", "active"] } } });
+    if (open) throw new DomainError(Codes.GUARD_FAILED, `This patient already has a ${ordinal} coverage. Change the order or end that coverage first.`, { field: "ordinal" });
+    const self = relationship14 === "self";
+    const patientRow = await uow.tx.patient.findUniqueOrThrow({ where: { id: patient.id }, select: { firstName: true, lastName: true, dateOfBirth: true, isSynthetic: true } });
+    const secret4 = await storeSecret(uow.tx, "subscriber.memberId", memberId);
+    const subscriber = await uow.tx.subscriber.create({
+      data: {
+        patientId: self ? patient.id : null,
+        planId: plan.id,
+        memberIdSecretId: secret4.id,
+        memberIdHash: sha256(memberId.toUpperCase()),
+        memberIdLast4: last4(memberId),
+        personName: self ? {} : { first: requireText(args.subscriberFirstName, "subscriber first name", 80), last: requireText(args.subscriberLastName, "subscriber last name", 80) },
+        dateOfBirth: self ? patientRow.dateOfBirth : dayOf(requireText(args.subscriberDateOfBirth, "subscriber date of birth", 10)),
+        effectiveFrom: dayOf(args.effectiveFrom),
+        isSynthetic: patientRow.isSynthetic
+      }
+    });
+    const coverage = await uow.tx.coverage.create({
+      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship14, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
+    });
+    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship14 });
+    return { coverageId: coverage.id, subscriberId: subscriber.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function setCoverageOrder(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageInsurance");
+  const ordinal = oneOf(args.ordinal, ORDINALS, "order");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "coverage.set_order", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const coverage = await lockRow(uow.tx, "Coverage", args.coverageId);
+    await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
+    if (!["pending_verification", "active"].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, "Only a current coverage can be reordered.");
+    if (coverage.ordinal === ordinal) return { coverageId: coverage.id, ordinal };
+    const other = await uow.tx.coverage.findFirst({ where: { patientId: coverage.patientId, ordinal, status: { in: ["pending_verification", "active"] } } });
+    if (other) {
+      await uow.tx.$executeRaw`UPDATE "Coverage" SET "status" = 'invalid' WHERE id = ${other.id}`;
+      await uow.tx.$executeRaw`UPDATE "Coverage" SET "ordinal" = ${ordinal}, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id}`;
+      await uow.tx.$executeRaw`UPDATE "Coverage" SET "ordinal" = ${coverage.ordinal}, "status" = ${other.status}, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${other.id}`;
+      auditCreate(uow, actor2, "Coverage", other.id, "coverage.order_changed", { from: ordinal, to: coverage.ordinal }, { reason });
+    } else {
+      await uow.tx.$executeRaw`UPDATE "Coverage" SET "ordinal" = ${ordinal}, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id}`;
+    }
+    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.order_changed", { from: coverage.ordinal, to: ordinal }, { reason });
+    return { coverageId: coverage.id, ordinal };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function terminateCoverage(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageInsurance");
+  const reason = requireReason(args.reason);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.endedOn ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the end date.", { field: "endedOn" });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "coverage.terminate", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const coverage = await lockRow(uow.tx, "Coverage", args.coverageId);
+    await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
+    if (!["pending_verification", "active"].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This coverage has already ended.");
+    const closed = await closeCoverageWork(uow, actor2, coverage.id, "The coverage ended.");
+    await transition(uow, { model: "Coverage", id: coverage.id, from: ["pending_verification", "active"], to: "terminated", expectedVersion: args.expectedVersion, actor: actor2, eventType: "coverage.terminated", reason, data: { effectiveTo: dayOf(args.endedOn) } });
+    const estimated = await reestimatePatient(uow, actor2, coverage.patientId);
+    return { coverageId: coverage.id, ...closed, reestimatedItems: estimated };
+    return { coverageId: coverage.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function closeCoverageWork(uow, actor2, coverageId, note) {
+  const { tx } = uow;
+  const verifications = await tx.benefitVerification.findMany({ where: { coverageId, status: { in: ["requested", "in_progress"] } }, select: { id: true } });
+  for (const v of verifications) {
+    await transition(uow, { model: "BenefitVerification", id: v.id, from: ["requested", "in_progress"], to: "failed", actor: actor2, eventType: "verification.failed", reason: note, data: { failureNote: note } });
+  }
+  const tasks = await tx.workTask.updateMany({ where: { subjectType: "Coverage", subjectId: coverageId, status: { in: ["open", "in_progress"] } }, data: { status: "cancelled", result: { reason: note }, version: { increment: 1 } } });
+  const checks = await tx.eligibilityCheck.updateMany({ where: { coverageId, status: { in: ["unknown", "queued", "sent"] } }, data: { status: "error_retryable", resultNote: note, version: { increment: 1 } } });
+  return { closedVerifications: verifications.length, closedTasks: tasks.count, closedChecks: checks.count };
+}
+async function reestimatePatient(uow, actor2, patientId) {
+  const plans = await uow.tx.treatmentPlan.findMany({ where: { patientId, currentVersionId: { not: null } }, select: { id: true } });
+  let lines = 0;
+  for (const plan of plans) {
+    const seen = await uow.tx.estimate.count({ where: { patientId, planItem: { planVersion: { planId: plan.id } } } });
+    if (!seen) continue;
+    const out = await estimatePlanInTx(uow, actor2, plan.id, null);
+    lines += Number(out.estimated ?? 0);
+  }
+  return lines;
+}
+async function openChecklist(tx, verificationId, coverageId, planType, now, isSynthetic, fields = CHECKLIST_BY_PLAN[planType] ?? CHECKLIST_BY_PLAN.other) {
+  for (const field of fields) {
+    const exists = await tx.workTask.findFirst({ where: { kind: "verification_checklist", subjectType: "Coverage", subjectId: coverageId, taskKey: field, status: { in: ["open", "in_progress"] } } });
+    if (exists) continue;
+    await tx.workTask.create({ data: { kind: "verification_checklist", title: TASK_TITLES[field] ?? `Confirm ${field.replaceAll("_", " ")}`, taskKey: field, subjectType: "Coverage", subjectId: coverageId, verificationId, dueAt: new Date(now.getTime() + 2 * 864e5), checklist: { field }, isSynthetic } });
+  }
+}
+async function openVerification(uow, actor2, coverageId, options) {
+  const { tx } = uow;
+  await lockRow(tx, "Coverage", coverageId);
+  const coverage = await tx.coverage.findUnique({ where: { id: coverageId }, include: { subscriber: { include: { plan: { include: { payer: true } } } } } });
+  if (!coverage || !coverage.subscriber?.plan) throw new DomainError(Codes.NOT_FOUND, "Coverage not found.");
+  if (["terminated", "invalid"].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This coverage has ended.");
+  const flying = await tx.benefitVerification.findFirst({ where: { coverageId, status: { in: ["requested", "in_progress"] } } });
+  if (flying) return { verificationId: flying.id, existing: true, checkId: null, mode: "manual" };
+  const plan = coverage.subscriber.plan;
+  const verification = await tx.benefitVerification.create({ data: { coverageId, trigger: options.trigger, status: "in_progress", requestedById: actor2.kind === "user" ? actor2.userId : null, isSynthetic: coverage.isSynthetic } });
+  const installation = options.viaClearinghouse ? await tx.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi", status: { not: "suspended" } } }) : null;
+  const payerId = plan.payer?.adapterPayerIds?.stedi;
+  let checkId = null;
+  let mode = "manual";
+  const inFlight = await tx.eligibilityCheck.findFirst({ where: { coverageId, status: { in: ["queued", "sent", "unknown"] } } });
+  if (inFlight) {
+    await tx.eligibilityCheck.update({ where: { id: inFlight.id }, data: { verificationId: verification.id } });
+    auditCreate(uow, actor2, "BenefitVerification", verification.id, "verification.requested", { coverageId, trigger: options.trigger, mode: inFlight.mode, reusedCheck: inFlight.id });
+    return { verificationId: verification.id, existing: false, checkId: inFlight.id, mode: inFlight.mode };
+  }
+  if (installation && payerId && installation.mode && installation.mode !== "live") {
+    mode = installation.mode;
+    const requestHash = sha256(canonicalJson({ coverage: coverage.id, subscriber: coverage.subscriber.memberIdHash, payer: payerId, serviceType: "35" }));
+    const check = await tx.eligibilityCheck.create({ data: { verificationId: verification.id, coverageId, adapterKey: "stedi", mode: installation.mode, requestHash, status: "queued", isSynthetic: coverage.isSynthetic } });
+    checkId = check.id;
+    uow.emit({ topic: "eligibility.check", aggregateType: "EligibilityCheck", aggregateId: check.id, payload: { checkId: check.id, attempt: 1 }, dedupeKey: `eligibility.check:${check.id}:1` });
+  } else {
+    await openChecklist(tx, verification.id, coverageId, plan.planType, uow.now, coverage.isSynthetic, [.../* @__PURE__ */ new Set(["coverage_pct", "annual_max", ...CHECKLIST_BY_PLAN[plan.planType] ?? CHECKLIST_BY_PLAN.other])]);
+  }
+  auditCreate(uow, actor2, "BenefitVerification", verification.id, "verification.requested", { coverageId, trigger: options.trigger, mode });
+  return { verificationId: verification.id, existing: false, checkId, mode };
+}
+async function requestVerification(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, ...WRITE);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "verification.request", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const coverage = await uow.tx.coverage.findUnique({ where: { id: args.coverageId }, select: { patientId: true } });
+    if (!coverage) throw new DomainError(Codes.NOT_FOUND, "Coverage not found.");
+    await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
+    const opened = await openVerification(uow, actor2, args.coverageId, { trigger: "staff", viaClearinghouse: true });
+    if (opened.existing) throw new DomainError(Codes.STALE_STATE, "A verification is already open for this plan. Refresh to see it.", { verificationId: opened.verificationId });
+    return opened;
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function recheckEligibility(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, ...WRITE);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "eligibility.recheck", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const check = await lockRow(uow.tx, "EligibilityCheck", args.checkId);
+    const coverage = await uow.tx.coverage.findUnique({ where: { id: check.coverageId }, select: { patientId: true, status: true } });
+    await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
+    if (!["pending_verification", "active"].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This coverage has ended, so there is nothing to check.");
+    await transition(uow, { model: "EligibilityCheck", id: check.id, from: ["unknown", "error_retryable", "rejected"], to: "queued", actor: actor2, eventType: "eligibility.requeued", data: { resultNote: "" } });
+    uow.emit({ topic: "eligibility.check", aggregateType: "EligibilityCheck", aggregateId: check.id, payload: { checkId: check.id, attempt: Number(check.attempts) + 1 }, dedupeKey: `eligibility.check:${check.id}:${Number(check.attempts) + 1}` });
+    return { checkId: check.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+var FACT_SHAPES = ["coverage_active", "annual_max", "annual_max_used", "deductible", "deductible_met", "coverage_pct", "frequency_limit", "waiting_period", "missing_tooth_clause", "downgrade", "cob_method", "age_limit", "ortho_max", "non_covered"];
+var CATEGORIES = ["preventive", "basic", "major", "orthodontic"];
+function factValue(args) {
+  const field = String(args.field);
+  const category = args.category ? oneOf(args.category, CATEGORIES, "category") : void 0;
+  const level = args.level === "family" ? "family" : "individual";
+  const needCategory = () => {
+    if (!category) throw new DomainError(Codes.INVALID_INPUT, "Choose the category this applies to.", { field: "category" });
+    return category;
+  };
+  switch (field) {
+    case "coverage_active":
+      return { appliesTo: {}, value: { active: args.flag === "yes" } };
+    case "annual_max":
+    case "ortho_max":
+      return { appliesTo: { level }, value: { amountMinor: money(args.dollars, "dollars").toString() } };
+    case "annual_max_used":
+    case "deductible_met":
+      return { appliesTo: { level }, value: { remainingMinor: money(args.dollars, "dollars").toString() } };
+    case "deductible":
+      return { appliesTo: { level, category: category ?? "all" }, value: { amountMinor: money(args.dollars, "dollars").toString() } };
+    case "coverage_pct": {
+      const pct2 = dec(String(args.pct ?? "").trim() || "x");
+      if (!pct2.isFinite() || pct2.lt(0) || pct2.gt(100)) throw new DomainError(Codes.INVALID_INPUT, "Enter the plan\u2019s percentage from 0 to 100.", { field: "pct" });
+      return { appliesTo: { category: needCategory() }, value: { pct: toScale(pct2, 4) } };
+    }
+    case "frequency_limit": {
+      const count = Number(args.count), months = Number(args.months);
+      if (!Number.isInteger(count) || count < 1 || !Number.isInteger(months) || months < 1 || months > 120) throw new DomainError(Codes.INVALID_INPUT, "Enter how many, and over how many months.", { field: "count" });
+      const group = optionalText(args.group, 40) || "recall";
+      return { appliesTo: { group }, value: { count, months, group } };
+    }
+    case "waiting_period": {
+      const months = Number(args.months);
+      if (!Number.isInteger(months) || months < 0 || months > 60) throw new DomainError(Codes.INVALID_INPUT, "Enter the waiting period in months.", { field: "months" });
+      return { appliesTo: { category: needCategory() }, value: { months } };
+    }
+    case "missing_tooth_clause":
+    case "downgrade":
+      return { appliesTo: {}, value: { categories: args.flag === "yes" ? category ? [category] : ["major"] : [] } };
+    case "cob_method":
+      return { appliesTo: {}, value: { method: oneOf(args.method, COB_METHODS, "COB method") } };
+    case "age_limit":
+      return { appliesTo: { category: needCategory() }, value: { min: args.ageMin === "" || args.ageMin == null ? null : Number(args.ageMin), max: args.ageMax === "" || args.ageMax == null ? null : Number(args.ageMax) } };
+    case "non_covered":
+      return { appliesTo: { category: needCategory() }, value: { pct: "0.0000" } };
+    default:
+      throw new DomainError(Codes.INVALID_INPUT, "Unknown benefit field.", { field: "field" });
+  }
+}
+async function recordBenefitFact(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, ...WRITE);
+  const field = oneOf(args.field, FACT_SHAPES, "field");
+  const source = oneOf(args.source, BENEFIT_SOURCES, "source");
+  if (source === "eligibility_271") throw new DomainError(Codes.INVALID_INPUT, "A 271 fact is recorded only from a stored clearinghouse response.", { field: "source" });
+  const unknown = args.isUnknown === true;
+  const shaped = unknown ? { appliesTo: args.category ? { category: oneOf(args.category, CATEGORIES, "category") } : {}, value: {} } : factValue({ ...args, field });
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "verification.record_fact", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const verification = await lockRow(uow.tx, "BenefitVerification", args.verificationId);
+    const coverage = await uow.tx.coverage.findUniqueOrThrow({ where: { id: verification.coverageId }, select: { patientId: true, status: true } });
+    await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
+    if (!["pending_verification", "active"].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This coverage has ended; benefits are not recorded for it.");
+    if (verification.status !== "in_progress") throw new DomainError(Codes.INVALID_TRANSITION, "This verification is not open.");
+    const value = args.note ? { ...shaped.value, note: optionalText(args.note, 300) } : shaped.value;
+    const fact = await uow.tx.benefitFact.create({
+      data: { verificationId: verification.id, coverageId: verification.coverageId, field, appliesTo: shaped.appliesTo, valueJson: unknown ? {} : value, isUnknown: unknown, source, observedAt: uow.now, observedById: actor2.kind === "user" ? actor2.userId : null }
+    });
+    if (!unknown) await uow.tx.workTask.updateMany({ where: { subjectType: "Coverage", subjectId: verification.coverageId, taskKey: field, status: { in: ["open", "in_progress"] } }, data: { status: "done", result: { factId: fact.id }, version: { increment: 1 } } });
+    auditCreate(uow, actor2, "BenefitFact", fact.id, "benefit_fact.recorded", { field, source, isUnknown: unknown });
+    return { factId: fact.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function completeVerification(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, ...WRITE);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "verification.complete", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const verification = await lockRow(uow.tx, "BenefitVerification", args.verificationId);
+    const coverage = await lockRow(uow.tx, "Coverage", verification.coverageId);
+    await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
+    const pending = await uow.tx.eligibilityCheck.count({ where: { verificationId: verification.id, status: { in: ["queued", "sent"] } } });
+    if (pending) throw new DomainError(Codes.GUARD_FAILED, "The eligibility check is still running. Wait for the answer, or complete it by hand after it ends.");
+    const facts = await uow.tx.benefitFact.findMany({ where: { coverageId: coverage.id } });
+    const known = (field, category) => facts.some((f) => f.field === field && !f.isUnknown && (!category || f.appliesTo?.category === category));
+    const missing = REQUIRED_FACTS.filter((r) => !known(r.field, r.category));
+    const complete = missing.length === 0;
+    const active = facts.filter((f) => f.field === "coverage_active" && !f.isUnknown).sort((a, b) => b.observedAt.getTime() - a.observedAt.getTime())[0];
+    await transition(uow, { model: "BenefitVerification", id: verification.id, from: ["in_progress"], to: "completed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "verification.completed", metadata: { complete, missing: missing.map((m) => m.category ? `${m.field}:${m.category}` : m.field) }, data: { completeness: complete ? "complete" : "partial", completedById: actor2.kind === "user" ? actor2.userId : null, completedAt: uow.now } });
+    const level = complete ? "verified_full" : facts.some((f) => !f.isUnknown) ? "verified_partial" : "unverified";
+    const inactive = active && active.valueJson?.active === false;
+    await uow.tx.$executeRaw`UPDATE "Coverage" SET "verificationLevel" = ${level}, "lastVerification" = ${verification.id}, "status" = ${inactive ? "terminated" : coverage.status === "pending_verification" && active ? "active" : coverage.status}, "effectiveTo" = CASE WHEN ${!!inactive} THEN COALESCE("effectiveTo", CURRENT_DATE) ELSE "effectiveTo" END, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id}`;
+    await uow.tx.workTask.updateMany({ where: { verificationId: verification.id, status: { in: ["open", "in_progress"] } }, data: { status: "cancelled", result: { reason: "verification completed" }, version: { increment: 1 } } });
+    await uow.tx.eligibilityCheck.updateMany({ where: { verificationId: verification.id, status: { in: ["unknown", "queued", "sent"] } }, data: { status: "error_retryable", resultNote: "Closed with the verification." } });
+    if (inactive) {
+      await closeCoverageWork(uow, actor2, coverage.id, "The payer reports the coverage inactive.");
+      await reestimatePatient(uow, actor2, coverage.patientId);
+    }
+    return { verificationId: verification.id, completeness: complete ? "complete" : "partial", level, missing: missing.length };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function failVerification(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, ...WRITE);
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "verification.fail", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const verification = await lockRow(uow.tx, "BenefitVerification", args.verificationId);
+    const coverage = await uow.tx.coverage.findUniqueOrThrow({ where: { id: verification.coverageId }, select: { patientId: true } });
+    await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
+    await transition(uow, { model: "BenefitVerification", id: verification.id, from: ["requested", "in_progress"], to: "failed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "verification.failed", reason, data: { failureNote: reason } });
+    await uow.tx.workTask.updateMany({ where: { verificationId: verification.id, status: { in: ["open", "in_progress"] } }, data: { status: "cancelled", version: { increment: 1 } } });
+    await uow.tx.eligibilityCheck.updateMany({ where: { verificationId: verification.id, status: { in: ["unknown", "queued", "sent"] } }, data: { status: "error_retryable", resultNote: "Closed with the verification." } });
+    return { verificationId: verification.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function addOutsideHistory(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, ...WRITE, "canManageTreatmentPlans");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(args.dateOfService ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the date of service.", { field: "dateOfService" });
+  const source = oneOf(args.source, BENEFIT_SOURCES, "source");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "history.add", actor: actor2, idempotencyKey, params }, async (uow) => {
+    const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
+    const code = args.codeId ? await uow.tx.procedureCode.findUnique({ where: { id: args.codeId } }) : null;
+    if (!code && !args.codeText) throw new DomainError(Codes.INVALID_INPUT, "Choose a procedure or describe it.", { field: "codeText" });
+    const row = await uow.tx.outsideHistory.create({ data: { patientId: patient.id, codeId: code?.id ?? null, codeText: optionalText(args.codeText, 120) || code?.nomenclature || "", frequencyGroup: optionalText(args.frequencyGroup, 40) || (code ? groupOf(code) : ""), tooth: optionalText(args.tooth, 10), dateOfService: dayOf(args.dateOfService), providerName: optionalText(args.providerName, 120), source } });
+    auditCreate(uow, actor2, "OutsideHistory", row.id, "outside_history.added", { patientId: patient.id, dateOfService: args.dateOfService });
+    return { historyId: row.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+var DOWNGRADE_TO = { "OF-R010": "OF-R001", "OF-R011": "OF-R002", "OF-R012": "OF-R003" };
+async function downgradeMap(tx, planId) {
+  const map = /* @__PURE__ */ new Map();
+  if (!planId) return map;
+  const rules2 = await tx.benefitRule.findMany({ where: { planId, kind: "downgrade", supersededById: null, downgradeToCodeId: { not: null } }, select: { appliesTo: true, downgradeToCodeId: true } });
+  for (const rule3 of rules2) {
+    const from = rule3.appliesTo?.fromCode;
+    if (typeof from === "string" && rule3.downgradeToCodeId) map.set(from, rule3.downgradeToCodeId);
+  }
+  return map;
+}
+var CONFIDENCE_OF_LEVEL = { verified_full: "verified", verified_partial: "partially_verified", verified_electronic: "partially_verified", unverified: "assumed" };
+async function estimatePlanInTx(uow, actor2, planId, locationIds) {
+  const { tx } = uow;
+  const plan = await tx.treatmentPlan.findUnique({ where: { id: planId } });
+  if (!plan) throw new DomainError(Codes.NOT_FOUND, "Plan not found.");
+  const patient = locationIds ? await assertPatientInScope(tx, locationIds, plan.patientId) : { id: plan.patientId };
+  const patientRow = await tx.patient.findUniqueOrThrow({ where: { id: patient.id }, select: { dateOfBirth: true, homeLocationId: true } });
+  const coverages = await tx.coverage.findMany({ where: { patientId: patient.id, status: { in: ["pending_verification", "active"] } }, orderBy: { ordinal: "asc" } });
+  const primary = coverages.find((c) => c.ordinal === "primary");
+  const version = plan.currentVersionId ? await tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: { orderBy: { sortOrder: "asc" }, include: { chartEntry: { include: { code: true } } } } } }) : null;
+  if (!version?.items.length) return { estimated: 0, noCoverage: !primary };
+  const actorId = actor2.kind === "user" ? actor2.userId : null;
+  if (!primary) {
+    let created2 = 0;
+    for (const item of version.items) {
+      const last = await tx.estimate.findFirst({ where: { planItemId: item.id }, orderBy: [{ computedAt: "desc" }, { createdAt: "desc" }] });
+      if (last && last.inputs?.hash === "self_pay" && last.feeMinor === item.feeMinor) continue;
+      await tx.estimate.create({
+        data: {
+          patientId: patient.id,
+          subjectKind: "plan_item",
+          planItemId: item.id,
+          coverageId: null,
+          ordinal: "primary",
+          inputs: { hash: "self_pay", estimatorVersion: ESTIMATOR_VERSION, noCoverage: true },
+          feeMinor: item.feeMinor,
+          allowedMinor: item.feeMinor,
+          writeOffMinor: 0n,
+          insuranceMinor: 0n,
+          patientMinor: item.feeMinor,
+          deductibleAppliedMinor: 0n,
+          maxAppliedMinor: 0n,
+          secondaryInsuranceMinor: 0n,
+          coverageStatus: "not_covered",
+          confidence: "assumed",
+          reasons: ["no_coverage"],
+          estimatorVersion: ESTIMATOR_VERSION,
+          computedAt: uow.now
+        }
+      });
+      created2 += 1;
+    }
+    uow.audit({ eventType: "estimate.computed", entityType: "TreatmentPlan", entityId: plan.id, actorUserId: actorId, after: { lines: version.items.length, created: created2, selfPay: true } });
+    return { estimated: version.items.length, created: created2, noCoverage: true, confidence: "assumed", insuranceMinor: "0", patientMinor: version.items.reduce((sum, i) => sum + i.feeMinor, 0n).toString() };
+  }
+  const tz = patientRow.homeLocationId ? (await tx.location.findUnique({ where: { id: patientRow.homeLocationId }, select: { timeZone: true } }))?.timeZone : null;
+  const today2 = localDate(tz ?? "America/New_York", uow.now);
+  const loaded = await loadCoverageForEstimate(tx, primary.id, today2);
+  if (!loaded) return { estimated: 0, noCoverage: true };
+  const secondaryCoverage = coverages.find((c) => c.ordinal === "secondary");
+  const secondary = secondaryCoverage ? await loadCoverageForEstimate(tx, secondaryCoverage.id, today2) : null;
+  const planRow = await tx.coverage.findUniqueOrThrow({ where: { id: primary.id }, include: { subscriber: { include: { plan: true } } } });
+  const teeth = version.items.map((i) => i.chartEntry?.tooth).filter(Boolean);
+  const missingRows = teeth.length ? await tx.chartEntry.findMany({ where: { patientId: patient.id, kind: "condition", tooth: { in: teeth }, condition: { code: "missing" } }, select: { tooth: true } }) : [];
+  const missingTeeth = new Set(missingRows.map((m) => m.tooth));
+  const age = patientRow.dateOfBirth ? Math.floor((uow.now.getTime() - patientRow.dateOfBirth.getTime()) / (365.2425 * 864e5)) : 40;
+  const feeOf = async (versionId, codeId) => {
+    if (!versionId || !codeId) return null;
+    const fee = await tx.fee.findUnique({ where: { feeVersionId_codeId: { feeVersionId: versionId, codeId } } });
+    return fee ? fee.amountMinor : null;
+  };
+  const planDowngrades = await downgradeMap(tx, planRow.subscriber?.planId);
+  const lines = [];
+  for (const item of version.items) {
+    const code = item.chartEntry?.code;
+    const allowed = await feeOf(loaded.feeScheduleVersionId, code?.id);
+    const category = categoryOf(code);
+    const line = { id: item.id, code: String(code?.code ?? ""), category, date: today2, feeMinor: item.feeMinor, allowedMinor: allowed, group: code?.isPreventiveRecallTrigger ? "recall" : void 0, missingTooth: !!item.chartEntry?.tooth && missingTeeth.has(item.chartEntry.tooth) };
+    const ruleTarget = code ? planDowngrades.get(String(code.code)) : void 0;
+    const fallback = code && !planDowngrades.size ? DOWNGRADE_TO[String(code.code)] : void 0;
+    if ((ruleTarget || fallback) && loaded.plan.downgrade.includes(category)) {
+      const altId = ruleTarget ?? (await tx.procedureCode.findFirst({ where: { code: fallback }, select: { id: true } }))?.id;
+      const altAllowed = await feeOf(loaded.feeScheduleVersionId, altId);
+      if (altAllowed !== null) line.downgradeAllowedMinor = altAllowed;
+      else line.downgradeUnknown = true;
+    }
+    if (secondary) {
+      const secAllowed = await feeOf(secondary.feeScheduleVersionId, code?.id);
+      if (secAllowed !== null) line.secondaryAllowedMinor = secAllowed;
+    }
+    lines.push(line);
+  }
+  const secondaryInput = secondary ? {
+    method: secondary.cobMethod,
+    coveragePct: secondary.coveragePct,
+    confidence: CONFIDENCE_OF_LEVEL[secondary.verificationLevel] ?? "assumed",
+    // The secondary's own limits, only when they are known: otherwise it never pays on a line the primary refused.
+    limits: secondary.limitsKnown ? { frequency: secondary.plan.frequency, ageLimits: secondary.plan.ageLimits, waiting: secondary.plan.waiting, missingTooth: secondary.plan.missingTooth, coverageEffectiveFrom: secondary.effectiveFrom } : void 0
+  } : null;
+  const out = estimate({ plan: { ...loaded.plan, frequencyUnknown: loaded.frequencyUnreadable }, usage: loaded.usage, patientAgeYears: age, coverageEffectiveFrom: loaded.effectiveFrom, lines, secondary: secondaryInput });
+  if (loaded.frequencyUnreadable) {
+    const latest = await tx.benefitVerification.findFirst({ where: { coverageId: primary.id }, orderBy: { createdAt: "desc" }, select: { id: true } });
+    if (latest) await openChecklist(tx, latest.id, primary.id, planRow.subscriber?.plan?.planType ?? "other", uow.now, false, ["frequency_limit"]);
+  }
+  let created = 0;
+  for (const line of out.lines) {
+    const inputs = {
+      estimatorVersion: ESTIMATOR_VERSION,
+      feeScheduleVersionId: loaded.feeScheduleVersionId,
+      factIds: [...loaded.factIds].sort(),
+      secondaryFactIds: secondary ? [...secondary.factIds].sort() : [],
+      secondaryCoverageId: secondary?.coverageId ?? null,
+      secondaryCobMethod: secondary?.cobMethod ?? null,
+      cobMethod: loaded.cobMethod,
+      planId: planRow.subscriber?.planId,
+      usage: { maxUsedMinor: loaded.usage.maxUsedMinor.toString(), pendingMinor: loaded.usage.pendingMinor.toString(), deductibleMetMinor: loaded.usage.deductibleMetMinor.toString(), history: loaded.usage.history.length },
+      notes: loaded.usageNotes,
+      line: lines.find((l) => l.id === line.id)?.date,
+      trace: line.trace
+    };
+    const hash = (0, import_node_crypto14.createHash)("sha256").update(canonicalJson({ inputs: { ...inputs, trace: void 0 }, line: { fee: line.feeMinor, ins: line.insuranceMinor, pat: line.patientMinor, status: line.status, sec: line.secondaryInsuranceMinor, reasons: line.reasons, confidence: line.confidence } })).digest("hex");
+    const last = await tx.estimate.findFirst({ where: { planItemId: line.id }, orderBy: [{ computedAt: "desc" }, { createdAt: "desc" }] });
+    if (last?.inputs?.hash === hash && last?.coverageId === primary.id) continue;
+    await tx.estimate.create({
+      data: {
+        patientId: patient.id,
+        subjectKind: "plan_item",
+        planItemId: line.id,
+        coverageId: primary.id,
+        ordinal: "primary",
+        inputs: { ...inputs, hash },
+        feeMinor: line.feeMinor,
+        allowedMinor: line.allowedMinor,
+        writeOffMinor: line.writeOffMinor,
+        insuranceMinor: line.insuranceMinor,
+        patientMinor: line.patientMinor,
+        deductibleAppliedMinor: line.deductibleAppliedMinor,
+        maxAppliedMinor: line.maxAppliedMinor,
+        secondaryInsuranceMinor: line.secondaryInsuranceMinor,
+        coverageStatus: line.status,
+        confidence: line.confidence,
+        reasons: line.reasons,
+        estimatorVersion: ESTIMATOR_VERSION,
+        computedAt: uow.now
+      }
+    });
+    created += 1;
+  }
+  uow.audit({ eventType: "estimate.computed", entityType: "TreatmentPlan", entityId: plan.id, actorUserId: actorId, after: { lines: out.lines.length, created, confidence: out.confidence } });
+  return { estimated: out.lines.length, created, confidence: out.confidence, insuranceMinor: out.totals.insuranceMinor.toString(), patientMinor: out.totals.patientMinor.toString() };
+}
+async function estimateTreatmentPlan(_root, args, context) {
+  const { actor: actor2, locationIds } = staff(context);
+  requirePermission(actor2, "canManageTreatmentPlans", "canPresentPlans", ...WRITE);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "estimate.plan", actor: actor2, idempotencyKey, params }, (uow) => estimatePlanInTx(uow, actor2, args.planId, locationIds));
+  return { replay: result.replay, ...result.value };
+}
+
 // features/keystone/mutations/phase2Args.ts
 var PHASE2_ARGS = {
   // Chart
@@ -8389,7 +9522,20 @@ var PHASE2_ARGS = {
   openFeeSchedule: { name: "String!", kind: "String!", isDefault: "Boolean" },
   createFeeVersion: { scheduleId: "ID!", label: "String!", effectiveFrom: "String!" },
   setFee: { versionId: "ID!", codeId: "ID!", amountMinor: "String!", copayMinor: "String" },
-  requestFeePublish: { versionId: "ID!", expectedVersion: "Int!" }
+  requestFeePublish: { versionId: "ID!", expectedVersion: "Int!" },
+  // Phase 3: insurance
+  savePayer: { payerId: "ID", name: "String!", kind: "String!", stediPayerId: "String", phone: "String", timelyFilingDays: "Int" },
+  saveInsurancePlan: { planId: "ID", payerId: "ID!", groupName: "String!", groupNumber: "String", planType: "String!", networkStatus: "String!", feeScheduleId: "ID", cobMethod: "String", annualMax: "String", deductible: "String", deductibleFamily: "String", benefitYearStartMonth: "Int" },
+  addCoverage: { patientId: "ID!", planId: "ID!", memberId: "String!", relationship: "String!", ordinal: "String!", effectiveFrom: "String!", subscriberFirstName: "String", subscriberLastName: "String", subscriberDateOfBirth: "String" },
+  setCoverageOrder: { coverageId: "ID!", ordinal: "String!", reason: "String!" },
+  terminateCoverage: { coverageId: "ID!", expectedVersion: "Int!", endedOn: "String!", reason: "String!" },
+  requestVerification: { coverageId: "ID!" },
+  recheckEligibility: { checkId: "ID!" },
+  recordBenefitFact: { verificationId: "ID!", field: "String!", category: "String", level: "String", dollars: "String", pct: "String", count: "Int", months: "Int", group: "String", method: "String", flag: "String", ageMin: "String", ageMax: "String", isUnknown: "Boolean", source: "String!", note: "String" },
+  completeVerification: { verificationId: "ID!", expectedVersion: "Int!" },
+  failVerification: { verificationId: "ID!", expectedVersion: "Int!", reason: "String!" },
+  addOutsideHistory: { patientId: "ID!", codeId: "ID", codeText: "String", frequencyGroup: "String", tooth: "String", dateOfService: "String!", providerName: "String", source: "String!" },
+  estimateTreatmentPlan: { planId: "ID!" }
 };
 
 // features/keystone/mutations/phase2Ops.ts
@@ -8434,7 +9580,19 @@ var RESOLVERS = {
   openFeeSchedule,
   createFeeVersion,
   setFee,
-  requestFeePublish
+  requestFeePublish,
+  savePayer,
+  saveInsurancePlan,
+  addCoverage,
+  setCoverageOrder,
+  terminateCoverage,
+  requestVerification,
+  recheckEligibility,
+  recordBenefitFact,
+  completeVerification,
+  failVerification,
+  addOutsideHistory,
+  estimateTreatmentPlan
 };
 var PHASE2_OPS = Object.fromEntries(Object.entries(PHASE2_ARGS).map(([name, args]) => [name, { args, fn: RESOLVERS[name] }]));
 var signature = (args) => [...Object.entries(args).map(([k, v]) => `${k}: ${v}`), "idempotencyKey: String!"].join(", ");
@@ -8713,66 +9871,6 @@ ${missing.map((directive) => `  ${directive}`).join("\n")}
 }`));
   }
   return schema;
-}
-
-// features/keystone/lib/keystonePrismaErrors.ts
-var RAW_METHOD = /^\$(queryRaw|executeRaw|queryRawUnsafe|executeRawUnsafe|queryRawTyped|runCommandRaw)$/;
-var clients = /* @__PURE__ */ new WeakMap();
-var delegates = /* @__PURE__ */ new WeakMap();
-function isKeystonePrismaError(value) {
-  return value instanceof Error && value.extensions?.code === "KS_PRISMA_ERROR";
-}
-function rethrowKeystonePrismaError(value) {
-  if (!isKeystonePrismaError(value)) return value;
-  const prisma = value.extensions.prisma ?? {};
-  throw Object.assign(value, { code: prisma.code, meta: prisma.meta, clientVersion: prisma.clientVersion });
-}
-function throwing(result) {
-  if (!result || typeof result.then !== "function") return rethrowKeystonePrismaError(result);
-  const settled = () => result.then(rethrowKeystonePrismaError);
-  return new Proxy(result, {
-    get(target, key) {
-      if (key === "then") return (ok, fail) => settled().then(ok, fail);
-      if (key === "catch") return (fail) => settled().catch(fail);
-      if (key === "finally") return (done) => settled().finally(done);
-      const value = Reflect.get(target, key, target);
-      return typeof value === "function" ? value.bind(target) : value;
-    }
-  });
-}
-function throwingDelegate(delegate) {
-  const cached = delegates.get(delegate);
-  if (cached) return cached;
-  const wrapped = new Proxy(delegate, {
-    get(target, key) {
-      const value = Reflect.get(target, key, target);
-      return typeof value === "function" ? (...args) => throwing(value.apply(target, args)) : value;
-    }
-  });
-  delegates.set(delegate, wrapped);
-  return wrapped;
-}
-function throwKeystonePrismaErrors(client) {
-  const cached = clients.get(client);
-  if (cached) return cached;
-  const wrapped = new Proxy(client, {
-    get(target, key) {
-      const value = Reflect.get(target, key, target);
-      if (key === "$transaction" && typeof value === "function") {
-        return (work, ...options) => {
-          if (typeof work === "function") return value.call(target, (tx) => work(throwKeystonePrismaErrors(tx)), ...options);
-          return Promise.resolve(value.call(target, work, ...options)).then((results) => Array.isArray(results) ? results.map(rethrowKeystonePrismaError) : results);
-        };
-      }
-      if (key === "$extends" && typeof value === "function") return (...args) => throwKeystonePrismaErrors(value.apply(target, args));
-      if (typeof key === "string" && RAW_METHOD.test(key) && typeof value === "function") return (...args) => throwing(value.apply(target, args));
-      if (typeof value === "function") return value.bind(target);
-      if (typeof key === "string" && !key.startsWith("$") && value && typeof value === "object" && typeof value.findFirst === "function") return throwingDelegate(value);
-      return value;
-    }
-  });
-  clients.set(client, wrapped);
-  return wrapped;
 }
 
 // features/keystone/index.ts

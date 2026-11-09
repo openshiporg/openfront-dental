@@ -7,7 +7,7 @@ import { ActionButton } from '../../components/ActionButton';
 /** Verification worklist: open checks, checks that ended unknown or rejected, and the questions a person still has to ask. */
 export default async function VerificationsPage() {
   const [d, tz] = await Promise.all([q<any>(`{
-    eligibilityChecks(where: { status: { in: ["queued", "sent", "unknown", "rejected", "error_retryable"] } }, orderBy: { createdAt: desc }, take: 50) {
+    eligibilityChecks(where: { status: { in: ["queued", "sent", "unknown", "rejected", "error_retryable"] }, coverage: { status: { in: ["pending_verification", "active"] } }, verification: { status: { in: ["requested", "in_progress"] } } }, orderBy: { createdAt: desc }, take: 50) {
       id status resultNote attempts createdAt coverage { id patient { id chartNumber firstName lastName } subscriber { plan { groupName payer { name } } } }
     }
     workTasks(where: { status: { in: ["open", "in_progress"] }, kind: { equals: "verification_checklist" } }, orderBy: { dueAt: asc }, take: 100) {

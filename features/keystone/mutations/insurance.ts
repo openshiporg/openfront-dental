@@ -232,6 +232,8 @@ export type VerifyOptions = { trigger: string; viaClearinghouse: boolean }
 /** Shared by the staff command, the plan-year job and booking intake. Returns the verification in flight if there already is one. */
 export async function openVerification(uow: { tx: Tx; now: Date; emit: (m: any) => void; audit: (e: any) => void }, actor: Actor, coverageId: string, options: VerifyOptions) {
   const { tx } = uow
+  // Two Verify presses at the same moment queue on the coverage row: the second sees the first one's verification.
+  await lockRow(tx as never, 'Coverage', coverageId)
   const coverage = await tx.coverage.findUnique({ where: { id: coverageId }, include: { subscriber: { include: { plan: { include: { payer: true } } } } } })
   if (!coverage || !coverage.subscriber?.plan) throw new DomainError(Codes.NOT_FOUND, 'Coverage not found.')
   if (['terminated', 'invalid'].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, 'This coverage has ended.')
@@ -272,7 +274,10 @@ export async function requestVerification(_root: unknown, args: { coverageId: st
     const coverage = await uow.tx.coverage.findUnique({ where: { id: args.coverageId }, select: { patientId: true } })
     if (!coverage) throw new DomainError(Codes.NOT_FOUND, 'Coverage not found.')
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId!)
-    return openVerification(uow, actor, args.coverageId, { trigger: 'staff', viaClearinghouse: true })
+    const opened = await openVerification(uow, actor, args.coverageId, { trigger: 'staff', viaClearinghouse: true })
+    // A verification already open (another press, another person) is a plain refusal, not a second row.
+    if (opened.existing) throw new DomainError(Codes.STALE_STATE, 'A verification is already open for this plan. Refresh to see it.', { verificationId: opened.verificationId })
+    return opened
   })
   return { replay: result.replay, ...result.value }
 }
@@ -421,10 +426,26 @@ export async function addOutsideHistory(_root: unknown, args: { patientId: strin
 
 // ── Estimates ────────────────────────────────────────────────────────────────────────────────────
 
-/** Posterior composites are paid at the amalgam allowance when the plan has a downgrade (alternate benefit) clause. */
+/**
+ * Posterior composites are paid at the amalgam allowance when the coverage's verified benefits say a downgrade
+ * (alternate benefit) clause applies. Which code pays as which comes from the plan's own `downgrade` BenefitRules;
+ * this map is the fallback for a plan with none recorded.
+ */
 export const DOWNGRADE_TO: Record<string, string> = { 'OF-R010': 'OF-R001', 'OF-R011': 'OF-R002', 'OF-R012': 'OF-R003' }
 
-const CONFIDENCE_OF_LEVEL: Record<string, 'verified' | 'partially_verified' | 'assumed'> = { verified_full: 'verified', verified_partial: 'partially_verified', unverified: 'assumed' }
+/** The plan's current downgrade rules: billed code → the code it is paid as (ids). */
+async function downgradeMap(tx: Tx, planId: string | null | undefined): Promise<Map<string, string>> {
+  const map = new Map<string, string>()
+  if (!planId) return map
+  const rules = await tx.benefitRule.findMany({ where: { planId, kind: 'downgrade', supersededById: null, downgradeToCodeId: { not: null } }, select: { appliesTo: true, downgradeToCodeId: true } })
+  for (const rule of rules) {
+    const from = (rule.appliesTo as any)?.fromCode
+    if (typeof from === 'string' && rule.downgradeToCodeId) map.set(from, rule.downgradeToCodeId)
+  }
+  return map
+}
+
+const CONFIDENCE_OF_LEVEL: Record<string, 'verified' | 'partially_verified' | 'assumed'> = { verified_full: 'verified', verified_partial: 'partially_verified', verified_electronic: 'partially_verified', unverified: 'assumed' }
 
 /**
  * Estimate the current version of a plan inside a transaction. Snapshots are immutable; the same inputs add nothing new (I-I3).
@@ -476,16 +497,18 @@ export async function estimatePlanInTx(uow: UnitOfWork, actor: Actor, planId: st
     const fee = await tx.fee.findUnique({ where: { feeVersionId_codeId: { feeVersionId: versionId, codeId } } })
     return fee ? fee.amountMinor : null
   }
+  const planDowngrades = await downgradeMap(tx, planRow.subscriber?.planId)
   const lines: EstimatorLine[] = []
   for (const item of version.items) {
     const code = item.chartEntry?.code
     const allowed = await feeOf(loaded.feeScheduleVersionId, code?.id)
     const category = categoryOf(code as never)
     const line: EstimatorLine = { id: item.id, code: String(code?.code ?? ''), category, date: today, feeMinor: item.feeMinor, allowedMinor: allowed, group: code?.isPreventiveRecallTrigger ? 'recall' : undefined, missingTooth: !!item.chartEntry?.tooth && missingTeeth.has(item.chartEntry.tooth) }
-    const alternate = code ? DOWNGRADE_TO[String(code.code)] : undefined
-    if (alternate && loaded.plan.downgrade.includes(category)) {
-      const alt = await tx.procedureCode.findFirst({ where: { code: alternate }, select: { id: true } })
-      const altAllowed = await feeOf(loaded.feeScheduleVersionId, alt?.id)
+    const ruleTarget = code ? planDowngrades.get(String(code.code)) : undefined
+    const fallback = code && !planDowngrades.size ? DOWNGRADE_TO[String(code.code)] : undefined
+    if ((ruleTarget || fallback) && loaded.plan.downgrade.includes(category)) {
+      const altId = ruleTarget ?? (await tx.procedureCode.findFirst({ where: { code: fallback }, select: { id: true } }))?.id
+      const altAllowed = await feeOf(loaded.feeScheduleVersionId, altId)
       if (altAllowed !== null) line.downgradeAllowedMinor = altAllowed
       else line.downgradeUnknown = true
     }
@@ -495,7 +518,11 @@ export async function estimatePlanInTx(uow: UnitOfWork, actor: Actor, planId: st
     }
     lines.push(line)
   }
-  const secondaryInput = secondary ? { method: secondary.cobMethod, coveragePct: secondary.coveragePct, confidence: CONFIDENCE_OF_LEVEL[secondary.verificationLevel] ?? 'assumed' } : null
+  const secondaryInput = secondary ? {
+    method: secondary.cobMethod, coveragePct: secondary.coveragePct, confidence: CONFIDENCE_OF_LEVEL[secondary.verificationLevel] ?? 'assumed',
+    // The secondary's own limits, only when they are known: otherwise it never pays on a line the primary refused.
+    limits: secondary.limitsKnown ? { frequency: secondary.plan.frequency, ageLimits: secondary.plan.ageLimits, waiting: secondary.plan.waiting, missingTooth: secondary.plan.missingTooth, coverageEffectiveFrom: secondary.effectiveFrom } : undefined,
+  } : null
   const out = estimate({ plan: { ...loaded.plan, frequencyUnknown: loaded.frequencyUnreadable }, usage: loaded.usage, patientAgeYears: age, coverageEffectiveFrom: loaded.effectiveFrom, lines, secondary: secondaryInput })
 
   if (loaded.frequencyUnreadable) {

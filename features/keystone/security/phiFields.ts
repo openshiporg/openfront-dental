@@ -141,5 +141,31 @@ export function applyPhiTiers<T extends Record<string, any>>(models: T): T {
       }
     }
   }
+  return gateFilterAndOrder(models)
+}
+
+/**
+ * A field a reader cannot see must not be filterable or sortable by them either: `where: { codeText: { contains } }`
+ * or `orderBy` would otherwise reveal the hidden value one guess at a time. Every field whose read access is a role
+ * function (PHI tiers, cost, member IDs, secrets) gets that same function as `isFilterable` and `isOrderable`.
+ * Fields that are already not filterable stay not filterable. Server code uses Prisma or sudo and is unaffected.
+ */
+export function gateFilterAndOrder<T extends Record<string, any>>(models: T): T {
+  for (const list of Object.values(models)) {
+    for (const [fieldKey, original] of Object.entries(list.fields ?? {})) {
+      if (typeof original !== 'function' || fieldKey.startsWith('__group')) continue
+      list.fields[fieldKey] = (args: any) => {
+        const field = (original as FieldFn)(args)
+        const read = typeof field.access === 'function' ? field.access : field.access?.read
+        if (typeof read !== 'function') return field
+        const gate = (base: unknown) => (base === false ? false : async (input: any) => {
+          const allowed = await read({ ...input, operation: 'read', item: undefined })
+          if (allowed !== true) return false
+          return typeof base === 'function' ? (await base(input)) === true : true
+        })
+        return { ...field, isFilterable: gate(field.isFilterable), isOrderable: gate(field.isOrderable) }
+      }
+    }
+  }
   return models
 }

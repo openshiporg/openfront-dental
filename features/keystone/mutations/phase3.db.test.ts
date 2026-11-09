@@ -56,9 +56,9 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     const stedi = fakeStedi()
     const started = await run('requestVerification', { coverageId: coverage.id }, owner)
     expect(started.checkId).toBeTruthy()
-    // a second request while one is in flight returns the same verification
-    const again = await run('requestVerification', { coverageId: coverage.id }, owner)
-    expect(again.verificationId).toBe(started.verificationId)
+    // a second request while one is open is a plain refusal, and no second verification is made
+    await expect(run('requestVerification', { coverageId: coverage.id }, owner)).rejects.toThrow(/already open for this plan/)
+    expect(await prisma.benefitVerification.count({ where: { coverageId: coverage.id, status: { in: ['requested', 'in_progress'] } } })).toBe(1)
     const drained = await drainOutbox(prisma, { workerId: 'w1', handlers: eligibilityHandlers(prisma, { fetch: stedi.fetch }), topics: ['eligibility.check'] })
     expect(drained.delivered).toBe(1)
     expect(stedi.calls).toHaveLength(1)
@@ -70,6 +70,8 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     expect(facts.every(f => f.source === 'eligibility_271' && f.rawObservationId === check.observationId)).toBe(true)
     const tasks = await prisma.workTask.findMany({ where: { verificationId: started.verificationId, status: 'open' } })
     expect(tasks.map(t => t.taskKey)).toEqual(expect.arrayContaining(['waiting_period', 'missing_tooth_clause', 'cob_method']))
+    // this coverage was already fully verified by a person: a 271 never lowers that
+    expect((await prisma.coverage.findUniqueOrThrow({ where: { id: coverage.id } })).verificationLevel).toBe('verified_full')
     // delivering the same message again does not call the clearinghouse again
     await runEligibilityCheck(prisma, check.id, { fetch: stedi.fetch })
     expect(stedi.calls).toHaveLength(1)
@@ -121,7 +123,7 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
   })
 
   it('one open coverage per patient and order; reordering is audited', async () => {
-    const coverage = await coverageOf('SUM-4401-A')
+    const coverage = await coverageOf('SUM-4404-D')
     const plan = await prisma.insurancePlan.findFirstOrThrow({ where: { id: 'seed_plan_evergreen_ppo' } })
     await expect(run('addCoverage', { patientId: coverage.patientId, planId: plan.id, memberId: 'ZZ-0001-Q', relationship: 'self', ordinal: 'primary', effectiveFrom: '2026-01-01' }, owner)).rejects.toThrow(/already has a primary/)
     const second = await run('addCoverage', { patientId: coverage.patientId, planId: plan.id, memberId: 'ZZ-0002-Q', relationship: 'self', ordinal: 'secondary', effectiveFrom: '2026-01-01' }, owner)
@@ -165,6 +167,60 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     const row = await prisma.outsideHistory.create({ data: { patientId: coverage.patientId!, codeText: 'Cleaning', dateOfService: new Date('2026-01-10'), source: 'patient_reported' } })
     await expect(prisma.$executeRaw`UPDATE "OutsideHistory" SET "codeText" = 'x' WHERE id = ${row.id}`).rejects.toThrow()
     await expect(prisma.outsideHistory.create({ data: { patientId: coverage.patientId!, codeText: 'Future', dateOfService: new Date('2031-01-10'), source: 'patient_reported' } })).rejects.toThrow(/OutsideHistory_not_future/)
+  })
+
+  it('two Verify presses at the same moment: one verification, one plain refusal, never a P2002', async () => {
+    const coverage = await coverageOf('SUM-4407-G')
+    const results = await Promise.allSettled([1, 2, 3].map(() => run('requestVerification', { coverageId: coverage.id }, owner)))
+    expect(results.filter(r => r.status === 'fulfilled')).toHaveLength(1)
+    for (const r of results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]) {
+      expect(String(r.reason?.message)).toMatch(/already open for this plan/)
+      expect(String(r.reason?.message)).not.toMatch(/P2002|Unique constraint|prisma/i)
+    }
+    expect(await prisma.benefitVerification.count({ where: { coverageId: coverage.id, status: { in: ['requested', 'in_progress'] } } })).toBe(1)
+  })
+
+  it('the Evergreen secondary gets its own 271 answer, and both plans estimate without a database refusal', async () => {
+    const harbor = await coverageOf('SUM-4401-A')
+    const evergreen = await prisma.coverage.findUniqueOrThrow({ where: { id: 'seed_cov_evg_1' } })
+    expect(evergreen.patientId).toBe(harbor.patientId)
+    const started = await run('requestVerification', { coverageId: evergreen.id }, owner)
+    await drainOutbox(prisma, { workerId: 'w4', handlers: eligibilityHandlers(prisma, { fetch: fakeStedi().fetch }), topics: ['eligibility.check'] })
+    const facts = await prisma.benefitFact.findMany({ where: { verificationId: started.verificationId, field: 'coverage_pct' } })
+    expect(facts.map(f => [(f.appliesTo as any).category, String((f.valueJson as any).pct)]).sort()).toEqual([['basic', '70.0000'], ['major', '40.0000'], ['preventive', '100.0000']])
+    expect((await prisma.coverage.findUniqueOrThrow({ where: { id: evergreen.id } })).verificationLevel).toBe('verified_electronic')
+
+    // The reviewer's case: the primary refuses a cleaning (frequency used up elsewhere) and a crown (waiting period).
+    const v = await prisma.benefitVerification.findFirstOrThrow({ where: { coverageId: harbor.id }, orderBy: { createdAt: 'desc' } })
+    await prisma.benefitFact.create({ data: { coverageId: harbor.id, verificationId: v.id, field: 'waiting_period', appliesTo: { category: 'major' }, valueJson: { months: 24 }, source: 'payer_phone', observedAt: new Date() } })
+    for (const d of ['2026-06-01', '2026-09-01']) await prisma.outsideHistory.create({ data: { patientId: harbor.patientId!, codeText: 'Adult cleaning at a previous dentist', dateOfService: new Date(d), frequencyGroup: 'recall', source: 'patient_reported' } })
+    const plan = await prisma.treatmentPlan.findFirst({ where: { patientId: harbor.patientId! } })
+    expect(plan).toBeTruthy()
+    if (!plan) return
+    const result = await run('estimateTreatmentPlan', { planId: plan.id }, owner)
+    expect(result.estimated).toBeGreaterThan(0)
+    const rows = await prisma.estimate.findMany({ where: { patientId: harbor.patientId!, coverageId: harbor.id }, orderBy: { createdAt: 'desc' }, take: result.estimated })
+    for (const row of rows) {
+      if (row.coverageStatus !== 'covered') expect(row.secondaryInsuranceMinor + row.insuranceMinor).toBe(0n)
+      expect(row.writeOffMinor + row.insuranceMinor + row.secondaryInsuranceMinor + row.patientMinor).toBe(row.feeMinor)
+    }
+  })
+
+  it('a posterior composite is paid at the amalgam allowance when the plan has a downgrade clause', async () => {
+    const coverage = await coverageOf('SUM-4401-A')
+    const v = await prisma.benefitVerification.findFirstOrThrow({ where: { coverageId: coverage.id }, orderBy: { createdAt: 'desc' } })
+    await prisma.benefitFact.create({ data: { coverageId: coverage.id, verificationId: v.id, field: 'downgrade', appliesTo: {}, valueJson: { categories: ['basic'] }, source: 'payer_phone', observedAt: new Date() } })
+    const item = await prisma.treatmentPlanItem.findFirst({ where: { planVersion: { plan: { patientId: coverage.patientId! } }, chartEntry: { code: { code: 'OF-R011' } } }, include: { planVersion: true } })
+    expect(item).toBeTruthy()
+    if (!item) return
+    await run('estimateTreatmentPlan', { planId: item.planVersion!.planId }, owner)
+    const row = await prisma.estimate.findFirstOrThrow({ where: { planItemId: item.id }, orderBy: [{ computedAt: 'desc' }, { createdAt: 'desc' }] })
+    const amalgam = await prisma.fee.findFirstOrThrow({ where: { code: { code: 'OF-R002' }, feeVersion: { schedule: { id: 'seed_fee_ppo' } } } })
+    expect(row.reasons as string[]).toContain('downgraded')
+    expect(row.reasons as string[]).not.toContain('downgrade_amount_unknown')
+    // basic 80% of the amalgam allowance (deductible may come off first)
+    expect(row.insuranceMinor <= (amalgam.amountMinor * 80n) / 100n).toBe(true)
+    expect(row.insuranceMinor > 0n).toBe(true)
   })
 
   it('keeps the audit chain intact', async () => {

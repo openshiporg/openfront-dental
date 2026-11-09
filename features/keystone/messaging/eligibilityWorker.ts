@@ -93,6 +93,11 @@ export async function runEligibilityCheck(db: Db, checkId: string, deps: Eligibi
       const have = new Set(facts.map(f => f.field))
       const gaps = [...new Set([...(CHECKLIST_BY_PLAN[planType] ?? CHECKLIST_BY_PLAN.other), 'history_procedure', ...(['annual_max', 'coverage_pct'] as const).filter(f => !have.has(f))])].filter(f => !have.has(f as never) || f === 'history_procedure')
       if (check.verificationId) await openChecklist(tx, check.verificationId, coverage.id, planType, at, coverage.isSynthetic, gaps)
+      // Benefits read from the payer raise an unverified coverage to "electronically verified" (a person still finishes the checklist).
+      // A level a person set is never lowered; a payer that says the plan is inactive does not raise it.
+      if (facts.length && check.verificationId && outcome.planActive !== false) {
+        await tx.$executeRaw`UPDATE "Coverage" SET "verificationLevel" = 'verified_electronic', "lastVerification" = ${check.verificationId}, "status" = CASE WHEN "status" = 'pending_verification' AND ${outcome.planActive === true} THEN 'active' ELSE "status" END, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id} AND "verificationLevel" = 'unverified' AND "status" IN ('pending_verification','active')`
+      }
       await finish('responded', { respondedAt: at, observationId: observation.id, note: `${facts.length} benefits read` })
       audit('eligibility.responded', { facts: facts.length, observationId: observation.id })
       return { status: 'responded' as const, facts: facts.length }

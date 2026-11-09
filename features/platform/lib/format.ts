@@ -144,7 +144,7 @@ const WORDS: Record<string, string> = {
   indemnity: 'indemnity', dhmo: 'DHMO', ma_dental: 'Medicare Advantage dental', in_network: 'in network', out_of_network: 'out of network',
   standard: 'standard', non_duplication: 'non-duplication', carve_out: 'carve-out', maintenance_of_benefits: 'maintenance of benefits',
   primary: 'primary', secondary: 'secondary', tertiary: 'tertiary', child: 'child',
-  pending_verification: 'waiting to be verified', terminated: 'ended', invalid: 'invalid', unverified: 'not verified', verified_partial: 'partly verified', verified_full: 'fully verified',
+  pending_verification: 'waiting to be verified', terminated: 'ended', invalid: 'invalid', unverified: 'not verified', verified_electronic: 'electronically verified', verified_partial: 'partly verified', verified_full: 'fully verified',
   verified: 'verified', partially_verified: 'partly verified', assumed: 'assumed',
   eligibility_271: 'electronic check', payer_portal: 'payer portal', payer_phone: 'payer phone call', fax_breakdown: 'faxed breakdown', prior_eob: 'earlier EOB', patient_reported: 'told by the patient', practice_default: 'practice assumption',
   coverage_active: 'coverage', annual_max: 'annual maximum', annual_max_used: 'maximum left this year', deductible: 'deductible', deductible_met: 'deductible left this year', coverage_pct: 'plan pays',

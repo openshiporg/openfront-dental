@@ -20,7 +20,8 @@ export const COB_METHODS = ['standard', 'non_duplication', 'carve_out', 'mainten
 export const ORDINALS = ['primary', 'secondary', 'tertiary'] as const
 export const RELATIONSHIPS = ['self', 'spouse', 'child', 'other'] as const
 export const COVERAGE_STATUSES = ['pending_verification', 'active', 'terminated', 'invalid'] as const
-export const VERIFICATION_LEVELS = ['unverified', 'verified_partial', 'verified_full'] as const
+/** `verified_electronic`: a 271 answered with benefits; a person has not finished the checklist yet. */
+export const VERIFICATION_LEVELS = ['unverified', 'verified_electronic', 'verified_partial', 'verified_full'] as const
 export const VERIFICATION_STATUSES = ['requested', 'in_progress', 'completed', 'failed'] as const
 export const CHECK_STATUSES = ['queued', 'sent', 'responded', 'rejected', 'error_retryable', 'unknown'] as const
 export const RULE_KINDS = ['coverage_pct', 'deductible_applies', 'frequency', 'age_limit', 'waiting_period', 'missing_tooth', 'downgrade', 'not_covered', 'requires_preauth', 'requires_attachment'] as const

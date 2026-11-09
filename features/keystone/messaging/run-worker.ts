@@ -4,7 +4,9 @@ import { runWorkerTick } from './worker'
 
 /** Worker entry point: `tsx features/keystone/messaging/run-worker.ts [--loop]`. */
 async function main() {
-  const db = new PrismaClient()
+  // Its own small pool (WORKER_DATABASE_URL carries connection_limit): web + worker + migrations stay under Postgres max_connections.
+  const url = process.env.WORKER_DATABASE_URL || process.env.DATABASE_URL
+  const db = url ? new PrismaClient({ datasources: { postgresql: { url } } }) : new PrismaClient()
   const loop = process.argv.includes('--loop')
   try {
     do {

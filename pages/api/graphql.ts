@@ -3,6 +3,7 @@ import { keystoneContext } from '../../features/keystone/context'
 import { useMcpScopeGuard as mcpScopeGuardPlugin } from '../../features/keystone/mcp-oauth/guard'
 import { phiReadAuditPlugin } from '../../features/keystone/security/phiReadAudit'
 import { authRateLimitPlugin } from '../../features/keystone/security/rateLimit'
+import { queryLimitsPlugin } from '../../features/keystone/security/queryLimits'
 import { createYoga } from 'graphql-yoga'
 // @ts-ignore
 import processRequest from 'graphql-upload/processRequest.js'
@@ -31,6 +32,8 @@ const yoga = createYoga({
   graphiql: process.env.NODE_ENV !== 'production',
   maskedErrors: process.env.NODE_ENV === 'production',
   plugins: [
+    // Bounded query depth and size (list sizes are bounded per list by graphql.maxTake).
+    queryLimitsPlugin(),
     // Sign-in, MFA, reset and first-user mutations are counted per client and per account.
     authRateLimitPlugin({ prisma: () => keystoneContext.prisma as any, secret: () => process.env.SESSION_SECRET || 'local-development-session-secret-change-me-now' }),
     // MCP OAuth scopes only narrow: read-only tokens can't mutate, no token can manage credentials.
