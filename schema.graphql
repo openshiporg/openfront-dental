@@ -15350,6 +15350,8 @@ type Statement {
   status: String
   payLinkCode: String
   documentSha256: String
+  pdfSha256: String
+  payLinkExpiresAt: DateTime
   sentAt: DateTime
   sentChannel: String
   payments(where: PaymentWhereInput! = {}, orderBy: [PaymentOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentWhereUniqueInput): [Payment!]
@@ -15379,6 +15381,8 @@ input StatementWhereInput {
   status: StringFilter
   payLinkCode: StringFilter
   documentSha256: StringFilter
+  pdfSha256: StringFilter
+  payLinkExpiresAt: DateTimeNullableFilter
   sentAt: DateTimeNullableFilter
   sentChannel: StringFilter
   payments: PaymentManyRelationFilter
@@ -15402,6 +15406,8 @@ input StatementOrderByInput {
   status: OrderDirection
   payLinkCode: OrderDirection
   documentSha256: OrderDirection
+  pdfSha256: OrderDirection
+  payLinkExpiresAt: OrderDirection
   sentAt: OrderDirection
   sentChannel: OrderDirection
   version: OrderDirection
@@ -15420,6 +15426,8 @@ input StatementUpdateInput {
   status: String
   payLinkCode: String
   documentSha256: String
+  pdfSha256: String
+  payLinkExpiresAt: DateTime
   sentAt: DateTime
   sentChannel: String
   payments: PaymentRelateToManyForUpdateInput
@@ -15451,6 +15459,8 @@ input StatementCreateInput {
   status: String
   payLinkCode: String
   documentSha256: String
+  pdfSha256: String
+  payLinkExpiresAt: DateTime
   sentAt: DateTime
   sentChannel: String
   payments: PaymentRelateToManyForCreateInput
@@ -16439,6 +16449,16 @@ type Mutation {
   resolveDenial(denialId: ID!, expectedVersion: Int!, resolution: String!, note: String!, idempotencyKey: String!): JSON
   fileAppeal(denialId: ID!, expectedVersion: Int!, letter: String!, via: String!, idempotencyKey: String!): JSON
   recordAppealOutcome(appealId: ID!, expectedVersion: Int!, outcome: String!, idempotencyKey: String!): JSON
+  takePayment(patientId: ID!, locationId: ID!, amount: String!, tender: String!, checkNumber: String, testMethod: String, methodTokenId: ID, statementId: ID, allocations: [JSON!], saveCard: Boolean, consentText: String, idempotencyKey: String!): JSON
+  requestRefund(paymentId: ID, accountId: ID, locationId: ID, amount: String!, method: String, reason: String!, idempotencyKey: String!): JSON
+  recordRefundPaid(refundId: ID!, reference: String, idempotencyKey: String!): JSON
+  correctLedgerNote(entryId: ID!, text: String!, idempotencyKey: String!): JSON
+  generateStatements(locationId: ID!, cycleDate: String, idempotencyKey: String!): JSON
+  sendStatement(statementId: ID!, channel: String, idempotencyKey: String!): JSON
+  holdStatements(patientId: ID!, hold: Boolean!, reason: String, idempotencyKey: String!): JSON
+  proposePaymentPlan(patientId: ID!, locationId: ID!, downPayment: String, installments: Int!, firstDueDate: String!, intervalDays: Int, autopayTokenId: ID, amount: String, idempotencyKey: String!): JSON
+  activatePaymentPlan(planId: ID!, expectedVersion: Int!, agreedByName: String!, idempotencyKey: String!): JSON
+  cancelPaymentPlan(planId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
   rebuildAccountBalance(accountId: ID!, idempotencyKey: String!): JSON
   addPatientAlert(patientId: ID!, kind: String!, severity: String!, text: String!, idempotencyKey: String!): JSON
   endPatientAlert(alertId: ID!, reason: String!, idempotencyKey: String!): JSON

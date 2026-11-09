@@ -3719,25 +3719,27 @@ model Refund {
 }
 
 model Statement {
-  id             String            @id @default(cuid())
-  ref            String            @unique @default("")
-  account        GuarantorAccount? @relation("Statement_account", fields: [accountId], references: [id])
-  accountId      String?           @map("account")
-  location       Location?         @relation("Statement_location", fields: [locationId], references: [id])
-  locationId     String?           @map("location")
-  cycleDate      DateTime?         @postgresql.Date
-  snapshot       Json?             @default("{}")
-  amountDueMinor BigInt
-  dueDate        DateTime?         @postgresql.Date
-  status         String            @default("generated")
-  payLinkCode    String            @unique @default("")
-  documentSha256 String            @default("")
-  sentAt         DateTime?
-  sentChannel    String            @default("")
-  payments       Payment[]         @relation("Payment_statement")
-  version        Int               @default(0)
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @default(now()) @updatedAt
+  id               String            @id @default(cuid())
+  ref              String            @unique @default("")
+  account          GuarantorAccount? @relation("Statement_account", fields: [accountId], references: [id])
+  accountId        String?           @map("account")
+  location         Location?         @relation("Statement_location", fields: [locationId], references: [id])
+  locationId       String?           @map("location")
+  cycleDate        DateTime?         @postgresql.Date
+  snapshot         Json?             @default("{}")
+  amountDueMinor   BigInt
+  dueDate          DateTime?         @postgresql.Date
+  status           String            @default("generated")
+  payLinkCode      String            @unique @default("")
+  documentSha256   String            @default("")
+  pdfSha256        String            @default("")
+  payLinkExpiresAt DateTime?
+  sentAt           DateTime?
+  sentChannel      String            @default("")
+  payments         Payment[]         @relation("Payment_statement")
+  version          Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now()) @updatedAt
 
   @@index([accountId])
   @@index([locationId])

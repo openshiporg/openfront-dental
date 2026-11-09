@@ -175,8 +175,8 @@ var today = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 function sessionLocationIds(session) {
   if (!isSignedIn({ session })) return [];
   if (session.data.role?.canAccessAllLocations) return null;
-  const day4 = today();
-  return (session.data.assignments ?? []).filter((a) => a.location?.id && (!a.startsOn || a.startsOn <= day4) && (!a.endsOn || a.endsOn >= day4)).map((a) => a.location.id);
+  const day5 = today();
+  return (session.data.assignments ?? []).filter((a) => a.location?.id && (!a.startsOn || a.startsOn <= day5) && (!a.endsOn || a.endsOn >= day5)).map((a) => a.location.id);
 }
 var rules = {
   canReadPeople: ({ session }) => !isSignedIn({ session }) ? false : session.data.role?.canSeeOtherPeople || session.data.role?.canManagePeople ? true : { id: { equals: session.itemId } },
@@ -3659,6 +3659,8 @@ var Statement = (0, import_core19.list)({
     status: lifecycle(STATEMENT_STATUSES),
     payLinkCode: systemText({ indexed: "unique", required: true }),
     documentSha256: systemText(),
+    pdfSha256: systemText(),
+    payLinkExpiresAt: (0, import_fields19.timestamp)({ ...readOnly }),
     sentAt: (0, import_fields19.timestamp)({ ...readOnly }),
     sentChannel: systemText(),
     payments: (0, import_fields19.relationship)({ ref: "Payment.statement", many: true, ...readOnly }),
@@ -4200,19 +4202,19 @@ function actorFromSession(session) {
   return { kind: "user", userId: session.itemId, name: session.data.name, permissions: granted };
 }
 var systemActor = (name) => ({ kind: "system", name });
-function can(actor2, permission) {
-  return actor2.kind === "user" && actor2.permissions.has(permission);
+function can(actor3, permission) {
+  return actor3.kind === "user" && actor3.permissions.has(permission);
 }
-function requirePermission(actor2, ...anyOf2) {
-  if (actor2.kind === "system") return;
-  if (actor2.kind === "agent") throw new DomainError(Codes.NOT_AUTHORIZED, "Agents act only through their tool grants.");
-  if (!anyOf2.some((permission) => actor2.permissions.has(permission))) {
+function requirePermission(actor3, ...anyOf2) {
+  if (actor3.kind === "system") return;
+  if (actor3.kind === "agent") throw new DomainError(Codes.NOT_AUTHORIZED, "Agents act only through their tool grants.");
+  if (!anyOf2.some((permission) => actor3.permissions.has(permission))) {
     throw new DomainError(Codes.NOT_AUTHORIZED, `This needs the ${anyOf2.join(" or ")} permission.`);
   }
 }
-var principalKey = (actor2) => actor2.kind === "user" ? `user:${actor2.userId}` : actor2.kind === "agent" ? `agent:${actor2.agentId}` : `system:${actor2.name}`;
-var actorUserId = (actor2) => actor2.kind === "user" ? actor2.userId : null;
-var actorAgentId = (actor2) => actor2.kind === "agent" ? actor2.agentId : null;
+var principalKey = (actor3) => actor3.kind === "user" ? `user:${actor3.userId}` : actor3.kind === "agent" ? `agent:${actor3.agentId}` : `system:${actor3.name}`;
+var actorUserId = (actor3) => actor3.kind === "user" ? actor3.userId : null;
+var actorAgentId = (actor3) => actor3.kind === "agent" ? actor3.agentId : null;
 
 // features/keystone/lib/canonical.ts
 var import_node_crypto2 = require("node:crypto");
@@ -4548,16 +4550,16 @@ async function transition(uow, spec) {
   });
   return await delegateOf(uow.tx, spec.model).findUnique({ where: { id: spec.id } });
 }
-function auditCreate(uow, actor2, model, id, eventType, after, extra = {}) {
+function auditCreate(uow, actor3, model, id, eventType, after, extra = {}) {
   uow.audit({
     eventType,
     entityType: model,
     entityId: id,
-    actorUserId: actorUserId(actor2),
-    actorAgentId: actorAgentId(actor2),
+    actorUserId: actorUserId(actor3),
+    actorAgentId: actorAgentId(actor3),
     reason: extra.reason ?? null,
     after,
-    metadata: { ...extra.metadata ?? {}, ...actor2.kind === "system" ? { system: actor2.name } : {} }
+    metadata: { ...extra.metadata ?? {}, ...actor3.kind === "system" ? { system: actor3.name } : {} }
   });
 }
 
@@ -4800,8 +4802,8 @@ function samplePatients(today2) {
   const year = Number(today2.slice(0, 4));
   const dobFor = (age) => {
     const month = 1 + Math.floor(rand() * 12);
-    const dayOf2 = 1 + Math.floor(rand() * 28);
-    return `${year - age}-${String(month).padStart(2, "0")}-${String(dayOf2).padStart(2, "0")}`;
+    const dayOf3 = 1 + Math.floor(rand() * 28);
+    return `${year - age}-${String(month).padStart(2, "0")}-${String(dayOf3).padStart(2, "0")}`;
   };
   const out = [];
   let n = 0;
@@ -4859,7 +4861,7 @@ function samplePatients(today2) {
   }
   return out;
 }
-async function seedPhase1(uow, actor2) {
+async function seedPhase1(uow, actor3) {
   const { tx, now } = uow;
   const today2 = localDate(TZ, now);
   const created = { operatories: 0, appointmentTypes: 0, templates: 0, blocks: 0, goals: 0, closures: 0, patients: 0, contacts: 0, consents: 0, alerts: 0, appointments: 0, asap: 0, bookingPolicies: 0, messageTemplates: 0, storefront: 0, portal: 0 };
@@ -4885,7 +4887,7 @@ async function seedPhase1(uow, actor2) {
     const pairs = mine.flatMap((b) => b.types.map((t) => [t, b.id]));
     await tx.$executeRawUnsafe(`INSERT INTO "_TemplateBlock_allowedTypes" ("A", "B") SELECT * FROM unnest($1::text[], $2::text[]) ON CONFLICT DO NOTHING`, pairs.map((x) => x[0]), pairs.map((x) => x[1]));
     created.blocks += mine.length;
-    auditCreate(uow, actor2, "ScheduleTemplate", templateId, "template.published", { location: loc, effectiveFrom }, meta);
+    auditCreate(uow, actor3, "ScheduleTemplate", templateId, "template.published", { location: loc, effectiveFrom }, meta);
     created.templates += 1;
   }
   const goals = [
@@ -4959,7 +4961,7 @@ async function seedPhase1(uow, actor2) {
     const alerts = fresh.flatMap((p) => p.alerts.map((a, i) => ({ id: `seed_al_${p.id.slice(8)}_${i}`, patientId: p.id, kind: a.kind, severity: a.severity, text: a.text, source: "history_answer", activeFrom: /* @__PURE__ */ new Date(`${addDays(today2, -300)}T12:00:00Z`) })));
     if (alerts.length) await tx.patientAlert.createMany({ data: alerts });
     created.alerts = alerts.length;
-    auditCreate(uow, actor2, "Patient", "seed", "patients.sample_loaded", { patients: fresh.length, families: newFamilies.length, contacts: contacts.length }, meta);
+    auditCreate(uow, actor3, "Patient", "seed", "patients.sample_loaded", { patients: fresh.length, families: newFamilies.length, contacts: contacts.length }, meta);
   }
   if (!await tx.appointment.findFirst({ where: { id: { startsWith: "seed_appt_" } }, select: { id: true } })) {
     created.appointments = await seedAppointments(uow, people, today2);
@@ -5288,7 +5290,7 @@ var FORMS = [
   { key: "financial_policy", kind: "financial_policy", title: "Financial policy", body: "Payment is due at the time of service unless other arrangements are made in writing. I understand insurance is a contract between me and my plan, and I am responsible for any balance my plan does not pay." },
   { key: "sedation_consent", kind: "consent_sedation", title: "Consent to sedation", body: "I understand the purpose, risks and alternatives of the sedation my dentist has explained. I will follow the instructions given before and after the visit and arrange an adult to take me home." }
 ];
-async function seedPhase2(uow, actor2) {
+async function seedPhase2(uow, actor3) {
   const { tx, now } = uow;
   const today2 = localDate(TZ2, now);
   const meta2 = { metadata: { seed: true, synthetic: true } };
@@ -5309,7 +5311,7 @@ async function seedPhase2(uow, actor2) {
     const version = await tx.feeScheduleVersion.create({ data: { id: "seed_fee_office_2026", label: "2026 office fees", scheduleId: schedule.id, effectiveFrom: day("2026-01-01"), status: "draft" } });
     await tx.fee.createMany({ data: OF_CODES.map((c) => ({ feeVersionId: version.id, codeId: codeIds.get(c.code), amountMinor: BigInt(c.fee) })) });
     await tx.feeScheduleVersion.update({ where: { id: version.id }, data: { status: "published", publishedAt: now } });
-    auditCreate(uow, actor2, "FeeScheduleVersion", version.id, "fee_schedule.published", { fees: OF_CODES.length }, meta2);
+    auditCreate(uow, actor3, "FeeScheduleVersion", version.id, "fee_schedule.published", { fees: OF_CODES.length }, meta2);
     created.feeVersions += 1;
     const membership = await tx.feeSchedule.create({ data: { id: "seed_fee_ppo", name: "In-network plan fees", kind: "ppo", isSynthetic: true } });
     const ppo = await tx.feeScheduleVersion.create({ data: { id: "seed_fee_ppo_2026", label: "2026 plan fees", scheduleId: membership.id, effectiveFrom: day("2026-01-01"), status: "draft" } });
@@ -5656,7 +5658,7 @@ var APPROVAL_POLICIES = [
 // features/keystone/seed/platform.ts
 var UNUSABLE_PASSWORD_HASH = "$2a$10$3dITCbIvf5zFA.1U8KZDhOHC3EEexi3KYy5ysZK1cRF6LHMm0H.ya";
 var day2 = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
-async function seedPracticePlatform(uow, actor2) {
+async function seedPracticePlatform(uow, actor3) {
   if (process.env.NODE_ENV === "production" && process.env.DENTAL_ALLOW_SAMPLE_PRACTICE !== "true") {
     throw new Error("The sample practice cannot be loaded into a production deployment (I-G3). Set DENTAL_ALLOW_SAMPLE_PRACTICE=true only on a QA deployment.");
   }
@@ -5665,28 +5667,28 @@ async function seedPracticePlatform(uow, actor2) {
   const meta2 = { metadata: { seed: true, synthetic: true } };
   if (!await tx.practiceSettings.findUnique({ where: { id: 1 } })) {
     await tx.practiceSettings.create({ data: { id: 1, ...PRACTICE, isSynthetic: true } });
-    auditCreate(uow, actor2, "PracticeSettings", "1", "practice.created", PRACTICE, meta2);
+    auditCreate(uow, actor3, "PracticeSettings", "1", "practice.created", PRACTICE, meta2);
     created.practice += 1;
   }
   for (const pack of PACKS) {
     const label = `${pack.key}@${pack.version}`;
     if (await tx.jurisdictionPack.findUnique({ where: { label } })) continue;
     const row = await tx.jurisdictionPack.create({ data: { label, key: pack.key, version: pack.version, name: pack.name, rules: pack.rules, sources: pack.sources, status: "active" } });
-    auditCreate(uow, actor2, "JurisdictionPack", row.id, "jurisdiction_pack.loaded", { label }, meta2);
+    auditCreate(uow, actor3, "JurisdictionPack", row.id, "jurisdiction_pack.loaded", { label }, meta2);
     created.jurisdictionPacks += 1;
   }
   const florida = await tx.jurisdictionPack.findUniqueOrThrow({ where: { label: "US-FL@2026.1" }, select: { id: true } });
   for (const location of LOCATIONS) {
     if (await tx.location.findUnique({ where: { id: location.id } })) continue;
     await tx.location.create({ data: { id: location.id, code: location.code, name: location.name, timeZone: location.timeZone, address: location.address, phone: location.phone, email: location.email, hours: location.hours, jurisdictionId: florida.id, isSynthetic: true } });
-    auditCreate(uow, actor2, "Location", location.id, "location.created", { code: location.code, name: location.name }, meta2);
+    auditCreate(uow, actor3, "Location", location.id, "location.created", { code: location.code, name: location.name }, meta2);
     created.locations += 1;
   }
   const haveRoles = new Set((await tx.role.findMany({ where: { id: { in: ROLES.map((r) => r.id) } }, select: { id: true } })).map((r) => r.id));
   const newRoles = ROLES.filter((role) => !haveRoles.has(role.id));
   if (newRoles.length) {
     await tx.role.createMany({ data: newRoles.map((role) => ({ id: role.id, name: role.name, description: role.description, ...Object.fromEntries(permissionNames.map((name) => [name, role.permissions.includes(name) && !NEVER_DEFAULT.includes(name)])) })) });
-    for (const role of newRoles) auditCreate(uow, actor2, "Role", role.id, "role.created", { name: role.name, permissions: role.permissions }, meta2);
+    for (const role of newRoles) auditCreate(uow, actor3, "Role", role.id, "role.created", { name: role.name, permissions: role.permissions }, meta2);
     created.roles = newRoles.length;
   }
   const haveUsers = await tx.user.findMany({ where: { OR: [{ id: { in: STAFF.map((p) => p.id) } }, { email: { in: STAFF.map((p) => p.email) } }] }, select: { id: true, email: true } });
@@ -5705,7 +5707,7 @@ async function seedPracticePlatform(uow, actor2) {
         onboardingStatus: "dismissed"
       }))
     });
-    for (const person of newStaff) auditCreate(uow, actor2, "User", person.id, "user.created", { name: person.name, title: person.title, role: person.roleId, kind: person.kind }, meta2);
+    for (const person of newStaff) auditCreate(uow, actor3, "User", person.id, "user.created", { name: person.name, title: person.title, role: person.roleId, kind: person.kind }, meta2);
     created.staff = newStaff.length;
     const assignments = newStaff.flatMap((person) => person.locations.map((locationId) => ({ id: `seed_asg_${person.id.slice(10)}_${locationId.slice(9)}`, userId: person.id, locationId, startsOn: day2("2024-01-02") })));
     if (assignments.length) {
@@ -5716,18 +5718,18 @@ async function seedPracticePlatform(uow, actor2) {
     for (const person of providers) {
       const p = person.provider;
       await tx.providerProfile.create({ data: { id: p.id, userId: person.id, displayName: person.name, abbreviation: p.abbreviation, providerType: p.type, specialty: "general", npiType1: p.npi ?? null, colour: p.colour, supervisionClass: p.supervisionClass, isSynthetic: true } });
-      auditCreate(uow, actor2, "ProviderProfile", p.id, "provider.created", { abbreviation: p.abbreviation, type: p.type }, meta2);
+      auditCreate(uow, actor3, "ProviderProfile", p.id, "provider.created", { abbreviation: p.abbreviation, type: p.type }, meta2);
     }
     created.providers = providers.length;
   }
   const havePolicies = new Set((await tx.approvalPolicy.findMany({ select: { action: true } })).map((p) => p.action));
   for (const policy of APPROVAL_POLICIES.filter((p) => !havePolicies.has(p.action))) {
     const row = await tx.approvalPolicy.create({ data: { action: policy.action, description: policy.description, requiredPermission: policy.requiredPermission, minApprovals: 1, expiresAfterMinutes: policy.expiresAfterMinutes, thresholdMinor: policy.thresholdMinor ?? null } });
-    auditCreate(uow, actor2, "ApprovalPolicy", row.id, "approval_policy.created", { action: policy.action, requiredPermission: policy.requiredPermission }, meta2);
+    auditCreate(uow, actor3, "ApprovalPolicy", row.id, "approval_policy.created", { action: policy.action, requiredPermission: policy.requiredPermission }, meta2);
     created.approvalPolicies += 1;
   }
-  Object.assign(created, await seedPhase1(uow, actor2));
-  Object.assign(created, await seedPhase2(uow, actor2));
+  Object.assign(created, await seedPhase1(uow, actor3));
+  Object.assign(created, await seedPhase2(uow, actor3));
   return created;
 }
 
@@ -5794,7 +5796,7 @@ var FULL_FACTS = (maxLeft, dedLeft) => [
   ["downgrade", {}, { categories: [] }, "payer_phone"],
   ["cob_method", {}, { method: "standard" }, "payer_phone"]
 ];
-async function seedPhase3(uow, actor2) {
+async function seedPhase3(uow, actor3) {
   const { tx, now } = uow;
   const meta2 = { metadata: { seed: true, synthetic: true } };
   const created = { payers: 0, insurancePlans: 0, coverages: 0, benefitFacts: 0, verifications: 0, workTasks: 0 };
@@ -5804,7 +5806,7 @@ async function seedPhase3(uow, actor2) {
   const feeIds = new Set((await tx.feeSchedule.findMany({ select: { id: true } })).map((f) => f.id));
   await tx.insurancePlan.createMany({ data: PLANS.map((p) => ({ id: p.id, payerId: p.payer, groupName: p.group, groupNumber: p.number, planType: p.type, networkStatus: p.net, feeScheduleId: p.fee && feeIds.has(p.fee) ? p.fee : null, cobMethod: p.cob, annualMaxMinor: p.max, deductibleIndividualMinor: p.ded, benefitYearStartMonth: 1, isSynthetic: true })) });
   created.insurancePlans = PLANS.length;
-  auditCreate(uow, actor2, "InsurancePlan", PLANS[0].id, "insurance_plan.created", { seeded: PLANS.length }, meta2);
+  auditCreate(uow, actor3, "InsurancePlan", PLANS[0].id, "insurance_plan.created", { seeded: PLANS.length }, meta2);
   if (!await tx.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi" } })) {
     await tx.adapterInstallation.create({ data: { area: "clearinghouse", adapterKey: "stedi", displayName: "Stedi eligibility (recorded sandbox)", mode: "sandbox", status: "configured", config: { transport: "recorded" }, handlesPhi: false } });
   }
@@ -5858,7 +5860,7 @@ async function seedPhase3(uow, actor2) {
     observedAt: now
   })));
   if (rules2.length) await tx.benefitRule.createMany({ data: rules2 });
-  auditCreate(uow, actor2, "Coverage", rows.coverages[0].id, "coverage.added", { seeded: rows.coverages.length }, meta2);
+  auditCreate(uow, actor3, "Coverage", rows.coverages[0].id, "coverage.added", { seeded: rows.coverages.length }, meta2);
   Object.assign(created, { coverages: rows.coverages.length, verifications: rows.verifications.length, benefitFacts: rows.facts.length, workTasks: rows.tasks.length });
   return created;
 }
@@ -5950,33 +5952,33 @@ async function seedClaimSample(db) {
 
 // features/keystone/mutations/setup.ts
 async function loadPracticeSetup(_root, args, context) {
-  const actor2 = actorFromSession(context.session);
-  requirePermission(actor2, "canManageOnboarding");
-  const result = await command(context.prisma, { name: "setup.load_practice", actor: actor2, idempotencyKey: args.idempotencyKey, params: {} }, (uow) => seedPracticePlatform(uow, actor2));
-  const insurance = await command(context.prisma, { name: "setup.load_insurance", actor: actor2, idempotencyKey: `${args.idempotencyKey}:insurance`, params: {} }, (uow) => seedPhase3(uow, actor2));
-  const ledger = await command(context.prisma, { name: "setup.load_ledger", actor: actor2, idempotencyKey: `${args.idempotencyKey}:ledger`, params: {} }, (uow) => seedLedger(uow));
-  const claimsSeed = await command(context.prisma, { name: "setup.load_claims", actor: actor2, idempotencyKey: `${args.idempotencyKey}:claims`, params: {} }, async (uow) => ({ ...await seedClaimReference(uow.tx), ...await seedClaimSample(uow.tx) }));
+  const actor3 = actorFromSession(context.session);
+  requirePermission(actor3, "canManageOnboarding");
+  const result = await command(context.prisma, { name: "setup.load_practice", actor: actor3, idempotencyKey: args.idempotencyKey, params: {} }, (uow) => seedPracticePlatform(uow, actor3));
+  const insurance = await command(context.prisma, { name: "setup.load_insurance", actor: actor3, idempotencyKey: `${args.idempotencyKey}:insurance`, params: {} }, (uow) => seedPhase3(uow, actor3));
+  const ledger = await command(context.prisma, { name: "setup.load_ledger", actor: actor3, idempotencyKey: `${args.idempotencyKey}:ledger`, params: {} }, (uow) => seedLedger(uow));
+  const claimsSeed = await command(context.prisma, { name: "setup.load_claims", actor: actor3, idempotencyKey: `${args.idempotencyKey}:claims`, params: {} }, async (uow) => ({ ...await seedClaimReference(uow.tx), ...await seedClaimSample(uow.tx) }));
   return { replay: result.replay, created: { ...result.value, ...insurance.value, ...ledger.value, ...claimsSeed.value } };
 }
 
 // features/keystone/mutations/audit.ts
 async function verifyAuditChain2(_root, _args, context) {
-  const actor2 = actorFromSession(context.session);
-  requirePermission(actor2, "canReadAudit");
+  const actor3 = actorFromSession(context.session);
+  requirePermission(actor3, "canReadAudit");
   return verifyAuditChain(context.prisma);
 }
 
 // features/keystone/lib/separationOfDuties.ts
 var SELF_APPROVAL_MESSAGE = "You can't approve your own request.";
 var AGENT_APPROVAL_MESSAGE = "An agent can propose but never approve.";
-function assertCanDecide(actor2, requesterUserId, requesterAgentOwnerId, strictAgentOwner = true) {
-  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, AGENT_APPROVAL_MESSAGE);
-  if (requesterUserId && requesterUserId === actor2.userId) throw new DomainError(Codes.SELF_APPROVAL, SELF_APPROVAL_MESSAGE);
-  if (strictAgentOwner && requesterAgentOwnerId && requesterAgentOwnerId === actor2.userId) throw new DomainError(Codes.SELF_APPROVAL, "You can't approve a proposal made by your own agent.");
+function assertCanDecide(actor3, requesterUserId, requesterAgentOwnerId, strictAgentOwner = true) {
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, AGENT_APPROVAL_MESSAGE);
+  if (requesterUserId && requesterUserId === actor3.userId) throw new DomainError(Codes.SELF_APPROVAL, SELF_APPROVAL_MESSAGE);
+  if (strictAgentOwner && requesterAgentOwnerId && requesterAgentOwnerId === actor3.userId) throw new DomainError(Codes.SELF_APPROVAL, "You can't approve a proposal made by your own agent.");
 }
 
 // features/keystone/lib/approval.ts
-async function requestApproval(uow, actor2, input) {
+async function requestApproval(uow, actor3, input) {
   const policy = await uow.tx.approvalPolicy.findUnique({ where: { action: input.action } });
   const requiredPermission = policy?.requiredPermission ?? input.requiredPermission;
   const minutes = input.expiresInMinutes ?? policy?.expiresAfterMinutes ?? 1440;
@@ -5989,29 +5991,29 @@ async function requestApproval(uow, actor2, input) {
       payload: toJsonValue(input.payload),
       payloadHash: payloadHash(input.payload),
       requiredPermission,
-      requestedById: actorUserId(actor2),
-      requestedByAgentId: actorAgentId(actor2),
+      requestedById: actorUserId(actor3),
+      requestedByAgentId: actorAgentId(actor3),
       status: "pending",
       expiresAt: new Date(uow.now.getTime() + minutes * 6e4)
     }
   });
-  uow.audit({ eventType: "approval.requested", entityType: "ApprovalRequest", entityId: created.id, actorUserId: actorUserId(actor2), actorAgentId: actorAgentId(actor2), after: { action: input.action, targetList: input.targetList, targetId: input.targetId, payloadHash: created.payloadHash, requiredPermission } });
+  uow.audit({ eventType: "approval.requested", entityType: "ApprovalRequest", entityId: created.id, actorUserId: actorUserId(actor3), actorAgentId: actorAgentId(actor3), after: { action: input.action, targetList: input.targetList, targetId: input.targetId, payloadHash: created.payloadHash, requiredPermission } });
   uow.emit({ topic: "notify.approval", aggregateType: "ApprovalRequest", aggregateId: created.id, payload: { action: input.action, requiredPermission }, dedupeKey: `notify.approval:${created.id}` });
   return created;
 }
-async function decideApproval(uow, actor2, input) {
+async function decideApproval(uow, actor3, input) {
   const request = await lockRow(uow.tx, "ApprovalRequest", input.requestId);
   let agentOwnerId = null;
   if (request.requestedByAgentId) {
     const agent = await uow.tx.agentIdentity.findUnique({ where: { id: request.requestedByAgentId }, select: { ownerId: true } });
     agentOwnerId = agent?.ownerId ?? null;
   }
-  assertCanDecide(actor2, request.requestedById, agentOwnerId, input.strictAgentOwner ?? true);
-  if (actor2.kind !== "user" || !actor2.permissions.has(request.requiredPermission)) {
+  assertCanDecide(actor3, request.requestedById, agentOwnerId, input.strictAgentOwner ?? true);
+  if (actor3.kind !== "user" || !actor3.permissions.has(request.requiredPermission)) {
     throw new DomainError(Codes.NOT_AUTHORIZED, `Deciding this needs the ${request.requiredPermission} permission.`);
   }
   if (request.expiresAt && new Date(request.expiresAt).getTime() <= uow.now.getTime()) {
-    await transition(uow, { model: "ApprovalRequest", id: input.requestId, from: ["pending"], to: "expired", actor: actor2, eventType: "approval.expired" });
+    await transition(uow, { model: "ApprovalRequest", id: input.requestId, from: ["pending"], to: "expired", actor: actor3, eventType: "approval.expired" });
     throw new DomainError(Codes.GUARD_FAILED, "This approval request has expired.");
   }
   const to = input.decision === "approve" ? "approved" : "rejected";
@@ -6021,12 +6023,12 @@ async function decideApproval(uow, actor2, input) {
     from: ["pending"],
     to,
     expectedVersion: input.expectedVersion,
-    actor: actor2,
+    actor: actor3,
     eventType: `approval.${to}`,
     reason: input.reason ?? null,
-    approverId: actor2.userId
+    approverId: actor3.userId
   });
-  await uow.tx.approvalDecision.create({ data: { requestId: input.requestId, decidedById: actor2.userId, decision: input.decision, reason: input.reason ?? "", at: uow.now } });
+  await uow.tx.approvalDecision.create({ data: { requestId: input.requestId, decidedById: actor3.userId, decision: input.decision, reason: input.reason ?? "", at: uow.now } });
   return updated;
 }
 async function consumeApproval(uow, input) {
@@ -6074,11 +6076,11 @@ function validatePracticeControls(input) {
   }
   return out;
 }
-async function requestPracticeControlsChange(uow, actor2, input, reason) {
+async function requestPracticeControlsChange(uow, actor3, input, reason) {
   const changes = validatePracticeControls(input);
   const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 } });
   if (!practice) throw new DomainError(Codes.NOT_FOUND, "Practice settings are not set up yet.");
-  return requestApproval(uow, actor2, {
+  return requestApproval(uow, actor3, {
     action: "practice.controls",
     targetList: "PracticeSettings",
     targetId: "1",
@@ -6087,7 +6089,7 @@ async function requestPracticeControlsChange(uow, actor2, input, reason) {
     summary: `Change practice controls: ${Object.keys(changes).join(", ")}${reason ? ` (${reason})` : ""}`
   });
 }
-registerApplier("practice.controls", async (uow, actor2, request) => {
+registerApplier("practice.controls", async (uow, actor3, request) => {
   const [row] = await uow.tx.$queryRaw`SELECT version FROM "PracticeSettings" WHERE id = 1 FOR UPDATE`;
   if (!row) throw new DomainError(Codes.NOT_FOUND, "Practice settings are not set up yet.");
   const { changes, baseVersion } = request.payload;
@@ -6095,45 +6097,52 @@ registerApplier("practice.controls", async (uow, actor2, request) => {
   const before = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { aiAutonomyAllowed: true, strictAgentOwnerSoD: true, breakGlassMinutes: true, requireStaffMfa: true } });
   const updated = await uow.tx.practiceSettings.updateMany({ where: { id: 1, version: baseVersion }, data: { ...changes, version: { increment: 1 } } });
   if (updated.count !== 1) throw new DomainError(Codes.STALE_STATE, "Practice settings changed while applying.");
-  uow.audit({ eventType: "practice.controls_changed", entityType: "PracticeSettings", entityId: "1", actorUserId: actor2.kind === "user" ? actor2.userId : null, before, after: changes });
+  uow.audit({ eventType: "practice.controls_changed", entityType: "PracticeSettings", entityId: "1", actorUserId: actor3.kind === "user" ? actor3.userId : null, before, after: changes });
   return { applied: Object.keys(changes) };
 });
 
 // features/keystone/mutations/approvals.ts
 async function decideApprovalRequest(_root, args, context) {
-  const actor2 = actorFromSession(context.session);
-  requirePermission(actor2, "canAccessDashboard");
+  const actor3 = actorFromSession(context.session);
+  requirePermission(actor3, "canAccessDashboard");
   if (args.decision !== "approve" && args.decision !== "reject") throw new DomainError(Codes.INVALID_INPUT, "Decision must be approve or reject.");
   if (args.decision === "reject" && !args.reason?.trim()) throw new DomainError(Codes.INVALID_INPUT, "Say why you are rejecting it.", { field: "reason" });
-  const result = await command(context.prisma, { name: "approval.decide", actor: actor2, idempotencyKey: args.idempotencyKey, params: { requestId: args.requestId, decision: args.decision, reason: args.reason ?? "", expectedVersion: args.expectedVersion } }, async (uow) => {
+  const result = await command(context.prisma, { name: "approval.decide", actor: actor3, idempotencyKey: args.idempotencyKey, params: { requestId: args.requestId, decision: args.decision, reason: args.reason ?? "", expectedVersion: args.expectedVersion } }, async (uow) => {
     const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { strictAgentOwnerSoD: true } });
-    const decided = await decideApproval(uow, actor2, { requestId: args.requestId, decision: args.decision, reason: args.reason ?? void 0, expectedVersion: args.expectedVersion, strictAgentOwner: practice?.strictAgentOwnerSoD ?? true });
+    const decided = await decideApproval(uow, actor3, { requestId: args.requestId, decision: args.decision, reason: args.reason ?? void 0, expectedVersion: args.expectedVersion, strictAgentOwner: practice?.strictAgentOwnerSoD ?? true });
     let applied = null;
     const registration = applierFor(String(decided.action));
     if (args.decision === "approve" && registration?.applyOnApprove) {
       const request = await uow.tx.approvalRequest.findUniqueOrThrow({ where: { id: args.requestId } });
       await consumeApproval(uow, { requestId: request.id, action: request.action, targetList: request.targetList, targetId: request.targetId, payload: request.payload });
-      applied = await registration.apply(uow, actor2, request);
+      applied = await registration.apply(uow, actor3, request);
+    }
+    if (args.decision === "reject" && decided.targetList === "Refund") {
+      const refund = await uow.tx.refund.findUnique({ where: { id: String(decided.targetId) }, select: { accountId: true, status: true } });
+      if (refund?.status === "requested") {
+        await uow.tx.refund.update({ where: { id: String(decided.targetId) }, data: { status: "rejected", failureNote: String(args.reason ?? "").slice(0, 200), version: { increment: 1 } } });
+        if (refund.accountId) await uow.tx.creditBalance.updateMany({ where: { accountId: refund.accountId, status: "refund_requested" }, data: { status: "open", version: { increment: 1 } } });
+      }
     }
     return { id: decided.id, status: decided.status, applied };
   });
   return { replay: result.replay, ...result.value };
 }
 async function cancelApprovalRequest(_root, args, context) {
-  const actor2 = actorFromSession(context.session);
-  requirePermission(actor2, "canAccessDashboard");
-  const result = await command(context.prisma, { name: "approval.cancel", actor: actor2, idempotencyKey: args.idempotencyKey, params: args }, async (uow) => {
+  const actor3 = actorFromSession(context.session);
+  requirePermission(actor3, "canAccessDashboard");
+  const result = await command(context.prisma, { name: "approval.cancel", actor: actor3, idempotencyKey: args.idempotencyKey, params: args }, async (uow) => {
     const row = await transition(uow, {
       model: "ApprovalRequest",
       id: args.requestId,
       from: ["pending"],
       to: "cancelled",
       expectedVersion: args.expectedVersion,
-      actor: actor2,
+      actor: actor3,
       eventType: "approval.cancelled",
       reason: args.reason ?? null,
       guard: (request) => {
-        if (actor2.kind !== "user" || request.requestedById !== actor2.userId) throw new DomainError(Codes.NOT_AUTHORIZED, "Only the person who asked can withdraw a request.");
+        if (actor3.kind !== "user" || request.requestedById !== actor3.userId) throw new DomainError(Codes.NOT_AUTHORIZED, "Only the person who asked can withdraw a request.");
       }
     });
     return { id: row.id, status: row.status };
@@ -6141,11 +6150,11 @@ async function cancelApprovalRequest(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 async function requestPracticeControls(_root, args, context) {
-  const actor2 = actorFromSession(context.session);
-  requirePermission(actor2, "canManagePractice");
+  const actor3 = actorFromSession(context.session);
+  requirePermission(actor3, "canManagePractice");
   if (!args.reason?.trim()) throw new DomainError(Codes.INVALID_INPUT, "Say why the controls should change.", { field: "reason" });
-  const result = await command(context.prisma, { name: "practice.controls.request", actor: actor2, idempotencyKey: args.idempotencyKey, params: args }, async (uow) => {
-    const request = await requestPracticeControlsChange(uow, actor2, args.changes, args.reason.trim());
+  const result = await command(context.prisma, { name: "practice.controls.request", actor: actor3, idempotencyKey: args.idempotencyKey, params: args }, async (uow) => {
+    const request = await requestPracticeControlsChange(uow, actor3, args.changes, args.reason.trim());
     return { id: request.id, status: request.status };
   });
   return { replay: result.replay, ...result.value };
@@ -6463,13 +6472,13 @@ async function loadLocationDay(tx, locationId, date) {
   const location = await tx.location.findUnique({ where: { id: locationId }, select: { id: true, timeZone: true, name: true, isActive: true, jurisdiction: { select: { rules: true } } } });
   if (!location || !location.isActive) throw new DomainError(Codes.NOT_FOUND, "That location does not exist or is closed.");
   const practice = await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } });
-  const day4 = /* @__PURE__ */ new Date(`${date}T00:00:00.000Z`);
+  const day5 = /* @__PURE__ */ new Date(`${date}T00:00:00.000Z`);
   const template = await tx.scheduleTemplate.findFirst({
-    where: { locationId, status: "active", effectiveFrom: { lte: day4 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day4 } }] },
+    where: { locationId, status: "active", effectiveFrom: { lte: day5 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day5 } }] },
     orderBy: { effectiveFrom: "desc" },
     select: { blocks: { select: { id: true, weekday: true, operatoryId: true, providerId: true, startLocal: true, endLocal: true, onlineBookable: true, allowedTypes: { select: { id: true } }, provider: { select: { providerType: true } }, operatory: { select: { isActive: true } } } } }
   });
-  const closures = await tx.closureDay.findMany({ where: { date: day4, OR: [{ locationId }, { locationId: null }] } });
+  const closures = await tx.closureDay.findMany({ where: { date: day5, OR: [{ locationId }, { locationId: null }] } });
   const blocks = (template?.blocks ?? []).filter((b) => b.operatoryId && b.operatory?.isActive !== false).map((b) => ({
     id: b.id,
     weekday: b.weekday,
@@ -6545,9 +6554,9 @@ async function checkSlot(tx, now, req) {
   const chair = await loadChairBusy(tx, [req.operatoryId], startMs, endMs, now, req.ignore);
   if (chairClash(startMs, endMs, bufferAfterMinutes, chair[req.operatoryId] ?? [])) throw new DomainError(Codes.SLOT_TAKEN, "That chair is already booked or held for this time.");
   const date = localDate(operatory.location.timeZone, req.startsAt);
-  const day4 = await loadLocationDay(tx, req.locationId, date);
+  const day5 = await loadLocationDay(tx, req.locationId, date);
   const warnings = [];
-  const window = templateWindowFor(day4.windows, req.operatoryId, req.typeId, startMs, endMs, { onlineOnly: req.onlineOnly });
+  const window = templateWindowFor(day5.windows, req.operatoryId, req.typeId, startMs, endMs, { onlineOnly: req.onlineOnly });
   if (!window) {
     if (!req.overrideTemplate || req.onlineOnly) throw new DomainError(Codes.OUTSIDE_TEMPLATE, "That time is outside the schedule template for this chair and appointment type.");
     warnings.push("outside_template");
@@ -6561,7 +6570,7 @@ async function checkSlot(tx, now, req) {
     if (patientBusy.length) throw new DomainError(Codes.PATIENT_UNAVAILABLE, "The patient already has an appointment at this time.");
   }
   const providerBusy = await loadProviderBusy(tx, startMs, endMs, now, req.ignore);
-  const plan = planSegments({ pattern, unitMinutes, startMs, providerId, windows: day4.windows, providerBusy });
+  const plan = planSegments({ pattern, unitMinutes, startMs, providerId, windows: day5.windows, providerBusy });
   if (plan.clashes.length) {
     if (!req.overrideProviderClash) throw new DomainError(Codes.PROVIDER_UNAVAILABLE, "The provider is already committed for part of this time.");
     for (const c of plan.clashes) c.segment.concurrencyKind = "approved_override";
@@ -6569,11 +6578,11 @@ async function checkSlot(tx, now, req) {
   }
   let supervisingDentistId = plan.examProviderId;
   if (type.requiresDentistOnSite) {
-    const onSite = dentistsOnSite(day4.windows, startMs, endMs);
+    const onSite = dentistsOnSite(day5.windows, startMs, endMs);
     supervisingDentistId = supervisingDentistId && onSite.includes(supervisingDentistId) ? supervisingDentistId : onSite[0] ?? null;
-    if (!supervisingDentistId && day4.supervision.hygieneGeneralAllowed) warnings.push("general_supervision");
+    if (!supervisingDentistId && day5.supervision.hygieneGeneralAllowed) warnings.push("general_supervision");
     else if (!supervisingDentistId) {
-      if (day4.supervision.enforcement === "hard" || req.onlineOnly) throw new DomainError(Codes.SUPERVISION_REQUIRED, "No dentist is scheduled on site for this hygiene visit, and this location\u2019s jurisdiction pack requires one.");
+      if (day5.supervision.enforcement === "hard" || req.onlineOnly) throw new DomainError(Codes.SUPERVISION_REQUIRED, "No dentist is scheduled on site for this hygiene visit, and this location\u2019s jurisdiction pack requires one.");
       warnings.push("no_dentist_on_site");
     }
   }
@@ -6605,10 +6614,10 @@ async function preflight(tx, req) {
   }
   const startMs = req.startsAt.getTime();
   const endMs = startMs + patternUnits(pattern) * (practice?.scheduleUnitMinutes ?? 10) * MS_PER_MINUTE;
-  const day4 = await loadLocationDay(tx, req.locationId, localDate(operatory.location.timeZone, req.startsAt));
-  const window = day4.windows.find((w) => w.operatoryId === req.operatoryId && w.startMs <= startMs && endMs <= w.endMs);
+  const day5 = await loadLocationDay(tx, req.locationId, localDate(operatory.location.timeZone, req.startsAt));
+  const window = day5.windows.find((w) => w.operatoryId === req.operatoryId && w.startMs <= startMs && endMs <= w.endMs);
   const providerIds = [req.providerId ?? window?.providerId ?? null];
-  if (pattern.some((u) => u.role === "exam")) providerIds.push(...dentistsOnSite(day4.windows, startMs, endMs));
+  if (pattern.some((u) => u.role === "exam")) providerIds.push(...dentistsOnSite(day5.windows, startMs, endMs));
   return { providerIds: providerIds.filter((id) => !!id) };
 }
 async function labGate(_tx, _appointmentId) {
@@ -6625,9 +6634,9 @@ function asSlotTaken(error) {
 
 // features/keystone/mutations/shared.ts
 function staff(context) {
-  const actor2 = actorFromSession(context.session);
+  const actor3 = actorFromSession(context.session);
   const locationIds = sessionLocationIds(context.session);
-  return { actor: actor2, locationIds, session: context.session };
+  return { actor: actor3, locationIds, session: context.session };
 }
 function assertLocation(locationIds, locationId) {
   if (!locationId) throw new DomainError(Codes.INVALID_INPUT, "Choose a location.", { field: "locationId" });
@@ -6689,8 +6698,8 @@ var ACTIVE2 = [...ACTIVE_APPOINTMENT_STATUSES];
 var STAFF_HOLD_MINUTES = 5;
 var MAX_SEARCH_DAYS = 31;
 async function findAvailability(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canReadSchedule", "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canReadSchedule", "canManageSchedule");
   assertLocation(locationIds, args.locationId);
   if (args.patientId) await assertPatientInScope(context.prisma, locationIds, args.patientId);
   return availability(context.prisma, { ...args, onlineOnly: false, leadMinutes: 0 });
@@ -6707,18 +6716,18 @@ async function availability(db, args) {
   const slots = [];
   for (let i = 0; i < days && slots.length < limit; i += 1) {
     const date = addDays(args.fromDate, i);
-    const day4 = await loadLocationDay(db, args.locationId, date);
-    if (!day4.windows.length) continue;
-    const from = Math.min(...day4.windows.map((w) => w.startMs));
-    const to = Math.max(...day4.windows.map((w) => w.endMs));
-    const operatoryIds = [...new Set(day4.windows.map((w) => w.operatoryId))];
+    const day5 = await loadLocationDay(db, args.locationId, date);
+    if (!day5.windows.length) continue;
+    const from = Math.min(...day5.windows.map((w) => w.startMs));
+    const to = Math.max(...day5.windows.map((w) => w.endMs));
+    const operatoryIds = [...new Set(day5.windows.map((w) => w.operatoryId))];
     const [chairBusy, providerBusy, patientBusy] = await Promise.all([
       loadChairBusy(db, operatoryIds, from, to, now),
       loadProviderBusy(db, from, to, now),
       args.patientId ? db.appointment.findMany({ where: { patientId: args.patientId, status: { in: ACTIVE2 }, startsAt: { lt: new Date(to) }, endsAt: { gt: new Date(from) } }, select: { startsAt: true, endsAt: true } }) : Promise.resolve([])
     ]);
     const found = findSlots({
-      windows: day4.windows,
+      windows: day5.windows,
       typeId: type.id,
       durationMinutes: patternUnits(pattern) * unitMinutes,
       unitMinutes,
@@ -6734,12 +6743,12 @@ async function availability(db, args) {
       providerId: args.providerId ?? null,
       limit: limit - slots.length
     });
-    const usable = type.requiresDentistOnSite && (day4.supervision.enforcement === "hard" || args.onlineOnly) && !day4.supervision.hygieneGeneralAllowed ? found.filter((s) => day4.windows.some((w) => w.providerType === "dentist" && w.startMs <= s.startMs && s.endMs <= w.endMs)) : found;
+    const usable = type.requiresDentistOnSite && (day5.supervision.enforcement === "hard" || args.onlineOnly) && !day5.supervision.hygieneGeneralAllowed ? found.filter((s) => day5.windows.some((w) => w.providerType === "dentist" && w.startMs <= s.startMs && s.endMs <= w.endMs)) : found;
     for (const s of usable) slots.push({ operatoryId: s.operatoryId, providerId: s.providerId, startsAt: new Date(s.startMs).toISOString(), endsAt: new Date(s.endMs).toISOString(), localDate: date });
   }
   return { typeId: type.id, unitMinutes, durationMinutes: patternUnits(pattern) * unitMinutes, slots };
 }
-async function placeHold(uow, actor2, input) {
+async function placeHold(uow, actor3, input) {
   const startsAt = toDate(input.startsAt, "startsAt");
   const pre = await preflight(uow.tx, { ...input, startsAt });
   await lockResources(uow.tx, { operatoryIds: [input.operatoryId], providerIds: pre.providerIds, patientIds: [input.patientId] });
@@ -6765,34 +6774,34 @@ async function placeHold(uow, actor2, input) {
       createdAt: uow.now
     }
   }).catch(asSlotTaken);
-  auditCreate(uow, actor2, "BookingHold", hold.id, "hold.placed", { operatoryId: hold.operatoryId, startsAt: hold.startsAt, endsAt: hold.endsAt, holderKind: hold.holderKind, expiresAt });
+  auditCreate(uow, actor3, "BookingHold", hold.id, "hold.placed", { operatoryId: hold.operatoryId, startsAt: hold.startsAt, endsAt: hold.endsAt, holderKind: hold.holderKind, expiresAt });
   return { hold, check };
 }
 var serializeSegment = (s) => ({ role: s.role, providerId: s.providerId, startMs: s.startMs, endMs: s.endMs, concurrencyKind: s.concurrencyKind });
 async function holdSlot(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   assertLocation(locationIds, args.locationId);
-  const result = await command(context.prisma, { name: "schedule.hold", actor: actor2, idempotencyKey: args.idempotencyKey, params: { ...args, idempotencyKey: void 0 } }, async (uow) => {
+  const result = await command(context.prisma, { name: "schedule.hold", actor: actor3, idempotencyKey: args.idempotencyKey, params: { ...args, idempotencyKey: void 0 } }, async (uow) => {
     if (args.patientId) await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const { hold } = await placeHold(uow, actor2, { ...args, holderKind: "staff", holderRef: actor2.kind === "user" ? `user:${actor2.userId}` : "system", minutes: STAFF_HOLD_MINUTES });
+    const { hold } = await placeHold(uow, actor3, { ...args, holderKind: "staff", holderRef: actor3.kind === "user" ? `user:${actor3.userId}` : "system", minutes: STAFF_HOLD_MINUTES });
     return { holdId: hold.id, expiresAt: hold.expiresAt.toISOString(), startsAt: hold.startsAt.toISOString(), endsAt: hold.endsAt.toISOString() };
   });
   return { replay: result.replay, ...result.value };
 }
 async function releaseHold(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
-  const result = await command(context.prisma, { name: "schedule.release_hold", actor: actor2, idempotencyKey: args.idempotencyKey, params: { holdId: args.holdId } }, async (uow) => {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
+  const result = await command(context.prisma, { name: "schedule.release_hold", actor: actor3, idempotencyKey: args.idempotencyKey, params: { holdId: args.holdId } }, async (uow) => {
     const hold = await uow.tx.bookingHold.findUnique({ where: { id: args.holdId } });
     if (!hold) throw new DomainError(Codes.NOT_FOUND, "Hold not found.");
     assertLocation(locationIds, hold.locationId);
-    const updated = await transition(uow, { model: "BookingHold", id: args.holdId, from: ["held"], to: "released", actor: actor2, eventType: "hold.released" });
+    const updated = await transition(uow, { model: "BookingHold", id: args.holdId, from: ["held"], to: "released", actor: actor3, eventType: "hold.released" });
     return { holdId: updated.id, status: updated.status };
   });
   return { replay: result.replay, ...result.value };
 }
-async function createAppointment(uow, actor2, input) {
+async function createAppointment(uow, actor3, input) {
   const startsAt = toDate(input.startsAt, "startsAt");
   const pre = await preflight(uow.tx, { ...input, startsAt });
   await lockResources(uow.tx, { operatoryIds: [input.operatoryId], providerIds: pre.providerIds, patientIds: [input.patientId] });
@@ -6803,7 +6812,7 @@ async function createAppointment(uow, actor2, input) {
   if (input.holdId) {
     hold = await uow.tx.bookingHold.findUnique({ where: { id: input.holdId } });
     if (!hold) throw new DomainError(Codes.NOT_FOUND, "Hold not found.");
-    const expectedHolder = input.holderRef ?? (actor2.kind === "user" ? `user:${actor2.userId}` : null);
+    const expectedHolder = input.holderRef ?? (actor3.kind === "user" ? `user:${actor3.userId}` : null);
     if (hold.holderRef !== expectedHolder) throw new DomainError(Codes.NOT_AUTHORIZED, "That hold belongs to someone else.");
     if (hold.status !== "held" || hold.expiresAt.getTime() <= uow.now.getTime()) {
       if (hold.status === "held") await uow.tx.bookingHold.updateMany({ where: { id: hold.id, status: "held" }, data: { status: "expired", version: { increment: 1 } } });
@@ -6817,8 +6826,8 @@ async function createAppointment(uow, actor2, input) {
   await expireStaleHolds(uow.tx, [input.operatoryId], uow.now);
   const overrideTemplate = !!input.overrideTemplate;
   const overrideProviderClash = !!input.overrideProviderClash;
-  if (overrideTemplate) requirePermission(actor2, "canOverrideTemplate");
-  if (overrideProviderClash) requirePermission(actor2, "canOverrideSchedule");
+  if (overrideTemplate) requirePermission(actor3, "canOverrideTemplate");
+  if (overrideProviderClash) requirePermission(actor3, "canOverrideSchedule");
   const overrideReason = overrideTemplate || overrideProviderClash ? requireText(input.overrideReason, "override reason") : "";
   const check = await checkSlot(uow.tx, uow.now, {
     locationId: input.locationId,
@@ -6856,7 +6865,7 @@ async function createAppointment(uow, actor2, input) {
       source: input.source ?? "staff",
       bookedViaHoldId: hold?.id ?? null,
       proposalId: input.proposalId ?? null,
-      bookedById: actor2.kind === "user" ? actor2.userId : null,
+      bookedById: actor3.kind === "user" ? actor3.userId : null,
       productionScheduledMinor: check.productionMinor,
       isSynthetic: input.isSynthetic ?? patient.isSynthetic,
       segments: {
@@ -6873,7 +6882,7 @@ async function createAppointment(uow, actor2, input) {
   }).catch(asSlotTaken);
   if (hold) await uow.tx.bookingHold.update({ where: { id: hold.id }, data: { convertedToId: appointment.id } });
   if (patient.status === "prospect" && !patient.homeLocationId) await uow.tx.patient.update({ where: { id: patient.id }, data: { homeLocationId: input.locationId } });
-  auditCreate(uow, actor2, "Appointment", appointment.id, "appointment.booked", {
+  auditCreate(uow, actor3, "Appointment", appointment.id, "appointment.booked", {
     ref,
     startsAt: appointment.startsAt,
     endsAt: appointment.endsAt,
@@ -6889,16 +6898,16 @@ async function createAppointment(uow, actor2, input) {
   return appointment;
 }
 async function bookAppointment(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   assertLocation(locationIds, args.locationId);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "schedule.book", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "schedule.book", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId).catch(async (error) => {
       const p = await uow.tx.patient.findUnique({ where: { id: args.patientId }, select: { homeLocationId: true } });
       if (!p || p.homeLocationId) throw error;
     });
-    const appointment = await createAppointment(uow, actor2, { ...params, source: "staff" });
+    const appointment = await createAppointment(uow, actor3, { ...params, source: "staff" });
     return { appointmentId: appointment.id, ref: appointment.ref, status: appointment.status, startsAt: appointment.startsAt.toISOString(), endsAt: appointment.endsAt.toISOString(), warnings: appointment.warnings };
   });
   return { replay: result.replay, ...result.value };
@@ -6929,22 +6938,22 @@ async function cancelFollowUps(uow, appointmentId) {
   await uow.tx.appointmentSegment.updateMany({ where: { appointmentId }, data: { isActive: false } });
 }
 async function confirmAppointment(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   if (!CONFIRMATION_METHODS.includes(args.method)) throw new DomainError(Codes.INVALID_INPUT, "Choose how the patient confirmed.", { field: "method" });
-  return runTransition(context, actor2, "schedule.confirm", args, async (uow) => {
+  return runTransition(context, actor3, "schedule.confirm", args, async (uow) => {
     await loadScoped(uow.tx, locationIds, args.appointmentId);
-    return confirmIn(uow, actor2, args.appointmentId, args.method, args.expectedVersion);
+    return confirmIn(uow, actor3, args.appointmentId, args.method, args.expectedVersion);
   });
 }
-async function confirmIn(uow, actor2, appointmentId, method, expectedVersion) {
+async function confirmIn(uow, actor3, appointmentId, method, expectedVersion) {
   const updated = await transition(uow, {
     model: "Appointment",
     id: appointmentId,
     from: ["scheduled"],
     to: "confirmed",
     expectedVersion,
-    actor: actor2,
+    actor: actor3,
     eventType: "appointment.confirmed",
     data: { confirmedAt: uow.now, confirmationMethod: method },
     metadata: { method }
@@ -6953,34 +6962,34 @@ async function confirmIn(uow, actor2, appointmentId, method, expectedVersion) {
   return updated;
 }
 async function markArrived(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
-  return runTransition(context, actor2, "schedule.arrive", args, async (uow) => {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
+  return runTransition(context, actor3, "schedule.arrive", args, async (uow) => {
     const appointment = await loadScoped(uow.tx, locationIds, args.appointmentId);
     const location = await uow.tx.location.findUniqueOrThrow({ where: { id: appointment.locationId }, select: { timeZone: true } });
     const today2 = localDate(location.timeZone, uow.now);
-    if (localDate(location.timeZone, appointment.startsAt) !== today2 && !can(actor2, "canOverrideSchedule")) {
+    if (localDate(location.timeZone, appointment.startsAt) !== today2 && !can(actor3, "canOverrideSchedule")) {
       throw new DomainError(Codes.GUARD_FAILED, "Only today\u2019s appointments can be checked in.");
     }
     const gate = await labGate(uow.tx, appointment.id);
     if (gate.blocked) {
       if (!args.overrideLabGate) throw new DomainError(Codes.LAB_CASE_NOT_READY, gate.reason);
-      requirePermission(actor2, "canOverrideLabGate");
+      requirePermission(actor3, "canOverrideLabGate");
       requireText(args.reason, "override reason");
     }
-    const updated = await transition(uow, { model: "Appointment", id: appointment.id, from: ["scheduled", "confirmed"], to: "arrived", expectedVersion: args.expectedVersion, actor: actor2, eventType: "appointment.arrived", reason: args.reason ?? null, data: { arrivedAt: uow.now } });
+    const updated = await transition(uow, { model: "Appointment", id: appointment.id, from: ["scheduled", "confirmed"], to: "arrived", expectedVersion: args.expectedVersion, actor: actor3, eventType: "appointment.arrived", reason: args.reason ?? null, data: { arrivedAt: uow.now } });
     const patient = await uow.tx.patient.findUnique({ where: { id: appointment.patientId }, select: { id: true, status: true, version: true } });
     if (patient && (patient.status === "prospect" || patient.status === "inactive")) {
-      await transition(uow, { model: "Patient", id: patient.id, from: ["prospect", "inactive"], to: "active", actor: actor2, eventType: "patient.activated", metadata: { by: "arrival", appointmentId: appointment.id }, data: patient.status === "prospect" ? { firstVisitOn: /* @__PURE__ */ new Date(`${today2}T00:00:00Z`) } : {} });
+      await transition(uow, { model: "Patient", id: patient.id, from: ["prospect", "inactive"], to: "active", actor: actor3, eventType: "patient.activated", metadata: { by: "arrival", appointmentId: appointment.id }, data: patient.status === "prospect" ? { firstVisitOn: /* @__PURE__ */ new Date(`${today2}T00:00:00Z`) } : {} });
     }
     await uow.tx.confirmationAttempt.updateMany({ where: { appointmentId: appointment.id, status: "scheduled" }, data: { status: "suppressed", suppressedReason: "arrived", version: { increment: 1 } } });
     return updated;
   });
 }
 async function seatPatient(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule", "canChart");
-  return runTransition(context, actor2, "schedule.seat", args, async (uow) => {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule", "canChart");
+  return runTransition(context, actor3, "schedule.seat", args, async (uow) => {
     const appointment = await loadScoped(uow.tx, locationIds, args.appointmentId);
     const alerts = await uow.tx.patientAlert.count({ where: { patientId: appointment.patientId, endedAt: null, severity: { in: ["caution", "critical"] } } });
     if (alerts && !args.acknowledgeAlerts) throw new DomainError(Codes.GUARD_FAILED, `This patient has ${alerts} active medical alert${alerts === 1 ? "" : "s"}. Review and acknowledge them before seating.`);
@@ -6990,74 +6999,74 @@ async function seatPatient(_root, args, context) {
       from: ["arrived"],
       to: "seated",
       expectedVersion: args.expectedVersion,
-      actor: actor2,
+      actor: actor3,
       eventType: "appointment.seated",
-      data: { seatedAt: uow.now, ...alerts ? { alertAckById: actor2.kind === "user" ? actor2.userId : null, alertAckAt: uow.now } : {} },
+      data: { seatedAt: uow.now, ...alerts ? { alertAckById: actor3.kind === "user" ? actor3.userId : null, alertAckAt: uow.now } : {} },
       metadata: { alertsAcknowledged: alerts }
     });
   });
 }
 async function markReadyForCheckout(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule", "canChart");
-  return runTransition(context, actor2, "schedule.ready", args, async (uow) => {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule", "canChart");
+  return runTransition(context, actor3, "schedule.ready", args, async (uow) => {
     await loadScoped(uow.tx, locationIds, args.appointmentId);
-    return transition(uow, { model: "Appointment", id: args.appointmentId, from: ["seated"], to: "ready_for_checkout", expectedVersion: args.expectedVersion, actor: actor2, eventType: "appointment.ready", reason: args.reason ?? null, data: { readyAt: uow.now } });
+    return transition(uow, { model: "Appointment", id: args.appointmentId, from: ["seated"], to: "ready_for_checkout", expectedVersion: args.expectedVersion, actor: actor3, eventType: "appointment.ready", reason: args.reason ?? null, data: { readyAt: uow.now } });
   });
 }
 async function completeAppointment(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule", "canCompleteProcedures");
-  return runTransition(context, actor2, "schedule.complete", args, async (uow) => {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule", "canCompleteProcedures");
+  return runTransition(context, actor3, "schedule.complete", args, async (uow) => {
     const appointment = await loadScoped(uow.tx, locationIds, args.appointmentId);
     const location = await uow.tx.location.findUniqueOrThrow({ where: { id: appointment.locationId }, select: { timeZone: true } });
-    const updated = await transition(uow, { model: "Appointment", id: appointment.id, from: ["ready_for_checkout"], to: "completed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "appointment.completed", data: { completedAt: uow.now } });
+    const updated = await transition(uow, { model: "Appointment", id: appointment.id, from: ["ready_for_checkout"], to: "completed", expectedVersion: args.expectedVersion, actor: actor3, eventType: "appointment.completed", data: { completedAt: uow.now } });
     await uow.tx.patient.update({ where: { id: appointment.patientId }, data: { lastVisitOn: /* @__PURE__ */ new Date(`${localDate(location.timeZone, appointment.startsAt)}T00:00:00Z`) } });
     uow.emit({ topic: "notify.staff", aggregateType: "Appointment", aggregateId: appointment.id, payload: { kind: "appointment.completed" }, dedupeKey: `notify.staff:appointment.completed:${appointment.id}` });
     return updated;
   });
 }
 async function cancelAppointment(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   const reason = requireText(args.reason, "reason");
-  return runTransition(context, actor2, "schedule.cancel", args, async (uow) => {
+  return runTransition(context, actor3, "schedule.cancel", args, async (uow) => {
     await loadScoped(uow.tx, locationIds, args.appointmentId);
-    return cancelIn(uow, actor2, args.appointmentId, reason, args.expectedVersion);
+    return cancelIn(uow, actor3, args.appointmentId, reason, args.expectedVersion);
   });
 }
-async function cancelIn(uow, actor2, appointmentId, reason, expectedVersion) {
+async function cancelIn(uow, actor3, appointmentId, reason, expectedVersion) {
   const appointment = await uow.tx.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
   const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { lateCancelHours: true } });
   const lateHours = practice?.lateCancelHours ?? 24;
   const late = appointment.startsAt.getTime() - uow.now.getTime() < lateHours * 36e5;
-  if (late) return breakIn(uow, actor2, appointmentId, "late_cancel", reason, expectedVersion);
-  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from: ["scheduled", "confirmed"], to: "cancelled", expectedVersion, actor: actor2, eventType: "appointment.cancelled", reason, data: { cancelledAt: uow.now, cancelReason: reason } });
+  if (late) return breakIn(uow, actor3, appointmentId, "late_cancel", reason, expectedVersion);
+  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from: ["scheduled", "confirmed"], to: "cancelled", expectedVersion, actor: actor3, eventType: "appointment.cancelled", reason, data: { cancelledAt: uow.now, cancelReason: reason } });
   await cancelFollowUps(uow, appointmentId);
   emitOpenTime(uow, appointment);
   return updated;
 }
-async function withdrawIn(uow, actor2, appointmentId, reason) {
+async function withdrawIn(uow, actor3, appointmentId, reason) {
   const appointment = await uow.tx.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
-  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from: ["scheduled", "confirmed"], to: "cancelled", actor: actor2, eventType: "appointment.withdrawn", reason, data: { cancelledAt: uow.now, cancelReason: reason } });
+  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from: ["scheduled", "confirmed"], to: "cancelled", actor: actor3, eventType: "appointment.withdrawn", reason, data: { cancelledAt: uow.now, cancelReason: reason } });
   await cancelFollowUps(uow, appointmentId);
   emitOpenTime(uow, appointment);
   return updated;
 }
 async function markBroken(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   if (args.kind !== "no_show" && args.kind !== "late_cancel") throw new DomainError(Codes.INVALID_INPUT, "Choose no-show or late cancel.", { field: "kind" });
-  return runTransition(context, actor2, "schedule.break", args, async (uow) => {
+  return runTransition(context, actor3, "schedule.break", args, async (uow) => {
     await loadScoped(uow.tx, locationIds, args.appointmentId);
-    return breakIn(uow, actor2, args.appointmentId, args.kind, args.reason ?? "", args.expectedVersion);
+    return breakIn(uow, actor3, args.appointmentId, args.kind, args.reason ?? "", args.expectedVersion);
   });
 }
-async function breakIn(uow, actor2, appointmentId, kind, reason, expectedVersion) {
+async function breakIn(uow, actor3, appointmentId, kind, reason, expectedVersion) {
   const appointment = await uow.tx.appointment.findUniqueOrThrow({ where: { id: appointmentId } });
   const from = kind === "no_show" ? ["scheduled", "confirmed", "arrived"] : ["scheduled", "confirmed"];
-  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from, to: "broken", expectedVersion, actor: actor2, eventType: "appointment.broken", reason: reason || null, data: { brokenKind: kind, cancelledAt: kind === "late_cancel" ? uow.now : void 0, cancelReason: reason }, metadata: { kind } });
-  await uow.tx.brokenAppointmentEvent.create({ data: { appointmentId, patientId: appointment.patientId, kind, at: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null, reason } });
+  const updated = await transition(uow, { model: "Appointment", id: appointmentId, from, to: "broken", expectedVersion, actor: actor3, eventType: "appointment.broken", reason: reason || null, data: { brokenKind: kind, cancelledAt: kind === "late_cancel" ? uow.now : void 0, cancelReason: reason }, metadata: { kind } });
+  await uow.tx.brokenAppointmentEvent.create({ data: { appointmentId, patientId: appointment.patientId, kind, at: uow.now, recordedById: actor3.kind === "user" ? actor3.userId : null, reason } });
   await cancelFollowUps(uow, appointmentId);
   emitOpenTime(uow, appointment);
   return updated;
@@ -7066,20 +7075,20 @@ function emitOpenTime(uow, appointment) {
   uow.emit({ topic: "notify.staff", aggregateType: "Appointment", aggregateId: appointment.id, payload: { kind: "schedule.open_time", locationId: appointment.locationId, operatoryId: appointment.operatoryId, startsAt: appointment.startsAt, endsAt: appointment.endsAt }, dedupeKey: `notify.staff:open_time:${appointment.id}` });
 }
 async function rescheduleAppointment(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   assertLocation(locationIds, args.locationId);
-  return runTransition(context, actor2, "schedule.reschedule", args, async (uow) => {
+  return runTransition(context, actor3, "schedule.reschedule", args, async (uow) => {
     const old = await loadScoped(uow.tx, locationIds, args.appointmentId);
-    return rescheduleIn(uow, actor2, old, args);
+    return rescheduleIn(uow, actor3, old, args);
   });
 }
-async function rescheduleIn(uow, actor2, old, args) {
+async function rescheduleIn(uow, actor3, old, args) {
   if (!["scheduled", "confirmed"].includes(old.status)) throw new DomainError(Codes.INVALID_TRANSITION, `A ${old.status} appointment can't be rescheduled.`, { currentStatus: old.status });
   if (args.expectedVersion !== void 0 && args.expectedVersion !== null && old.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The appointment changed since you loaded it.", { currentVersion: old.version });
-  const retired = await transition(uow, { model: "Appointment", id: old.id, from: ["scheduled", "confirmed"], to: "rescheduled", expectedVersion: old.version, actor: actor2, eventType: "appointment.rescheduled", reason: args.reason ?? null, data: { cancelledAt: uow.now } });
+  const retired = await transition(uow, { model: "Appointment", id: old.id, from: ["scheduled", "confirmed"], to: "rescheduled", expectedVersion: old.version, actor: actor3, eventType: "appointment.rescheduled", reason: args.reason ?? null, data: { cancelledAt: uow.now } });
   await cancelFollowUps(uow, old.id);
-  const fresh = await createAppointment(uow, actor2, {
+  const fresh = await createAppointment(uow, actor3, {
     locationId: args.locationId,
     operatoryId: args.operatoryId,
     typeId: args.typeId,
@@ -7099,17 +7108,17 @@ async function rescheduleIn(uow, actor2, old, args) {
   emitOpenTime(uow, old);
   return { ...fresh, previous: { id: retired.id, status: retired.status } };
 }
-async function runTransition(context, actor2, name, args, work) {
+async function runTransition(context, actor3, name, args, work) {
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name, actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name, actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await work(uow);
     return { appointmentId: row.id, ref: row.ref, status: row.status, version: row.version, startsAt: row.startsAt?.toISOString?.() ?? row.startsAt, brokenKind: row.brokenKind ?? "", previous: row.previous ?? null };
   });
   return { replay: result.replay, ...result.value };
 }
 async function addAsapEntry(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   assertLocation(locationIds, args.locationId);
   const windows = Array.isArray(args.preferredWindows) ? args.preferredWindows : [];
   for (const w of windows) {
@@ -7118,7 +7127,7 @@ async function addAsapEntry(_root, args, context) {
     }
   }
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "schedule.asap_add", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "schedule.asap_add", actor: actor3, idempotencyKey, params }, async (uow) => {
     const patientId = await resolvePatientRef(uow.tx, args.patientId);
     const patient = await assertPatientInScope(uow.tx, locationIds, patientId);
     assertBookablePatient(patient);
@@ -7135,30 +7144,30 @@ async function addAsapEntry(_root, args, context) {
         priority: Math.max(0, Math.min(9, Number(args.priority ?? 0)))
       }
     });
-    auditCreate(uow, actor2, "AsapEntry", entry.id, "asap.added", { patientId, locationId: args.locationId });
+    auditCreate(uow, actor3, "AsapEntry", entry.id, "asap.added", { patientId, locationId: args.locationId });
     return { asapEntryId: entry.id, status: entry.status };
   });
   return { replay: result.replay, ...result.value };
 }
 async function closeAsapEntry(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   if (args.status !== "declined" && args.status !== "expired") throw new DomainError(Codes.INVALID_INPUT, "Choose declined or expired.");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "schedule.asap_close", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "schedule.asap_close", actor: actor3, idempotencyKey, params }, async (uow) => {
     const entry = await uow.tx.asapEntry.findUnique({ where: { id: args.asapEntryId } });
     if (!entry) throw new DomainError(Codes.NOT_FOUND, "ASAP entry not found.");
     assertLocation(locationIds, entry.locationId);
-    const updated = await transition(uow, { model: "AsapEntry", id: entry.id, from: ["active", "offered"], to: args.status, expectedVersion: args.expectedVersion, actor: actor2, eventType: `asap.${args.status}`, reason: args.reason ?? null });
+    const updated = await transition(uow, { model: "AsapEntry", id: entry.id, from: ["active", "offered"], to: args.status, expectedVersion: args.expectedVersion, actor: actor3, eventType: `asap.${args.status}`, reason: args.reason ?? null });
     return { asapEntryId: updated.id, status: updated.status, version: updated.version };
   });
   return { replay: result.replay, ...result.value };
 }
 async function publishScheduleTemplate(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageTemplates", "canManagePractice");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageTemplates", "canManagePractice");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "schedule.template_publish", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "schedule.template_publish", actor: actor3, idempotencyKey, params }, async (uow) => {
     const template = await uow.tx.scheduleTemplate.findUnique({ where: { id: args.templateId }, include: { blocks: true } });
     if (!template) throw new DomainError(Codes.NOT_FOUND, "Template not found.");
     assertLocation(locationIds, template.locationId);
@@ -7168,13 +7177,13 @@ async function publishScheduleTemplate(_root, args, context) {
     const previous = await uow.tx.scheduleTemplate.findMany({ where: { locationId: template.locationId, status: "active", id: { not: template.id } } });
     for (const p of previous) {
       if (p.effectiveFrom.getTime() >= template.effectiveFrom.getTime()) {
-        await transition(uow, { model: "ScheduleTemplate", id: p.id, from: ["active"], to: "retired", actor: actor2, eventType: "template.retired", metadata: { supersededBy: template.id } });
+        await transition(uow, { model: "ScheduleTemplate", id: p.id, from: ["active"], to: "retired", actor: actor3, eventType: "template.retired", metadata: { supersededBy: template.id } });
       } else if (!p.effectiveTo || p.effectiveTo.getTime() >= template.effectiveFrom.getTime()) {
         await uow.tx.scheduleTemplate.update({ where: { id: p.id }, data: { effectiveTo: dayBefore, version: { increment: 1 } } });
-        uow.audit({ eventType: "template.ended", entityType: "ScheduleTemplate", entityId: p.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { effectiveTo: dayBefore } });
+        uow.audit({ eventType: "template.ended", entityType: "ScheduleTemplate", entityId: p.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { effectiveTo: dayBefore } });
       }
     }
-    const published = await transition(uow, { model: "ScheduleTemplate", id: template.id, from: ["draft"], to: "active", expectedVersion: args.expectedVersion, actor: actor2, eventType: "template.published", data: { publishedAt: uow.now, publishedById: actor2.kind === "user" ? actor2.userId : null } });
+    const published = await transition(uow, { model: "ScheduleTemplate", id: template.id, from: ["draft"], to: "active", expectedVersion: args.expectedVersion, actor: actor3, eventType: "template.published", data: { publishedAt: uow.now, publishedById: actor3.kind === "user" ? actor3.userId : null } });
     const location = await uow.tx.location.findUniqueOrThrow({ where: { id: template.locationId }, select: { timeZone: true } });
     const upcoming = await uow.tx.appointment.findMany({ where: { locationId: template.locationId, status: { in: ACTIVE2 }, startsAt: { gte: zonedInstant(location.timeZone, effectiveFrom, "00:00") } }, select: { id: true, ref: true, operatoryId: true, typeId: true, startsAt: true, endsAt: true }, take: 500 });
     const outside = [];
@@ -7182,8 +7191,8 @@ async function publishScheduleTemplate(_root, args, context) {
     for (const a of upcoming) {
       const date = localDate(location.timeZone, a.startsAt);
       if (!cache.has(date)) cache.set(date, await loadLocationDay(uow.tx, template.locationId, date));
-      const day4 = cache.get(date);
-      const fits = day4.windows.some((w) => w.operatoryId === a.operatoryId && w.startMs <= a.startsAt.getTime() && a.endsAt.getTime() <= w.endMs && (!w.allowedTypeIds.length || w.allowedTypeIds.includes(a.typeId)));
+      const day5 = cache.get(date);
+      const fits = day5.windows.some((w) => w.operatoryId === a.operatoryId && w.startMs <= a.startsAt.getTime() && a.endsAt.getTime() <= w.endMs && (!w.allowedTypeIds.length || w.allowedTypeIds.includes(a.typeId)));
       if (!fits) outside.push(a.ref);
     }
     return { templateId: published.id, status: published.status, appointmentsOutsideTemplate: outside };
@@ -7237,7 +7246,7 @@ async function findDuplicates(tx, input) {
     return { patientId: r.id, chartNumber: r.chartNumber, score, evidence };
   }).filter((c) => c.evidence.includes("similar_name") || c.evidence.includes("shared_contact"));
 }
-async function createPatientIn(uow, actor2, input) {
+async function createPatientIn(uow, actor3, input) {
   const location = await uow.tx.location.findUnique({ where: { id: input.homeLocationId }, select: { timeZone: true } });
   if (!location) throw new DomainError(Codes.INVALID_INPUT, "Choose a home location.", { field: "homeLocationId" });
   const clean = cleanPatient(input, localDate(location.timeZone, uow.now));
@@ -7265,15 +7274,15 @@ async function createPatientIn(uow, actor2, input) {
   }
   const guarantor = await uow.tx.guarantor.create({ data: { patientId: patient.id, isSynthetic: patient.isSynthetic } });
   await uow.tx.guarantorLink.create({ data: { patientId: patient.id, guarantorId: guarantor.id, relationship: "self", status: "active", startsOn: /* @__PURE__ */ new Date(`${localDate(location.timeZone, uow.now)}T00:00:00Z`) } });
-  auditCreate(uow, actor2, "Patient", patient.id, "patient.created", { chartNumber, homeLocationId: input.homeLocationId, contacts: contacts.length });
+  auditCreate(uow, actor3, "Patient", patient.id, "patient.created", { chartNumber, homeLocationId: input.homeLocationId, contacts: contacts.length });
   return patient;
 }
 async function registerPatient(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   assertLocation(locationIds, args.data?.homeLocationId);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.create", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.create", actor: actor3, idempotencyKey, params }, async (uow) => {
     await advisoryLock(uow.tx, `patient-dob:${args.data.dateOfBirth}`);
     const contacts = (args.data.contacts ?? []).map((c) => {
       try {
@@ -7286,22 +7295,22 @@ async function registerPatient(_root, args, context) {
     if (duplicates.length && !args.acknowledgeDuplicates) {
       throw new DomainError(Codes.DUPLICATE_SUSPECTED, `This may be an existing patient (chart ${duplicates.map((d) => d.chartNumber).join(", ")}). Open that record, or confirm this is a different person.`, { problems: duplicates.map((d) => ({ chartNumber: d.chartNumber, evidence: d.evidence })) });
     }
-    const patient = await createPatientIn(uow, actor2, args.data);
-    if (duplicates.length) uow.audit({ eventType: "patient.duplicate_acknowledged", entityType: "Patient", entityId: patient.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { candidates: duplicates.map((d) => d.chartNumber) } });
+    const patient = await createPatientIn(uow, actor3, args.data);
+    if (duplicates.length) uow.audit({ eventType: "patient.duplicate_acknowledged", entityType: "Patient", entityId: patient.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { candidates: duplicates.map((d) => d.chartNumber) } });
     return { patientId: patient.id, chartNumber: patient.chartNumber, status: patient.status };
   });
   return { replay: result.replay, ...result.value };
 }
 var DEMOGRAPHIC_FIELDS = ["firstName", "lastName", "middleName", "preferredName", "dateOfBirth", "sexAssignedAtBirth", "pronouns", "preferredLanguage", "address", "genderIdentity", "suffix"];
 async function updatePatientDemographics(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   const keys = Object.keys(args.changes ?? {});
   if (!keys.length) throw new DomainError(Codes.INVALID_INPUT, "Nothing to change.");
   const unknown = keys.filter((k) => !DEMOGRAPHIC_FIELDS.includes(k));
   if (unknown.length) throw new DomainError(Codes.INVALID_INPUT, `These fields can't be changed here: ${unknown.join(", ")}.`, { field: unknown[0] });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.update_demographics", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.update_demographics", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const row = await lockRow(uow.tx, "Patient", args.patientId);
     if (row.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "This patient changed since you loaded it. Reload and try again.", { currentVersion: row.version });
@@ -7314,44 +7323,44 @@ async function updatePatientDemographics(_root, args, context) {
     const before = Object.fromEntries(keys.map((k) => [k, row[k]]));
     const updated = await uow.tx.patient.updateMany({ where: { id: row.id, version: row.version }, data: { ...data, version: { increment: 1 } } });
     if (updated.count !== 1) throw new DomainError(Codes.STALE_STATE, "This patient changed while saving.");
-    uow.audit({ eventType: "patient.demographics_updated", entityType: "Patient", entityId: row.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason: args.reason ?? null, before, after: data });
+    uow.audit({ eventType: "patient.demographics_updated", entityType: "Patient", entityId: row.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, reason: args.reason ?? null, before, after: data });
     return { patientId: row.id, version: row.version + 1 };
   });
   return { replay: result.replay, ...result.value };
 }
 async function addContactPoint(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   if (!CONTACT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown contact kind.", { field: "kind" });
   const { value, normalized } = normalizeContact(args.kind, args.value);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.add_contact", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.add_contact", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     await advisoryLock(uow.tx, `patient:${args.patientId}`);
     if (args.isPrimary) await uow.tx.contactPoint.updateMany({ where: { patientId: args.patientId, kind: args.kind, isPrimary: true }, data: { isPrimary: false } });
     const contact = await uow.tx.contactPoint.create({ data: { patientId: args.patientId, kind: args.kind, value, valueNormalized: normalized, isPrimary: !!args.isPrimary, isActive: true } });
-    auditCreate(uow, actor2, "ContactPoint", contact.id, "contact.added", { patientId: args.patientId, kind: args.kind, isPrimary: contact.isPrimary });
+    auditCreate(uow, actor3, "ContactPoint", contact.id, "contact.added", { patientId: args.patientId, kind: args.kind, isPrimary: contact.isPrimary });
     return { contactPointId: contact.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function deactivateContactPoint(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   const reason = requireText(args.reason, "reason");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.deactivate_contact", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.deactivate_contact", actor: actor3, idempotencyKey, params }, async (uow) => {
     const contact = await uow.tx.contactPoint.findUnique({ where: { id: args.contactPointId } });
     if (!contact?.patientId) throw new DomainError(Codes.NOT_FOUND, "Contact not found.");
     await assertPatientInScope(uow.tx, locationIds, contact.patientId);
     await uow.tx.contactPoint.update({ where: { id: contact.id }, data: { isActive: false, isPrimary: false } });
     const revoked = await uow.tx.consentGrant.updateMany({ where: { contactPointId: contact.id, status: "granted" }, data: { status: "revoked", revokedAt: uow.now, revokeReason: "contact_deactivated", version: { increment: 1 } } });
-    uow.audit({ eventType: "contact.deactivated", entityType: "ContactPoint", entityId: contact.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason, after: { consentsRevoked: revoked.count } });
+    uow.audit({ eventType: "contact.deactivated", entityType: "ContactPoint", entityId: contact.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, reason, after: { consentsRevoked: revoked.count } });
     return { contactPointId: contact.id, consentsRevoked: revoked.count };
   });
   return { replay: result.replay, ...result.value };
 }
-async function grantConsentIn(uow, actor2, input) {
+async function grantConsentIn(uow, actor3, input) {
   if (!CONSENT_CHANNELS.includes(input.channel)) throw new DomainError(Codes.INVALID_INPUT, "Unknown consent channel.", { field: "channel" });
   if (!CONSENT_PURPOSES.includes(input.purpose)) throw new DomainError(Codes.INVALID_INPUT, "Unknown consent purpose.", { field: "purpose" });
   const contact = await uow.tx.contactPoint.findUnique({ where: { id: input.contactPointId } });
@@ -7362,76 +7371,76 @@ async function grantConsentIn(uow, actor2, input) {
   const existing = await uow.tx.consentGrant.findFirst({ where: { contactPointId: contact.id, channel: input.channel, purpose: input.purpose, status: "granted" } });
   if (existing) return existing;
   const grant = await uow.tx.consentGrant.create({
-    data: { contactPointId: contact.id, channel: input.channel, purpose: input.purpose, status: "granted", source: input.source, evidence: input.evidence ?? {}, recordedById: actor2.kind === "user" ? actor2.userId : null, grantedAt: uow.now }
+    data: { contactPointId: contact.id, channel: input.channel, purpose: input.purpose, status: "granted", source: input.source, evidence: input.evidence ?? {}, recordedById: actor3.kind === "user" ? actor3.userId : null, grantedAt: uow.now }
   });
-  auditCreate(uow, actor2, "ConsentGrant", grant.id, "consent.granted", { contactPointId: contact.id, channel: input.channel, purpose: input.purpose, source: input.source });
+  auditCreate(uow, actor3, "ConsentGrant", grant.id, "consent.granted", { contactPointId: contact.id, channel: input.channel, purpose: input.purpose, source: input.source });
   return grant;
 }
-async function revokeConsentIn(uow, actor2, input) {
+async function revokeConsentIn(uow, actor3, input) {
   const where = { contactPointId: input.contactPointId, channel: input.channel, status: "granted", ...input.purpose ? { purpose: input.purpose } : {} };
   const grants = await uow.tx.consentGrant.findMany({ where, select: { id: true, purpose: true } });
   if (!grants.length) return 0;
   await uow.tx.consentGrant.updateMany({ where: { id: { in: grants.map((g) => g.id) } }, data: { status: "revoked", revokedAt: uow.now, revokeReason: input.reason, version: { increment: 1 } } });
-  for (const g of grants) uow.audit({ eventType: "consent.revoked", entityType: "ConsentGrant", entityId: g.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason: input.reason, after: { purpose: g.purpose } });
+  for (const g of grants) uow.audit({ eventType: "consent.revoked", entityType: "ConsentGrant", entityId: g.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, reason: input.reason, after: { purpose: g.purpose } });
   return grants.length;
 }
 async function recordConsent(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients", "canMessagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients", "canMessagePatients");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "consent.record", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "consent.record", actor: actor3, idempotencyKey, params }, async (uow) => {
     const contact = await uow.tx.contactPoint.findUnique({ where: { id: args.contactPointId }, select: { patientId: true } });
     if (!contact?.patientId) throw new DomainError(Codes.NOT_FOUND, "Contact not found.");
     await assertPatientInScope(uow.tx, locationIds, contact.patientId);
     if (args.granted) {
       const evidence = args.evidence ?? (args.reason?.trim() ? { note: args.reason.trim(), recordedVia: "staff_dashboard" } : {});
       if (args.source === "verbal_staff" && !String(evidence.note ?? "").trim()) throw new DomainError(Codes.INVALID_INPUT, "Note what the patient said and when.", { field: "evidence" });
-      const grant = await grantConsentIn(uow, actor2, { contactPointId: args.contactPointId, channel: args.channel, purpose: args.purpose, source: args.source ?? "verbal_staff", evidence });
+      const grant = await grantConsentIn(uow, actor3, { contactPointId: args.contactPointId, channel: args.channel, purpose: args.purpose, source: args.source ?? "verbal_staff", evidence });
       return { consentGrantId: grant.id, status: "granted" };
     }
-    const revoked = await revokeConsentIn(uow, actor2, { contactPointId: args.contactPointId, channel: args.channel, purpose: args.purpose, reason: requireText(args.reason, "reason") });
+    const revoked = await revokeConsentIn(uow, actor3, { contactPointId: args.contactPointId, channel: args.channel, purpose: args.purpose, reason: requireText(args.reason, "reason") });
     return { revoked, status: "revoked" };
   });
   return { replay: result.replay, ...result.value };
 }
 async function addPatientAlert(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients", "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients", "canChart");
   if (!ALERT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown alert kind.", { field: "kind" });
   if (!["info", "caution", "critical"].includes(args.severity)) throw new DomainError(Codes.INVALID_INPUT, "Choose info, caution or critical.", { field: "severity" });
   const text19 = requireText(args.text, "alert text", 500);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.alert_add", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.alert_add", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text19, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
-    auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
+    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text19, source: "manual", activeFrom: uow.now, recordedById: actor3.kind === "user" ? actor3.userId : null } });
+    auditCreate(uow, actor3, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
     return { alertId: alert.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function endPatientAlert(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients", "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients", "canChart");
   const reason = requireText(args.reason, "reason");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.alert_end", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.alert_end", actor: actor3, idempotencyKey, params }, async (uow) => {
     const alert = await uow.tx.patientAlert.findUnique({ where: { id: args.alertId } });
     if (!alert?.patientId) throw new DomainError(Codes.NOT_FOUND, "Alert not found.");
     await assertPatientInScope(uow.tx, locationIds, alert.patientId);
     if (alert.endedAt) return { alertId: alert.id, endedAt: alert.endedAt.toISOString() };
     await uow.tx.patientAlert.update({ where: { id: alert.id }, data: { endedAt: uow.now, version: { increment: 1 } } });
-    uow.audit({ eventType: "alert.ended", entityType: "PatientAlert", entityId: alert.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason });
+    uow.audit({ eventType: "alert.ended", entityType: "PatientAlert", entityId: alert.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, reason });
     return { alertId: alert.id, endedAt: uow.now.toISOString() };
   });
   return { replay: result.replay, ...result.value };
 }
 async function linkGuarantor(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   if (!GUARANTOR_RELATIONSHIPS.includes(args.relationship)) throw new DomainError(Codes.INVALID_INPUT, "Unknown relationship.", { field: "relationship" });
   if (!args.guarantorPatientId && !String(args.personName?.lastName ?? "").trim()) throw new DomainError(Codes.INVALID_INPUT, "Choose a guarantor or enter their name.", { field: "personName" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.link_guarantor", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.link_guarantor", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     await advisoryLock(uow.tx, `patient:${args.patientId}`);
     const patient = await uow.tx.patient.findUniqueOrThrow({ where: { id: args.patientId }, select: { homeLocation: { select: { timeZone: true } }, isSynthetic: true } });
@@ -7440,19 +7449,19 @@ async function linkGuarantor(_root, args, context) {
     if (!guarantor) guarantor = await uow.tx.guarantor.create({ data: { patientId: args.guarantorPatientId ?? null, personName: args.guarantorPatientId ? {} : args.personName, isSynthetic: patient.isSynthetic } });
     const current = await uow.tx.guarantorLink.findFirst({ where: { patientId: args.patientId, status: "active" } });
     if (current?.guarantorId === guarantor.id) return { guarantorId: guarantor.id, guarantorLinkId: current.id, changed: false };
-    if (current) await transition(uow, { model: "GuarantorLink", id: current.id, from: ["active"], to: "ended", actor: actor2, eventType: "guarantor.unlinked", data: { endsOn: today2 } });
+    if (current) await transition(uow, { model: "GuarantorLink", id: current.id, from: ["active"], to: "ended", actor: actor3, eventType: "guarantor.unlinked", data: { endsOn: today2 } });
     const link = await uow.tx.guarantorLink.create({ data: { patientId: args.patientId, guarantorId: guarantor.id, relationship: args.relationship, status: "active", startsOn: today2 } });
-    auditCreate(uow, actor2, "GuarantorLink", link.id, "guarantor.linked", { patientId: args.patientId, guarantorId: guarantor.id, relationship: args.relationship });
+    auditCreate(uow, actor3, "GuarantorLink", link.id, "guarantor.linked", { patientId: args.patientId, guarantorId: guarantor.id, relationship: args.relationship });
     return { guarantorId: guarantor.id, guarantorLinkId: link.id, changed: true };
   });
   return { replay: result.replay, ...result.value };
 }
 async function setPatientStatus(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   const reason = requireText(args.reason, "reason");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.set_status", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.set_status", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const future = await uow.tx.appointment.findMany({ where: { patientId: args.patientId, status: { in: [...ACTIVE_APPOINTMENT_STATUSES] }, startsAt: { gt: uow.now } }, select: { id: true, status: true } });
     const from = { active: ["prospect", "inactive"], inactive: ["active"], archived: ["prospect", "active", "inactive"], deceased: ["prospect", "active", "inactive", "archived"] };
@@ -7465,9 +7474,9 @@ async function setPatientStatus(_root, args, context) {
       if (!args.dateOfDeath || !DOB.test(args.dateOfDeath)) throw new DomainError(Codes.INVALID_INPUT, "Enter the date of death.", { field: "dateOfDeath" });
       data = { dateOfDeath: /* @__PURE__ */ new Date(`${args.dateOfDeath}T00:00:00Z`), statementHold: true };
     }
-    const updated = await transition(uow, { model: "Patient", id: args.patientId, from: from[args.status], to: args.status, expectedVersion: args.expectedVersion, actor: actor2, eventType: `patient.${args.status}`, reason, data });
+    const updated = await transition(uow, { model: "Patient", id: args.patientId, from: from[args.status], to: args.status, expectedVersion: args.expectedVersion, actor: actor3, eventType: `patient.${args.status}`, reason, data });
     if (args.status === "deceased") {
-      for (const a of future.filter((f) => f.status === "scheduled" || f.status === "confirmed")) await withdrawIn(uow, actor2, a.id, "deceased");
+      for (const a of future.filter((f) => f.status === "scheduled" || f.status === "confirmed")) await withdrawIn(uow, actor3, a.id, "deceased");
       await uow.tx.asapEntry.updateMany({ where: { patientId: args.patientId, status: { in: ["active", "offered"] } }, data: { status: "expired", version: { increment: 1 } } });
       const contacts = await uow.tx.contactPoint.findMany({ where: { patientId: args.patientId }, select: { id: true } });
       await uow.tx.consentGrant.updateMany({ where: { contactPointId: { in: contacts.map((c) => c.id) }, status: "granted" }, data: { status: "revoked", revokedAt: uow.now, revokeReason: "deceased", version: { increment: 1 } } });
@@ -7488,15 +7497,15 @@ var MERGE_CHILDREN = [
   { list: "Conversation", field: "patientId" },
   { list: "PublicBookingRequest", field: "patientMatchId" }
 ];
-async function proposeMergeIn(uow, actor2, input) {
+async function proposeMergeIn(uow, actor3, input) {
   if (input.survivorId === input.mergedId) throw new DomainError(Codes.INVALID_INPUT, "Choose two different records.");
   const [survivor, merged] = await Promise.all([uow.tx.patient.findUnique({ where: { id: input.survivorId } }), uow.tx.patient.findUnique({ where: { id: input.mergedId } })]);
   if (!survivor || !merged) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
   if (survivor.status === "merged_into" || merged.status === "merged_into") throw new DomainError(Codes.GUARD_FAILED, "One of these records was already merged.");
   const open = await uow.tx.mergeCase.findFirst({ where: { status: { in: ["proposed", "approved"] }, OR: [{ survivorId: input.survivorId, mergedId: input.mergedId }, { survivorId: input.mergedId, mergedId: input.survivorId }] } });
   if (open) return { mergeCase: open, approvalId: open.approvalId };
-  const mergeCase = await uow.tx.mergeCase.create({ data: { survivorId: input.survivorId, mergedId: input.mergedId, evidence: input.evidence ?? {}, reason: input.reason, status: "proposed", proposedById: actor2.kind === "user" ? actor2.userId : null } });
-  const approval = await requestApproval(uow, actor2, {
+  const mergeCase = await uow.tx.mergeCase.create({ data: { survivorId: input.survivorId, mergedId: input.mergedId, evidence: input.evidence ?? {}, reason: input.reason, status: "proposed", proposedById: actor3.kind === "user" ? actor3.userId : null } });
+  const approval = await requestApproval(uow, actor3, {
     action: "patient.merge",
     targetList: "MergeCase",
     targetId: mergeCase.id,
@@ -7505,25 +7514,25 @@ async function proposeMergeIn(uow, actor2, input) {
     summary: `Merge chart ${merged.chartNumber} into ${survivor.chartNumber}`
   });
   await uow.tx.mergeCase.update({ where: { id: mergeCase.id }, data: { approvalId: approval.id } });
-  auditCreate(uow, actor2, "MergeCase", mergeCase.id, "merge.proposed", { survivorId: input.survivorId, mergedId: input.mergedId }, { reason: input.reason });
+  auditCreate(uow, actor3, "MergeCase", mergeCase.id, "merge.proposed", { survivorId: input.survivorId, mergedId: input.mergedId }, { reason: input.reason });
   return { mergeCase, approvalId: approval.id };
 }
 async function proposeMerge(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   const reason = requireText(args.reason, "reason");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.merge_propose", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "patient.merge_propose", actor: actor3, idempotencyKey, params }, async (uow) => {
     const survivorId = await resolvePatientRef(uow.tx, args.survivorId);
     const mergedId = await resolvePatientRef(uow.tx, args.mergedId);
     await assertPatientInScope(uow.tx, locationIds, survivorId);
     await assertPatientInScope(uow.tx, locationIds, mergedId);
-    const { mergeCase, approvalId } = await proposeMergeIn(uow, actor2, { survivorId, mergedId, reason, evidence: { proposedBy: "staff" } });
+    const { mergeCase, approvalId } = await proposeMergeIn(uow, actor3, { survivorId, mergedId, reason, evidence: { proposedBy: "staff" } });
     return { mergeCaseId: mergeCase.id, approvalId, status: mergeCase.status };
   });
   return { replay: result.replay, ...result.value };
 }
-async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
+async function applyMergeIn(uow, actor3, mergeCaseId, approverId) {
   const mergeCase = await lockRow(uow.tx, "MergeCase", mergeCaseId);
   if (mergeCase.status !== "proposed" && mergeCase.status !== "approved") throw new DomainError(Codes.INVALID_TRANSITION, `A ${mergeCase.status} merge can't be applied.`, { currentStatus: mergeCase.status });
   const { survivorId, mergedId } = mergeCase;
@@ -7531,7 +7540,7 @@ async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
   const merged = await lockRow(uow.tx, "Patient", mergedId);
   const survivor = await lockRow(uow.tx, "Patient", survivorId);
   if (merged.status === "merged_into" || survivor.status === "merged_into") throw new DomainError(Codes.GUARD_FAILED, "One of these records was already merged.");
-  if (mergeCase.status === "proposed") await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["proposed"], to: "approved", actor: actor2, eventType: "merge.approved", approverId });
+  if (mergeCase.status === "proposed") await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["proposed"], to: "approved", actor: actor3, eventType: "merge.approved", approverId });
   let seq = 0;
   const entries = [];
   const survivorPrimary = new Set((await uow.tx.contactPoint.findMany({ where: { patientId: survivorId, isPrimary: true, isActive: true }, select: { kind: true } })).map((c) => c.kind));
@@ -7556,26 +7565,26 @@ async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
   const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { mergeRevertDays: true } });
   const revertibleUntil = new Date(uow.now.getTime() + (practice?.mergeRevertDays ?? 30) * 864e5);
   await uow.tx.patient.update({ where: { id: mergedId }, data: { status: "merged_into", mergedIntoId: survivorId, version: { increment: 1 } } });
-  uow.audit({ eventType: "patient.merged_into", entityType: "Patient", entityId: mergedId, actorUserId: actor2.kind === "user" ? actor2.userId : null, approverId, before: { status: merged.status }, after: { status: "merged_into", mergedIntoId: survivorId } });
-  const applied = await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["approved"], to: "applied", actor: actor2, eventType: "merge.applied", approverId, data: { appliedAt: uow.now, revertibleUntil, mergedStatusBefore: merged.status }, metadata: { moved: entries.length } });
+  uow.audit({ eventType: "patient.merged_into", entityType: "Patient", entityId: mergedId, actorUserId: actor3.kind === "user" ? actor3.userId : null, approverId, before: { status: merged.status }, after: { status: "merged_into", mergedIntoId: survivorId } });
+  const applied = await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["approved"], to: "applied", actor: actor3, eventType: "merge.applied", approverId, data: { appliedAt: uow.now, revertibleUntil, mergedStatusBefore: merged.status }, metadata: { moved: entries.length } });
   return { mergeCaseId: applied.id, status: applied.status, moved: entries.length, revertibleUntil: revertibleUntil.toISOString() };
 }
 async function lockResourcesForMerge(tx, a, b) {
   for (const id of [a, b].sort()) await advisoryLock(tx, `patient:${id}`);
 }
-registerApplier("patient.merge", async (uow, actor2, request) => {
+registerApplier("patient.merge", async (uow, actor3, request) => {
   const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
-  return applyMergeIn(uow, actor2, String(request.payload.mergeCaseId), decision?.decidedById ?? null);
+  return applyMergeIn(uow, actor3, String(request.payload.mergeCaseId), decision?.decidedById ?? null);
 }, { applyOnApprove: true });
 async function revertMerge(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canApprovePatientMerge", "canManagePatients");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canApprovePatientMerge", "canManagePatients");
   const reason = requireText(args.reason, "reason");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "patient.merge_revert", actor: actor2, idempotencyKey, params }, async (uow) => revertMergeIn(uow, actor2, args.mergeCaseId, reason, args.expectedVersion));
+  const result = await command(context.prisma, { name: "patient.merge_revert", actor: actor3, idempotencyKey, params }, async (uow) => revertMergeIn(uow, actor3, args.mergeCaseId, reason, args.expectedVersion));
   return { replay: result.replay, ...result.value };
 }
-async function revertMergeIn(uow, actor2, mergeCaseId, reason, expectedVersion) {
+async function revertMergeIn(uow, actor3, mergeCaseId, reason, expectedVersion) {
   const mergeCase = await lockRow(uow.tx, "MergeCase", mergeCaseId);
   if (mergeCase.status !== "applied") throw new DomainError(Codes.INVALID_TRANSITION, `A ${mergeCase.status} merge can't be reverted.`, { currentStatus: mergeCase.status });
   if (!mergeCase.revertibleUntil || mergeCase.revertibleUntil.getTime() <= uow.now.getTime()) throw new DomainError(Codes.GUARD_FAILED, "The revert window has passed; this merge is permanent.");
@@ -7592,8 +7601,8 @@ async function revertMergeIn(uow, actor2, mergeCaseId, reason, expectedVersion) 
     await delegate.update({ where: { id: e.rowId }, data: { [e.field]: e.fromId } });
   }
   await uow.tx.patient.update({ where: { id: mergeCase.mergedId }, data: { status: mergeCase.mergedStatusBefore || "active", mergedIntoId: null, version: { increment: 1 } } });
-  uow.audit({ eventType: "patient.unmerged", entityType: "Patient", entityId: mergeCase.mergedId, actorUserId: actor2.kind === "user" ? actor2.userId : null, reason, after: { status: mergeCase.mergedStatusBefore || "active" } });
-  const reverted = await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["applied"], to: "reverted", expectedVersion, actor: actor2, eventType: "merge.reverted", reason, data: { revertedAt: uow.now } });
+  uow.audit({ eventType: "patient.unmerged", entityType: "Patient", entityId: mergeCase.mergedId, actorUserId: actor3.kind === "user" ? actor3.userId : null, reason, after: { status: mergeCase.mergedStatusBefore || "active" } });
+  const reverted = await transition(uow, { model: "MergeCase", id: mergeCaseId, from: ["applied"], to: "reverted", expectedVersion, actor: actor3, eventType: "merge.reverted", reason, data: { revertedAt: uow.now } });
   return { mergeCaseId: reverted.id, status: reverted.status, restored: entries.length };
 }
 
@@ -7918,11 +7927,11 @@ function minutesOf2(pattern, unit) {
   }
 }
 async function reviewBookingRequest(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageSchedule");
   if (!["accept", "link", "reject_spam"].includes(args.decision)) throw new DomainError(Codes.INVALID_INPUT, "Choose accept, link or reject.", { field: "decision" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "booking_request.review", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "booking_request.review", actor: actor3, idempotencyKey, params }, async (uow) => {
     const request = await uow.tx.publicBookingRequest.findUnique({ where: { id: args.requestId } });
     if (!request) throw new DomainError(Codes.NOT_FOUND, "Booking request not found.");
     assertLocation(locationIds, request.locationId);
@@ -7933,11 +7942,11 @@ async function reviewBookingRequest(_root, args, context) {
     if (args.decision === "reject_spam") {
       if (request.appointmentId) {
         const appointment = await uow.tx.appointment.findUnique({ where: { id: request.appointmentId }, select: { status: true } });
-        if (appointment && ["scheduled", "confirmed"].includes(appointment.status)) await withdrawIn(uow, actor2, request.appointmentId, "online booking rejected as spam");
+        if (appointment && ["scheduled", "confirmed"].includes(appointment.status)) await withdrawIn(uow, actor3, request.appointmentId, "online booking rejected as spam");
       }
       if (request.patientMatchId && request.matchStatus !== "matched") {
         const prospect = await uow.tx.patient.findUnique({ where: { id: request.patientMatchId }, select: { status: true } });
-        if (prospect?.status === "prospect") await transition(uow, { model: "Patient", id: request.patientMatchId, from: ["prospect"], to: "archived", actor: actor2, eventType: "patient.archived", reason: "online booking rejected as spam" });
+        if (prospect?.status === "prospect") await transition(uow, { model: "Patient", id: request.patientMatchId, from: ["prospect"], to: "archived", actor: actor3, eventType: "patient.archived", reason: "online booking rejected as spam" });
       }
       status = "rejected_spam";
     } else if (args.decision === "link") {
@@ -7945,7 +7954,7 @@ async function reviewBookingRequest(_root, args, context) {
       const existingId = await resolvePatientRef(uow.tx, args.existingPatientId);
       if (existingId === request.patientMatchId) throw new DomainError(Codes.INVALID_INPUT, "That is the record the booking is already on.", { field: "existingPatientId" });
       await assertPatientInScope(uow.tx, locationIds, existingId);
-      const proposed = await proposeMergeIn(uow, actor2, { survivorId: existingId, mergedId: request.patientMatchId, reason: `Online booking ${request.publicRef} is the same person${note ? `: ${note}` : ""}` });
+      const proposed = await proposeMergeIn(uow, actor3, { survivorId: existingId, mergedId: request.patientMatchId, reason: `Online booking ${request.publicRef} is the same person${note ? `: ${note}` : ""}` });
       mergeCaseId = proposed.mergeCase.id;
     }
     const updated = await transition(uow, {
@@ -7954,10 +7963,10 @@ async function reviewBookingRequest(_root, args, context) {
       from: [request.status],
       to: status,
       expectedVersion: args.expectedVersion,
-      actor: actor2,
+      actor: actor3,
       eventType: `booking_request.${args.decision}`,
       reason: note || args.decision,
-      data: { reviewedAt: uow.now, reviewedById: actor2.kind === "user" ? actor2.userId : null, reviewNote: note }
+      data: { reviewedAt: uow.now, reviewedById: actor3.kind === "user" ? actor3.userId : null, reviewNote: note }
     });
     return { requestId: updated.id, status: updated.status, version: updated.version, mergeCaseId };
   });
@@ -7974,13 +7983,13 @@ function referenceToken(secret4, list18, id) {
   if (!secret4 || secret4.length < 32) throw new Error("A strong PHI audit reference secret (SESSION_SECRET) is required.");
   return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list18}\0${id}`).digest("hex");
 }
-async function recordPhiReadAudit(prisma, actor2, descriptor) {
+async function recordPhiReadAudit(prisma, actor3, descriptor) {
   await prisma.phiReadAudit.create({
     data: {
-      actorUserId: actor2.userId ?? null,
-      actorAgentId: actor2.agentId ?? null,
-      actorReference: actor2.userId ? `user:${actor2.userId}` : actor2.agentId ? `agent:${actor2.agentId}` : "system",
-      purpose: actor2.purpose ?? "operations",
+      actorUserId: actor3.userId ?? null,
+      actorAgentId: actor3.agentId ?? null,
+      actorReference: actor3.userId ? `user:${actor3.userId}` : actor3.agentId ? `agent:${actor3.agentId}` : "system",
+      purpose: actor3.purpose ?? "operations",
       operationType: descriptor.operationType,
       operationName: descriptor.operationName.slice(0, 200),
       listKeys: descriptor.listKeys,
@@ -7990,17 +7999,17 @@ async function recordPhiReadAudit(prisma, actor2, descriptor) {
       recordCount: descriptor.recordCount,
       recordIdsDigest: descriptor.recordIdsDigest,
       resourceReferences: descriptor.resourceReferences,
-      breakGlassId: actor2.breakGlassId ?? null,
+      breakGlassId: actor3.breakGlassId ?? null,
       success: descriptor.success,
-      correlationReference: actor2.correlationReference ?? "",
+      correlationReference: actor3.correlationReference ?? "",
       at: /* @__PURE__ */ new Date()
     }
   });
 }
-async function recordDirectPhiRead(prisma, actor2, input, secret4 = process.env.SESSION_SECRET || "") {
+async function recordDirectPhiRead(prisma, actor3, input, secret4 = process.env.SESSION_SECRET || "") {
   const refs = input.ids.map((id) => ({ list: input.list, ref: referenceToken(secret4, input.list, id) }));
   const fields = input.fields.map((f) => `${input.list}.${f}`).sort();
-  await recordPhiReadAudit(prisma, actor2, {
+  await recordPhiReadAudit(prisma, actor3, {
     operationType: "query",
     operationName: input.operationName,
     listKeys: [input.list],
@@ -8167,13 +8176,13 @@ async function portalAppointments(_root, args, context) {
 }
 async function portalAppointmentCommand(context, name, args, work) {
   const principal = await portalPrincipal(context);
-  const actor2 = portalActor(principal.accountId);
+  const actor3 = portalActor(principal.accountId);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name, actor: actor2, idempotencyKey: `portal:${principal.accountId}:${idempotencyKey}`.slice(0, 200), params }, async (uow) => {
+  const result = await command(context.prisma, { name, actor: actor3, idempotencyKey: `portal:${principal.accountId}:${idempotencyKey}`.slice(0, 200), params }, async (uow) => {
     const appointment = await uow.tx.appointment.findUnique({ where: { id: args.appointmentId } });
     if (!appointment) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
     assertPortalScope(principal, appointment.patientId, "appointments");
-    const row = await work(uow, actor2, appointment);
+    const row = await work(uow, actor3, appointment);
     return { appointmentId: row.id, status: row.status, version: row.version, startsAt: row.startsAt?.toISOString?.() ?? null };
   });
   return { replay: result.replay, ...result.value };
@@ -8186,22 +8195,22 @@ async function assertOutsideLateWindow(uow, appointment) {
   }
 }
 async function portalConfirm(_root, args, context) {
-  return portalAppointmentCommand(context, "portal.confirm", args, (uow, actor2, appointment) => confirmIn(uow, actor2, appointment.id, "portal_api", args.expectedVersion));
+  return portalAppointmentCommand(context, "portal.confirm", args, (uow, actor3, appointment) => confirmIn(uow, actor3, appointment.id, "portal_api", args.expectedVersion));
 }
 async function portalCancel(_root, args, context) {
-  return portalAppointmentCommand(context, "portal.cancel", args, async (uow, actor2, appointment) => {
+  return portalAppointmentCommand(context, "portal.cancel", args, async (uow, actor3, appointment) => {
     await assertOutsideLateWindow(uow, appointment);
-    return cancelIn(uow, actor2, appointment.id, `Cancelled by patient online${args.reason ? `: ${String(args.reason).slice(0, 200)}` : ""}`, args.expectedVersion);
+    return cancelIn(uow, actor3, appointment.id, `Cancelled by patient online${args.reason ? `: ${String(args.reason).slice(0, 200)}` : ""}`, args.expectedVersion);
   });
 }
 async function portalReschedule(_root, args, context) {
-  return portalAppointmentCommand(context, "portal.reschedule", args, async (uow, actor2, appointment) => {
+  return portalAppointmentCommand(context, "portal.reschedule", args, async (uow, actor3, appointment) => {
     await assertOutsideLateWindow(uow, appointment);
     const policy = await uow.tx.onlineBookingPolicy.findFirst({ where: { locationId: appointment.locationId, isActive: true }, include: { appointmentTypes: { select: { id: true } } } });
     if (!policy || !policy.appointmentTypes.some((t) => t.id === appointment.typeId)) throw new DomainError(Codes.GUARD_FAILED, "This visit can\u2019t be moved online. Please call the office.");
     const startsAt = new Date(String(args.startsAt));
     if (Number.isNaN(startsAt.getTime()) || startsAt.getTime() < uow.now.getTime() + policy.leadTimeHours * 36e5) throw new DomainError(Codes.OUTSIDE_TEMPLATE, "That time is too soon to book online.");
-    return rescheduleIn(uow, actor2, appointment, {
+    return rescheduleIn(uow, actor3, appointment, {
       appointmentId: appointment.id,
       expectedVersion: args.expectedVersion ?? appointment.version,
       reason: "Rescheduled by patient online",
@@ -8217,16 +8226,16 @@ async function portalReschedule(_root, args, context) {
 async function portalPreferences(_root, args, context) {
   const principal = await portalPrincipal(context);
   assertPortalScope(principal, args.patientId, "preferences");
-  const actor2 = portalActor(principal.accountId);
+  const actor3 = portalActor(principal.accountId);
   const changes = args.changes ?? [];
   if (changes.length) {
     if (!args.idempotencyKey) throw new DomainError(Codes.IDEMPOTENCY_KEY_REQUIRED, "An idempotency key is required.");
-    await command(context.prisma, { name: "portal.preferences", actor: actor2, idempotencyKey: `portal:${principal.accountId}:${args.idempotencyKey}`.slice(0, 200), params: { patientId: args.patientId, changes } }, async (uow) => {
+    await command(context.prisma, { name: "portal.preferences", actor: actor3, idempotencyKey: `portal:${principal.accountId}:${args.idempotencyKey}`.slice(0, 200), params: { patientId: args.patientId, changes } }, async (uow) => {
       for (const change of changes.slice(0, 20)) {
         const contact = await uow.tx.contactPoint.findUnique({ where: { id: change.contactPointId }, select: { patientId: true } });
         if (!contact || contact.patientId !== args.patientId) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
-        if (change.granted) await grantConsentIn(uow, actor2, { contactPointId: change.contactPointId, channel: change.channel, purpose: change.purpose, source: "portal_api", evidence: { portalAccount: principal.accountId, at: uow.now.toISOString() } });
-        else await revokeConsentIn(uow, actor2, { contactPointId: change.contactPointId, channel: change.channel, purpose: change.purpose, reason: "portal_preference" });
+        if (change.granted) await grantConsentIn(uow, actor3, { contactPointId: change.contactPointId, channel: change.channel, purpose: change.purpose, source: "portal_api", evidence: { portalAccount: principal.accountId, at: uow.now.toISOString() } });
+        else await revokeConsentIn(uow, actor3, { contactPointId: change.contactPointId, channel: change.channel, purpose: change.purpose, reason: "portal_preference" });
       }
       return null;
     });
@@ -8237,22 +8246,22 @@ async function portalPreferences(_root, args, context) {
 }
 var mask = (kind, value) => kind === "email" ? value.replace(/^(.).*(@.*)$/, "$1\u2022\u2022\u2022$2") : `\u2022\u2022\u2022${value.slice(-4)}`;
 async function grantPortalAccess(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   if (!PORTAL_RELATIONSHIPS.includes(args.relationship)) throw new DomainError(Codes.INVALID_INPUT, "Unknown relationship.", { field: "relationship" });
   const capabilities = (args.capabilities?.length ? args.capabilities : ["appointments", "preferences"]).filter((c) => PORTAL_CAPABILITIES.includes(c));
   const email = normalizeContact("email", args.email).normalized;
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "portal.grant", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "portal.grant", actor: actor3, idempotencyKey, params }, async (uow) => {
     const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
     if (["merged_into", "archived", "deceased"].includes(patient.status)) throw new DomainError(Codes.GUARD_FAILED, `A ${patient.status} patient can't be given portal access.`);
     let account = await uow.tx.portalAccount.findUnique({ where: { email } });
     if (!account) {
-      account = await uow.tx.portalAccount.create({ data: { email, status: "invited", invitedById: actor2.kind === "user" ? actor2.userId : null, isSynthetic: false } });
-      auditCreate(uow, actor2, "PortalAccount", account.id, "portal.account_invited", { relationship: args.relationship });
+      account = await uow.tx.portalAccount.create({ data: { email, status: "invited", invitedById: actor3.kind === "user" ? actor3.userId : null, isSynthetic: false } });
+      auditCreate(uow, actor3, "PortalAccount", account.id, "portal.account_invited", { relationship: args.relationship });
     }
     const existing = await uow.tx.portalScope.findFirst({ where: { accountId: account.id, patientId: args.patientId, status: "active" } });
-    if (existing) await transition(uow, { model: "PortalScope", id: existing.id, from: ["active"], to: "revoked", actor: actor2, eventType: "portal.scope_replaced" });
+    if (existing) await transition(uow, { model: "PortalScope", id: existing.id, from: ["active"], to: "revoked", actor: actor3, eventType: "portal.scope_replaced" });
     const scope = await uow.tx.portalScope.create({
       data: {
         accountId: account.id,
@@ -8260,35 +8269,35 @@ async function grantPortalAccess(_root, args, context) {
         relationship: args.relationship,
         capabilities,
         status: "active",
-        grantedById: actor2.kind === "user" ? actor2.userId : null,
+        grantedById: actor3.kind === "user" ? actor3.userId : null,
         expiresAt: args.expiresAt ? new Date(args.expiresAt) : null,
         validUntilMajority: args.validUntilMajority ?? args.relationship === "guardian"
       }
     });
-    auditCreate(uow, actor2, "PortalScope", scope.id, "portal.scope_granted", { patientId: args.patientId, relationship: args.relationship, capabilities });
+    auditCreate(uow, actor3, "PortalScope", scope.id, "portal.scope_granted", { patientId: args.patientId, relationship: args.relationship, capabilities });
     return { portalAccountId: account.id, portalScopeId: scope.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function revokePortalScope(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "portal.revoke", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "portal.revoke", actor: actor3, idempotencyKey, params }, async (uow) => {
     const scope = await uow.tx.portalScope.findUnique({ where: { id: args.portalScopeId } });
     if (!scope?.patientId) throw new DomainError(Codes.NOT_FOUND, "Portal access not found.");
     await assertPatientInScope(uow.tx, locationIds, scope.patientId);
-    const updated = await transition(uow, { model: "PortalScope", id: scope.id, from: ["active"], to: "revoked", actor: actor2, eventType: "portal.scope_revoked", reason: args.reason });
+    const updated = await transition(uow, { model: "PortalScope", id: scope.id, from: ["active"], to: "revoked", actor: actor3, eventType: "portal.scope_revoked", reason: args.reason });
     return { portalScopeId: updated.id, status: updated.status };
   });
   return { replay: result.replay, ...result.value };
 }
 async function suspendPortalAccount(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canManagePatients");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManagePatients");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "portal.suspend", actor: actor2, idempotencyKey, params }, async (uow) => {
-    const updated = await transition(uow, { model: "PortalAccount", id: args.portalAccountId, from: ["invited", "active"], to: "suspended", actor: actor2, eventType: "portal.account_suspended", reason: args.reason, data: { authVersion: { increment: 1 }, codeHash: null, codeExpiresAt: null } });
+  const result = await command(context.prisma, { name: "portal.suspend", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const updated = await transition(uow, { model: "PortalAccount", id: args.portalAccountId, from: ["invited", "active"], to: "suspended", actor: actor3, eventType: "portal.account_suspended", reason: args.reason, data: { authVersion: { increment: 1 }, codeHash: null, codeExpiresAt: null } });
     return { portalAccountId: updated.id, status: updated.status };
   });
   return { replay: result.replay, ...result.value };
@@ -8302,11 +8311,11 @@ async function locationToday(tx, locationId, now) {
   return localDate(location?.timeZone ?? "America/New_York", now);
 }
 async function feeFor(tx, codeId, onDate) {
-  const day4 = dayOf(onDate);
+  const day5 = dayOf(onDate);
   const schedule = await tx.feeSchedule.findFirst({ where: { isDefault: true } });
   if (!schedule) return null;
   const version = await tx.feeScheduleVersion.findFirst({
-    where: { scheduleId: schedule.id, status: "published", effectiveFrom: { lte: day4 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day4 } }] },
+    where: { scheduleId: schedule.id, status: "published", effectiveFrom: { lte: day5 }, OR: [{ effectiveTo: null }, { effectiveTo: { gte: day5 } }] },
     orderBy: { effectiveFrom: "desc" }
   });
   if (!version) return null;
@@ -8362,13 +8371,13 @@ function cleanRow(raw, index) {
   };
 }
 async function uploadCodeImport(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canImportCodes");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canImportCodes");
   const label = requireText(args.label, "label", 160);
   if (!Array.isArray(args.rows) || !args.rows.length) throw new DomainError(Codes.INVALID_INPUT, "The file has no rows.", { field: "rows" });
   if (args.rows.length > MAX_ROWS) throw new DomainError(Codes.INVALID_INPUT, `A batch holds at most ${MAX_ROWS} rows.`, { field: "rows" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "code_import.upload", actor: actor2, idempotencyKey, params: { ...params, rows: sha256(canonicalJson(args.rows)) } }, async (uow) => {
+  const result = await command(context.prisma, { name: "code_import.upload", actor: actor3, idempotencyKey, params: { ...params, rows: sha256(canonicalJson(args.rows)) } }, async (uow) => {
     const system = await uow.tx.codeSystem.findUnique({ where: { key: args.systemKey } });
     if (!system) throw new DomainError(Codes.NOT_FOUND, "Unknown code system.", { field: "systemKey" });
     const cleaned = args.rows.map(cleanRow);
@@ -8381,42 +8390,42 @@ async function uploadCodeImport(_root, args, context) {
       seen.add(key);
     }
     const batch = await uow.tx.codeImportBatch.create({
-      data: { label, codeSystemId: system.id, editionYear: args.editionYear, fileName: optionalText(args.fileName, 200), fileSha256: sha256(canonicalJson(args.rows)), rows, rowCount: rows.length, validationReport: { ok: problems.length === 0, problems: problems.slice(0, 50), problemCount: problems.length }, status: problems.length ? "rejected" : "validated", uploadedById: actor2.kind === "user" ? actor2.userId : null }
+      data: { label, codeSystemId: system.id, editionYear: args.editionYear, fileName: optionalText(args.fileName, 200), fileSha256: sha256(canonicalJson(args.rows)), rows, rowCount: rows.length, validationReport: { ok: problems.length === 0, problems: problems.slice(0, 50), problemCount: problems.length }, status: problems.length ? "rejected" : "validated", uploadedById: actor3.kind === "user" ? actor3.userId : null }
     });
-    auditCreate(uow, actor2, "CodeImportBatch", batch.id, "code_import.uploaded", { system: system.key, rows: rows.length, problems: problems.length });
+    auditCreate(uow, actor3, "CodeImportBatch", batch.id, "code_import.uploaded", { system: system.key, rows: rows.length, problems: problems.length });
     return { batchId: batch.id, status: batch.status, rowCount: rows.length, problems: problems.slice(0, 50) };
   });
   return { replay: result.replay, ...result.value };
 }
 async function attestCodeLicence(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canImportCodes");
-  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "A person attests the licence.");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canImportCodes");
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "A person attests the licence.");
   const licenceType = oneOf(args.licenceType, LICENCE_TYPES, "licence type");
   const holder = requireText(args.licenceHolder, "licence holder", 160);
   const agreementRef = requireText(args.agreementRef, "agreement reference", 120);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "code_import.attest", actor: actor2, idempotencyKey, params }, async (uow) => {
-    await transition(uow, { model: "CodeImportBatch", id: args.batchId, from: ["validated"], to: "attested", expectedVersion: args.expectedVersion, actor: actor2, eventType: "code_import.attested", data: { attestation: { licenceType, holder, agreementRef, attestedBy: actor2.userId, at: uow.now.toISOString() }, attestedById: actor2.userId, attestedAt: uow.now } });
+  const result = await command(context.prisma, { name: "code_import.attest", actor: actor3, idempotencyKey, params }, async (uow) => {
+    await transition(uow, { model: "CodeImportBatch", id: args.batchId, from: ["validated"], to: "attested", expectedVersion: args.expectedVersion, actor: actor3, eventType: "code_import.attested", data: { attestation: { licenceType, holder, agreementRef, attestedBy: actor3.userId, at: uow.now.toISOString() }, attestedById: actor3.userId, attestedAt: uow.now } });
     return { batchId: args.batchId };
   });
   return { replay: result.replay, ...result.value };
 }
 async function requestCodeActivation(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canImportCodes");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canImportCodes");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "code_import.request_activation", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "code_import.request_activation", actor: actor3, idempotencyKey, params }, async (uow) => {
     const batch = await lockRow(uow.tx, "CodeImportBatch", args.batchId);
     if (batch.status !== "attested") throw new DomainError(Codes.GUARD_FAILED, "Attest the licence before asking for activation.");
     if (batch.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The batch changed since you loaded it.", { currentVersion: batch.version });
-    const approval = await requestApproval(uow, actor2, { action: "code_import.activate", targetList: "CodeImportBatch", targetId: batch.id, payload: { batchId: batch.id, fileSha256: batch.fileSha256, rowCount: batch.rowCount }, requiredPermission: "canApproveCodeImport", summary: `Activate ${batch.label} (${batch.rowCount} codes)` });
+    const approval = await requestApproval(uow, actor3, { action: "code_import.activate", targetList: "CodeImportBatch", targetId: batch.id, payload: { batchId: batch.id, fileSha256: batch.fileSha256, rowCount: batch.rowCount }, requiredPermission: "canApproveCodeImport", summary: `Activate ${batch.label} (${batch.rowCount} codes)` });
     await uow.tx.codeImportBatch.update({ where: { id: batch.id }, data: { approvalId: approval.id, version: { increment: 1 } } });
     return { approvalId: approval.id };
   });
   return { replay: result.replay, ...result.value };
 }
-registerApplier("code_import.activate", async (uow, actor2, request) => {
+registerApplier("code_import.activate", async (uow, actor3, request) => {
   const batch = await lockRow(uow.tx, "CodeImportBatch", String(request.payload.batchId));
   if (batch.status !== "attested") throw new DomainError(Codes.GUARD_FAILED, "This batch is no longer waiting for activation.");
   const rows = batch.rows ?? [];
@@ -8433,74 +8442,74 @@ registerApplier("code_import.activate", async (uow, actor2, request) => {
   }
   await uow.tx.codeSystem.update({ where: { id: system.id }, data: { activeImportId: batch.id } });
   const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
-  await transition(uow, { model: "CodeImportBatch", id: batch.id, from: ["attested"], to: "active", actor: actor2, eventType: "code_import.activated", approverId: decision?.decidedById ?? null, metadata: { codes: rows.length, supersedes: previous }, data: { rows: [] } });
+  await transition(uow, { model: "CodeImportBatch", id: batch.id, from: ["attested"], to: "active", actor: actor3, eventType: "code_import.activated", approverId: decision?.decidedById ?? null, metadata: { codes: rows.length, supersedes: previous }, data: { rows: [] } });
   return { batchId: batch.id, codes: rows.length };
 }, { applyOnApprove: true });
 async function openFeeSchedule(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canManageFees");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManageFees");
   const name = requireText(args.name, "schedule name", 120);
   const kind = oneOf(args.kind, FEE_KINDS, "schedule kind");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "fee_schedule.create", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "fee_schedule.create", actor: actor3, idempotencyKey, params }, async (uow) => {
     if (args.isDefault) await uow.tx.feeSchedule.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
     const schedule = await uow.tx.feeSchedule.create({ data: { name, kind, isDefault: args.isDefault === true } });
-    auditCreate(uow, actor2, "FeeSchedule", schedule.id, "fee_schedule.created", { name, kind });
+    auditCreate(uow, actor3, "FeeSchedule", schedule.id, "fee_schedule.created", { name, kind });
     return { scheduleId: schedule.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function createFeeVersion(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canManageFees");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManageFees");
   const label = requireText(args.label, "version label", 120);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the start date as 2026-01-01.", { field: "effectiveFrom" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "fee_schedule.version_create", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "fee_schedule.version_create", actor: actor3, idempotencyKey, params }, async (uow) => {
     const open = await uow.tx.feeScheduleVersion.findFirst({ where: { scheduleId: args.scheduleId, status: "draft" } });
     if (open) throw new DomainError(Codes.GUARD_FAILED, "This schedule already has a draft version. Publish or discard it first.");
     const last = await uow.tx.feeScheduleVersion.findFirst({ where: { scheduleId: args.scheduleId, status: "published" }, orderBy: { effectiveFrom: "desc" }, include: { fees: true } });
     const version = await uow.tx.feeScheduleVersion.create({ data: { scheduleId: args.scheduleId, label, effectiveFrom: dayOf(args.effectiveFrom), status: "draft" } });
     for (const fee of last?.fees ?? []) await uow.tx.fee.create({ data: { feeVersionId: version.id, codeId: fee.codeId, amountMinor: fee.amountMinor, copayMinor: fee.copayMinor } });
-    auditCreate(uow, actor2, "FeeScheduleVersion", version.id, "fee_schedule.version_created", { scheduleId: args.scheduleId, copied: last?.fees.length ?? 0 });
+    auditCreate(uow, actor3, "FeeScheduleVersion", version.id, "fee_schedule.version_created", { scheduleId: args.scheduleId, copied: last?.fees.length ?? 0 });
     return { versionId: version.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function setFee(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canManageFees");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManageFees");
   if (!/^\d{1,12}$/.test(String(args.amountMinor))) throw new DomainError(Codes.INVALID_INPUT, "Enter the fee in whole cents.", { field: "amountMinor" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "fee.set", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "fee.set", actor: actor3, idempotencyKey, params }, async (uow) => {
     const version = await lockRow(uow.tx, "FeeScheduleVersion", args.versionId);
     if (version.status !== "draft") throw new DomainError(Codes.INVALID_TRANSITION, "A published fee schedule cannot change. Start a new version.");
     const amount = BigInt(String(args.amountMinor));
     const copay = args.copayMinor ? BigInt(String(args.copayMinor)) : null;
     const fee = await uow.tx.fee.upsert({ where: { feeVersionId_codeId: { feeVersionId: version.id, codeId: args.codeId } }, create: { feeVersionId: version.id, codeId: args.codeId, amountMinor: amount, copayMinor: copay }, update: { amountMinor: amount, copayMinor: copay } });
-    uow.audit({ eventType: "fee.set", entityType: "Fee", entityId: fee.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { amountMinor: amount.toString() } });
+    uow.audit({ eventType: "fee.set", entityType: "Fee", entityId: fee.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { amountMinor: amount.toString() } });
     return { feeId: fee.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function requestFeePublish(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canManageFees");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManageFees");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "fee_schedule.request_publish", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "fee_schedule.request_publish", actor: actor3, idempotencyKey, params }, async (uow) => {
     const version = await lockRow(uow.tx, "FeeScheduleVersion", args.versionId);
     if (version.status !== "draft") throw new DomainError(Codes.INVALID_TRANSITION, "Only a draft version can be published.");
     if (version.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The version changed since you loaded it.", { currentVersion: version.version });
     const fees = await uow.tx.fee.findMany({ where: { feeVersionId: version.id }, orderBy: { codeId: "asc" } });
     if (!fees.length) throw new DomainError(Codes.GUARD_FAILED, "Add fees before publishing.");
     const digest = sha256(canonicalJson(fees.map((f) => [f.codeId, f.amountMinor.toString(), f.copayMinor?.toString() ?? null])));
-    const approval = await requestApproval(uow, actor2, { action: "fee_schedule.publish", targetList: "FeeScheduleVersion", targetId: version.id, payload: { versionId: version.id, digest, count: fees.length }, requiredPermission: "canApproveFeePublish", summary: `Publish fee schedule ${version.label} (${fees.length} fees)` });
+    const approval = await requestApproval(uow, actor3, { action: "fee_schedule.publish", targetList: "FeeScheduleVersion", targetId: version.id, payload: { versionId: version.id, digest, count: fees.length }, requiredPermission: "canApproveFeePublish", summary: `Publish fee schedule ${version.label} (${fees.length} fees)` });
     await uow.tx.feeScheduleVersion.update({ where: { id: version.id }, data: { approvalId: approval.id, version: { increment: 1 } } });
     return { approvalId: approval.id };
   });
   return { replay: result.replay, ...result.value };
 }
-registerApplier("fee_schedule.publish", async (uow, actor2, request) => {
+registerApplier("fee_schedule.publish", async (uow, actor3, request) => {
   const version = await lockRow(uow.tx, "FeeScheduleVersion", String(request.payload.versionId));
   const fees = await uow.tx.fee.findMany({ where: { feeVersionId: version.id }, orderBy: { codeId: "asc" } });
   const digest = sha256(canonicalJson(fees.map((f) => [f.codeId, f.amountMinor.toString(), f.copayMinor?.toString() ?? null])));
@@ -8511,7 +8520,7 @@ registerApplier("fee_schedule.publish", async (uow, actor2, request) => {
     await uow.tx.feeScheduleVersion.update({ where: { id: old.id }, data: { effectiveTo: end, status: (old.effectiveFrom ?? /* @__PURE__ */ new Date(0)) >= version.effectiveFrom ? "retired" : "published", version: { increment: 1 } } });
   }
   const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
-  await transition(uow, { model: "FeeScheduleVersion", id: version.id, from: ["draft"], to: "published", actor: actor2, eventType: "fee_schedule.published", approverId: decision?.decidedById ?? null, metadata: { fees: fees.length, digest }, data: { publishedAt: uow.now, publishedById: decision?.decidedById ?? null } });
+  await transition(uow, { model: "FeeScheduleVersion", id: version.id, from: ["draft"], to: "published", actor: actor3, eventType: "fee_schedule.published", approverId: decision?.decidedById ?? null, metadata: { fees: fees.length, digest }, data: { publishedAt: uow.now, publishedById: decision?.decidedById ?? null } });
   return { versionId: version.id };
 }, { applyOnApprove: true });
 
@@ -8595,9 +8604,9 @@ var PLANNABLE = ["diagnosed", "planned"];
 async function codeFor(tx, codeId, onDate) {
   const code = await tx.procedureCode.findUnique({ where: { id: codeId } });
   if (!code) throw new DomainError(Codes.NOT_FOUND, "Procedure code not found.", { field: "codeId" });
-  const day4 = dayOf(onDate);
-  if (code.effectiveFrom && code.effectiveFrom > day4) throw new DomainError(Codes.GUARD_FAILED, `${code.code} is not in effect on that date.`, { field: "codeId" });
-  if (code.effectiveTo && code.effectiveTo < day4) throw new DomainError(Codes.GUARD_FAILED, `${code.code} was retired before that date.`, { field: "codeId" });
+  const day5 = dayOf(onDate);
+  if (code.effectiveFrom && code.effectiveFrom > day5) throw new DomainError(Codes.GUARD_FAILED, `${code.code} is not in effect on that date.`, { field: "codeId" });
+  if (code.effectiveTo && code.effectiveTo < day5) throw new DomainError(Codes.GUARD_FAILED, `${code.code} was retired before that date.`, { field: "codeId" });
   return code;
 }
 function siteData(code, site) {
@@ -8605,12 +8614,12 @@ function siteData(code, site) {
   return { tooth: s.tooth, surfaces: s.surfaces, area: s.area, quadrant: s.quadrant, sextant: s.sextant, arch: s.arch };
 }
 async function addChartProcedure(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   assertLocation(locationIds, args.locationId);
   const status = oneOf(args.status ?? "planned", ["diagnosed", "planned", "existing_current", "existing_other"], "status");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "chart.add_procedure", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "chart.add_procedure", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const today2 = await locationToday(uow.tx, args.locationId, uow.now);
     const code = await codeFor(uow.tx, args.codeId, today2);
@@ -8628,18 +8637,18 @@ async function addChartProcedure(_root, args, context) {
         ...siteData(code, args.site ?? {})
       }
     });
-    auditCreate(uow, actor2, "ChartEntry", entry.id, "chart.procedure_added", { patientId: args.patientId, code: code.code, tooth: entry.tooth, surfaces: entry.surfaces, status });
+    auditCreate(uow, actor3, "ChartEntry", entry.id, "chart.procedure_added", { patientId: args.patientId, code: code.code, tooth: entry.tooth, surfaces: entry.surfaces, status });
     return { chartEntryId: entry.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function addChartCondition(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   assertLocation(locationIds, args.locationId);
   const conditionStatus = oneOf(args.status ?? "active", CONDITION_STATUSES, "condition status");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "chart.add_condition", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "chart.add_condition", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const condition = await uow.tx.conditionType.findUnique({ where: { id: args.conditionId } });
     if (!condition || !condition.isActive) throw new DomainError(Codes.NOT_FOUND, "Condition not found.", { field: "conditionId" });
@@ -8648,56 +8657,56 @@ async function addChartCondition(_root, args, context) {
     const entry = await uow.tx.chartEntry.create({
       data: { patientId: args.patientId, locationId: args.locationId, kind: "condition", conditionId: condition.id, status: "existing_current", conditionStatus, source: "staff", tooth: site.tooth, surfaces: site.surfaces, area: site.area, quadrant: site.quadrant, sextant: site.sextant, arch: site.arch }
     });
-    auditCreate(uow, actor2, "ChartEntry", entry.id, "chart.condition_added", { patientId: args.patientId, condition: condition.code, tooth: entry.tooth, surfaces: entry.surfaces });
+    auditCreate(uow, actor3, "ChartEntry", entry.id, "chart.condition_added", { patientId: args.patientId, condition: condition.code, tooth: entry.tooth, surfaces: entry.surfaces });
     return { chartEntryId: entry.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function setConditionStatus(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   const status = oneOf(args.status, CONDITION_STATUSES, "condition status");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "chart.condition_status", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "chart.condition_status", actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
     if (row.kind !== "condition") throw new DomainError(Codes.INVALID_TRANSITION, "Only findings have a condition status.");
     assertLocation(locationIds, row.locationId);
     if (status === "entered_in_error") requireReason(args.reason);
-    await transition(uow, { model: "ChartEntry", id: row.id, from: [row.status], to: row.status, expectedVersion: args.expectedVersion, actor: actor2, eventType: `chart.condition_${status}`, reason: args.reason ?? null, data: { conditionStatus: status } });
+    await transition(uow, { model: "ChartEntry", id: row.id, from: [row.status], to: row.status, expectedVersion: args.expectedVersion, actor: actor3, eventType: `chart.condition_${status}`, reason: args.reason ?? null, data: { conditionStatus: status } });
     return { chartEntryId: row.id, conditionStatus: status };
   });
   return { replay: result.replay, ...result.value };
 }
 async function removePlannedEntry(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "chart.remove_planned", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "chart.remove_planned", actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
     assertLocation(locationIds, row.locationId);
-    await transition(uow, { model: "ChartEntry", id: row.id, from: [...PLANNING, "scheduled"], to: "deleted_in_error", expectedVersion: args.expectedVersion, actor: actor2, eventType: "chart.entry_removed", reason, data: { deletedReason: reason } });
+    await transition(uow, { model: "ChartEntry", id: row.id, from: [...PLANNING, "scheduled"], to: "deleted_in_error", expectedVersion: args.expectedVersion, actor: actor3, eventType: "chart.entry_removed", reason, data: { deletedReason: reason } });
     return { chartEntryId: row.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function acceptChartEntry(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart", "canManageTreatmentPlans");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart", "canManageTreatmentPlans");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "chart.accept_entry", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "chart.accept_entry", actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
     assertLocation(locationIds, row.locationId);
-    await transition(uow, { model: "ChartEntry", id: row.id, from: PLANNABLE, to: "accepted", expectedVersion: args.expectedVersion, actor: actor2, eventType: "chart.entry_accepted", data: { acceptedVia: "staff" } });
+    await transition(uow, { model: "ChartEntry", id: row.id, from: PLANNABLE, to: "accepted", expectedVersion: args.expectedVersion, actor: actor3, eventType: "chart.entry_accepted", data: { acceptedVia: "staff" } });
     return { chartEntryId: row.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function completeProcedure(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canCompleteProcedures");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canCompleteProcedures");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "chart.complete_procedure", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "chart.complete_procedure", actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
     assertLocation(locationIds, row.locationId);
     if (row.kind !== "procedure") throw new DomainError(Codes.INVALID_TRANSITION, "Only procedures can be completed.");
@@ -8730,40 +8739,40 @@ async function completeProcedure(_root, args, context) {
       from: ["accepted", "scheduled", "planned", "diagnosed"],
       to: "posted",
       expectedVersion: args.expectedVersion,
-      actor: actor2,
+      actor: actor3,
       eventType: "chart.procedure_completed",
       data: { providerId: provider.id, dateOfService: dayOf(date), originalServiceDate: dayOf(date), feeMinor, feeScheduleVersionId: feeVersionId }
     });
     const charge = await uow.tx.ledgerEntry.create({
-      data: { accountId: account.id, patientId: row.patientId, kind: "charge", amountMinor: feeMinor, currencyCode: settingsCurrency, businessDate: dayOf(date), originalBusinessDate: dayOf(date), locationId: row.locationId, providerId: provider.id, chartEntryId: row.id, memo: `${code.code} ${row.tooth}${row.surfaces ? ` ${row.surfaces}` : ""}`.trim(), postedById: actor2.kind === "user" ? actor2.userId : null, postedAt: uow.now }
+      data: { accountId: account.id, patientId: row.patientId, kind: "charge", amountMinor: feeMinor, currencyCode: settingsCurrency, businessDate: dayOf(date), originalBusinessDate: dayOf(date), locationId: row.locationId, providerId: provider.id, chartEntryId: row.id, memo: `${code.code} ${row.tooth}${row.surfaces ? ` ${row.surfaces}` : ""}`.trim(), postedById: actor3.kind === "user" ? actor3.userId : null, postedAt: uow.now }
     });
     await uow.tx.chartEntry.update({ where: { id: row.id }, data: { ledgerEntryId: charge.id } });
     await rebuildBalance(uow.tx, account.id, uow.now);
-    auditCreate(uow, actor2, "LedgerEntry", charge.id, "ledger.charge_posted", { chartEntryId: row.id, amountMinor: feeMinor.toString(), businessDate: date });
+    auditCreate(uow, actor3, "LedgerEntry", charge.id, "ledger.charge_posted", { chartEntryId: row.id, amountMinor: feeMinor.toString(), businessDate: date });
     uow.emit({ topic: "ledger.charge_posted", aggregateType: "LedgerEntry", aggregateId: charge.id, payload: { chartEntryId: row.id, patientId: row.patientId }, dedupeKey: `ledger.charge_posted:${charge.id}` });
     return { chartEntryId: entry.id, ledgerEntryId: charge.id, feeMinor: feeMinor.toString() };
   });
   return { replay: result.replay, ...result.value };
 }
 async function correctProcedure(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canApproveClinicalCorrections");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canApproveClinicalCorrections");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "chart.correct_procedure", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "chart.correct_procedure", actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
     assertLocation(locationIds, row.locationId);
     const charge = row.ledgerEntryId ? await uow.tx.ledgerEntry.findUnique({ where: { id: row.ledgerEntryId } }) : null;
-    await transition(uow, { model: "ChartEntry", id: row.id, from: ["completed", "posted"], to: "corrected", expectedVersion: args.expectedVersion, actor: actor2, eventType: "chart.procedure_corrected", reason });
+    await transition(uow, { model: "ChartEntry", id: row.id, from: ["completed", "posted"], to: "corrected", expectedVersion: args.expectedVersion, actor: actor3, eventType: "chart.procedure_corrected", reason });
     let reversalId = null;
     if (charge) {
       const today2 = await locationToday(uow.tx, row.locationId, uow.now);
       const reversal = await uow.tx.ledgerEntry.create({
-        data: { accountId: charge.accountId, patientId: charge.patientId, kind: "reversal", amountMinor: -charge.amountMinor, currencyCode: charge.currencyCode, businessDate: dayOf(today2), originalBusinessDate: charge.originalBusinessDate, locationId: charge.locationId, providerId: charge.providerId, chartEntryId: row.id, reversesId: charge.id, memo: `Reversal: ${reason}`.slice(0, 200), postedById: actor2.kind === "user" ? actor2.userId : null, postedAt: uow.now }
+        data: { accountId: charge.accountId, patientId: charge.patientId, kind: "reversal", amountMinor: -charge.amountMinor, currencyCode: charge.currencyCode, businessDate: dayOf(today2), originalBusinessDate: charge.originalBusinessDate, locationId: charge.locationId, providerId: charge.providerId, chartEntryId: row.id, reversesId: charge.id, memo: `Reversal: ${reason}`.slice(0, 200), postedById: actor3.kind === "user" ? actor3.userId : null, postedAt: uow.now }
       });
       reversalId = reversal.id;
       if (charge.accountId) await rebuildBalance(uow.tx, charge.accountId, uow.now);
-      auditCreate(uow, actor2, "LedgerEntry", reversal.id, "ledger.charge_reversed", { reverses: charge.id, amountMinor: (-charge.amountMinor).toString() }, { reason });
+      auditCreate(uow, actor3, "LedgerEntry", reversal.id, "ledger.charge_reversed", { reverses: charge.id, amountMinor: (-charge.amountMinor).toString() }, { reason });
     }
     let replacementId = null;
     if (args.replacement?.codeId) {
@@ -8774,22 +8783,22 @@ async function correctProcedure(_root, args, context) {
       });
       replacementId = created.id;
       await uow.tx.chartEntry.update({ where: { id: row.id }, data: { correctedById: created.id } });
-      auditCreate(uow, actor2, "ChartEntry", created.id, "chart.replacement_planned", { corrects: row.id });
+      auditCreate(uow, actor3, "ChartEntry", created.id, "chart.replacement_planned", { corrects: row.id });
     }
     return { chartEntryId: row.id, reversalId, replacementId };
   });
   return { replay: result.replay, ...result.value };
 }
 async function scheduleChartEntry(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart", "canManageSchedule");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart", "canManageSchedule");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "chart.schedule_entry", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "chart.schedule_entry", actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await lockRow(uow.tx, "ChartEntry", args.chartEntryId);
     assertLocation(locationIds, row.locationId);
     const appointment = await uow.tx.appointment.findUnique({ where: { id: args.appointmentId } });
     if (!appointment || appointment.patientId !== row.patientId) throw new DomainError(Codes.INVALID_INPUT, "Choose one of this patient\u2019s appointments.", { field: "appointmentId" });
-    await transition(uow, { model: "ChartEntry", id: row.id, from: ["accepted"], to: "scheduled", expectedVersion: args.expectedVersion, actor: actor2, eventType: "chart.entry_scheduled", data: { appointmentId: appointment.id } });
+    await transition(uow, { model: "ChartEntry", id: row.id, from: ["accepted"], to: "scheduled", expectedVersion: args.expectedVersion, actor: actor3, eventType: "chart.entry_scheduled", data: { appointmentId: appointment.id } });
     return { chartEntryId: row.id };
   });
   return { replay: result.replay, ...result.value };
@@ -8891,10 +8900,10 @@ function suggestClassification(input) {
 
 // features/keystone/mutations/clinical.ts
 async function draftClinicalNote(_root, args, context) {
-  const { actor: actor2, locationIds, session } = staff(context);
-  requirePermission(actor2, "canChart", "canSignClinicalNotes");
+  const { actor: actor3, locationIds, session } = staff(context);
+  requirePermission(actor3, "canChart", "canSignClinicalNotes");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "note.draft", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "note.draft", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     let body = optionalText(args.body, 2e4);
     if (args.templateVersionId && !body) {
@@ -8912,7 +8921,7 @@ async function draftClinicalNote(_root, args, context) {
       data: {
         patientId: args.patientId,
         appointmentId: args.appointmentId ?? null,
-        authorId: actor2.kind === "user" ? actor2.userId : null,
+        authorId: actor3.kind === "user" ? actor3.userId : null,
         providerId: provider?.id ?? null,
         templateId: args.templateVersionId ?? null,
         title: optionalText(args.title, 200),
@@ -8922,33 +8931,33 @@ async function draftClinicalNote(_root, args, context) {
         refersToAt: args.refersToAt ? new Date(args.refersToAt) : null
       }
     });
-    auditCreate(uow, actor2, "ClinicalNote", note.id, "note.drafted", { patientId: args.patientId, amends: args.amendsNoteId ?? null });
+    auditCreate(uow, actor3, "ClinicalNote", note.id, "note.drafted", { patientId: args.patientId, amends: args.amendsNoteId ?? null });
     return { noteId: note.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function updateNoteDraft(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart", "canSignClinicalNotes");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart", "canSignClinicalNotes");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "note.update_draft", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "note.update_draft", actor: actor3, idempotencyKey, params }, async (uow) => {
     const note = await lockRow(uow.tx, "ClinicalNote", args.noteId);
     await assertPatientInScope(uow.tx, locationIds, note.patientId);
     if (note.status !== "draft") throw new DomainError(Codes.INVALID_TRANSITION, "A signed note cannot be edited. Add an amendment.");
     if (note.version !== args.expectedVersion) throw new DomainError(Codes.STALE_STATE, "The note changed since you opened it.", { currentVersion: note.version });
     await uow.tx.clinicalNote.update({ where: { id: note.id }, data: { body: optionalText(args.body, 2e4), title: optionalText(args.title ?? note.title, 200), version: { increment: 1 } } });
-    uow.audit({ eventType: "note.draft_saved", entityType: "ClinicalNote", entityId: note.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { bodyLength: String(args.body ?? "").length } });
+    uow.audit({ eventType: "note.draft_saved", entityType: "ClinicalNote", entityId: note.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { bodyLength: String(args.body ?? "").length } });
     return { noteId: note.id, version: note.version + 1 };
   });
   return { replay: result.replay, ...result.value };
 }
 async function signClinicalNote(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canSignClinicalNotes");
-  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician signs a note.");
-  await verifyPassword(context, actor2.userId, args.password);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canSignClinicalNotes");
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician signs a note.");
+  await verifyPassword(context, actor3.userId, args.password);
   const { idempotencyKey, password: _password, ...params } = args;
-  const result = await command(context.prisma, { name: "note.sign", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "note.sign", actor: actor3, idempotencyKey, params }, async (uow) => {
     const note = await lockRow(uow.tx, "ClinicalNote", args.noteId);
     await assertPatientInScope(uow.tx, locationIds, note.patientId);
     if (!note.body.trim()) throw new DomainError(Codes.GUARD_FAILED, "Write the note before signing it.");
@@ -8957,30 +8966,30 @@ async function signClinicalNote(_root, args, context) {
     const reference = note.refersToAt ?? note.createdAt;
     const late = uow.now.getTime() - new Date(reference).getTime() > hours * 36e5;
     const bodyHash = sha256(canonicalJson({ patientId: note.patientId, title: note.title, body: note.body, amends: note.amendsId }));
-    await transition(uow, { model: "ClinicalNote", id: note.id, from: ["draft"], to: "signed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "note.signed", metadata: { bodyHash, late }, data: { bodyHash, signedAt: uow.now, signatureMethod: "password_reauth", isLateEntry: late } });
+    await transition(uow, { model: "ClinicalNote", id: note.id, from: ["draft"], to: "signed", expectedVersion: args.expectedVersion, actor: actor3, eventType: "note.signed", metadata: { bodyHash, late }, data: { bodyHash, signedAt: uow.now, signatureMethod: "password_reauth", isLateEntry: late } });
     return { noteId: note.id, bodyHash, isLateEntry: late };
   });
   return { replay: result.replay, ...result.value };
 }
 async function markNoteEnteredInError(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canApproveClinicalCorrections");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canApproveClinicalCorrections");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "note.entered_in_error", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "note.entered_in_error", actor: actor3, idempotencyKey, params }, async (uow) => {
     const note = await lockRow(uow.tx, "ClinicalNote", args.noteId);
     await assertPatientInScope(uow.tx, locationIds, note.patientId);
-    await transition(uow, { model: "ClinicalNote", id: note.id, from: ["signed"], to: "entered_in_error", expectedVersion: args.expectedVersion, actor: actor2, eventType: "note.entered_in_error", reason, data: { errorReason: reason } });
+    await transition(uow, { model: "ClinicalNote", id: note.id, from: ["signed"], to: "entered_in_error", expectedVersion: args.expectedVersion, actor: actor3, eventType: "note.entered_in_error", reason, data: { errorReason: reason } });
     return { noteId: note.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function startPerioExam(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePerio");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePerio");
   assertLocation(locationIds, args.locationId);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "perio.start", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "perio.start", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const examiner = await uow.tx.providerProfile.findUnique({ where: { id: args.examinerId } });
     if (!examiner || !examiner.isActive) throw new DomainError(Codes.INVALID_INPUT, "Choose the examiner.", { field: "examinerId" });
@@ -8989,16 +8998,16 @@ async function startPerioExam(_root, args, context) {
     if (clash && clash.status === "in_progress") throw new DomainError(Codes.GUARD_FAILED, "An exam by this examiner is already open for that day.");
     if (clash) throw new DomainError(Codes.GUARD_FAILED, "A signed exam already exists for that day. Revise it instead.");
     const exam = await uow.tx.perioExam.create({ data: { patientId: args.patientId, locationId: args.locationId, examinerId: examiner.id, examDate: dayOf(date), revision: 1, status: "in_progress" } });
-    auditCreate(uow, actor2, "PerioExam", exam.id, "perio.started", { patientId: args.patientId, examDate: date });
+    auditCreate(uow, actor3, "PerioExam", exam.id, "perio.started", { patientId: args.patientId, examDate: date });
     return { examId: exam.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function recordPerioMeasurements(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePerio");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePerio");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "perio.record", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "perio.record", actor: actor3, idempotencyKey, params }, async (uow) => {
     const exam = await lockRow(uow.tx, "PerioExam", args.examId);
     assertLocation(locationIds, exam.locationId);
     if (exam.status !== "in_progress") throw new DomainError(Codes.INVALID_TRANSITION, "This exam is signed. Record a revision to change it.");
@@ -9019,18 +9028,18 @@ async function recordPerioMeasurements(_root, args, context) {
       await uow.tx.perioToothFinding.upsert({ where: { examId_tooth: { examId: exam.id, tooth } }, create: { examId: exam.id, tooth, ...data }, update: data });
     }
     await uow.tx.perioExam.update({ where: { id: exam.id }, data: { version: { increment: 1 } } });
-    uow.audit({ eventType: "perio.recorded", entityType: "PerioExam", entityId: exam.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { sites: measurements.length, findings: (args.findings ?? []).length } });
+    uow.audit({ eventType: "perio.recorded", entityType: "PerioExam", entityId: exam.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { sites: measurements.length, findings: (args.findings ?? []).length } });
     return { examId: exam.id, version: exam.version + 1, recorded: measurements.length };
   });
   return { replay: result.replay, ...result.value };
 }
 async function completePerioExam(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePerio");
-  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician signs an exam.");
-  await verifyPassword(context, actor2.userId, args.password);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePerio");
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician signs an exam.");
+  await verifyPassword(context, actor3.userId, args.password);
   const { idempotencyKey, password: _password, ...params } = args;
-  const result = await command(context.prisma, { name: "perio.complete", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "perio.complete", actor: actor3, idempotencyKey, params }, async (uow) => {
     const exam = await lockRow(uow.tx, "PerioExam", args.examId);
     assertLocation(locationIds, exam.locationId);
     const sites = await uow.tx.perioSiteMeasurement.findMany({ where: { examId: exam.id } });
@@ -9038,40 +9047,40 @@ async function completePerioExam(_root, args, context) {
     const findings = await uow.tx.perioToothFinding.findMany({ where: { examId: exam.id } });
     const summary = summarize(sites.map((s) => ({ tooth: s.tooth, site: s.site, probingDepthMm: s.probingDepthMm, gingivalMarginMm: s.gingivalMarginMm, bleeding: s.bleeding, suppuration: s.suppuration, plaque: s.plaque })));
     const signatureHash = sha256(canonicalJson({ examId: exam.id, sites: sites.map((s) => [s.tooth, s.site, s.probingDepthMm, s.gingivalMarginMm, s.bleeding]).sort(), findings: findings.map((f) => [f.tooth, f.mobility]).sort() }));
-    await transition(uow, { model: "PerioExam", id: exam.id, from: ["in_progress"], to: "completed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "perio.completed", metadata: { signatureHash, summary }, data: { signedAt: uow.now, signedById: actor2.userId, signatureHash } });
+    await transition(uow, { model: "PerioExam", id: exam.id, from: ["in_progress"], to: "completed", expectedVersion: args.expectedVersion, actor: actor3, eventType: "perio.completed", metadata: { signatureHash, summary }, data: { signedAt: uow.now, signedById: actor3.userId, signatureHash } });
     const missing = findings.filter((f) => f.missing).length;
     const inputs = { teethPresent: 32 - missing, maxCalMm: summary.maxCal, maxPdMm: Math.max(0, ...sites.map((s) => s.probingDepthMm ?? 0)), sitesGe5: summary.sitesGe5, teethWithCalGe5: summary.teethWithCalGe5, ...args.classificationInputs ?? {} };
     const suggestion = suggestClassification(inputs);
     const classification = await uow.tx.perioClassification.create({ data: { examId: exam.id, suggestedStage: suggestion.stage, suggestedGrade: suggestion.grade, extent: suggestion.extent, inputs: { ...inputs, reasons: suggestion.reasons }, status: "suggested" } });
-    auditCreate(uow, actor2, "PerioClassification", classification.id, "perio.classification_suggested", { stage: suggestion.stage, grade: suggestion.grade });
+    auditCreate(uow, actor3, "PerioClassification", classification.id, "perio.classification_suggested", { stage: suggestion.stage, grade: suggestion.grade });
     return { examId: exam.id, classificationId: classification.id, signatureHash, summary };
   });
   return { replay: result.replay, ...result.value };
 }
 async function confirmPerioClassification(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canSignClinicalNotes");
-  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician confirms a diagnosis.");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canSignClinicalNotes");
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician confirms a diagnosis.");
   const stage = oneOf(args.stage, ["I", "II", "III", "IV"], "stage");
   const grade = oneOf(args.grade, ["A", "B", "C"], "grade");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "perio.classification_confirm", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "perio.classification_confirm", actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await lockRow(uow.tx, "PerioClassification", args.classificationId);
     const exam = await uow.tx.perioExam.findUnique({ where: { id: row.examId } });
     assertLocation(locationIds, exam?.locationId);
     const overridden = stage !== row.suggestedStage || grade !== row.suggestedGrade;
     if (overridden) requireReason(args.reason, "reason for changing the suggestion");
-    await transition(uow, { model: "PerioClassification", id: row.id, from: ["suggested"], to: overridden ? "overridden" : "confirmed", expectedVersion: args.expectedVersion, actor: actor2, eventType: overridden ? "perio.classification_overridden" : "perio.classification_confirmed", reason: args.reason ?? null, data: { confirmedStage: stage, confirmedGrade: grade, signedById: actor2.userId, signedAt: uow.now } });
+    await transition(uow, { model: "PerioClassification", id: row.id, from: ["suggested"], to: overridden ? "overridden" : "confirmed", expectedVersion: args.expectedVersion, actor: actor3, eventType: overridden ? "perio.classification_overridden" : "perio.classification_confirmed", reason: args.reason ?? null, data: { confirmedStage: stage, confirmedGrade: grade, signedById: actor3.userId, signedAt: uow.now } });
     return { classificationId: row.id, stage, grade, overridden };
   });
   return { replay: result.replay, ...result.value };
 }
 async function reviseSignedPerioExam(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManagePerio", "canApproveClinicalCorrections");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManagePerio", "canApproveClinicalCorrections");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "perio.revise", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "perio.revise", actor: actor3, idempotencyKey, params }, async (uow) => {
     const original = await lockRow(uow.tx, "PerioExam", args.examId);
     assertLocation(locationIds, original.locationId);
     if (original.status !== "completed") throw new DomainError(Codes.INVALID_TRANSITION, "Only a signed exam can be revised.");
@@ -9081,30 +9090,30 @@ async function reviseSignedPerioExam(_root, args, context) {
     for (const s of sites) await uow.tx.perioSiteMeasurement.create({ data: { examId: exam.id, tooth: s.tooth, site: s.site, probingDepthMm: s.probingDepthMm, gingivalMarginMm: s.gingivalMarginMm, bleeding: s.bleeding, suppuration: s.suppuration, plaque: s.plaque } });
     const findings = await uow.tx.perioToothFinding.findMany({ where: { examId: original.id } });
     for (const f of findings) await uow.tx.perioToothFinding.create({ data: { examId: exam.id, tooth: f.tooth, mobility: f.mobility, furcation: f.furcation ?? {}, missing: f.missing, implant: f.implant } });
-    await transition(uow, { model: "PerioExam", id: original.id, from: ["completed"], to: "revised", expectedVersion: original.version, actor: actor2, eventType: "perio.revised", reason });
-    auditCreate(uow, actor2, "PerioExam", exam.id, "perio.revision_started", { revisionOf: original.id }, { reason });
+    await transition(uow, { model: "PerioExam", id: original.id, from: ["completed"], to: "revised", expectedVersion: original.version, actor: actor3, eventType: "perio.revised", reason });
+    auditCreate(uow, actor3, "PerioExam", exam.id, "perio.revision_started", { revisionOf: original.id }, { reason });
     return { examId: exam.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function logAnesthetic(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   const drug = requireText(args.drug, "anaesthetic", 120);
   const carpules = Number(args.carpules);
   if (!Number.isFinite(carpules) || carpules <= 0 || carpules > 10) throw new DomainError(Codes.INVALID_INPUT, "Carpules must be more than 0 and no more than 10.", { field: "carpules" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "anesthetic.log", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "anesthetic.log", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const row = await uow.tx.anestheticLog.create({ data: { patientId: args.patientId, appointmentId: args.appointmentId ?? null, drug, concentration: optionalText(args.concentration, 40), vasoconstrictor: optionalText(args.vasoconstrictor, 60), carpules: String(carpules), injectionSites: (args.injectionSites ?? []).slice(0, 8), administeredById: actor2.kind === "user" ? actor2.userId : null, at: uow.now } });
-    auditCreate(uow, actor2, "AnestheticLog", row.id, "anesthetic.logged", { patientId: args.patientId, drug, carpules });
+    const row = await uow.tx.anestheticLog.create({ data: { patientId: args.patientId, appointmentId: args.appointmentId ?? null, drug, concentration: optionalText(args.concentration, 40), vasoconstrictor: optionalText(args.vasoconstrictor, 60), carpules: String(carpules), injectionSites: (args.injectionSites ?? []).slice(0, 8), administeredById: actor3.kind === "user" ? actor3.userId : null, at: uow.now } });
+    auditCreate(uow, actor3, "AnestheticLog", row.id, "anesthetic.logged", { patientId: args.patientId, drug, carpules });
     return { logId: row.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function recordVitals(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   const within = (value, min2, max2, field) => {
     if (value === null || value === void 0) return null;
     if (!Number.isInteger(value) || value < min2 || value > max2) throw new DomainError(Codes.INVALID_INPUT, `${field} must be a whole number from ${min2} to ${max2}.`, { field });
@@ -9117,10 +9126,10 @@ async function recordVitals(_root, args, context) {
   if (systolic !== null && diastolic !== null && diastolic >= systolic) throw new DomainError(Codes.INVALID_INPUT, "Diastolic pressure must be lower than systolic.", { field: "diastolic" });
   const asa = args.asaClass ? oneOf(args.asaClass, ["I", "II", "III", "IV", "V", "VI"], "ASA class") : "";
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "vitals.record", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "vitals.record", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const row = await uow.tx.vitalsReading.create({ data: { patientId: args.patientId, appointmentId: args.appointmentId ?? null, systolic, diastolic, pulse, asaClass: asa, takenById: actor2.kind === "user" ? actor2.userId : null, at: uow.now } });
-    auditCreate(uow, actor2, "VitalsReading", row.id, "vitals.recorded", { patientId: args.patientId });
+    const row = await uow.tx.vitalsReading.create({ data: { patientId: args.patientId, appointmentId: args.appointmentId ?? null, systolic, diastolic, pulse, asaClass: asa, takenById: actor3.kind === "user" ? actor3.userId : null, at: uow.now } });
+    auditCreate(uow, actor3, "VitalsReading", row.id, "vitals.recorded", { patientId: args.patientId });
     return { readingId: row.id };
   });
   return { replay: result.replay, ...result.value };
@@ -9139,29 +9148,29 @@ var ALERTING = {
 };
 var isYes = (answer) => answer === true || answer === "yes" || typeof answer === "object" && answer !== null && answer.value === "yes";
 async function submitMedicalHistory(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart", "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart", "canManagePatients");
   const via = oneOf(args.via ?? "staff", ["staff", "tablet", "import"], "channel");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "history.submit", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "history.submit", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const form = await uow.tx.medicalHistoryForm.findUnique({ where: { id: args.formId } });
     if (!form || form.status !== "published") throw new DomainError(Codes.INVALID_INPUT, "That history form is not available.", { field: "formId" });
     const prior = await uow.tx.medicalHistoryResponse.findFirst({ where: { patientId: args.patientId, status: { in: ["submitted", "reviewed"] } }, orderBy: { submittedAt: "desc" } });
     const response = await uow.tx.medicalHistoryResponse.create({ data: { patientId: args.patientId, formId: form.id, answers: args.answers, submittedVia: via, submittedAt: uow.now, status: "submitted" } });
     if (prior) await uow.tx.medicalHistoryResponse.update({ where: { id: prior.id }, data: { status: "superseded", version: { increment: 1 } } });
-    auditCreate(uow, actor2, "MedicalHistoryResponse", response.id, "history.submitted", { patientId: args.patientId, supersedes: prior?.id ?? null });
+    auditCreate(uow, actor3, "MedicalHistoryResponse", response.id, "history.submitted", { patientId: args.patientId, supersedes: prior?.id ?? null });
     return { responseId: response.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function reviewMedicalHistory(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart", "canSignClinicalNotes");
-  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician reviews a medical history.");
-  await verifyPassword(context, actor2.userId, args.password);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart", "canSignClinicalNotes");
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only a clinician reviews a medical history.");
+  await verifyPassword(context, actor3.userId, args.password);
   const { idempotencyKey, password: _password, ...params } = args;
-  const result = await command(context.prisma, { name: "history.review", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "history.review", actor: actor3, idempotencyKey, params }, async (uow) => {
     const response = await lockRow(uow.tx, "MedicalHistoryResponse", args.responseId);
     await assertPatientInScope(uow.tx, locationIds, response.patientId);
     const answers = response.answers ?? {};
@@ -9179,9 +9188,9 @@ async function reviewMedicalHistory(_root, args, context) {
       const yes = isYes(answers[key]);
       const open = existing.find((a) => a.text === rule3.text(answers[key]));
       if (yes && !open) {
-        const alert = await uow.tx.patientAlert.create({ data: { patientId: response.patientId, kind: rule3.kind, severity: rule3.severity, text: rule3.text(answers[key]), source: "history_answer", activeFrom: uow.now, recordedById: actor2.userId } });
+        const alert = await uow.tx.patientAlert.create({ data: { patientId: response.patientId, kind: rule3.kind, severity: rule3.severity, text: rule3.text(answers[key]), source: "history_answer", activeFrom: uow.now, recordedById: actor3.userId } });
         created.push(alert.id);
-        auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: response.patientId, kind: rule3.kind, source: "history_answer" });
+        auditCreate(uow, actor3, "PatientAlert", alert.id, "alert.added", { patientId: response.patientId, kind: rule3.kind, source: "history_answer" });
       }
       if (!yes && open && key in answers) await uow.tx.patientAlert.update({ where: { id: open.id }, data: { endedAt: uow.now, version: { increment: 1 } } });
     }
@@ -9192,36 +9201,36 @@ async function reviewMedicalHistory(_root, args, context) {
       if (name) await uow.tx.medicationEntry.create({ data: { patientId: response.patientId, name, dose: String(med.dose ?? "").slice(0, 60), frequency: String(med.frequency ?? "").slice(0, 60), source: "history", activeFrom: dayOf(uow.now.toISOString().slice(0, 10)) } });
     }
     const signatureHash = sha256(canonicalJson({ responseId: response.id, answers, acknowledged: args.acknowledgedChanges }));
-    const review = await uow.tx.medicalHistoryReview.create({ data: { responseId: response.id, patientId: response.patientId, reviewedById: actor2.userId, reviewedAt: uow.now, changesAcknowledged: args.acknowledgedChanges, alertsCreated: created, signatureHash, overrideReason: optionalText(args.overrideReason, 500) } });
-    await transition(uow, { model: "MedicalHistoryResponse", id: response.id, from: ["submitted"], to: "reviewed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "history.reviewed", metadata: { reviewId: review.id, changed: changed.length, alerts: created.length } });
+    const review = await uow.tx.medicalHistoryReview.create({ data: { responseId: response.id, patientId: response.patientId, reviewedById: actor3.userId, reviewedAt: uow.now, changesAcknowledged: args.acknowledgedChanges, alertsCreated: created, signatureHash, overrideReason: optionalText(args.overrideReason, 500) } });
+    await transition(uow, { model: "MedicalHistoryResponse", id: response.id, from: ["submitted"], to: "reviewed", expectedVersion: args.expectedVersion, actor: actor3, eventType: "history.reviewed", metadata: { reviewId: review.id, changed: changed.length, alerts: created.length } });
     return { reviewId: review.id, alertsCreated: created.length, changes: changed };
   });
   return { replay: result.replay, ...result.value };
 }
 async function addMedication(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   const name = requireText(args.name, "medication", 120);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "medication.add", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "medication.add", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const today2 = dayOf(uow.now.toISOString().slice(0, 10));
     const row = await uow.tx.medicationEntry.create({ data: { patientId: args.patientId, name, dose: optionalText(args.dose, 60), frequency: optionalText(args.frequency, 60), source: "staff", activeFrom: today2 } });
-    auditCreate(uow, actor2, "MedicationEntry", row.id, "medication.added", { patientId: args.patientId, name });
+    auditCreate(uow, actor3, "MedicationEntry", row.id, "medication.added", { patientId: args.patientId, name });
     return { medicationId: row.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function endMedication(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "medication.end", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "medication.end", actor: actor3, idempotencyKey, params }, async (uow) => {
     const row = await lockRow(uow.tx, "MedicationEntry", args.medicationId);
     await assertPatientInScope(uow.tx, locationIds, row.patientId);
     if (row.endedAt) return { medicationId: row.id };
     await uow.tx.medicationEntry.update({ where: { id: row.id }, data: { endedAt: dayOf(addDays(uow.now.toISOString().slice(0, 10), 0)) } });
-    uow.audit({ eventType: "medication.ended", entityType: "MedicationEntry", entityId: row.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { endedAt: uow.now.toISOString().slice(0, 10) } });
+    uow.audit({ eventType: "medication.ended", entityType: "MedicationEntry", entityId: row.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { endedAt: uow.now.toISOString().slice(0, 10) } });
     return { medicationId: row.id };
   });
   return { replay: result.replay, ...result.value };
@@ -9229,90 +9238,90 @@ async function endMedication(_root, args, context) {
 
 // features/keystone/mutations/forms.ts
 async function requestForm(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart", "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart", "canManagePatients");
   const channel = oneOf(args.channel ?? "tablet", ["tablet", "email_link", "sms_link", "portal_api"], "channel");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "form.request", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "form.request", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const template = await uow.tx.formTemplateVersion.findUnique({ where: { id: args.templateVersionId } });
     if (!template || template.status !== "published") throw new DomainError(Codes.INVALID_INPUT, "That form is not published.", { field: "templateVersionId" });
-    const request = await uow.tx.formRequest.create({ data: { patientId: args.patientId, templateId: template.id, channel, status: "requested", requestedById: actor2.kind === "user" ? actor2.userId : null, expiresAt: new Date(uow.now.getTime() + 7 * 864e5) } });
-    auditCreate(uow, actor2, "FormRequest", request.id, "form.requested", { patientId: args.patientId, template: template.id, channel });
+    const request = await uow.tx.formRequest.create({ data: { patientId: args.patientId, templateId: template.id, channel, status: "requested", requestedById: actor3.kind === "user" ? actor3.userId : null, expiresAt: new Date(uow.now.getTime() + 7 * 864e5) } });
+    auditCreate(uow, actor3, "FormRequest", request.id, "form.requested", { patientId: args.patientId, template: template.id, channel });
     return { requestId: request.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function submitForm(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart", "canManagePatients");
-  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only staff record a signed form.");
-  await verifyPassword(context, actor2.userId, args.password);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart", "canManagePatients");
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only staff record a signed form.");
+  await verifyPassword(context, actor3.userId, args.password);
   const signerName = requireText(args.signerName, "signer name", 120);
   const signerRole = oneOf(args.signerRole, ["patient", "guardian"], "signer role");
   const { idempotencyKey, password: _password, ...params } = args;
-  const result = await command(context.prisma, { name: "form.submit", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "form.submit", actor: actor3, idempotencyKey, params }, async (uow) => {
     const request = await lockRow(uow.tx, "FormRequest", args.requestId);
     await assertPatientInScope(uow.tx, locationIds, request.patientId);
     if (request.expiresAt && new Date(request.expiresAt) < uow.now) throw new DomainError(Codes.GUARD_FAILED, "This form request has expired. Send a new one.");
     const template = await uow.tx.formTemplateVersion.findUnique({ where: { id: request.templateId }, include: { template: true } });
     if (!template) throw new DomainError(Codes.NOT_FOUND, "Form not found.");
     if (template.requiresWitness && !args.witnessUserId) throw new DomainError(Codes.GUARD_FAILED, "This form needs a staff witness.", { field: "witnessUserId" });
-    if (args.witnessUserId === actor2.userId) throw new DomainError(Codes.SELF_APPROVAL, "The witness must be a different person from the one recording the form.");
-    await transition(uow, { model: "FormRequest", id: request.id, from: ["requested", "opened"], to: "submitted", expectedVersion: args.expectedVersion, actor: actor2, eventType: "form.submitted", metadata: { template: template.id } });
+    if (args.witnessUserId === actor3.userId) throw new DomainError(Codes.SELF_APPROVAL, "The witness must be a different person from the one recording the form.");
+    await transition(uow, { model: "FormRequest", id: request.id, from: ["requested", "opened"], to: "submitted", expectedVersion: args.expectedVersion, actor: actor3, eventType: "form.submitted", metadata: { template: template.id } });
     const submission = await uow.tx.formSubmission.create({ data: { requestId: request.id, data: args.data, submittedAt: uow.now, submitterRole: signerRole } });
     let consentId = null;
     if (template.template?.kind?.startsWith("consent") || ["hipaa_npp_ack", "financial_policy", "photo_consent"].includes(template.template?.kind ?? "")) {
-      const consent = await uow.tx.consentRecord.create({ data: { patientId: request.patientId, templateVersionId: template.id, signerName, signerRole, signatureEvidence: { method: "password_reauth", recordedBy: actor2.userId, at: uow.now.toISOString(), contentHash: template.contentHash }, witnessId: args.witnessUserId ?? null, signedAt: uow.now, scope: { submissionId: submission.id } } });
+      const consent = await uow.tx.consentRecord.create({ data: { patientId: request.patientId, templateVersionId: template.id, signerName, signerRole, signatureEvidence: { method: "password_reauth", recordedBy: actor3.userId, at: uow.now.toISOString(), contentHash: template.contentHash }, witnessId: args.witnessUserId ?? null, signedAt: uow.now, scope: { submissionId: submission.id } } });
       consentId = consent.id;
-      auditCreate(uow, actor2, "ConsentRecord", consent.id, "consent.recorded", { patientId: request.patientId, template: template.id, signerRole });
+      auditCreate(uow, actor3, "ConsentRecord", consent.id, "consent.recorded", { patientId: request.patientId, template: template.id, signerRole });
     }
     return { submissionId: submission.id, consentId };
   });
   return { replay: result.replay, ...result.value };
 }
 async function withdrawConsent(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart", "canManagePatients");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart", "canManagePatients");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "consent.withdraw", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "consent.withdraw", actor: actor3, idempotencyKey, params }, async (uow) => {
     const record = await uow.tx.consentRecord.findUnique({ where: { id: args.consentId } });
     if (!record) throw new DomainError(Codes.NOT_FOUND, "Consent record not found.");
     await assertPatientInScope(uow.tx, locationIds, String(record.patientId));
     const done = await uow.tx.consentAction.findFirst({ where: { recordId: record.id, kind: { in: ["withdraw", "expire"] } } });
     if (done) throw new DomainError(Codes.INVALID_TRANSITION, "This consent was already withdrawn.");
-    const action = await uow.tx.consentAction.create({ data: { recordId: record.id, kind: "withdraw", at: uow.now, byId: actor2.kind === "user" ? actor2.userId : null, reason } });
-    auditCreate(uow, actor2, "ConsentAction", action.id, "consent.withdrawn", { consentId: record.id }, { reason });
+    const action = await uow.tx.consentAction.create({ data: { recordId: record.id, kind: "withdraw", at: uow.now, byId: actor3.kind === "user" ? actor3.userId : null, reason } });
+    auditCreate(uow, actor3, "ConsentAction", action.id, "consent.withdrawn", { consentId: record.id }, { reason });
     return { actionId: action.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function publishFormVersion(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canManagePatients", "canManageTemplates");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManagePatients", "canManageTemplates");
   const body = requireText(args.body, "form text", 2e4);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "form.publish_version", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "form.publish_version", actor: actor3, idempotencyKey, params }, async (uow) => {
     const template = await uow.tx.formTemplate.findUnique({ where: { key: args.templateKey } });
     if (!template) throw new DomainError(Codes.NOT_FOUND, "Unknown form.", { field: "templateKey" });
     const last = await uow.tx.formTemplateVersion.findFirst({ where: { templateId: template.id }, orderBy: { number: "desc" } });
     const number = (last?.number ?? 0) + 1;
     const version = await uow.tx.formTemplateVersion.create({ data: { templateId: template.id, number, body, fields: args.fields ?? [], requiresWitness: args.requiresWitness === true, contentHash: sha256(canonicalJson({ key: template.key, number, body, fields: args.fields ?? [] })), status: "published" } });
     if (last) await uow.tx.formTemplateVersion.update({ where: { id: last.id }, data: { status: "retired" } });
-    auditCreate(uow, actor2, "FormTemplateVersion", version.id, "form.version_published", { key: template.key, number });
+    auditCreate(uow, actor3, "FormTemplateVersion", version.id, "form.version_published", { key: template.key, number });
     return { versionId: version.id, number };
   });
   return { replay: result.replay, ...result.value };
 }
 async function recordImagingStudy(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canChart");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canChart");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "imaging.record", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "imaging.record", actor: actor3, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const study = await uow.tx.imagingStudy.create({ data: { patientId: args.patientId, modality: args.modality, teeth: args.teeth ?? [], acquiredAt: args.acquiredAt ? new Date(args.acquiredAt) : uow.now, source: "upload", status: "acquired" } });
-    auditCreate(uow, actor2, "ImagingStudy", study.id, "imaging.recorded", { patientId: args.patientId, modality: args.modality });
+    auditCreate(uow, actor3, "ImagingStudy", study.id, "imaging.recorded", { patientId: args.patientId, modality: args.modality });
     return { studyId: study.id, day: dayOf(uow.now.toISOString().slice(0, 10)).toISOString().slice(0, 10) };
   });
   return { replay: result.replay, ...result.value };
@@ -9321,19 +9330,19 @@ async function recordImagingStudy(_root, args, context) {
 // features/keystone/mutations/plans.ts
 var PLAN_OPEN = ["draft", "presented", "partially_accepted", "accepted", "in_progress"];
 async function buildTreatmentPlan(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageTreatmentPlans");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageTreatmentPlans");
   const title = requireText(args.title, "plan title", 160);
   if (!args.chartEntryIds?.length) throw new DomainError(Codes.INVALID_INPUT, "Choose the planned procedures for this plan.", { field: "chartEntryIds" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "plan.create", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "plan.create", actor: actor3, idempotencyKey, params }, async (uow) => {
     const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const entries = await uow.tx.chartEntry.findMany({ where: { id: { in: args.chartEntryIds }, patientId: patient.id, kind: "procedure" }, include: { code: true } });
     if (entries.length !== new Set(args.chartEntryIds).size) throw new DomainError(Codes.INVALID_INPUT, "Some procedures are not on this patient\u2019s chart.", { field: "chartEntryIds" });
     const bad = entries.find((e) => !["diagnosed", "planned"].includes(e.status));
     if (bad) throw new DomainError(Codes.GUARD_FAILED, "Only diagnosed or planned work can go on a plan.", { field: "chartEntryIds" });
     const ref = await nextReference(uow.tx, "TP", uow.now);
-    const plan = await uow.tx.treatmentPlan.create({ data: { patientId: patient.id, ref, title, status: "draft", coordinatorId: actor2.kind === "user" ? actor2.userId : null } });
+    const plan = await uow.tx.treatmentPlan.create({ data: { patientId: patient.id, ref, title, status: "draft", coordinatorId: actor3.kind === "user" ? actor3.userId : null } });
     const version = await uow.tx.treatmentPlanVersion.create({ data: { planId: plan.id, number: 1, phases: [{ key: "phase_1", label: "Phase 1" }] } });
     let order = 0;
     for (const entry of entries) {
@@ -9343,16 +9352,16 @@ async function buildTreatmentPlan(_root, args, context) {
       if (entry.status === "diagnosed") await uow.tx.chartEntry.update({ where: { id: entry.id }, data: { status: "planned", version: { increment: 1 } } });
     }
     await uow.tx.treatmentPlan.update({ where: { id: plan.id }, data: { currentVersionId: version.id } });
-    auditCreate(uow, actor2, "TreatmentPlan", plan.id, "plan.created", { patientId: patient.id, ref, items: entries.length });
+    auditCreate(uow, actor3, "TreatmentPlan", plan.id, "plan.created", { patientId: patient.id, ref, items: entries.length });
     return { planId: plan.id, versionId: version.id, ref };
   });
   return { replay: result.replay, ...result.value };
 }
 async function updatePlanItem(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageTreatmentPlans");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageTreatmentPlans");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "plan.item_update", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "plan.item_update", actor: actor3, idempotencyKey, params }, async (uow) => {
     const item = await lockRow(uow.tx, "TreatmentPlanItem", args.itemId);
     const version = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: item.planVersionId }, include: { plan: true } });
     if (!version) throw new DomainError(Codes.NOT_FOUND, "Plan version not found.");
@@ -9367,17 +9376,17 @@ async function updatePlanItem(_root, args, context) {
       data.feeMinor = BigInt(String(args.feeMinor));
     }
     await uow.tx.treatmentPlanItem.update({ where: { id: item.id }, data });
-    uow.audit({ eventType: "plan.item_updated", entityType: "TreatmentPlanItem", entityId: item.id, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { ...data, feeMinor: data.feeMinor?.toString() } });
+    uow.audit({ eventType: "plan.item_updated", entityType: "TreatmentPlanItem", entityId: item.id, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { ...data, feeMinor: data.feeMinor?.toString() } });
     return { itemId: item.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function presentTreatmentPlan(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canPresentPlans", "canManageTreatmentPlans");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canPresentPlans", "canManageTreatmentPlans");
   const channel = oneOf(args.channel ?? "chairside", ["chairside", "portal_api", "email_link"], "channel");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "plan.present", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "plan.present", actor: actor3, idempotencyKey, params }, async (uow) => {
     const plan = await lockRow(uow.tx, "TreatmentPlan", args.planId);
     await assertPatientInScope(uow.tx, locationIds, plan.patientId);
     const version = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: { orderBy: { sortOrder: "asc" } } } });
@@ -9385,22 +9394,22 @@ async function presentTreatmentPlan(_root, args, context) {
     if (!version.items.length) throw new DomainError(Codes.GUARD_FAILED, "Add at least one procedure before presenting the plan.");
     const totals = version.items.reduce((sum2, item) => sum2 + item.feeMinor, 0n);
     const contentHash = sha256(canonicalJson({ plan: plan.ref, number: version.number, phases: version.phases, items: version.items.map((i) => [i.chartEntryId, i.phaseKey, i.priority, i.alternateGroup, i.feeMinor.toString()]) }));
-    await uow.tx.treatmentPlanVersion.update({ where: { id: version.id }, data: { frozenAt: uow.now, contentHash, presentedById: actor2.kind === "user" ? actor2.userId : null, totalsMinor: { totalMinor: totals.toString(), itemCount: version.items.length } } });
-    await uow.tx.planPresentation.create({ data: { planVersionId: version.id, presentedById: actor2.kind === "user" ? actor2.userId : null, channel, at: uow.now } });
-    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["draft", "presented", "declined"], to: "presented", expectedVersion: args.expectedVersion, actor: actor2, eventType: "plan.presented", metadata: { versionNumber: version.number, contentHash, totalMinor: totals.toString() } });
+    await uow.tx.treatmentPlanVersion.update({ where: { id: version.id }, data: { frozenAt: uow.now, contentHash, presentedById: actor3.kind === "user" ? actor3.userId : null, totalsMinor: { totalMinor: totals.toString(), itemCount: version.items.length } } });
+    await uow.tx.planPresentation.create({ data: { planVersionId: version.id, presentedById: actor3.kind === "user" ? actor3.userId : null, channel, at: uow.now } });
+    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["draft", "presented", "declined"], to: "presented", expectedVersion: args.expectedVersion, actor: actor3, eventType: "plan.presented", metadata: { versionNumber: version.number, contentHash, totalMinor: totals.toString() } });
     return { planId: plan.id, versionId: version.id, contentHash, totalMinor: totals.toString() };
   });
   return { replay: result.replay, ...result.value };
 }
 async function acceptTreatmentPlan(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canPresentPlans", "canManageTreatmentPlans");
-  if (actor2.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only staff record an acceptance.");
-  await verifyPassword(context, actor2.userId, args.password);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canPresentPlans", "canManageTreatmentPlans");
+  if (actor3.kind !== "user") throw new DomainError(Codes.AGENT_CANNOT_APPROVE, "Only staff record an acceptance.");
+  await verifyPassword(context, actor3.userId, args.password);
   const signer = oneOf(args.signer, ["patient", "guardian"], "signer");
   const signerName = requireText(args.signerName, "signer name", 120);
   const { idempotencyKey, password: _password, ...params } = args;
-  const result = await command(context.prisma, { name: "plan.accept", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "plan.accept", actor: actor3, idempotencyKey, params }, async (uow) => {
     const plan = await lockRow(uow.tx, "TreatmentPlan", args.planId);
     await assertPatientInScope(uow.tx, locationIds, plan.patientId);
     const version = await uow.tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: true } });
@@ -9422,7 +9431,7 @@ async function acceptTreatmentPlan(_root, args, context) {
         selectedItems: { connect: selected.map((i) => ({ id: i.id })) },
         signer,
         signerName,
-        signatureEvidence: { method: "password_reauth", userId: actor2.userId, at: uow.now.toISOString() },
+        signatureEvidence: { method: "password_reauth", userId: actor3.userId, at: uow.now.toISOString() },
         estimateSnapshot: { totalMinor: total.toString(), items: selected.map((i) => ({ id: i.id, feeMinor: i.feeMinor.toString() })) },
         at: uow.now
       }
@@ -9432,30 +9441,30 @@ async function acceptTreatmentPlan(_root, args, context) {
       await uow.tx.chartEntry.updateMany({ where: { id: item.chartEntryId, status: { in: ["planned", "diagnosed"] } }, data: { status: "accepted", acceptedVia: "plan_acceptance", version: { increment: 1 } } });
     }
     const all = selected.length === version.items.length;
-    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["presented", "partially_accepted"], to: all ? "accepted" : "partially_accepted", expectedVersion: args.expectedVersion, actor: actor2, eventType: "plan.accepted", metadata: { acceptanceId: acceptance.id, items: selected.length, totalMinor: total.toString() } });
+    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["presented", "partially_accepted"], to: all ? "accepted" : "partially_accepted", expectedVersion: args.expectedVersion, actor: actor3, eventType: "plan.accepted", metadata: { acceptanceId: acceptance.id, items: selected.length, totalMinor: total.toString() } });
     return { acceptanceId: acceptance.id, totalMinor: total.toString(), status: all ? "accepted" : "partially_accepted" };
   });
   return { replay: result.replay, ...result.value };
 }
 async function declineTreatmentPlan(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canPresentPlans", "canManageTreatmentPlans");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canPresentPlans", "canManageTreatmentPlans");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "plan.decline", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "plan.decline", actor: actor3, idempotencyKey, params }, async (uow) => {
     const plan = await lockRow(uow.tx, "TreatmentPlan", args.planId);
     await assertPatientInScope(uow.tx, locationIds, plan.patientId);
-    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["presented", "partially_accepted"], to: "declined", expectedVersion: args.expectedVersion, actor: actor2, eventType: "plan.declined", reason });
+    await transition(uow, { model: "TreatmentPlan", id: plan.id, from: ["presented", "partially_accepted"], to: "declined", expectedVersion: args.expectedVersion, actor: actor3, eventType: "plan.declined", reason });
     return { planId: plan.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function reviseTreatmentPlan(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageTreatmentPlans");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageTreatmentPlans");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "plan.revise", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "plan.revise", actor: actor3, idempotencyKey, params }, async (uow) => {
     const plan = await lockRow(uow.tx, "TreatmentPlan", args.planId);
     await assertPatientInScope(uow.tx, locationIds, plan.patientId);
     if (!PLAN_OPEN.includes(plan.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This plan is closed.");
@@ -9466,7 +9475,7 @@ async function reviseTreatmentPlan(_root, args, context) {
       await uow.tx.treatmentPlanItem.create({ data: { planVersionId: next.id, chartEntryId: item.chartEntryId, phaseKey: item.phaseKey, alternateGroup: item.alternateGroup, priority: item.priority, feeMinor: item.feeMinor, sortOrder: item.sortOrder } });
     }
     await uow.tx.treatmentPlan.update({ where: { id: plan.id }, data: { currentVersionId: next.id, status: "draft", version: { increment: 1 } } });
-    auditCreate(uow, actor2, "TreatmentPlanVersion", next.id, "plan.version_started", { planId: plan.id, number: next.number }, { reason });
+    auditCreate(uow, actor3, "TreatmentPlanVersion", next.id, "plan.version_started", { planId: plan.id, number: next.number }, { reason });
     return { planId: plan.id, versionId: next.id, number: next.number };
   });
   return { replay: result.replay, ...result.value };
@@ -9568,15 +9577,15 @@ async function loadCoverageForEstimate(tx, coverageId, onDate) {
   const version = plan.feeScheduleId ? await tx.feeScheduleVersion.findFirst({ where: { scheduleId: plan.feeScheduleId, status: "published", effectiveFrom: { lte: /* @__PURE__ */ new Date(`${onDate}T00:00:00Z`) } }, orderBy: { effectiveFrom: "desc" } }) : null;
   const history = await tx.outsideHistory.findMany({ where: { patientId: coverage.patientId, frequencyGroup: { not: "" } }, select: { frequencyGroup: true, dateOfService: true } });
   const done = await tx.chartEntry.findMany({ where: { patientId: coverage.patientId, kind: "procedure", status: { in: ["completed", "posted"] } }, include: { code: true }, take: 500 });
-  const dayOf2 = (d) => d ? d.toISOString().slice(0, 10) : "";
+  const dayOf3 = (d) => d ? d.toISOString().slice(0, 10) : "";
   const used = [
-    ...history.filter((h) => h.dateOfService).map((h) => ({ group: String(h.frequencyGroup), date: dayOf2(h.dateOfService) })),
-    ...done.filter((e) => e.dateOfService).map((e) => ({ group: groupOf(e.code), date: dayOf2(e.dateOfService) }))
+    ...history.filter((h) => h.dateOfService).map((h) => ({ group: String(h.frequencyGroup), date: dayOf3(h.dateOfService) })),
+    ...done.filter((e) => e.dateOfService).map((e) => ({ group: groupOf(e.code), date: dayOf3(e.dateOfService) }))
   ];
   return {
     coverageId,
     ordinal: coverage.ordinal,
-    effectiveFrom: coverage.effectiveFrom ? dayOf2(coverage.effectiveFrom) : null,
+    effectiveFrom: coverage.effectiveFrom ? dayOf3(coverage.effectiveFrom) : null,
     cobMethod,
     factIds: facts.map((f) => f.id),
     feeScheduleVersionId: version?.id ?? null,
@@ -9869,30 +9878,30 @@ var money = (value, field) => {
 };
 var optMoney = (value, field) => value === void 0 || value === null || String(value).trim() === "" ? null : money(value, field);
 async function savePayer(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canManageInsurance");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManageInsurance");
   const name = requireText(args.name, "payer name", 120);
   const kind = oneOf(args.kind, PAYER_KINDS, "payer kind");
   const days = args.timelyFilingDays ?? 365;
   if (!Number.isInteger(days) || days < 1 || days > 1500) throw new DomainError(Codes.INVALID_INPUT, "Timely filing days must be between 1 and 1500.", { field: "timelyFilingDays" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "payer.save", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "payer.save", actor: actor3, idempotencyKey, params }, async (uow) => {
     const ids = args.stediPayerId ? { stedi: requireText(args.stediPayerId, "Stedi payer ID", 40) } : {};
     const data = { name, kind, phone: optionalText(args.phone, 40), timelyFilingDays: days, adapterPayerIds: ids };
     if (args.payerId) {
       await uow.tx.payer.update({ where: { id: args.payerId }, data });
-      uow.audit({ eventType: "payer.updated", entityType: "Payer", entityId: args.payerId, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { name, kind } });
+      uow.audit({ eventType: "payer.updated", entityType: "Payer", entityId: args.payerId, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { name, kind } });
       return { payerId: args.payerId };
     }
     const payer = await uow.tx.payer.create({ data });
-    auditCreate(uow, actor2, "Payer", payer.id, "payer.created", { name, kind });
+    auditCreate(uow, actor3, "Payer", payer.id, "payer.created", { name, kind });
     return { payerId: payer.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function saveInsurancePlan(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canManageInsurance");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canManageInsurance");
   const month = args.benefitYearStartMonth ?? 1;
   if (!Number.isInteger(month) || month < 1 || month > 12) throw new DomainError(Codes.INVALID_INPUT, "The benefit year starts in a month from 1 to 12.", { field: "benefitYearStartMonth" });
   const data = {
@@ -9909,29 +9918,29 @@ async function saveInsurancePlan(_root, args, context) {
     deductibleFamilyMinor: optMoney(args.deductibleFamily, "deductibleFamily")
   };
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "plan.save_insurance", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "plan.save_insurance", actor: actor3, idempotencyKey, params }, async (uow) => {
     if (!await uow.tx.payer.findUnique({ where: { id: args.payerId }, select: { id: true } })) throw new DomainError(Codes.NOT_FOUND, "Payer not found.");
     if (args.planId) {
       await uow.tx.insurancePlan.update({ where: { id: args.planId }, data: { ...data, version: { increment: 1 } } });
-      uow.audit({ eventType: "insurance_plan.updated", entityType: "InsurancePlan", entityId: args.planId, actorUserId: actor2.kind === "user" ? actor2.userId : null, after: { groupName: data.groupName, planType: data.planType } });
+      uow.audit({ eventType: "insurance_plan.updated", entityType: "InsurancePlan", entityId: args.planId, actorUserId: actor3.kind === "user" ? actor3.userId : null, after: { groupName: data.groupName, planType: data.planType } });
       return { planId: args.planId };
     }
     const plan = await uow.tx.insurancePlan.create({ data });
-    auditCreate(uow, actor2, "InsurancePlan", plan.id, "insurance_plan.created", { groupName: data.groupName, planType: data.planType });
+    auditCreate(uow, actor3, "InsurancePlan", plan.id, "insurance_plan.created", { groupName: data.groupName, planType: data.planType });
     return { planId: plan.id };
   });
   return { replay: result.replay, ...result.value };
 }
 var last4 = (value) => value.replace(/[^A-Za-z0-9]/g, "").slice(-4);
 async function addCoverage(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageInsurance");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageInsurance");
   const relationship17 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
   const ordinal = oneOf(args.ordinal, ORDINALS, "order");
   const memberId = requireText(args.memberId, "member ID", 40);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the effective date.", { field: "effectiveFrom" });
   const { idempotencyKey, memberId: _member, ...params } = args;
-  const result = await command(context.prisma, { name: "coverage.add", actor: actor2, idempotencyKey, params: { ...params, memberIdHash: memberIdHash(memberId) } }, async (uow) => {
+  const result = await command(context.prisma, { name: "coverage.add", actor: actor3, idempotencyKey, params: { ...params, memberIdHash: memberIdHash(memberId) } }, async (uow) => {
     const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const plan = await uow.tx.insurancePlan.findUnique({ where: { id: args.planId }, select: { id: true } });
     if (!plan) throw new DomainError(Codes.NOT_FOUND, "Insurance plan not found.");
@@ -9956,18 +9965,18 @@ async function addCoverage(_root, args, context) {
     const coverage = await uow.tx.coverage.create({
       data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship17, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
     });
-    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship17 });
+    auditCreate(uow, actor3, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship17 });
     return { coverageId: coverage.id, subscriberId: subscriber.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function setCoverageOrder(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageInsurance");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageInsurance");
   const ordinal = oneOf(args.ordinal, ORDINALS, "order");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "coverage.set_order", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "coverage.set_order", actor: actor3, idempotencyKey, params }, async (uow) => {
     const coverage = await lockRow(uow.tx, "Coverage", args.coverageId);
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
     if (!["pending_verification", "active"].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, "Only a current coverage can be reordered.");
@@ -9977,50 +9986,50 @@ async function setCoverageOrder(_root, args, context) {
       await uow.tx.$executeRaw`UPDATE "Coverage" SET "status" = 'invalid' WHERE id = ${other.id}`;
       await uow.tx.$executeRaw`UPDATE "Coverage" SET "ordinal" = ${ordinal}, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id}`;
       await uow.tx.$executeRaw`UPDATE "Coverage" SET "ordinal" = ${coverage.ordinal}, "status" = ${other.status}, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${other.id}`;
-      auditCreate(uow, actor2, "Coverage", other.id, "coverage.order_changed", { from: ordinal, to: coverage.ordinal }, { reason });
+      auditCreate(uow, actor3, "Coverage", other.id, "coverage.order_changed", { from: ordinal, to: coverage.ordinal }, { reason });
     } else {
       await uow.tx.$executeRaw`UPDATE "Coverage" SET "ordinal" = ${ordinal}, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id}`;
     }
-    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.order_changed", { from: coverage.ordinal, to: ordinal }, { reason });
+    auditCreate(uow, actor3, "Coverage", coverage.id, "coverage.order_changed", { from: coverage.ordinal, to: ordinal }, { reason });
     return { coverageId: coverage.id, ordinal };
   });
   return { replay: result.replay, ...result.value };
 }
 async function terminateCoverage(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageInsurance");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageInsurance");
   const reason = requireReason(args.reason);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.endedOn ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the end date.", { field: "endedOn" });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "coverage.terminate", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "coverage.terminate", actor: actor3, idempotencyKey, params }, async (uow) => {
     const coverage = await lockRow(uow.tx, "Coverage", args.coverageId);
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
     if (!["pending_verification", "active"].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This coverage has already ended.");
-    const closed = await closeCoverageWork(uow, actor2, coverage.id, "The coverage ended.");
-    await transition(uow, { model: "Coverage", id: coverage.id, from: ["pending_verification", "active"], to: "terminated", expectedVersion: args.expectedVersion, actor: actor2, eventType: "coverage.terminated", reason, data: { effectiveTo: dayOf(args.endedOn) } });
-    const estimated = await reestimatePatient(uow, actor2, coverage.patientId);
+    const closed = await closeCoverageWork(uow, actor3, coverage.id, "The coverage ended.");
+    await transition(uow, { model: "Coverage", id: coverage.id, from: ["pending_verification", "active"], to: "terminated", expectedVersion: args.expectedVersion, actor: actor3, eventType: "coverage.terminated", reason, data: { effectiveTo: dayOf(args.endedOn) } });
+    const estimated = await reestimatePatient(uow, actor3, coverage.patientId);
     return { coverageId: coverage.id, ...closed, reestimatedItems: estimated };
     return { coverageId: coverage.id };
   });
   return { replay: result.replay, ...result.value };
 }
-async function closeCoverageWork(uow, actor2, coverageId, note) {
+async function closeCoverageWork(uow, actor3, coverageId, note) {
   const { tx } = uow;
   const verifications = await tx.benefitVerification.findMany({ where: { coverageId, status: { in: ["requested", "in_progress"] } }, select: { id: true } });
   for (const v of verifications) {
-    await transition(uow, { model: "BenefitVerification", id: v.id, from: ["requested", "in_progress"], to: "failed", actor: actor2, eventType: "verification.failed", reason: note, data: { failureNote: note } });
+    await transition(uow, { model: "BenefitVerification", id: v.id, from: ["requested", "in_progress"], to: "failed", actor: actor3, eventType: "verification.failed", reason: note, data: { failureNote: note } });
   }
   const tasks = await tx.workTask.updateMany({ where: { subjectType: "Coverage", subjectId: coverageId, status: { in: ["open", "in_progress"] } }, data: { status: "cancelled", result: { reason: note }, version: { increment: 1 } } });
   const checks = await tx.eligibilityCheck.updateMany({ where: { coverageId, status: { in: ["unknown", "queued", "sent"] } }, data: { status: "error_retryable", resultNote: note, version: { increment: 1 } } });
   return { closedVerifications: verifications.length, closedTasks: tasks.count, closedChecks: checks.count };
 }
-async function reestimatePatient(uow, actor2, patientId) {
+async function reestimatePatient(uow, actor3, patientId) {
   const plans = await uow.tx.treatmentPlan.findMany({ where: { patientId, currentVersionId: { not: null } }, select: { id: true } });
   let lines = 0;
   for (const plan of plans) {
     const seen = await uow.tx.estimate.count({ where: { patientId, planItem: { planVersion: { planId: plan.id } } } });
     if (!seen) continue;
-    const out = await estimatePlanInTx(uow, actor2, plan.id, null);
+    const out = await estimatePlanInTx(uow, actor3, plan.id, null);
     lines += Number(out.estimated ?? 0);
   }
   return lines;
@@ -10032,7 +10041,7 @@ async function openChecklist(tx, verificationId, coverageId, planType, now, isSy
     await tx.workTask.create({ data: { kind: "verification_checklist", title: taskTitle(field), taskKey: field, subjectType: "Coverage", subjectId: coverageId, verificationId, dueAt: new Date(now.getTime() + 2 * 864e5), checklist: { field }, isSynthetic } });
   }
 }
-async function openVerification(uow, actor2, coverageId, options) {
+async function openVerification(uow, actor3, coverageId, options) {
   const { tx } = uow;
   await lockRow(tx, "Coverage", coverageId);
   const coverage = await tx.coverage.findUnique({ where: { id: coverageId }, include: { subscriber: { include: { plan: { include: { payer: true } } } } } });
@@ -10041,7 +10050,7 @@ async function openVerification(uow, actor2, coverageId, options) {
   const flying = await tx.benefitVerification.findFirst({ where: { coverageId, status: { in: ["requested", "in_progress"] } } });
   if (flying) return { verificationId: flying.id, existing: true, checkId: null, mode: "manual" };
   const plan = coverage.subscriber.plan;
-  const verification = await tx.benefitVerification.create({ data: { coverageId, trigger: options.trigger, status: "in_progress", requestedById: actor2.kind === "user" ? actor2.userId : null, isSynthetic: coverage.isSynthetic } });
+  const verification = await tx.benefitVerification.create({ data: { coverageId, trigger: options.trigger, status: "in_progress", requestedById: actor3.kind === "user" ? actor3.userId : null, isSynthetic: coverage.isSynthetic } });
   const installation = options.viaClearinghouse ? await tx.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi", status: { not: "suspended" } } }) : null;
   const payerId = plan.payer?.adapterPayerIds?.stedi;
   let checkId = null;
@@ -10049,7 +10058,7 @@ async function openVerification(uow, actor2, coverageId, options) {
   const inFlight = await tx.eligibilityCheck.findFirst({ where: { coverageId, status: { in: ["queued", "sent", "unknown"] } } });
   if (inFlight) {
     await tx.eligibilityCheck.update({ where: { id: inFlight.id }, data: { verificationId: verification.id } });
-    auditCreate(uow, actor2, "BenefitVerification", verification.id, "verification.requested", { coverageId, trigger: options.trigger, mode: inFlight.mode, reusedCheck: inFlight.id });
+    auditCreate(uow, actor3, "BenefitVerification", verification.id, "verification.requested", { coverageId, trigger: options.trigger, mode: inFlight.mode, reusedCheck: inFlight.id });
     return { verificationId: verification.id, existing: false, checkId: inFlight.id, mode: inFlight.mode };
   }
   if (installation && payerId && installation.mode && installation.mode !== "live") {
@@ -10061,33 +10070,33 @@ async function openVerification(uow, actor2, coverageId, options) {
   } else {
     await openChecklist(tx, verification.id, coverageId, plan.planType, uow.now, coverage.isSynthetic, [.../* @__PURE__ */ new Set(["coverage_pct", "annual_max", ...CHECKLIST_BY_PLAN[plan.planType] ?? CHECKLIST_BY_PLAN.other])]);
   }
-  auditCreate(uow, actor2, "BenefitVerification", verification.id, "verification.requested", { coverageId, trigger: options.trigger, mode });
+  auditCreate(uow, actor3, "BenefitVerification", verification.id, "verification.requested", { coverageId, trigger: options.trigger, mode });
   return { verificationId: verification.id, existing: false, checkId, mode };
 }
 async function requestVerification(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, ...WRITE);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, ...WRITE);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "verification.request", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "verification.request", actor: actor3, idempotencyKey, params }, async (uow) => {
     const coverage = await uow.tx.coverage.findUnique({ where: { id: args.coverageId }, select: { patientId: true } });
     if (!coverage) throw new DomainError(Codes.NOT_FOUND, "Coverage not found.");
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
-    const opened = await openVerification(uow, actor2, args.coverageId, { trigger: "staff", viaClearinghouse: true });
+    const opened = await openVerification(uow, actor3, args.coverageId, { trigger: "staff", viaClearinghouse: true });
     if (opened.existing) throw new DomainError(Codes.STALE_STATE, "A verification is already open for this plan. Refresh to see it.", { verificationId: opened.verificationId });
     return opened;
   });
   return { replay: result.replay, ...result.value };
 }
 async function recheckEligibility(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, ...WRITE);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, ...WRITE);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "eligibility.recheck", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "eligibility.recheck", actor: actor3, idempotencyKey, params }, async (uow) => {
     const check = await lockRow(uow.tx, "EligibilityCheck", args.checkId);
     const coverage = await uow.tx.coverage.findUnique({ where: { id: check.coverageId }, select: { patientId: true, status: true } });
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
     if (!["pending_verification", "active"].includes(coverage.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This coverage has ended, so there is nothing to check.");
-    await transition(uow, { model: "EligibilityCheck", id: check.id, from: ["unknown", "error_retryable", "rejected"], to: "queued", actor: actor2, eventType: "eligibility.requeued", data: { resultNote: "" } });
+    await transition(uow, { model: "EligibilityCheck", id: check.id, from: ["unknown", "error_retryable", "rejected"], to: "queued", actor: actor3, eventType: "eligibility.requeued", data: { resultNote: "" } });
     uow.emit({ topic: "eligibility.check", aggregateType: "EligibilityCheck", aggregateId: check.id, payload: { checkId: check.id, attempt: Number(check.attempts) + 1 }, dedupeKey: `eligibility.check:${check.id}:${Number(check.attempts) + 1}` });
     return { checkId: check.id };
   });
@@ -10144,15 +10153,15 @@ function factValue(args) {
   }
 }
 async function recordBenefitFact(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, ...WRITE);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, ...WRITE);
   const field = oneOf(args.field, FACT_SHAPES, "field");
   const source = oneOf(args.source, BENEFIT_SOURCES, "source");
   if (source === "eligibility_271") throw new DomainError(Codes.INVALID_INPUT, "A 271 fact is recorded only from a stored clearinghouse response.", { field: "source" });
   const unknown = args.isUnknown === true;
   const shaped = unknown ? { appliesTo: args.category ? { category: oneOf(args.category, CATEGORIES, "category") } : {}, value: {} } : factValue({ ...args, field });
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "verification.record_fact", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "verification.record_fact", actor: actor3, idempotencyKey, params }, async (uow) => {
     const verification = await lockRow(uow.tx, "BenefitVerification", args.verificationId);
     const coverage = await uow.tx.coverage.findUniqueOrThrow({ where: { id: verification.coverageId }, select: { patientId: true, status: true } });
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
@@ -10160,19 +10169,19 @@ async function recordBenefitFact(_root, args, context) {
     if (verification.status !== "in_progress") throw new DomainError(Codes.INVALID_TRANSITION, "This verification is not open.");
     const value = args.note ? { ...shaped.value, note: optionalText(args.note, 300) } : shaped.value;
     const fact = await uow.tx.benefitFact.create({
-      data: { verificationId: verification.id, coverageId: verification.coverageId, field, appliesTo: shaped.appliesTo, valueJson: unknown ? {} : value, isUnknown: unknown, source, observedAt: uow.now, observedById: actor2.kind === "user" ? actor2.userId : null }
+      data: { verificationId: verification.id, coverageId: verification.coverageId, field, appliesTo: shaped.appliesTo, valueJson: unknown ? {} : value, isUnknown: unknown, source, observedAt: uow.now, observedById: actor3.kind === "user" ? actor3.userId : null }
     });
     if (!unknown) await uow.tx.workTask.updateMany({ where: { subjectType: "Coverage", subjectId: verification.coverageId, taskKey: field, status: { in: ["open", "in_progress"] } }, data: { status: "done", result: { factId: fact.id }, version: { increment: 1 } } });
-    auditCreate(uow, actor2, "BenefitFact", fact.id, "benefit_fact.recorded", { field, source, isUnknown: unknown });
+    auditCreate(uow, actor3, "BenefitFact", fact.id, "benefit_fact.recorded", { field, source, isUnknown: unknown });
     return { factId: fact.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function completeVerification(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, ...WRITE);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, ...WRITE);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "verification.complete", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "verification.complete", actor: actor3, idempotencyKey, params }, async (uow) => {
     const verification = await lockRow(uow.tx, "BenefitVerification", args.verificationId);
     const coverage = await lockRow(uow.tx, "Coverage", verification.coverageId);
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
@@ -10183,30 +10192,30 @@ async function completeVerification(_root, args, context) {
     const missing = REQUIRED_FACTS.filter((r) => !known(r.field, r.category));
     const complete = missing.length === 0;
     const active = facts.filter((f) => f.field === "coverage_active" && !f.isUnknown).sort((a, b) => b.observedAt.getTime() - a.observedAt.getTime())[0];
-    await transition(uow, { model: "BenefitVerification", id: verification.id, from: ["in_progress"], to: "completed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "verification.completed", metadata: { complete, missing: missing.map((m) => m.category ? `${m.field}:${m.category}` : m.field) }, data: { completeness: complete ? "complete" : "partial", completedById: actor2.kind === "user" ? actor2.userId : null, completedAt: uow.now } });
+    await transition(uow, { model: "BenefitVerification", id: verification.id, from: ["in_progress"], to: "completed", expectedVersion: args.expectedVersion, actor: actor3, eventType: "verification.completed", metadata: { complete, missing: missing.map((m) => m.category ? `${m.field}:${m.category}` : m.field) }, data: { completeness: complete ? "complete" : "partial", completedById: actor3.kind === "user" ? actor3.userId : null, completedAt: uow.now } });
     const level = complete ? "verified_full" : facts.some((f) => !f.isUnknown) ? "verified_partial" : "unverified";
     const inactive = active && active.valueJson?.active === false;
     await uow.tx.$executeRaw`UPDATE "Coverage" SET "verificationLevel" = ${level}, "lastVerification" = ${verification.id}, "status" = ${inactive ? "terminated" : coverage.status === "pending_verification" && active ? "active" : coverage.status}, "effectiveTo" = CASE WHEN ${!!inactive} THEN COALESCE("effectiveTo", CURRENT_DATE) ELSE "effectiveTo" END, "version" = "version" + 1, "updatedAt" = now() WHERE id = ${coverage.id}`;
     await uow.tx.workTask.updateMany({ where: { verificationId: verification.id, status: { in: ["open", "in_progress"] } }, data: { status: "cancelled", result: { reason: "verification completed" }, version: { increment: 1 } } });
     await uow.tx.eligibilityCheck.updateMany({ where: { verificationId: verification.id, status: { in: ["unknown", "queued", "sent"] } }, data: { status: "error_retryable", resultNote: "Closed with the verification." } });
     if (inactive) {
-      await closeCoverageWork(uow, actor2, coverage.id, "The payer reports the coverage inactive.");
-      await reestimatePatient(uow, actor2, coverage.patientId);
+      await closeCoverageWork(uow, actor3, coverage.id, "The payer reports the coverage inactive.");
+      await reestimatePatient(uow, actor3, coverage.patientId);
     }
     return { verificationId: verification.id, completeness: complete ? "complete" : "partial", level, missing: missing.length };
   });
   return { replay: result.replay, ...result.value };
 }
 async function failVerification(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, ...WRITE);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, ...WRITE);
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "verification.fail", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "verification.fail", actor: actor3, idempotencyKey, params }, async (uow) => {
     const verification = await lockRow(uow.tx, "BenefitVerification", args.verificationId);
     const coverage = await uow.tx.coverage.findUniqueOrThrow({ where: { id: verification.coverageId }, select: { patientId: true } });
     await assertPatientInScope(uow.tx, locationIds, coverage.patientId);
-    await transition(uow, { model: "BenefitVerification", id: verification.id, from: ["requested", "in_progress"], to: "failed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "verification.failed", reason, data: { failureNote: reason } });
+    await transition(uow, { model: "BenefitVerification", id: verification.id, from: ["requested", "in_progress"], to: "failed", expectedVersion: args.expectedVersion, actor: actor3, eventType: "verification.failed", reason, data: { failureNote: reason } });
     await uow.tx.workTask.updateMany({ where: { verificationId: verification.id, status: { in: ["open", "in_progress"] } }, data: { status: "cancelled", version: { increment: 1 } } });
     await uow.tx.eligibilityCheck.updateMany({ where: { verificationId: verification.id, status: { in: ["unknown", "queued", "sent"] } }, data: { status: "error_retryable", resultNote: "Closed with the verification." } });
     return { verificationId: verification.id };
@@ -10214,17 +10223,17 @@ async function failVerification(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 async function addOutsideHistory(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, ...WRITE, "canManageTreatmentPlans");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, ...WRITE, "canManageTreatmentPlans");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.dateOfService ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the date of service.", { field: "dateOfService" });
   const source = oneOf(args.source, BENEFIT_SOURCES, "source");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "history.add", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "history.add", actor: actor3, idempotencyKey, params }, async (uow) => {
     const patient = await assertPatientInScope(uow.tx, locationIds, args.patientId);
     const code = args.codeId ? await uow.tx.procedureCode.findUnique({ where: { id: args.codeId } }) : null;
     if (!code && !args.codeText) throw new DomainError(Codes.INVALID_INPUT, "Choose a procedure or describe it.", { field: "codeText" });
     const row = await uow.tx.outsideHistory.create({ data: { patientId: patient.id, codeId: code?.id ?? null, codeText: optionalText(args.codeText, 120) || code?.nomenclature || "", frequencyGroup: optionalText(args.frequencyGroup, 40) || (code ? groupOf(code) : ""), tooth: optionalText(args.tooth, 10), dateOfService: dayOf(args.dateOfService), providerName: optionalText(args.providerName, 120), source } });
-    auditCreate(uow, actor2, "OutsideHistory", row.id, "outside_history.added", { patientId: patient.id, dateOfService: args.dateOfService });
+    auditCreate(uow, actor3, "OutsideHistory", row.id, "outside_history.added", { patientId: patient.id, dateOfService: args.dateOfService });
     return { historyId: row.id };
   });
   return { replay: result.replay, ...result.value };
@@ -10243,7 +10252,7 @@ async function downgradeMap(tx, planId) {
 var CONFIDENCE_OF_LEVEL = { verified_full: "verified", verified_partial: "partially_verified", verified_electronic: "partially_verified", unverified: "assumed" };
 var CONFIDENCE_RANK = { verified: 2, partially_verified: 1, assumed: 0 };
 var weakestConfidence = (a, b) => CONFIDENCE_RANK[a] <= CONFIDENCE_RANK[b] ? a : b;
-async function estimatePlanInTx(uow, actor2, planId, locationIds) {
+async function estimatePlanInTx(uow, actor3, planId, locationIds) {
   const { tx } = uow;
   const plan = await tx.treatmentPlan.findUnique({ where: { id: planId } });
   if (!plan) throw new DomainError(Codes.NOT_FOUND, "Plan not found.");
@@ -10253,7 +10262,7 @@ async function estimatePlanInTx(uow, actor2, planId, locationIds) {
   const primary = coverages.find((c) => c.ordinal === "primary");
   const version = plan.currentVersionId ? await tx.treatmentPlanVersion.findUnique({ where: { id: plan.currentVersionId }, include: { items: { orderBy: { sortOrder: "asc" }, include: { chartEntry: { include: { code: true } } } } } }) : null;
   if (!version?.items.length) return { estimated: 0, noCoverage: !primary };
-  const actorId = actor2.kind === "user" ? actor2.userId : null;
+  const actorId = actor3.kind === "user" ? actor3.userId : null;
   if (!primary) {
     let created2 = 0;
     for (const item of version.items) {
@@ -10385,10 +10394,10 @@ async function estimatePlanInTx(uow, actor2, planId, locationIds) {
   return { estimated: out.lines.length, created, confidence: out.confidence, insuranceMinor: out.totals.insuranceMinor.toString(), patientMinor: out.totals.patientMinor.toString() };
 }
 async function estimateTreatmentPlan(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageTreatmentPlans", "canPresentPlans", ...WRITE);
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageTreatmentPlans", "canPresentPlans", ...WRITE);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "estimate.plan", actor: actor2, idempotencyKey, params }, (uow) => estimatePlanInTx(uow, actor2, args.planId, locationIds));
+  const result = await command(context.prisma, { name: "estimate.plan", actor: actor3, idempotencyKey, params }, (uow) => estimatePlanInTx(uow, actor3, args.planId, locationIds));
   return { replay: result.replay, ...result.value };
 }
 
@@ -10512,7 +10521,7 @@ var ADJUSTABLE_FROM = ["submitted", "acknowledged", "pending_payer", "submission
 var asJson = (list18) => list18.map((a) => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }));
 var sum = (values) => values.reduce((a, b) => a + b, 0n);
 var lineAdjTotal = (line) => sum(line.adjustments.map((a) => a.amountMinor));
-async function applyParsedEra(uow, actor2, era, origin) {
+async function applyParsedEra(uow, actor3, era, origin) {
   const { tx } = uow;
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`era:${era.traceNumber}`}))`;
   const claimRows = await tx.claim.findMany({ where: { patientControlNumber: { in: era.claims.map((c) => c.patientControlNumber).filter(Boolean) } }, include: { lines: true, coverage: { include: { subscriber: { include: { plan: true } } } } } });
@@ -10522,13 +10531,13 @@ async function applyParsedEra(uow, actor2, era, origin) {
   const ref = await nextReference(tx, "ERA", uow.now);
   if (earlier) {
     const dup = await tx.remittance.create({ data: { ref, payerId, source: origin.source, adapterKey: origin.adapterKey, traceNumber: era.traceNumber, paymentMethod: era.paymentMethod, paymentDate: era.paymentDate ? dayOf(era.paymentDate) : null, totalPaidMinor: era.totalPaidMinor, status: "duplicate", duplicateOfId: earlier.id, exceptionNote: `Same payment trace as ${earlier.ref}. Nothing was posted.`, observationId: origin.observationId ?? null } });
-    auditCreate(uow, actor2, "Remittance", dup.id, "remittance.duplicate_ignored", { duplicateOf: earlier.ref, trace: era.traceNumber });
+    auditCreate(uow, actor3, "Remittance", dup.id, "remittance.duplicate_ignored", { duplicateOf: earlier.ref, trace: era.traceNumber });
     return { remittanceId: dup.id, ref, status: "duplicate", claimsPosted: 0, claimsHeld: 0, duplicate: true };
   }
   const remittance = await tx.remittance.create({
     data: { ref, payerId, source: origin.source, adapterKey: origin.adapterKey, traceNumber: era.traceNumber, paymentMethod: era.paymentMethod, paymentDate: era.paymentDate ? dayOf(era.paymentDate) : null, totalPaidMinor: era.totalPaidMinor, status: "parsed", providerAdjustments: era.providerAdjustments, observationId: origin.observationId ?? null }
   });
-  auditCreate(uow, actor2, "Remittance", remittance.id, "remittance.received", { ref, claims: era.claims.length, totalPaidMinor: era.totalPaidMinor.toString() });
+  auditCreate(uow, actor3, "Remittance", remittance.id, "remittance.received", { ref, claims: era.claims.length, totalPaidMinor: era.totalPaidMinor.toString() });
   let posted = 0;
   let held = 0;
   const notes = [];
@@ -10553,7 +10562,7 @@ async function applyParsedEra(uow, actor2, era, origin) {
       notes.push(problem);
       continue;
     }
-    await postClaimPayment(uow, actor2, { remittance, remittanceClaimId: rc.id, claim, parsed, lineRows });
+    await postClaimPayment(uow, actor3, { remittance, remittanceClaimId: rc.id, claim, parsed, lineRows });
     posted += 1;
   }
   const status = posted === 0 ? "exception" : "posted";
@@ -10561,13 +10570,13 @@ async function applyParsedEra(uow, actor2, era, origin) {
   await tx.remittance.update({ where: { id: remittance.id }, data: { status, postedCompleteness: posted === 0 ? "" : complete ? "complete" : "partial", exceptionNote: notes.join(" ").slice(0, 500), version: { increment: 1 } } });
   return { remittanceId: remittance.id, ref, status, claimsPosted: posted, claimsHeld: held, duplicate: false };
 }
-async function postClaimPayment(uow, actor2, input) {
+async function postClaimPayment(uow, actor3, input) {
   const { tx } = uow;
   const { claim, parsed, remittance } = input;
   const account = await accountFor(uow, claim.patientId);
   const businessDate = dayOf(await locationToday(tx, claim.locationId, uow.now));
   const currency = (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? "USD";
-  const postedById = actor2.kind === "user" ? actor2.userId : null;
+  const postedById = actor3.kind === "user" ? actor3.userId : null;
   const payer = remittance.payerId ? await tx.payer.findUnique({ where: { id: remittance.payerId }, select: { name: true } }) : null;
   const takeback = parsed.statusCode === "22" || parsed.paidMinor < 0n;
   const writeoff = parsed.lines.length ? sum(parsed.lines.map((l) => writeOffMinor(l.adjustments))) : writeOffMinor(parsed.adjustments);
@@ -10582,7 +10591,7 @@ async function postClaimPayment(uow, actor2, input) {
     }
     await tx.paymentPosting.update({ where: { id: earlier.id }, data: { status: "reversed", version: { increment: 1 } } });
     await tx.claim.update({ where: { id: claim.id }, data: { recouped: true, version: { increment: 1 } } });
-    auditCreate(uow, actor2, "Claim", claim.id, "claim.payment_taken_back", { remittance: remittance.ref, reversedPosting: earlier.id });
+    auditCreate(uow, actor3, "Claim", claim.id, "claim.payment_taken_back", { remittance: remittance.ref, reversedPosting: earlier.id });
     return posting;
   }
   if (parsed.paidMinor > 0n) await postEntry(tx, { ...base, kind: "insurance_payment", amountMinor: -parsed.paidMinor, memo: `Insurance payment from ${label} (${remittance.ref}), ${formatMinor(parsed.paidMinor)}` }, uow.now);
@@ -10596,33 +10605,33 @@ async function postClaimPayment(uow, actor2, input) {
     if (lineStatus === "denied") anyDenied = true;
     if (paid > 0n) anyPaid = true;
     await tx.claimLine.update({ where: { id: claimLineId }, data: { status: lineStatus, paidMinor: paid, allowedMinor: line.chargeMinor - writeOffMinor(line.adjustments), patientRespMinor: patientRespOf(line.adjustments), version: { increment: 1 } } });
-    if (lineStatus === "denied") await openDenial(uow, actor2, claim, claimLineId, line);
+    if (lineStatus === "denied") await openDenial(uow, actor3, claim, claimLineId, line);
   }
   const deductibleOnly = parsed.paidMinor === 0n && parsed.lines.length > 0 && parsed.lines.every((l) => l.adjustments.some((a) => a.group === "PR" && a.reason === "1"));
   const outcome = deductibleOnly ? "zero_applied_to_deductible" : parsed.paidMinor === 0n || parsed.statusCode === "4" ? "denied" : anyDenied && anyPaid ? "partially_paid" : "paid";
   const forwarded = ["19", "20", "21"].includes(parsed.statusCode);
   const refs = { ...claim.clearinghouseRefs ?? {}, ...forwarded ? { forwardedByPayer: true } : {} };
-  const spec = { model: "Claim", id: claim.id, to: "adjudicated", actor: actor2, eventType: "claim.adjudicated", metadata: { remittance: remittance.ref, outcome }, data: { adjudicationOutcome: outcome, adjudicatedAt: uow.now, payerClaimControlNumber: parsed.payerClaimControlNumber || claim.payerClaimControlNumber, clearinghouseRefs: refs } };
+  const spec = { model: "Claim", id: claim.id, to: "adjudicated", actor: actor3, eventType: "claim.adjudicated", metadata: { remittance: remittance.ref, outcome }, data: { adjudicationOutcome: outcome, adjudicatedAt: uow.now, payerClaimControlNumber: parsed.payerClaimControlNumber || claim.payerClaimControlNumber, clearinghouseRefs: refs } };
   if (claim.status === "adjudicated") {
     await tx.claim.update({ where: { id: claim.id }, data: { ...spec.data, version: { increment: 1 } } });
-    auditCreate(uow, actor2, "Claim", claim.id, "claim.readjudicated", { remittance: remittance.ref, outcome });
+    auditCreate(uow, actor3, "Claim", claim.id, "claim.readjudicated", { remittance: remittance.ref, outcome });
   } else {
     await transition(uow, { ...spec, from: ADJUSTABLE_FROM.filter((s) => s !== "adjudicated") });
   }
-  auditCreate(uow, actor2, "PaymentPosting", posting.id, "remittance.posted", { remittance: remittance.ref, claim: claim.ref, paidMinor: parsed.paidMinor.toString(), writeOffMinor: writeoff.toString(), patientRespMinor: parsed.patientRespMinor.toString() });
+  auditCreate(uow, actor3, "PaymentPosting", posting.id, "remittance.posted", { remittance: remittance.ref, claim: claim.ref, paidMinor: parsed.paidMinor.toString(), writeOffMinor: writeoff.toString(), patientRespMinor: parsed.patientRespMinor.toString() });
   uow.emit({ topic: "claim.adjudicated", aggregateType: "Claim", aggregateId: claim.id, payload: { outcome }, dedupeKey: `claim.adjudicated:${posting.id}` });
   return posting;
 }
-async function openDenial(uow, actor2, claim, claimLineId, line) {
+async function openDenial(uow, actor3, claim, claimLineId, line) {
   const { tx } = uow;
   const reason = line.adjustments.find((a) => a.reason !== "45" && a.group !== "PR")?.reason ?? line.adjustments[0]?.reason ?? "unknown";
   const open = await tx.denial.findFirst({ where: { claimLineId, carc: reason, status: { in: ["open", "working", "appealed"] } }, select: { id: true } });
   if (open) return;
   const mapped = await tx.denialReasonMap.findFirst({ where: { carc: reason } });
   const denial = await tx.denial.create({ data: { claimId: claim.id, claimLineId, carc: reason, rarc: line.remarks, preventableClass: mapped?.preventableClass ?? "other", status: "open", amountMinor: line.chargeMinor } });
-  auditCreate(uow, actor2, "Denial", denial.id, "denial.opened", { claim: claim.ref, carc: reason, class: denial.preventableClass });
+  auditCreate(uow, actor3, "Denial", denial.id, "denial.opened", { claim: claim.ref, carc: reason, class: denial.preventableClass });
 }
-async function matchRemittanceClaim(uow, actor2, remittanceClaimId, claimId) {
+async function matchRemittanceClaim(uow, actor3, remittanceClaimId, claimId) {
   const { tx } = uow;
   const rc = await tx.remittanceClaim.findUnique({ where: { id: remittanceClaimId }, include: { remittance: true, lines: true } });
   if (!rc) throw new DomainError(Codes.NOT_FOUND, "Remittance claim not found.");
@@ -10642,7 +10651,7 @@ async function matchRemittanceClaim(uow, actor2, remittanceClaimId, claimId) {
   }
   await tx.remittanceClaim.update({ where: { id: rc.id }, data: { claimId } });
   const parsed = { patientControlNumber: claim.patientControlNumber, payerClaimControlNumber: rc.payerClaimControlNumber, statusCode: rc.claimStatusCode, chargeMinor: rc.chargeMinor, paidMinor: rc.paidMinor, patientRespMinor: rc.patientRespMinor, adjustments: [], lines: lineRows.map((l) => l.line), crossoverCarrier: {} };
-  await postClaimPayment(uow, actor2, { remittance: rc.remittance, remittanceClaimId: rc.id, claim, parsed, lineRows });
+  await postClaimPayment(uow, actor3, { remittance: rc.remittance, remittanceClaimId: rc.id, claim, parsed, lineRows });
   const open = await tx.remittanceClaim.count({ where: { remittanceId: rc.remittanceId, claimId: null } });
   await tx.remittance.update({ where: { id: rc.remittanceId }, data: { status: "posted", postedCompleteness: open ? "partial" : "complete", exceptionNote: open ? rc.remittance?.exceptionNote ?? "" : "", version: { increment: 1 } } });
   return { claimId };
@@ -10657,11 +10666,11 @@ async function scopedClaim(tx, locationIds, claimId) {
   return claim;
 }
 async function createClaim(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const kind = oneOf(args.kind || "original", ["original", "predetermination", "secondary", "tertiary"], "kind");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.create", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.create", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     assertLocation(locationIds, args.locationId);
     const patientId = await resolvePatientRef(tx, args.patientId);
@@ -10728,16 +10737,16 @@ async function createClaim(_root, args, context) {
       await tx.claimLine.create({ data: { claimId: claim.id, chartEntryId: entry.id, codeId: target?.id ?? null, localCodeId: own?.id ?? null, tooth: entry.tooth || "", surfaces: entry.surfaces || "", dateOfService: dayOf(date), units: entry.units ?? 1, feeMinor: fee ?? 0n, lineControlNumber: `L${String(n).padStart(2, "0")}`, status: "pending" } });
     }
     await tx.claim.update({ where: { id: claim.id }, data: { totalChargeMinor: total } });
-    auditCreate(uow, actor2, "Claim", claim.id, "claim.created", { ref, kind, lines: n, totalChargeMinor: total.toString() });
+    auditCreate(uow, actor3, "Claim", claim.id, "claim.created", { ref, kind, lines: n, totalChargeMinor: total.toString() });
     return { id: claim.id, ref, lines: n, totalChargeMinor: total.toString() };
   });
   return { replay: result.replay, ...result.value };
 }
 async function scrubClaimCommand(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.scrub", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.scrub", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     const claim = await scopedClaim(tx, locationIds, args.claimId);
     if (!EDITABLE.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, "A claim that has been released cannot be scrubbed again. Make a correction instead.");
@@ -10748,33 +10757,33 @@ async function scrubClaimCommand(_root, args, context) {
     const blocked = hasBlocking(findings);
     const to = blocked ? "scrubbed" : "ready";
     const from = EDITABLE;
-    const moved = await transition(uow, { model: "Claim", id: claim.id, from, to, expectedVersion: args.expectedVersion, actor: actor2, eventType: blocked ? "claim.scrub_blocked" : "claim.scrub_clean", metadata: { findings: findings.length } });
+    const moved = await transition(uow, { model: "Claim", id: claim.id, from, to, expectedVersion: args.expectedVersion, actor: actor3, eventType: blocked ? "claim.scrub_blocked" : "claim.scrub_clean", metadata: { findings: findings.length } });
     return { id: claim.id, status: moved.status, findings };
   });
   return { replay: result.replay, ...result.value };
 }
 async function overrideScrub(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canOverrideScrub");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canOverrideScrub");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.override_scrub", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.override_scrub", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     const claim = await scopedClaim(tx, locationIds, args.claimId);
     if (claim.status !== "scrubbed") throw new DomainError(Codes.INVALID_TRANSITION, "Only a claim with scrub findings needs an override.");
     const last = await tx.claimScrubResult.findFirst({ where: { claimId: claim.id }, orderBy: { ranAt: "desc" } });
     const versionNumber = await tx.claimVersion.count({ where: { claimId: claim.id } }) + 1;
-    await tx.claimScrubResult.create({ data: { claimId: claim.id, versionNumber, rulesetVersion: last?.rulesetVersion ?? "", findings: [...last?.findings ?? [], { rule: "override", kind: "override", severity: "warning", message: `Sent anyway: ${reason}`, overriddenBy: actor2.kind === "user" ? actor2.userId : null }] } });
-    const moved = await transition(uow, { model: "Claim", id: claim.id, from: ["scrubbed"], to: "ready", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.scrub_overridden", reason });
+    await tx.claimScrubResult.create({ data: { claimId: claim.id, versionNumber, rulesetVersion: last?.rulesetVersion ?? "", findings: [...last?.findings ?? [], { rule: "override", kind: "override", severity: "warning", message: `Sent anyway: ${reason}`, overriddenBy: actor3.kind === "user" ? actor3.userId : null }] } });
+    const moved = await transition(uow, { model: "Claim", id: claim.id, from: ["scrubbed"], to: "ready", expectedVersion: args.expectedVersion, actor: actor3, eventType: "claim.scrub_overridden", reason });
     return { id: claim.id, status: moved.status };
   });
   return { replay: result.replay, ...result.value };
 }
 async function releaseClaim(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canSubmitClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canSubmitClaims");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.release", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.release", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     const claim = await scopedClaim(tx, locationIds, args.claimId);
     if (claim.status !== "ready") throw new DomainError(Codes.INVALID_TRANSITION, "Scrub the claim first. Only a ready claim can be released.");
@@ -10785,68 +10794,68 @@ async function releaseClaim(_root, args, context) {
     const payload = await buildPayload(tx, claim.id, number > 1 ? "replacement" : "original", priorRef || void 0);
     const hash = payloadHash(payload);
     const key = `claim:${claim.ref}:v${number}:${hash.slice(0, 16)}`;
-    const version = await tx.claimVersion.create({ data: { claimId: claim.id, number, frequency: payload.frequency, payload, payloadHash: hash, idempotencyKey: key, releasedById: actor2.kind === "user" ? actor2.userId : null, releasedAt: uow.now } });
-    await transition(uow, { model: "Claim", id: claim.id, from: ["ready"], to: "released", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.released", metadata: { version: number }, data: { currentVersionId: version.id } });
+    const version = await tx.claimVersion.create({ data: { claimId: claim.id, number, frequency: payload.frequency, payload, payloadHash: hash, idempotencyKey: key, releasedById: actor3.kind === "user" ? actor3.userId : null, releasedAt: uow.now } });
+    await transition(uow, { model: "Claim", id: claim.id, from: ["ready"], to: "released", expectedVersion: args.expectedVersion, actor: actor3, eventType: "claim.released", metadata: { version: number }, data: { currentVersionId: version.id } });
     uow.emit({ topic: "claim.submit", aggregateType: "Claim", aggregateId: claim.id, payload: { claimId: claim.id, versionId: version.id }, dedupeKey: `claim.submit:${version.id}` });
     return { id: claim.id, versionId: version.id, versionNumber: number };
   });
   return { replay: result.replay, ...result.value };
 }
 async function correctClaim(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.correct", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.correct", actor: actor3, idempotencyKey, params }, async (uow) => {
     const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
-    const moved = await transition(uow, { model: "Claim", id: claim.id, from: ["acknowledged", "pending_payer", "adjudicated", "rejected", "submission_unknown", "appeal_decided"], to: "correction_required", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.correction_started", reason });
+    const moved = await transition(uow, { model: "Claim", id: claim.id, from: ["acknowledged", "pending_payer", "adjudicated", "rejected", "submission_unknown", "appeal_decided"], to: "correction_required", expectedVersion: args.expectedVersion, actor: actor3, eventType: "claim.correction_started", reason });
     return { id: claim.id, status: moved.status };
   });
   return { replay: result.replay, ...result.value };
 }
 async function voidClaim(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canSubmitClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canSubmitClaims");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.void", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.void", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     const claim = await scopedClaim(tx, locationIds, args.claimId);
     if (["draft", "scrubbed", "ready", "correction_required"].includes(claim.status)) {
-      const moved2 = await transition(uow, { model: "Claim", id: claim.id, from: ["draft", "scrubbed", "ready", "correction_required"], to: "voided", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.voided", reason });
+      const moved2 = await transition(uow, { model: "Claim", id: claim.id, from: ["draft", "scrubbed", "ready", "correction_required"], to: "voided", expectedVersion: args.expectedVersion, actor: actor3, eventType: "claim.voided", reason });
       return { id: claim.id, status: moved2.status };
     }
     if (!SENT.includes(claim.status) && claim.status !== "rejected") throw new DomainError(Codes.INVALID_TRANSITION, "This claim cannot be voided from where it is.");
     const number = await tx.claimVersion.count({ where: { claimId: claim.id } }) + 1;
     const payload = await buildPayload(tx, claim.id, "void", claim.payerClaimControlNumber || void 0);
     const hash = payloadHash(payload);
-    const version = await tx.claimVersion.create({ data: { claimId: claim.id, number, frequency: "void", payload, payloadHash: hash, idempotencyKey: `claim:${claim.ref}:v${number}:${hash.slice(0, 16)}`, releasedById: actor2.kind === "user" ? actor2.userId : null, releasedAt: uow.now } });
-    const moved = await transition(uow, { model: "Claim", id: claim.id, from: [...SENT, "rejected"], to: "void_requested", expectedVersion: args.expectedVersion, actor: actor2, eventType: "claim.void_requested", reason, data: { currentVersionId: version.id } });
+    const version = await tx.claimVersion.create({ data: { claimId: claim.id, number, frequency: "void", payload, payloadHash: hash, idempotencyKey: `claim:${claim.ref}:v${number}:${hash.slice(0, 16)}`, releasedById: actor3.kind === "user" ? actor3.userId : null, releasedAt: uow.now } });
+    const moved = await transition(uow, { model: "Claim", id: claim.id, from: [...SENT, "rejected"], to: "void_requested", expectedVersion: args.expectedVersion, actor: actor3, eventType: "claim.void_requested", reason, data: { currentVersionId: version.id } });
     uow.emit({ topic: "claim.submit", aggregateType: "Claim", aggregateId: claim.id, payload: { claimId: claim.id, versionId: version.id }, dedupeKey: `claim.submit:${version.id}` });
     return { id: claim.id, status: moved.status };
   });
   return { replay: result.replay, ...result.value };
 }
 async function addClaimAttachment(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const kind = oneOf(args.kind, ATTACHMENT_KINDS, "kind");
   const route = oneOf(args.route, ATTACHMENT_ROUTES, "route");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.add_attachment", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.add_attachment", actor: actor3, idempotencyKey, params }, async (uow) => {
     const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
     if (!EDITABLE.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, "Attachments are added before the claim is released.");
     const row = await uow.tx.claimAttachment.create({ data: { claimId: claim.id, kind, route, description: String(args.description ?? "").slice(0, 300), status: route === "manual_reference" ? "manual_reference" : "draft" } });
-    auditCreate(uow, actor2, "ClaimAttachment", row.id, "claim.attachment_added", { claim: claim.ref, kind, route });
+    auditCreate(uow, actor3, "ClaimAttachment", row.id, "claim.attachment_added", { claim: claim.ref, kind, route });
     return { id: row.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function saveClaimNarrative(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.save_narrative", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.save_narrative", actor: actor3, idempotencyKey, params }, async (uow) => {
     const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
     if (!EDITABLE.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, "The narrative is edited before the claim is released.");
     await uow.tx.claim.update({ where: { id: claim.id }, data: { narrative: String(args.narrative ?? "").slice(0, 2e3), version: { increment: 1 } } });
@@ -10855,10 +10864,10 @@ async function saveClaimNarrative(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 async function requestClaimStatus(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims", "canSubmitClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims", "canSubmitClaims");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "claim.request_status", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "claim.request_status", actor: actor3, idempotencyKey, params }, async (uow) => {
     const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
     if (!SENT.includes(claim.status)) throw new DomainError(Codes.INVALID_TRANSITION, "This claim has not been sent.");
     const inquiry = await uow.tx.claimStatusInquiry.create({ data: { claimId: claim.id, status: "queued" } });
@@ -10868,10 +10877,10 @@ async function requestClaimStatus(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 async function enterManualEob(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canPostRemittances");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canPostRemittances");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "remittance.manual_eob", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "remittance.manual_eob", actor: actor3, idempotencyKey, params }, async (uow) => {
     const method = oneOf(args.method, ["eft", "check", "virtual_card", "none"], "method");
     const trace = String(args.traceNumber ?? "").trim();
     if (!trace) throw new DomainError(Codes.INVALID_INPUT, "Enter the check or payment number.", { field: "traceNumber" });
@@ -10895,84 +10904,84 @@ async function enterManualEob(_root, args, context) {
       }))
     }));
     const era = { traceNumber: trace, paymentMethod: method, paymentDate: args.paymentDate || null, totalPaidMinor: claims.reduce((s, c) => s + c.paidMinor, 0n), payerName: "", claims, providerAdjustments: [] };
-    return applyParsedEra(uow, actor2, era, { source: "manual_eob", adapterKey: "manual", payerId: args.payerId });
+    return applyParsedEra(uow, actor3, era, { source: "manual_eob", adapterKey: "manual", payerId: args.payerId });
   });
   return { replay: result.replay, ...result.value };
 }
 async function matchRemittance(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canPostRemittances");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canPostRemittances");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "remittance.match", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "remittance.match", actor: actor3, idempotencyKey, params }, async (uow) => {
     const claim = await uow.tx.claim.findUnique({ where: { id: args.claimId }, select: { locationId: true } });
     if (!claim) throw new DomainError(Codes.NOT_FOUND, "Claim not found.");
     assertLocation(locationIds, claim.locationId);
-    return matchRemittanceClaim(uow, actor2, args.remittanceClaimId, args.claimId);
+    return matchRemittanceClaim(uow, actor3, args.remittanceClaimId, args.claimId);
   });
   return { replay: result.replay, ...result.value };
 }
 async function startDenialWork(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "denial.start", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "denial.start", actor: actor3, idempotencyKey, params }, async (uow) => {
     const denial = await lockRow(uow.tx, "Denial", args.denialId);
     const claim = await uow.tx.claim.findUniqueOrThrow({ where: { id: denial.claimId }, select: { locationId: true } });
     assertLocation(locationIds, claim.locationId);
-    const moved = await transition(uow, { model: "Denial", id: denial.id, from: ["open"], to: "working", expectedVersion: args.expectedVersion, actor: actor2, eventType: "denial.work_started", data: { assignedToId: actor2.kind === "user" ? actor2.userId : null } });
+    const moved = await transition(uow, { model: "Denial", id: denial.id, from: ["open"], to: "working", expectedVersion: args.expectedVersion, actor: actor3, eventType: "denial.work_started", data: { assignedToId: actor3.kind === "user" ? actor3.userId : null } });
     return { id: denial.id, status: moved.status };
   });
   return { replay: result.replay, ...result.value };
 }
 async function resolveDenial(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const resolution = oneOf(args.resolution, ["corrected", "written_off", "billed_to_patient", "resolved"], "resolution");
   const note = requireReason(args.note, "note");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "denial.resolve", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "denial.resolve", actor: actor3, idempotencyKey, params }, async (uow) => {
     const denial = await lockRow(uow.tx, "Denial", args.denialId);
     const claim = await uow.tx.claim.findUniqueOrThrow({ where: { id: denial.claimId }, select: { locationId: true } });
     assertLocation(locationIds, claim.locationId);
-    const moved = await transition(uow, { model: "Denial", id: denial.id, from: ["open", "working", "appealed"], to: resolution, expectedVersion: args.expectedVersion, actor: actor2, eventType: "denial.resolved", reason: note, data: { resolutionNote: note } });
+    const moved = await transition(uow, { model: "Denial", id: denial.id, from: ["open", "working", "appealed"], to: resolution, expectedVersion: args.expectedVersion, actor: actor3, eventType: "denial.resolved", reason: note, data: { resolutionNote: note } });
     return { id: denial.id, status: moved.status };
   });
   return { replay: result.replay, ...result.value };
 }
 async function fileAppeal(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const via = oneOf(args.via, APPEAL_VIA, "via");
   const letter = requireReason(args.letter, "letter");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "denial.appeal", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "denial.appeal", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     const denial = await lockRow(tx, "Denial", args.denialId);
     const claim = await lockRow(tx, "Claim", denial.claimId);
     assertLocation(locationIds, claim.locationId);
     const level = await tx.appeal.count({ where: { denialId: denial.id } }) + 1;
     const appeal = await tx.appeal.create({ data: { denialId: denial.id, level, letter, submittedVia: via, submittedAt: uow.now, outcome: "pending" } });
-    await transition(uow, { model: "Denial", id: denial.id, from: ["open", "working"], to: "appealed", expectedVersion: args.expectedVersion, actor: actor2, eventType: "denial.appealed" });
-    await transition(uow, { model: "Claim", id: claim.id, from: ["adjudicated", "appeal_decided"], to: "appealed", actor: actor2, eventType: "claim.appealed" });
+    await transition(uow, { model: "Denial", id: denial.id, from: ["open", "working"], to: "appealed", expectedVersion: args.expectedVersion, actor: actor3, eventType: "denial.appealed" });
+    await transition(uow, { model: "Claim", id: claim.id, from: ["adjudicated", "appeal_decided"], to: "appealed", actor: actor3, eventType: "claim.appealed" });
     return { id: appeal.id, level };
   });
   return { replay: result.replay, ...result.value };
 }
 async function recordAppealOutcome(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canManageClaims");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canManageClaims");
   const outcome = oneOf(args.outcome, ["overturned", "upheld"], "outcome");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "denial.appeal_outcome", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "denial.appeal_outcome", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     const appeal = await lockRow(tx, "Appeal", args.appealId);
     const denial = await tx.denial.findUniqueOrThrow({ where: { id: appeal.denialId } });
     const claim = await lockRow(tx, "Claim", denial.claimId);
     assertLocation(locationIds, claim.locationId);
-    await transition(uow, { model: "Appeal", id: appeal.id, from: ["pending"], to: outcome, expectedVersion: args.expectedVersion, actor: actor2, eventType: "appeal.decided", statusField: "outcome", data: { decidedAt: uow.now } });
-    await transition(uow, { model: "Claim", id: claim.id, from: ["appealed"], to: "appeal_decided", actor: actor2, eventType: "claim.appeal_decided", metadata: { outcome } });
-    if (outcome === "upheld") await transition(uow, { model: "Denial", id: denial.id, from: ["appealed"], to: "working", actor: actor2, eventType: "denial.appeal_upheld" });
-    else await transition(uow, { model: "Denial", id: denial.id, from: ["appealed"], to: "resolved", actor: actor2, eventType: "denial.appeal_overturned", data: { resolutionNote: "Overturned on appeal. Await the new remittance." } });
+    await transition(uow, { model: "Appeal", id: appeal.id, from: ["pending"], to: outcome, expectedVersion: args.expectedVersion, actor: actor3, eventType: "appeal.decided", statusField: "outcome", data: { decidedAt: uow.now } });
+    await transition(uow, { model: "Claim", id: claim.id, from: ["appealed"], to: "appeal_decided", actor: actor3, eventType: "claim.appeal_decided", metadata: { outcome } });
+    if (outcome === "upheld") await transition(uow, { model: "Denial", id: denial.id, from: ["appealed"], to: "working", actor: actor3, eventType: "denial.appeal_upheld" });
+    else await transition(uow, { model: "Denial", id: denial.id, from: ["appealed"], to: "resolved", actor: actor3, eventType: "denial.appeal_overturned", data: { resolutionNote: "Overturned on appeal. Await the new remittance." } });
     return { id: appeal.id, outcome };
   });
   return { replay: result.replay, ...result.value };
@@ -10984,7 +10993,7 @@ async function accountTotal(tx, accountId) {
   const sum2 = await tx.ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } });
   return sum2._sum.amountMinor ?? 0n;
 }
-async function postAdjustmentRow(uow, actor2, request, type, approverId) {
+async function postAdjustmentRow(uow, actor3, request, type, approverId) {
   const { tx } = uow;
   const total = await accountTotal(tx, request.accountId);
   const signed = type.direction === "credit" ? -request.amountMinor : request.amountMinor;
@@ -11000,19 +11009,19 @@ async function postAdjustmentRow(uow, actor2, request, type, approverId) {
     locationId: request.locationId,
     adjustmentId: request.id,
     memo: `${type.name}`,
-    postedById: actor2.kind === "user" ? actor2.userId : approverId
+    postedById: actor3.kind === "user" ? actor3.userId : approverId
   }, uow.now);
-  auditCreate(uow, actor2, "LedgerEntry", entry.id, "ledger.adjustment_posted", { adjustmentId: request.id, type: type.code, amountMinor: signed.toString() }, { reason: request.reason });
+  auditCreate(uow, actor3, "LedgerEntry", entry.id, "ledger.adjustment_posted", { adjustmentId: request.id, type: type.code, amountMinor: signed.toString() }, { reason: request.reason });
   uow.emit({ topic: "ledger.adjustment_posted", aggregateType: "LedgerEntry", aggregateId: entry.id, payload: { adjustmentId: request.id }, dedupeKey: `ledger.adjustment_posted:${entry.id}` });
   return entry;
 }
 async function requestAdjustment(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canAdjust");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canAdjust");
   const reason = requireReason(args.reason);
   const amountMinor = parseMoney(args.amount);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "ledger.request_adjustment", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "ledger.request_adjustment", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     assertLocation(locationIds, args.locationId);
     const patientId = await resolvePatientRef(tx, args.patientId);
@@ -11027,15 +11036,15 @@ async function requestAdjustment(_root, args, context) {
     if (type.direction === "credit" && await accountTotal(tx, account.id) < amountMinor) throw new DomainError(Codes.GUARD_FAILED, "That credit is more than the balance owed. Reduce the amount.", { field: "amount" });
     const needsSecondPerson = type.requiresApproval || amountMinor >= type.approvalThresholdMinor;
     const row = await tx.adjustmentRequest.create({
-      data: { accountId: account.id, patientId, locationId: args.locationId, typeId: type.id, amountMinor, reason, relatedEntryId: args.relatedEntryId ?? null, status: "requested", requestedById: actor2.kind === "user" ? actor2.userId : null }
+      data: { accountId: account.id, patientId, locationId: args.locationId, typeId: type.id, amountMinor, reason, relatedEntryId: args.relatedEntryId ?? null, status: "requested", requestedById: actor3.kind === "user" ? actor3.userId : null }
     });
-    auditCreate(uow, actor2, "AdjustmentRequest", row.id, "ledger.adjustment_requested", { type: type.code, amountMinor: amountMinor.toString() }, { reason });
+    auditCreate(uow, actor3, "AdjustmentRequest", row.id, "ledger.adjustment_requested", { type: type.code, amountMinor: amountMinor.toString() }, { reason });
     if (!needsSecondPerson) {
-      const entry = await postAdjustmentRow(uow, actor2, row, type, null);
+      const entry = await postAdjustmentRow(uow, actor3, row, type, null);
       await tx.adjustmentRequest.update({ where: { id: row.id }, data: { status: "posted", postedEntryId: entry.id, version: { increment: 1 } } });
       return { id: row.id, status: "posted", ledgerEntryId: entry.id };
     }
-    const approval = await requestApproval(uow, actor2, {
+    const approval = await requestApproval(uow, actor3, {
       action: "ledger.adjustment",
       targetList: "AdjustmentRequest",
       targetId: row.id,
@@ -11048,22 +11057,22 @@ async function requestAdjustment(_root, args, context) {
   });
   return { replay: result.replay, ...result.value };
 }
-registerApplier("ledger.adjustment", async (uow, actor2, request) => {
+registerApplier("ledger.adjustment", async (uow, actor3, request) => {
   const row = await lockRow(uow.tx, "AdjustmentRequest", request.targetId);
   const type = await uow.tx.adjustmentType.findUniqueOrThrow({ where: { id: row.typeId } });
   if (String(row.amountMinor) !== String(request.payload.amountMinor) || row.typeId !== request.payload.typeId) throw new DomainError(Codes.APPROVAL_MISMATCH, "The adjustment changed after approval was requested.");
   const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
-  await transition(uow, { model: "AdjustmentRequest", id: row.id, from: ["requested"], to: "approved", actor: actor2, eventType: "ledger.adjustment_approved", approverId: decision?.decidedById ?? null });
-  const entry = await postAdjustmentRow(uow, actor2, row, type, decision?.decidedById ?? null);
-  await transition(uow, { model: "AdjustmentRequest", id: row.id, from: ["approved"], to: "posted", actor: actor2, eventType: "ledger.adjustment_applied", approverId: decision?.decidedById ?? null, data: { postedEntryId: entry.id } });
+  await transition(uow, { model: "AdjustmentRequest", id: row.id, from: ["requested"], to: "approved", actor: actor3, eventType: "ledger.adjustment_approved", approverId: decision?.decidedById ?? null });
+  const entry = await postAdjustmentRow(uow, actor3, row, type, decision?.decidedById ?? null);
+  await transition(uow, { model: "AdjustmentRequest", id: row.id, from: ["approved"], to: "posted", actor: actor3, eventType: "ledger.adjustment_applied", approverId: decision?.decidedById ?? null, data: { postedEntryId: entry.id } });
   return { adjustmentId: row.id, ledgerEntryId: entry.id };
 }, { applyOnApprove: true });
 async function reverseLedgerEntry(_root, args, context) {
-  const { actor: actor2, locationIds } = staff(context);
-  requirePermission(actor2, "canAdjust");
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canAdjust");
   const reason = requireReason(args.reason);
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "ledger.reverse_entry", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "ledger.reverse_entry", actor: actor3, idempotencyKey, params }, async (uow) => {
     const { tx } = uow;
     const original = await tx.ledgerEntry.findUnique({ where: { id: args.entryId } });
     if (!original) throw new DomainError(Codes.NOT_FOUND, "Ledger entry not found.");
@@ -11087,24 +11096,715 @@ async function reverseLedgerEntry(_root, args, context) {
       adjustmentId: original.adjustmentId,
       reversesId: original.id,
       memo: `Reversal: ${reason.slice(0, 120)}`,
-      postedById: actor2.kind === "user" ? actor2.userId : null
+      postedById: actor3.kind === "user" ? actor3.userId : null
     }, uow.now);
-    auditCreate(uow, actor2, "LedgerEntry", reversal.id, "ledger.entry_reversed", { reverses: original.id, amountMinor: (-original.amountMinor).toString() }, { reason });
+    auditCreate(uow, actor3, "LedgerEntry", reversal.id, "ledger.entry_reversed", { reverses: original.id, amountMinor: (-original.amountMinor).toString() }, { reason });
     return { id: reversal.id, reverses: original.id };
   });
   return { replay: result.replay, ...result.value };
 }
 async function rebuildAccountBalance(_root, args, context) {
-  const { actor: actor2 } = staff(context);
-  requirePermission(actor2, "canAdjust", "canCloseDay");
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canAdjust", "canCloseDay");
   const { idempotencyKey, ...params } = args;
-  const result = await command(context.prisma, { name: "ledger.rebuild_balance", actor: actor2, idempotencyKey, params }, async (uow) => {
+  const result = await command(context.prisma, { name: "ledger.rebuild_balance", actor: actor3, idempotencyKey, params }, async (uow) => {
     const before = await uow.tx.guarantorAccount.findUnique({ where: { id: args.accountId }, select: { balanceCache: true } });
     if (!before) throw new DomainError(Codes.NOT_FOUND, "Account not found.");
     const cache = await rebuildBalance(uow.tx, args.accountId, uow.now);
     const drifted = JSON.stringify(before.balanceCache?.totalMinor ?? null) !== JSON.stringify(cache.totalMinor);
-    if (drifted) auditCreate(uow, actor2, "GuarantorAccount", args.accountId, "ledger.balance_drift_repaired", { totalMinor: cache.totalMinor });
+    if (drifted) auditCreate(uow, actor3, "GuarantorAccount", args.accountId, "ledger.balance_drift_repaired", { totalMinor: cache.totalMinor });
     return { accountId: args.accountId, totalMinor: cache.totalMinor, drifted };
+  });
+  return { replay: result.replay, ...result.value };
+}
+
+// features/keystone/lib/payments.ts
+var import_node_crypto15 = require("node:crypto");
+var dayOf2 = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
+async function locationToday2(tx, locationId, now) {
+  const location = await tx.location.findUnique({ where: { id: locationId }, select: { timeZone: true } });
+  return localDate(location?.timeZone ?? "America/New_York", now);
+}
+var sha2562 = (text19) => (0, import_node_crypto15.createHash)("sha256").update(text19).digest("hex");
+function chargesOutstanding(entries) {
+  const sorted = [...entries].sort((a, b) => (a.businessDate?.getTime() ?? 0) - (b.businessDate?.getTime() ?? 0) || (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0));
+  let credit = sorted.filter((e) => e.amountMinor < 0n).reduce((sum2, e) => sum2 - e.amountMinor, 0n);
+  const out = [];
+  for (const e of sorted.filter((x) => x.amountMinor > 0n)) {
+    const applied = credit < e.amountMinor ? credit : e.amountMinor;
+    credit -= applied;
+    if (e.kind === "charge" && e.amountMinor - applied > 0n) out.push({ id: e.id, left: e.amountMinor - applied, amountMinor: e.amountMinor });
+  }
+  return out;
+}
+async function allocatePayment(tx, input) {
+  const entries = await tx.ledgerEntry.findMany({ where: { accountId: input.accountId }, select: { id: true, kind: true, amountMinor: true, businessDate: true, createdAt: true } });
+  const outstanding = chargesOutstanding(entries);
+  const already = await tx.paymentAllocation.groupBy({ by: ["ledgerEntryId"], where: { ledgerEntryId: { in: outstanding.map((o) => o.id) } }, _sum: { amountMinor: true } });
+  const allocated = new Map(already.map((a) => [a.ledgerEntryId, a._sum.amountMinor ?? 0n]));
+  let remaining = input.amountMinor;
+  const made = [];
+  const plan = input.explicit?.length ? input.explicit : outstanding.map((o) => ({ entryId: o.id, amountMinor: o.left }));
+  for (const want of plan) {
+    if (remaining <= 0n) break;
+    const row = outstanding.find((o) => o.id === want.entryId);
+    if (!row) throw new DomainError(Codes.INVALID_INPUT, "That charge is not owed on this account.", { field: "allocations" });
+    const room = row.amountMinor - (allocated.get(row.id) ?? 0n);
+    let take = want.amountMinor < row.left ? want.amountMinor : row.left;
+    if (take > room) take = room;
+    if (take > remaining) take = remaining;
+    if (take <= 0n) continue;
+    await tx.paymentAllocation.create({ data: { paymentId: input.paymentId, ledgerEntryId: row.id, amountMinor: take } });
+    remaining -= take;
+    made.push({ entryId: row.id, amountMinor: take });
+  }
+  return { allocated: input.amountMinor - remaining, unallocated: remaining, made };
+}
+async function settlePayment(uow, actor3, paymentId, extra = {}) {
+  const { tx } = uow;
+  const rows = await tx.$queryRaw`SELECT id, ref, account AS "accountId", patient AS "patientId", location AS "locationId", "amountMinor", "currencyCode", tender, status, statement AS "statementId", "receivedBy" AS "receivedById", "checkNumber", version FROM "Payment" WHERE id = ${paymentId} FOR UPDATE`;
+  const pay = rows[0];
+  if (!pay) throw new DomainError(Codes.NOT_FOUND, "Payment not found.");
+  if (!["initiated", "requires_action", "unknown", "failed"].includes(pay.status)) return { settled: false, paymentId, status: pay.status };
+  await advisoryLock(tx, `ledger:${pay.accountId}`);
+  const date = await locationToday2(tx, pay.locationId, uow.now);
+  const entry = await postEntry(tx, {
+    accountId: pay.accountId,
+    patientId: pay.patientId,
+    kind: "patient_payment",
+    amountMinor: -pay.amountMinor,
+    currencyCode: pay.currencyCode || "USD",
+    businessDate: dayOf2(date),
+    locationId: pay.locationId,
+    paymentId: pay.id,
+    postedById: pay.receivedById,
+    memo: `Payment received (${pay.ref})${pay.tender === "check" && pay.checkNumber ? `, check ${pay.checkNumber}` : ""}`
+  }, uow.now);
+  const split = await allocatePayment(tx, { paymentId: pay.id, accountId: pay.accountId, amountMinor: pay.amountMinor, explicit: extra.explicit });
+  await tx.payment.update({ where: { id: pay.id }, data: { status: "succeeded", ledgerEntryId: entry.id, businessDate: dayOf2(date), ...extra.providerIntentId ? { providerIntentId: extra.providerIntentId } : {}, failureNote: "", version: { increment: 1 } } });
+  auditCreate(uow, actor3, "Payment", pay.id, "payment.succeeded", { amountMinor: pay.amountMinor.toString(), tender: pay.tender, allocated: split.allocated.toString(), ledgerEntryId: entry.id });
+  uow.emit({ topic: "notify.staff", aggregateType: "Payment", aggregateId: pay.id, payload: { kind: "payment.received", locationId: pay.locationId }, dedupeKey: `notify.staff:payment.received:${pay.id}` });
+  if (pay.statementId) await refreshStatementStatus(tx, pay.statementId);
+  const installment = extra.installmentId ?? (await tx.paymentPlanInstallment.findFirst({ where: { paymentId: pay.id }, select: { id: true } }))?.id ?? null;
+  if (installment) await markInstallmentPaid(uow, actor3, installment, pay.id);
+  return { settled: true, paymentId: pay.id, ledgerEntryId: entry.id, allocated: split.allocated, unallocated: split.unallocated };
+}
+async function refreshStatementStatus(tx, statementId) {
+  const statement = await tx.statement.findUnique({ where: { id: statementId }, select: { id: true, amountDueMinor: true, status: true } });
+  if (!statement || ["suppressed", "collections_hold"].includes(statement.status)) return;
+  const paid = await tx.payment.aggregate({ where: { statementId, status: { in: ["succeeded", "partially_refunded", "refunded"] } }, _sum: { amountMinor: true, refundedMinor: true } });
+  const net = (paid._sum.amountMinor ?? 0n) - (paid._sum.refundedMinor ?? 0n);
+  const next = net >= statement.amountDueMinor ? "paid" : net > 0n ? "partially_paid" : statement.status;
+  if (next !== statement.status) await tx.statement.update({ where: { id: statementId }, data: { status: next, version: { increment: 1 } } });
+}
+async function markInstallmentPaid(uow, actor3, installmentId, paymentId) {
+  const { tx } = uow;
+  const row = await tx.paymentPlanInstallment.findUnique({ where: { id: installmentId } });
+  if (!row || row.status === "paid") return;
+  await tx.paymentPlanInstallment.update({ where: { id: installmentId }, data: { status: "paid", paymentId, version: { increment: 1 } } });
+  auditCreate(uow, actor3, "PaymentPlanInstallment", installmentId, "plan.installment_paid", { paymentId });
+  const planId = row.planId;
+  const open = await tx.paymentPlanInstallment.count({ where: { planId, status: { not: "paid" } } });
+  const plan = await tx.paymentPlan.findUnique({ where: { id: planId }, select: { status: true } });
+  if (plan && open === 0 && ["active", "delinquent"].includes(plan.status)) {
+    await tx.paymentPlan.update({ where: { id: planId }, data: { status: "completed", version: { increment: 1 } } });
+    auditCreate(uow, actor3, "PaymentPlan", planId, "plan.completed", {});
+  } else if (plan?.status === "delinquent") {
+    const missed = await tx.paymentPlanInstallment.count({ where: { planId, status: "missed" } });
+    if (missed < 2) await tx.paymentPlan.update({ where: { id: planId }, data: { status: "active", version: { increment: 1 } } });
+  }
+}
+async function completeRefund(uow, actor3, refundId, extra = {}) {
+  const { tx } = uow;
+  const rows = await tx.$queryRaw`SELECT id, ref, account AS "accountId", location AS "locationId", payment AS "paymentId", "amountMinor", status, "approvedBy" AS "approvedById" FROM "Refund" WHERE id = ${refundId} FOR UPDATE`;
+  const refund = rows[0];
+  if (!refund) throw new DomainError(Codes.NOT_FOUND, "Refund not found.");
+  if (refund.status === "completed") return { completed: false, refundId };
+  if (!["executing", "unknown", "approved"].includes(refund.status)) throw new DomainError(Codes.INVALID_TRANSITION, `A refund that is ${refund.status} cannot be completed.`);
+  await advisoryLock(tx, `ledger:${refund.accountId}`);
+  const patient = await tx.paymentPlan.findFirst({ where: { accountId: refund.accountId }, select: { patientId: true } });
+  const original = refund.paymentId ? await tx.payment.findUnique({ where: { id: refund.paymentId }, select: { patientId: true, refundedMinor: true, amountMinor: true } }) : null;
+  const date = await locationToday2(tx, refund.locationId, uow.now);
+  const entry = await postEntry(tx, {
+    accountId: refund.accountId,
+    patientId: original?.patientId ?? patient?.patientId ?? null,
+    kind: "refund",
+    amountMinor: refund.amountMinor,
+    currencyCode: "USD",
+    businessDate: dayOf2(date),
+    locationId: refund.locationId,
+    refundId: refund.id,
+    paymentId: refund.paymentId,
+    postedById: refund.approvedById,
+    memo: `Refund (${refund.ref})`
+  }, uow.now);
+  if (refund.paymentId && original) {
+    const refunded = original.refundedMinor + refund.amountMinor;
+    await tx.payment.update({ where: { id: refund.paymentId }, data: { refundedMinor: refunded, status: refunded === original.amountMinor ? "refunded" : "partially_refunded", version: { increment: 1 } } });
+  }
+  await tx.refund.update({ where: { id: refund.id }, data: { status: "completed", ledgerEntryId: entry.id, ...extra.adapterRef ? { adapterRef: extra.adapterRef } : {}, version: { increment: 1 } } });
+  await tx.creditBalance.updateMany({ where: { accountId: refund.accountId, status: "refund_requested" }, data: { status: "refunded", version: { increment: 1 } } });
+  auditCreate(uow, actor3, "Refund", refund.id, "refund.completed", { amountMinor: refund.amountMinor.toString(), ledgerEntryId: entry.id });
+  const statementId = refund.paymentId ? (await tx.payment.findUnique({ where: { id: refund.paymentId }, select: { statementId: true } }))?.statementId : null;
+  if (statementId) await refreshStatementStatus(tx, statementId);
+  return { completed: true, refundId, ledgerEntryId: entry.id };
+}
+
+// features/integrations/payments/stripe.ts
+var import_node_crypto16 = require("node:crypto");
+var paymentsConfigured = () => Boolean(process.env.STRIPE_SECRET_KEY);
+var TEST_METHODS = { test_visa: "pm_card_visa", test_mastercard: "pm_card_mastercard", test_declined: "pm_card_chargeDeclined" };
+
+// features/keystone/lib/payLink.ts
+var PAY_LINK_DAYS = 60;
+var actor2 = systemActor("pay-link");
+
+// features/keystone/lib/statementPdf.ts
+var import_node_crypto17 = require("node:crypto");
+
+// features/keystone/lib/pdfWriter.ts
+var PAGE_W = 612;
+var PAGE_H = 792;
+var MARGIN = 54;
+var W = [278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556, 1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556, 333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556, 556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584];
+var WB = [278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278, 556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 333, 333, 584, 584, 584, 611, 975, 722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 333, 278, 333, 584, 556, 333, 556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, 611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, 389, 280, 389, 584];
+function ansi(text19) {
+  const map = { "\u20AC": 128, "\u201A": 130, "\u201E": 132, "\u2026": 133, "\u2018": 145, "\u2019": 146, "\u201C": 147, "\u201D": 148, "\u2022": 149, "\u2013": 150, "\u2014": 151, "\u2122": 153, "\u2212": 45, "\xB7": 183, "\xA7": 167 };
+  let out = "";
+  for (const ch of text19) {
+    const c = ch.codePointAt(0);
+    const b = map[ch] ?? (c >= 32 && c <= 255 && !(c >= 127 && c < 160) ? c : 63);
+    out += String.fromCharCode(b);
+  }
+  return out;
+}
+var esc = (s) => s.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+function textWidth(text19, size, font = "regular") {
+  if (font === "mono") return ansi(text19).length * 600 * size / 1e3;
+  const table = font === "bold" ? WB : W;
+  let w = 0;
+  for (const ch of ansi(text19)) {
+    const c = ch.charCodeAt(0);
+    w += c >= 32 && c <= 126 ? table[c - 32] : 556;
+  }
+  return w * size / 1e3;
+}
+function wrap(text19, width, size, font = "regular") {
+  const lines = [];
+  for (const para of text19.split("\n")) {
+    let line = "";
+    for (const word of para.split(/\s+/).filter(Boolean)) {
+      const next = line ? `${line} ${word}` : word;
+      if (textWidth(next, size, font) <= width || !line) line = next;
+      else {
+        lines.push(line);
+        line = word;
+      }
+    }
+    lines.push(line);
+  }
+  return lines;
+}
+var PdfDoc = class {
+  constructor() {
+    this.pages = [[]];
+    /** Distance from the top of the current page, in points. */
+    this.y = MARGIN;
+    this.width = PAGE_W - MARGIN * 2;
+  }
+  get ops() {
+    return this.pages[this.pages.length - 1];
+  }
+  newPage() {
+    this.pages.push([]);
+    this.y = MARGIN;
+  }
+  /** Start a new page if fewer than `points` remain. */
+  need(points) {
+    if (this.y + points > PAGE_H - MARGIN - 18) this.newPage();
+  }
+  text(s, x, size = 10, font = "regular", align = "left", gray = 0) {
+    const f = font === "bold" ? "F2" : font === "mono" ? "F3" : "F1";
+    const left = align === "right" ? x - textWidth(s, size, font) : x;
+    this.ops.push(`${gray} g BT /${f} ${size} Tf ${left.toFixed(2)} ${(PAGE_H - this.y - size).toFixed(2)} Td (${esc(ansi(s))}) Tj ET 0 g`);
+  }
+  /** A wrapped paragraph from the current y; advances y. */
+  paragraph(s, size = 9, font = "regular", gray = 0, x = MARGIN, width = this.width) {
+    for (const line of wrap(s, width, size, font)) {
+      this.need(size * 1.35);
+      this.text(line, x, size, font, "left", gray);
+      this.y += size * 1.35;
+    }
+  }
+  rule(gray = 0.8, weight = 0.5) {
+    const y = (PAGE_H - this.y).toFixed(2);
+    this.ops.push(`${gray} G ${weight} w ${MARGIN} ${y} m ${PAGE_W - MARGIN} ${y} l S 0 G`);
+  }
+  toBytes(meta2 = { title: "Document" }) {
+    const objs = [];
+    const add = (body) => {
+      objs.push(body);
+      return objs.length;
+    };
+    const catalog = add("");
+    const pagesId = add("");
+    const fonts = [add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"), add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"), add("<< /Type /Font /Subtype /Type1 /BaseFont /Courier /Encoding /WinAnsiEncoding >>")];
+    const kids = [];
+    this.pages.forEach((ops, i) => {
+      const footer = this.footer ? this.footer(i + 1, this.pages.length) : "";
+      const all = footer ? [...ops, `0.45 g BT /F1 8 Tf ${MARGIN} ${MARGIN - 20} Td (${esc(ansi(footer))}) Tj ET 0 g`] : ops;
+      const stream = all.join("\n");
+      const content = add(`<< /Length ${latin1Length(stream)} >>
+stream
+${stream}
+endstream`);
+      kids.push(add(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] /Resources << /Font << /F1 ${fonts[0]} 0 R /F2 ${fonts[1]} 0 R /F3 ${fonts[2]} 0 R >> >> /Contents ${content} 0 R >>`));
+    });
+    objs[catalog - 1] = `<< /Type /Catalog /Pages ${pagesId} 0 R >>`;
+    objs[pagesId - 1] = `<< /Type /Pages /Kids [${kids.map((k) => `${k} 0 R`).join(" ")}] /Count ${kids.length} >>`;
+    const info = add(`<< /Title (${esc(ansi(meta2.title))}) /Producer (Openfront Dental)${meta2.author ? ` /Author (${esc(ansi(meta2.author))})` : ""} >>`);
+    let out = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
+    const offsets = [];
+    objs.forEach((body, i) => {
+      offsets.push(latin1Length(out));
+      out += `${i + 1} 0 obj
+${body}
+endobj
+`;
+    });
+    const xref = latin1Length(out);
+    out += `xref
+0 ${objs.length + 1}
+0000000000 65535 f 
+${offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n 
+`).join("")}`;
+    out += `trailer
+<< /Size ${objs.length + 1} /Root ${catalog} 0 R /Info ${info} 0 R >>
+startxref
+${xref}
+%%EOF
+`;
+    const bytes = new Uint8Array(out.length);
+    for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i) & 255;
+    return bytes;
+  }
+};
+var latin1Length = (s) => s.length;
+
+// features/keystone/lib/statementPdf.ts
+var money2 = (minor2) => formatMinor(BigInt(minor2 || "0"));
+var day4 = (iso) => {
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return `${m}/${d}/${y}`;
+};
+function renderStatementPdf(s) {
+  const doc = new PdfDoc();
+  doc.footer = (page, pages) => `Statement ${s.ref}  \xB7  Page ${page} of ${pages}`;
+  const right = MARGIN + doc.width;
+  doc.text("Statement", MARGIN, 20, "bold");
+  doc.y += 28;
+  doc.text(`Statement ${s.ref}`, MARGIN, 10);
+  doc.text(`Statement date ${day4(s.cycleDate)}`, right, 10, "regular", "right");
+  doc.y += 14;
+  doc.text(`Pay online with code ${s.payLinkCode}`, MARGIN, 10);
+  doc.text(`Due ${day4(s.dueDate)}`, right, 10, "regular", "right");
+  doc.y += 20;
+  doc.rule(0.6, 0.8);
+  doc.y += 12;
+  doc.text("Amount due", MARGIN, 11, "bold");
+  doc.text(money2(s.amountDueMinor), right, 16, "bold", "right");
+  doc.y += 28;
+  const a = s.snapshot.aging;
+  if (a) {
+    doc.text("Current", MARGIN, 8, "regular", "left", 0.4);
+    doc.text("31 to 60 days", MARGIN + 130, 8, "regular", "left", 0.4);
+    doc.text("61 to 90 days", MARGIN + 260, 8, "regular", "left", 0.4);
+    doc.text("Over 90 days", MARGIN + 390, 8, "regular", "left", 0.4);
+    doc.y += 12;
+    doc.text(money2(a.current), MARGIN, 10);
+    doc.text(money2(a.d31), MARGIN + 130, 10);
+    doc.text(money2(a.d61), MARGIN + 260, 10);
+    doc.text(money2(a.d91), MARGIN + 390, 10);
+    doc.y += 20;
+  }
+  doc.rule();
+  doc.y += 10;
+  doc.text("What is owed", MARGIN, 11, "bold");
+  doc.y += 18;
+  doc.text("Date", MARGIN, 8, "bold", "left", 0.4);
+  doc.text("Service", MARGIN + 62, 8, "bold", "left", 0.4);
+  doc.text("For", MARGIN + 330, 8, "bold", "left", 0.4);
+  doc.text("Charged", right - 70, 8, "bold", "right", 0.4);
+  doc.text("You owe", right, 8, "bold", "right", 0.4);
+  doc.y += 14;
+  for (const line of s.snapshot.lines ?? []) {
+    doc.need(14);
+    doc.text(day4(line.date), MARGIN, 9);
+    doc.text(line.description.slice(0, 48), MARGIN + 62, 9);
+    doc.text(line.patient.slice(0, 18), MARGIN + 330, 9);
+    doc.text(money2(line.chargedMinor), right - 70, 9, "regular", "right");
+    doc.text(money2(line.owedMinor), right, 9, "regular", "right");
+    doc.y += 14;
+  }
+  if (!(s.snapshot.lines ?? []).length) {
+    doc.text("No open charges.", MARGIN, 9, "regular", "left", 0.4);
+    doc.y += 14;
+  }
+  const activity = s.snapshot.recentActivity ?? [];
+  if (activity.length) {
+    doc.y += 8;
+    doc.need(40);
+    doc.rule();
+    doc.y += 10;
+    doc.text("Payments and credits in the last 30 days", MARGIN, 11, "bold");
+    doc.y += 18;
+    for (const row of activity) {
+      doc.need(14);
+      doc.text(day4(row.date), MARGIN, 9);
+      doc.text(row.description.slice(0, 60), MARGIN + 62, 9);
+      doc.text(money2(row.amountMinor), right, 9, "regular", "right");
+      doc.y += 14;
+    }
+  }
+  if (s.snapshot.insurancePendingMinor && BigInt(s.snapshot.insurancePendingMinor) > 0n) {
+    doc.y += 8;
+    doc.paragraph(`Insurance is still reviewing ${money2(s.snapshot.insurancePendingMinor)}. It is not included in the amount due above.`, 9, "regular", 0.3);
+  }
+  doc.y += 10;
+  doc.need(40);
+  doc.paragraph("Questions about this statement? Call the front desk. If you cannot pay in full, ask us about a payment plan before the due date.", 9, "regular", 0.3);
+  return doc.toBytes({ title: `Statement ${s.ref}`, author: "Openfront Dental" });
+}
+var pdfSha256 = (bytes) => (0, import_node_crypto17.createHash)("sha256").update(bytes).digest("hex");
+function statementForPdf(row) {
+  const iso = (d) => d instanceof Date ? d.toISOString().slice(0, 10) : String(d ?? "").slice(0, 10);
+  return { ref: row.ref, cycleDate: iso(row.cycleDate), dueDate: iso(row.dueDate), amountDueMinor: row.amountDueMinor.toString(), payLinkCode: row.payLinkCode, snapshot: row.snapshot ?? {} };
+}
+
+// features/keystone/mutations/payments.ts
+var currencyOf2 = async (tx) => (await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { currencyCode: true } }))?.currencyCode ?? "USD";
+async function accountBalance(tx, accountId) {
+  const sum2 = await tx.ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } });
+  return sum2._sum.amountMinor ?? 0n;
+}
+async function takePayment(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canTakePayments");
+  const amountMinor = parseMoney(args.amount);
+  const tender = oneOf(args.tender, PAYMENT_TENDERS, "tender");
+  const { idempotencyKey, ...params } = args;
+  if (tender === "check" && !optionalText(args.checkNumber, 40)) throw new DomainError(Codes.INVALID_INPUT, "Enter the check number.", { field: "checkNumber" });
+  if (tender === "card" && !paymentsConfigured()) throw new DomainError(Codes.GUARD_FAILED, "Card payments are not set up yet.");
+  const result = await command(context.prisma, { name: "payment.take", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    assertLocation(locationIds, args.locationId);
+    const patientId = await resolvePatientRef(tx, args.patientId);
+    await assertPatientInScope(tx, locationIds, patientId);
+    const account = await accountFor(uow, patientId);
+    await advisoryLock(tx, `ledger:${account.id}`);
+    if (tender === "card") {
+      if (!args.methodTokenId && !args.testMethod) throw new DomainError(Codes.INVALID_INPUT, "Choose a card on file or a test card.", { field: "testMethod" });
+      if (args.testMethod && !(args.testMethod in TEST_METHODS)) throw new DomainError(Codes.INVALID_INPUT, "Unknown test card.", { field: "testMethod" });
+    }
+    const explicit = (args.allocations ?? []).map((a) => ({ entryId: a.entryId, amountMinor: parseMoney(a.amount, "allocation") }));
+    if (explicit.reduce((s, a) => s + a.amountMinor, 0n) > amountMinor) throw new DomainError(Codes.INVALID_INPUT, "You applied more than the payment.", { field: "allocations" });
+    let token = null;
+    if (args.methodTokenId) {
+      token = await tx.paymentMethodToken.findUnique({ where: { id: args.methodTokenId } });
+      if (!token || token.accountId !== account.id || token.status !== "active") throw new DomainError(Codes.GUARD_FAILED, "That saved card is not available. Choose another.", { field: "methodTokenId" });
+    }
+    if (args.statementId) {
+      const st = await tx.statement.findUnique({ where: { id: args.statementId }, select: { accountId: true } });
+      if (!st || st.accountId !== account.id) throw new DomainError(Codes.INVALID_INPUT, "That statement belongs to a different account.", { field: "statementId" });
+    }
+    const ref = await nextReference(tx, "PAY", uow.now);
+    const payment = await tx.payment.create({
+      data: {
+        ref,
+        accountId: account.id,
+        patientId,
+        locationId: args.locationId,
+        amountMinor,
+        currencyCode: await currencyOf2(tx),
+        tender,
+        status: "initiated",
+        adapterKey: tender === "card" ? "stripe" : "manual",
+        idempotencyKey: `pay:${idempotencyKey}`,
+        methodTokenId: token?.id ?? null,
+        providerMethodId: token ? token.providerMethodId : args.testMethod ? TEST_METHODS[args.testMethod] : "",
+        checkNumber: optionalText(args.checkNumber, 40),
+        receivedById: actor3.kind === "user" ? actor3.userId : null,
+        source: "front_desk",
+        statementId: args.statementId ?? null
+      }
+    });
+    auditCreate(uow, actor3, "Payment", payment.id, "payment.initiated", { amountMinor: amountMinor.toString(), tender, ref });
+    if (args.saveCard && args.testMethod) {
+      const consent = optionalText(args.consentText, 400);
+      if (!consent) throw new DomainError(Codes.CONSENT_REQUIRED, "Record what the cardholder agreed to before saving the card.", { field: "consentText" });
+      uow.emit({ topic: "payment.save_method", aggregateType: "Payment", aggregateId: payment.id, payload: { paymentId: payment.id, accountId: account.id, consentText: consent, consentBy: actor3.kind === "user" ? actor3.userId : "" }, dedupeKey: `payment.save_method:${payment.id}` });
+    }
+    if (tender !== "card") {
+      const settled = await settlePaymentWithAllocation(uow, actor3, payment.id, explicit);
+      return { id: payment.id, ref, status: "succeeded", allocated: settled.allocated.toString(), unallocated: settled.unallocated.toString() };
+    }
+    uow.emit({ topic: "payment.create", aggregateType: "Payment", aggregateId: payment.id, payload: { paymentId: payment.id }, dedupeKey: `payment.create:${payment.id}` });
+    return { id: payment.id, ref, status: "initiated" };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function settlePaymentWithAllocation(uow, actor3, paymentId, explicit) {
+  const r = await settlePayment(uow, actor3, paymentId, { explicit });
+  return { allocated: r.allocated ?? 0n, unallocated: r.unallocated ?? 0n };
+}
+async function requestRefund(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canIssueRefunds");
+  const reason = requireReason(args.reason);
+  const amountMinor = parseMoney(args.amount);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "refund.request", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    let payment = null;
+    let accountId = args.accountId ?? null;
+    let locationId = args.locationId ?? null;
+    if (args.paymentId) {
+      payment = await tx.payment.findUnique({ where: { id: args.paymentId } });
+      if (!payment) throw new DomainError(Codes.NOT_FOUND, "Payment not found.");
+      if (!["succeeded", "partially_refunded"].includes(payment.status)) throw new DomainError(Codes.GUARD_FAILED, "Only a payment that went through can be refunded.");
+      accountId = payment.accountId;
+      locationId = payment.locationId;
+      const pending = await tx.refund.aggregate({ where: { paymentId: payment.id, status: { in: ["requested", "approved", "executing", "unknown"] } }, _sum: { amountMinor: true } });
+      if (amountMinor + (pending._sum.amountMinor ?? 0n) > payment.amountMinor - payment.refundedMinor) throw new DomainError(Codes.GUARD_FAILED, `Only ${formatMinor(BigInt(payment.amountMinor) - BigInt(payment.refundedMinor) - BigInt(pending._sum.amountMinor ?? 0n))} of that payment can still be refunded.`, { field: "amount" });
+    } else {
+      if (!accountId || !locationId) throw new DomainError(Codes.INVALID_INPUT, "Choose the payment to refund.", { field: "paymentId" });
+      const credit = -await accountBalance(tx, accountId);
+      if (amountMinor > credit) throw new DomainError(Codes.GUARD_FAILED, `The account has ${credit > 0n ? formatMinor(credit) : "no"} credit to refund.`, { field: "amount" });
+    }
+    assertLocation(locationIds, locationId);
+    const method = args.method ?? (payment?.tender === "card" ? "original_tender" : "check");
+    if (!["original_tender", "check", "ach"].includes(method)) throw new DomainError(Codes.INVALID_INPUT, "Choose how to refund.", { field: "method" });
+    if (method === "original_tender" && payment?.tender !== "card") throw new DomainError(Codes.GUARD_FAILED, "Only a card payment can go back to the card. Choose a check.", { field: "method" });
+    const ref = await nextReference(tx, "RFD", uow.now);
+    const refund = await tx.refund.create({ data: { ref, accountId, locationId, paymentId: payment?.id ?? null, target: "patient", amountMinor, method, status: "requested", reason, requestedById: actor3.kind === "user" ? actor3.userId : null } });
+    const approval = await requestApproval(uow, actor3, {
+      action: "refund.execute",
+      targetList: "Refund",
+      targetId: refund.id,
+      requiredPermission: "canApproveRefunds",
+      payload: { refundId: refund.id, amountMinor: amountMinor.toString(), paymentId: payment?.id ?? null, accountId, method },
+      summary: `Refund ${formatMinor(amountMinor)} (${reason.slice(0, 80)})`
+    });
+    await tx.refund.update({ where: { id: refund.id }, data: { approvalId: approval.id } });
+    if (!payment) await tx.creditBalance.updateMany({ where: { accountId, status: "open" }, data: { status: "refund_requested" } });
+    auditCreate(uow, actor3, "Refund", refund.id, "refund.requested", { amountMinor: amountMinor.toString(), method, ref }, { reason });
+    return { id: refund.id, ref, status: "requested", approvalId: approval.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+registerApplier("refund.execute", async (uow, actor3, request) => {
+  const row = await lockRow(uow.tx, "Refund", request.targetId);
+  if (String(row.amountMinor) !== String(request.payload.amountMinor)) throw new DomainError(Codes.APPROVAL_MISMATCH, "The refund changed after approval was requested.");
+  const decision = await uow.tx.approvalDecision.findFirst({ where: { requestId: request.id, decision: "approve" }, orderBy: { at: "desc" } });
+  const approverId = decision?.decidedById ?? null;
+  if (!approverId || approverId === row.requestedById) throw new DomainError(Codes.SELF_APPROVAL, "A refund needs a second person to approve it.");
+  const card = row.method === "original_tender";
+  await transition(uow, { model: "Refund", id: row.id, from: ["requested"], to: card ? "executing" : "approved", actor: actor3, eventType: "refund.approved", approverId, data: { approvedById: approverId } });
+  if (card) uow.emit({ topic: "payment.refund", aggregateType: "Refund", aggregateId: row.id, payload: { refundId: row.id }, dedupeKey: `payment.refund:${row.id}` });
+  return { refundId: row.id, status: card ? "executing" : "approved" };
+}, { applyOnApprove: true });
+async function recordRefundPaid(_root, args, context) {
+  const { actor: actor3 } = staff(context);
+  requirePermission(actor3, "canIssueRefunds", "canApproveRefunds");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "refund.record_paid", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "Refund", args.refundId);
+    if (row.status !== "approved") throw new DomainError(Codes.GUARD_FAILED, "Only an approved check refund can be marked as sent.");
+    if (row.method === "original_tender") throw new DomainError(Codes.GUARD_FAILED, "A card refund is sent by the system.");
+    await transition(uow, { model: "Refund", id: row.id, from: ["approved"], to: "executing", actor: actor3, eventType: "refund.check_written" });
+    const r = await completeRefund(uow, actor3, row.id, { adapterRef: optionalText(args.reference, 60) });
+    return { refundId: row.id, status: "completed", ledgerEntryId: r.ledgerEntryId };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function correctLedgerNote(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canAdjust");
+  const text19 = requireText(args.text, "note", 200);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "ledger.correct_note", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const entry = await uow.tx.ledgerEntry.findUnique({ where: { id: args.entryId }, select: { id: true, locationId: true } });
+    if (!entry) throw new DomainError(Codes.NOT_FOUND, "Ledger entry not found.");
+    assertLocation(locationIds, entry.locationId);
+    const note = await uow.tx.ledgerNote.create({ data: { entryId: entry.id, text: text19, byId: actor3.kind === "user" ? actor3.userId : null } });
+    auditCreate(uow, actor3, "LedgerNote", note.id, "ledger.note_corrected", { entryId: entry.id });
+    return { id: note.id };
+  });
+  return { replay: result.replay, ...result.value };
+}
+var STATEMENT_DUE_DAYS = 30;
+async function buildStatements(uow, actor3, input) {
+  const { tx } = uow;
+  const settings = await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { minStatementMinor: true } });
+  const minimum = settings?.minStatementMinor ?? 500n;
+  const links = await tx.guarantorLink.findMany({ where: { status: "active", patient: { homeLocationId: input.locationId } }, select: { guarantorId: true, patient: { select: { id: true, statementHold: true, firstName: true, lastName: true } } } });
+  const holds = new Set(links.filter((l) => l.patient?.statementHold).map((l) => l.guarantorId));
+  const guarantorIds = [...new Set(links.map((l) => l.guarantorId))];
+  const accounts = await tx.guarantorAccount.findMany({ where: { guarantorId: { in: guarantorIds }, ...input.accountIds ? { id: { in: input.accountIds } } : {} } });
+  const made = [];
+  const skipped = [];
+  const cycle = dayOf(input.cycleDate);
+  for (const account of accounts) {
+    if (holds.has(account.guarantorId)) {
+      skipped.push({ accountId: account.id, reason: "statement_hold" });
+      continue;
+    }
+    if (await tx.statement.findFirst({ where: { accountId: account.id, cycleDate: cycle }, select: { id: true } })) {
+      skipped.push({ accountId: account.id, reason: "already_built" });
+      continue;
+    }
+    if (await tx.payment.findFirst({ where: { accountId: account.id, disputedAt: { not: null }, status: { in: ["succeeded", "partially_refunded"] } }, select: { id: true } })) {
+      skipped.push({ accountId: account.id, reason: "open_dispute" });
+      continue;
+    }
+    await advisoryLock(tx, `ledger:${account.id}`);
+    const entries = await tx.ledgerEntry.findMany({ where: { accountId: account.id }, orderBy: [{ businessDate: "asc" }, { createdAt: "asc" }], include: { chartEntry: { select: { tooth: true, surfaces: true, code: { select: { nomenclature: true, patientFriendlyName: true } } } }, patient: { select: { firstName: true } }, adjustment: { select: { type: { select: { name: true } } } } } });
+    const total = entries.reduce((s, e) => s + e.amountMinor, 0n);
+    if (total < minimum) {
+      skipped.push({ accountId: account.id, reason: total <= 0n ? "no_balance" : "under_minimum" });
+      continue;
+    }
+    const open = chargesOutstanding(entries);
+    const aging = { current: 0n, d31: 0n, d61: 0n, d91: 0n };
+    const todayMs = Date.parse(`${input.cycleDate}T00:00:00Z`);
+    for (const row of open) {
+      const e = entries.find((x) => x.id === row.id);
+      const age = Math.floor((todayMs - (e.businessDate?.getTime() ?? todayMs)) / 864e5);
+      aging[age > 90 ? "d91" : age > 60 ? "d61" : age > 30 ? "d31" : "current"] += row.left;
+    }
+    const lines = open.map((row) => {
+      const e = entries.find((x) => x.id === row.id);
+      const c = e.chartEntry;
+      const name = c?.code ? `${c.code.patientFriendlyName || c.code.nomenclature || "Visit"}${c.tooth ? `, tooth ${c.tooth}` : ""}` : e.memo || "Charge";
+      return { date: e.businessDate?.toISOString().slice(0, 10) ?? input.cycleDate, description: name, patient: e.patient?.firstName ?? "", chargedMinor: row.amountMinor.toString(), owedMinor: row.left.toString() };
+    });
+    const credits = entries.filter((e) => e.amountMinor < 0n && e.businessDate && e.businessDate.getTime() >= todayMs - 30 * 864e5).map((e) => ({ date: e.businessDate.toISOString().slice(0, 10), description: e.kind === "patient_payment" ? "Payment received" : e.kind === "insurance_payment" ? "Insurance payment" : e.kind === "insurance_writeoff" ? "Insurance write-off" : "Adjustment", amountMinor: e.amountMinor.toString() }));
+    const snapshot = { lines, recentActivity: credits, aging: { current: aging.current.toString(), d31: aging.d31.toString(), d61: aging.d61.toString(), d91: aging.d91.toString() }, totalMinor: total.toString(), insurancePendingMinor: "0" };
+    const ref = await nextReference(tx, "STM", uow.now);
+    const statement = await tx.statement.create({
+      data: { ref, accountId: account.id, locationId: input.locationId, cycleDate: cycle, snapshot, amountDueMinor: total, dueDate: dayOf(addDays(input.cycleDate, STATEMENT_DUE_DAYS)), status: "generated", payLinkCode: publicCode("PAY", 3), payLinkExpiresAt: new Date(uow.now.getTime() + PAY_LINK_DAYS * 864e5), documentSha256: sha2562(JSON.stringify(snapshot)) }
+    });
+    await tx.statement.update({ where: { id: statement.id }, data: { pdfSha256: pdfSha256(renderStatementPdf(statementForPdf(statement))) } });
+    auditCreate(uow, actor3, "Statement", statement.id, "statement.generated", { ref, amountDueMinor: total.toString() });
+    made.push({ id: statement.id, ref, accountId: account.id, amountDueMinor: total.toString() });
+  }
+  return { made, skipped };
+}
+async function generateStatements(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canCloseDay", "canAdjust");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "statement.generate", actor: actor3, idempotencyKey, params }, async (uow) => {
+    assertLocation(locationIds, args.locationId);
+    const date = args.cycleDate || await locationToday(uow.tx, args.locationId, uow.now);
+    const r = await buildStatements(uow, actor3, { locationId: args.locationId, cycleDate: date });
+    return { cycleDate: date, built: r.made.length, skipped: r.skipped.length, statements: r.made };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function sendStatement(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canCloseDay", "canAdjust", "canTakePayments");
+  const channel = oneOf(args.channel ?? "mail", ["mail", "email", "portal", "in_person"], "channel");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "statement.send", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const row = await lockRow(uow.tx, "Statement", args.statementId);
+    assertLocation(locationIds, row.locationId);
+    await transition(uow, { model: "Statement", id: row.id, from: ["generated"], to: "sent", actor: actor3, eventType: "statement.sent", data: { sentAt: uow.now, sentChannel: channel } });
+    return { id: row.id, status: "sent", channel };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function holdStatements(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canAdjust", "canManagePatients");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "statement.hold", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const patientId = await resolvePatientRef(uow.tx, args.patientId);
+    await assertPatientInScope(uow.tx, locationIds, patientId);
+    await uow.tx.patient.update({ where: { id: patientId }, data: { statementHold: Boolean(args.hold), version: { increment: 1 } } });
+    auditCreate(uow, actor3, "Patient", patientId, args.hold ? "statement.hold_set" : "statement.hold_cleared", { hold: Boolean(args.hold) }, { reason: optionalText(args.reason, 200) || null });
+    return { patientId, hold: Boolean(args.hold) };
+  });
+  return { replay: result.replay, ...result.value };
+}
+function planAgreementText(input) {
+  const lines = input.installments.map((i) => `${i.dueDate}: ${formatMinor(i.amountMinor)}`).join("; ");
+  return `I agree to pay ${formatMinor(input.principalMinor)}${input.downPaymentMinor > 0n ? ` after a ${formatMinor(input.downPaymentMinor)} payment today` : ""} in ${input.installments.length} payments with no interest or fees: ${lines}.${input.autopay ? " I agree that my saved card may be charged on each date." : " I will pay each amount by its date."} Missing two payments may end this plan and the full balance becomes due.`;
+}
+async function proposePaymentPlan(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canTakePayments", "canAdjust");
+  const { idempotencyKey, ...params } = args;
+  const count = Number(args.installments);
+  if (!Number.isInteger(count) || count < 2 || count > 24) throw new DomainError(Codes.INVALID_INPUT, "Choose between 2 and 24 payments.", { field: "installments" });
+  const result = await command(context.prisma, { name: "plan.propose", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const { tx } = uow;
+    assertLocation(locationIds, args.locationId);
+    const patientId = await resolvePatientRef(tx, args.patientId);
+    await assertPatientInScope(tx, locationIds, patientId);
+    const account = await accountFor(uow, patientId);
+    if (await tx.paymentPlan.findFirst({ where: { accountId: account.id, status: { in: ["proposed", "active", "delinquent"] } }, select: { id: true } })) throw new DomainError(Codes.GUARD_FAILED, "This account already has a payment plan.");
+    const balance = await accountBalance(tx, account.id);
+    const down = args.downPayment && Number(String(args.downPayment).replace(/[$,\s]/g, "")) !== 0 ? parseMoney(args.downPayment, "down payment") : 0n;
+    const covered = args.amount ? parseMoney(args.amount) : balance;
+    if (covered > balance) throw new DomainError(Codes.GUARD_FAILED, `The plan can cover at most the balance, ${formatMinor(balance > 0n ? balance : 0n)}.`, { field: "amount" });
+    const principal = covered - down;
+    if (principal <= 0n) throw new DomainError(Codes.GUARD_FAILED, "There is nothing left to spread after the payment today.", { field: "downPayment" });
+    if (args.autopayTokenId) {
+      const token = await tx.paymentMethodToken.findUnique({ where: { id: args.autopayTokenId } });
+      if (!token || token.accountId !== account.id || token.status !== "active") throw new DomainError(Codes.GUARD_FAILED, "That saved card is not available.", { field: "autopayTokenId" });
+    }
+    const each = principal / BigInt(count);
+    const remainder = principal - each * BigInt(count);
+    const interval = Number(args.intervalDays ?? 30);
+    const installments = Array.from({ length: count }, (_, i) => ({ dueDate: addDays(args.firstDueDate, i * interval), amountMinor: i === count - 1 ? each + remainder : each }));
+    if (installments.some((i) => i.amountMinor <= 0n)) throw new DomainError(Codes.GUARD_FAILED, "That is too many payments for this amount.", { field: "installments" });
+    const ref = await nextReference(tx, "PLN", uow.now);
+    const agreement = planAgreementText({ principalMinor: principal, downPaymentMinor: down, installments, autopay: Boolean(args.autopayTokenId) });
+    const plan = await tx.paymentPlan.create({
+      data: { ref, accountId: account.id, patientId, locationId: args.locationId, principalMinor: principal, downPaymentMinor: down, interestRatePct: 0, schedule: { installments: installments.map((i) => ({ dueDate: i.dueDate, amountMinor: i.amountMinor.toString() })) }, agreementText: agreement, autopayId: args.autopayTokenId ?? null, status: "proposed" }
+    });
+    for (const i of installments) await tx.paymentPlanInstallment.create({ data: { planId: plan.id, dueDate: dayOf(i.dueDate), amountMinor: i.amountMinor, status: "due" } });
+    auditCreate(uow, actor3, "PaymentPlan", plan.id, "plan.proposed", { ref, principalMinor: principal.toString(), installments: count });
+    return { id: plan.id, ref, status: "proposed", agreement, principalMinor: principal.toString() };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function activatePaymentPlan(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canTakePayments", "canAdjust");
+  const { idempotencyKey, ...params } = args;
+  const name = requireText(args.agreedByName, "name of the person agreeing", 120);
+  const result = await command(context.prisma, { name: "plan.activate", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const plan = await lockRow(uow.tx, "PaymentPlan", args.planId);
+    assertLocation(locationIds, plan.locationId);
+    const hash = sha2562(plan.agreementText);
+    const row = await transition(uow, { model: "PaymentPlan", id: plan.id, from: ["proposed"], to: "active", expectedVersion: args.expectedVersion, actor: actor3, eventType: "plan.activated", data: { agreementHash: hash, agreedAt: uow.now, agreedByName: name } });
+    return { id: row.id, status: "active", agreementHash: hash };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function cancelPaymentPlan(_root, args, context) {
+  const { actor: actor3, locationIds } = staff(context);
+  requirePermission(actor3, "canTakePayments", "canAdjust");
+  const reason = requireReason(args.reason);
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "plan.cancel", actor: actor3, idempotencyKey, params }, async (uow) => {
+    const plan = await lockRow(uow.tx, "PaymentPlan", args.planId);
+    assertLocation(locationIds, plan.locationId);
+    const row = await transition(uow, { model: "PaymentPlan", id: plan.id, from: ["proposed", "active", "delinquent"], to: "cancelled", expectedVersion: args.expectedVersion, actor: actor3, eventType: "plan.cancelled", reason });
+    return { id: row.id, status: "cancelled" };
   });
   return { replay: result.replay, ...result.value };
 }
@@ -11191,6 +11891,17 @@ var PHASE2_ARGS = {
   resolveDenial: { denialId: "ID!", expectedVersion: "Int!", resolution: "String!", note: "String!" },
   fileAppeal: { denialId: "ID!", expectedVersion: "Int!", letter: "String!", via: "String!" },
   recordAppealOutcome: { appealId: "ID!", expectedVersion: "Int!", outcome: "String!" },
+  // Phase 4: payments, refunds, statements, plans
+  takePayment: { patientId: "ID!", locationId: "ID!", amount: "String!", tender: "String!", checkNumber: "String", testMethod: "String", methodTokenId: "ID", statementId: "ID", allocations: "[JSON!]", saveCard: "Boolean", consentText: "String" },
+  requestRefund: { paymentId: "ID", accountId: "ID", locationId: "ID", amount: "String!", method: "String", reason: "String!" },
+  recordRefundPaid: { refundId: "ID!", reference: "String" },
+  correctLedgerNote: { entryId: "ID!", text: "String!" },
+  generateStatements: { locationId: "ID!", cycleDate: "String" },
+  sendStatement: { statementId: "ID!", channel: "String" },
+  holdStatements: { patientId: "ID!", hold: "Boolean!", reason: "String" },
+  proposePaymentPlan: { patientId: "ID!", locationId: "ID!", downPayment: "String", installments: "Int!", firstDueDate: "String!", intervalDays: "Int", autopayTokenId: "ID", amount: "String" },
+  activatePaymentPlan: { planId: "ID!", expectedVersion: "Int!", agreedByName: "String!" },
+  cancelPaymentPlan: { planId: "ID!", expectedVersion: "Int!", reason: "String!" },
   rebuildAccountBalance: { accountId: "ID!" }
 };
 
@@ -11266,7 +11977,17 @@ var RESOLVERS = {
   startDenialWork,
   resolveDenial,
   fileAppeal,
-  recordAppealOutcome
+  recordAppealOutcome,
+  takePayment,
+  requestRefund,
+  recordRefundPaid,
+  correctLedgerNote,
+  generateStatements,
+  sendStatement,
+  holdStatements,
+  proposePaymentPlan,
+  activatePaymentPlan,
+  cancelPaymentPlan
 };
 var PHASE2_OPS = Object.fromEntries(Object.entries(PHASE2_ARGS).map(([name, args]) => [name, { args, fn: RESOLVERS[name] }]));
 var signature = (args) => [...Object.entries(args).map(([k, v]) => `${k}: ${v}`), "idempotencyKey: String!"].join(", ");

@@ -9,6 +9,8 @@ import { formatMinor } from '../lib/money'
 import { parseMoney } from '../lib/ledger'
 import { chargesOutstanding, completeRefund, settlePayment, sha256 } from '../lib/payments'
 import { nextReference, publicCode } from '../lib/sequence'
+import { PAY_LINK_DAYS } from '../lib/payLink'
+import { pdfSha256, renderStatementPdf, statementForPdf } from '../lib/statementPdf'
 import { addDays } from '../lib/time'
 import { accountFor, dayOf, locationToday, oneOf, requireReason } from './clinicalShared'
 import { assertLocation, assertPatientInScope, optionalText, requireText, resolvePatientRef, staff, type Ctx } from './shared'
@@ -235,8 +237,9 @@ export async function buildStatements(uow: any, actor: any, input: { locationId:
     const snapshot = { lines, recentActivity: credits, aging: { current: aging.current.toString(), d31: aging.d31.toString(), d61: aging.d61.toString(), d91: aging.d91.toString() }, totalMinor: total.toString(), insurancePendingMinor: '0' }
     const ref = await nextReference(tx, 'STM', uow.now)
     const statement = await tx.statement.create({
-      data: { ref, accountId: account.id, locationId: input.locationId, cycleDate: cycle, snapshot, amountDueMinor: total, dueDate: dayOf(addDays(input.cycleDate, STATEMENT_DUE_DAYS)), status: 'generated', payLinkCode: publicCode('PAY', 3), documentSha256: sha256(JSON.stringify(snapshot)) },
+      data: { ref, accountId: account.id, locationId: input.locationId, cycleDate: cycle, snapshot, amountDueMinor: total, dueDate: dayOf(addDays(input.cycleDate, STATEMENT_DUE_DAYS)), status: 'generated', payLinkCode: publicCode('PAY', 3), payLinkExpiresAt: new Date(uow.now.getTime() + PAY_LINK_DAYS * 86_400_000), documentSha256: sha256(JSON.stringify(snapshot)) },
     })
+    await tx.statement.update({ where: { id: statement.id }, data: { pdfSha256: pdfSha256(renderStatementPdf(statementForPdf(statement))) } })
     auditCreate(uow, actor, 'Statement', statement.id, 'statement.generated', { ref, amountDueMinor: total.toString() })
     made.push({ id: statement.id, ref, accountId: account.id, amountDueMinor: total.toString() })
   }

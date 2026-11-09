@@ -120,7 +120,7 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   Denial: { amountMinor: 'ins', rarc: 'ins', resolutionNote: 'ins' },
   Appeal: { letter: 'ins' },
   PaymentMethodToken: { last4: 'fin', brand: 'fin', expMonth: 'fin', expYear: 'fin', providerCustomerId: 'fin', providerMethodId: 'fin', consentText: 'fin' },
-  Statement: { snapshot: 'fin', amountDueMinor: 'fin' },
+  Statement: { snapshot: 'fin', amountDueMinor: 'fin', payLinkCode: 'fin', pdfSha256: 'fin', payLinkExpiresAt: 'fin' },
   Payment: { amountMinor: 'fin', refundedMinor: 'fin', checkNumber: 'fin', failureNote: 'fin' },
   PaymentAllocation: { amountMinor: 'fin' },
   Refund: { amountMinor: 'fin', reason: 'fin', failureNote: 'fin' },

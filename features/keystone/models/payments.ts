@@ -63,6 +63,8 @@ export const Statement = list({
     status: lifecycle(STATEMENT_STATUSES),
     payLinkCode: systemText({ indexed: 'unique', required: true }),
     documentSha256: systemText(),
+    pdfSha256: systemText(),
+    payLinkExpiresAt: timestamp({ ...readOnly }),
     sentAt: timestamp({ ...readOnly }),
     sentChannel: systemText(),
     payments: relationship({ ref: 'Payment.statement', many: true, ...readOnly }),

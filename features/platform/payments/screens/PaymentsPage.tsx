@@ -9,7 +9,7 @@ import { CommandForm } from '../../components/CommandForm';
 export default async function PaymentsPage() {
   const d = await q<any>(`{
     refunds(where: { status: { in: ["requested", "approved", "executing", "unknown", "failed"] } }, orderBy: { createdAt: asc }, take: 40) { id ref amountMinor method status reason failureNote payment { ref patient { firstName lastName } } account { ref } }
-    statements(orderBy: { createdAt: desc }, take: 30) { id ref status cycleDate dueDate amountDueMinor payLinkCode account { ref } }
+    statements(orderBy: { createdAt: desc }, take: 30) { id ref status cycleDate dueDate amountDueMinor payLinkCode payLinkExpiresAt account { ref } }
     creditBalances(where: { status: { in: ["open", "refund_requested", "escheat_pending"] } }, orderBy: { dormancyDueOn: asc }, take: 40) { id amountMinor arisenOn dormancyDueOn status account { ref } }
     payments(where: { status: { in: ["unknown", "failed", "requires_action"] } }, orderBy: { createdAt: desc }, take: 20) { id ref amountMinor status failureNote patient { firstName lastName } }
     locations(orderBy: { name: asc }, take: 20) { id name }
@@ -38,6 +38,7 @@ export default async function PaymentsPage() {
           <Row key={s.id} className="items-start">
             <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine status={s.status}>{s.ref} · Account {s.account?.ref}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(s.amountDueMinor)}</span></span>
               <Meta>Cycle {calendarDate(s.cycleDate, 'date')} · due {calendarDate(s.dueDate, 'date')}</Meta>
+              <span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm"><a className="underline underline-offset-2" href={`/api/statements/${s.id}/pdf`} target="_blank" rel="noreferrer">Open PDF</a>{s.payLinkCode ? <a className="underline underline-offset-2" href={`/pay/${s.payLinkCode}`} target="_blank" rel="noreferrer">Patient pay page</a> : null}</span>
               {s.status === 'generated' ? <span className="mt-1 block"><ActionButton op="sendStatement" vars={{ statementId: s.id, channel: 'mail' }} paths={paths}>Mark as mailed</ActionButton></span> : null}
             </span>
           </Row>
