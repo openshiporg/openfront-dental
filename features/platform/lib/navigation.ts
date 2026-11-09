@@ -32,6 +32,7 @@ export const platformNavItems: PlatformNavItem[] = [
   { title: 'Fee schedules', href: '/platform/fees', color: 'lime', description: 'Fee versions: draft, second-person publish.', icon: Receipt, group: 'clinical' },
 
   { title: 'Claims', href: '/platform/claims', color: 'teal', description: 'Build, check and send claims; follow them to payment.', icon: Receipt, group: 'billing' },
+  { title: 'Patient payments', href: '/platform/payments', color: 'emerald', description: 'Refunds, statements and credits on patient accounts.', icon: Landmark, group: 'billing' },
   { title: 'Insurance payments', href: '/platform/remittances', color: 'emerald', description: 'Payments received, lines to match, denied lines to work.', icon: Landmark, group: 'billing' },
 
   { title: 'Insurance plans', href: '/platform/insurance', color: 'sky', description: 'Payers, plans, fee schedules and coordination rules.', icon: Landmark, group: 'front-desk' },

@@ -39,6 +39,8 @@ const SHAPES = {
     const charge = minor(v.charge), paid = minor(v.paid), writeOff = v.writeOff ? minor(v.writeOff) : charge - paid;
     return { payerId: v.payerId, traceNumber: v.traceNumber, paymentDate: v.paymentDate || undefined, method: v.method, claims: [{ claimRef: v.claimRef, charge: String(v.charge), paidMinor: paid.toString(), lines: [{ lineControl: 'L01', code: '', chargeMinor: charge.toString(), paidMinor: paid.toString(), adjustments: writeOff > 0n ? [{ group: 'CO', reason: '45', amountMinor: writeOff.toString() }] : [] }] }] };
   },
+  /** Payment plan proposal: the number of payments is an integer; empty money stays unset. */
+  planDollars: (v: Values) => ({ amount: v.amount || undefined, downPayment: v.downPayment || undefined, installments: Number(v.installments), firstDueDate: v.firstDueDate }),
   /** Code import: pasted CSV text (header row first) becomes the row list. */
   csvRows: (v: Values) => {
     const lines = String(v.csv).split(/\r?\n/).filter((l) => l.trim());

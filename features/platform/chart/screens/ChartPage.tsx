@@ -83,7 +83,7 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
   const open = entries.filter((e) => e.kind === 'procedure' && !['posted', 'existing_current', 'existing_other'].includes(e.status));
   const done = entries.filter((e) => e.kind === 'procedure' && ['posted', 'existing_current', 'existing_other'].includes(e.status));
   const conditions = entries.filter((e) => e.kind === 'condition' && e.conditionStatus !== 'resolved');
-  const codeOptions = (d.procedureCodes as any[]).map((c) => ({ value: c.id, label: `${c.code} · ${c.patientFriendlyName || c.nomenclature}` }));
+  const codeOptions = (d.procedureCodes as any[]).map((c) => ({ value: c.id, label: String(c.patientFriendlyName || c.nomenclature) }));
   const toothName = (e: any) => (e.tooth ? `Tooth ${toothLabel(e.tooth, numbering)}${e.surfaces ? ` ${e.surfaces}` : ''}` : e.quadrant ? `Quadrant ${e.quadrant}` : e.arch ? `${title(e.arch)} arch` : 'Whole mouth');
 
   return (
@@ -105,7 +105,7 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
         {selected ? (
           <div className="rounded-lg border p-3">
             <div className="mb-2 flex items-center justify-between"><span className="font-medium">Tooth {toothLabel(selected, numbering)} <span className="text-xs text-muted-foreground">(Universal {selected})</span></span><Link className="text-sm hover:underline" href={href({ tooth: '' })}>Close</Link></div>
-            {forTooth.length ? forTooth.map((e) => <Row key={e.id}><TitleLine status={e.status}><span>{e.kind === 'condition' ? e.condition?.label : e.code?.patientFriendlyName || e.code?.nomenclature}{e.surfaces ? ` · ${e.surfaces}` : ''}</span></TitleLine><Meta>{e.code?.code ?? ''}</Meta></Row>) : <Empty>Nothing charted on this tooth.</Empty>}
+            {forTooth.length ? forTooth.map((e) => <Row key={e.id}><TitleLine status={e.status}><span>{e.kind === 'condition' ? e.condition?.label : e.code?.patientFriendlyName || e.code?.nomenclature}{e.surfaces ? ` · ${e.surfaces}` : ''}</span></TitleLine></Row>) : <Empty>Nothing charted on this tooth.</Empty>}
             <div className="grid gap-4 pt-3 lg:grid-cols-2">
               <CommandForm op="addChartProcedure" shape="chartSite" submitLabel="Add procedure" paths={paths} fixed={{ patientId: id, locationId: p.homeLocation?.id }} columns={2}
                 fields={[
@@ -128,7 +128,7 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
       <Section title="Open work">
         {open.length ? open.map((e) => (
           <Row key={e.id}>
-            <span className="min-w-0"><TitleLine status={e.status}><span className="font-medium">{e.code?.patientFriendlyName || e.code?.nomenclature}</span></TitleLine><Meta>{e.code?.code} · {toothName(e)} · {money(String(feeOf(e)))}</Meta></span>
+            <span className="min-w-0"><TitleLine status={e.status}><span className="font-medium">{e.code?.patientFriendlyName || e.code?.nomenclature}</span></TitleLine><Meta>{toothName(e)} · {money(String(feeOf(e)))}</Meta></span>
             <PillTrack>
               {['diagnosed', 'planned'].includes(e.status) ? <ActionButton op="acceptChartEntry" vars={{ chartEntryId: e.id, expectedVersion: e.version }} paths={paths}>Accept</ActionButton> : null}
               {e.status === 'accepted' && (d.appointments as any[]).length ? <ActionButton op="scheduleChartEntry" vars={{ chartEntryId: e.id, expectedVersion: e.version, appointmentId: d.appointments[0].id }} paths={paths}>Schedule at next visit</ActionButton> : null}
@@ -142,7 +142,7 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
         <Section title="Completed and existing">
           {done.length ? done.slice().reverse().map((e) => (
             <Row key={e.id}>
-              <span className="min-w-0"><TitleLine status={e.status}><span>{e.code?.patientFriendlyName || e.code?.nomenclature}</span></TitleLine><Meta>{e.code?.code} · {toothName(e)}{e.provider ? ` · ${e.provider.abbreviation}` : ''}</Meta></span>
+              <span className="min-w-0"><TitleLine status={e.status}><span>{e.code?.patientFriendlyName || e.code?.nomenclature}</span></TitleLine><Meta>{toothName(e)}{e.provider ? ` · ${e.provider.abbreviation}` : ''}</Meta></span>
               <span className="flex items-center gap-3"><Meta>{e.dateOfService ? calendarDate(e.dateOfService, 'date') : ''} {e.feeMinor ? money(e.feeMinor) : ''}</Meta>
                 {e.status === 'posted' ? <ActionButton op="correctProcedure" vars={{ chartEntryId: e.id, expectedVersion: e.version }} ask="What was wrong? The charge is reversed and a corrected entry is kept." paths={paths}>Correct</ActionButton> : null}</span>
             </Row>

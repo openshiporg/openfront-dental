@@ -7,6 +7,7 @@ import { expireHolds, sweepNoShows } from '../mutations/scheduling'
 import { adapterFor } from './adapters'
 import { messagingHandlers } from './dispatch'
 import { claimHandlers, pollRemittances, settleStaleClaims } from './claimWorker'
+import { paymentHandlers, paymentJobs } from './paymentWorker'
 import { eligibilityHandlers, settleStaleChecks } from './eligibilityWorker'
 
 /*
@@ -53,7 +54,7 @@ function staffHandlers(db: Db): OutboxHandlers {
 }
 
 export function phase1Handlers(db: Db): OutboxHandlers {
-  return { ...staffHandlers(db), ...messagingHandlers(db), ...eligibilityHandlers(db), ...claimHandlers(db) }
+  return { ...staffHandlers(db), ...messagingHandlers(db), ...eligibilityHandlers(db), ...claimHandlers(db), ...paymentHandlers(db) }
 }
 
 export async function runWorkerTick(db: Db, options: { workerId?: string; now?: () => Date } = {}) {
@@ -66,6 +67,7 @@ export async function runWorkerTick(db: Db, options: { workerId?: string; now?: 
     ['job:stale-checks', () => settleStaleChecks(db, clock())],
     ['job:stale-claims', () => settleStaleClaims(db, clock())],
     ['job:era-fetch', () => pollRemittances(db, clock())],
+    ...paymentJobs(db, clock),
     ['job:outbox', () => drainOutbox(db, { workerId, handlers: phase1Handlers(db), now: clock })],
   ]
   for (const [key, run] of jobs) {

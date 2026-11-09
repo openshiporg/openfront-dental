@@ -81,6 +81,17 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   resolveDenial: { denialId: 'ID!', expectedVersion: 'Int!', resolution: 'String!', note: 'String!' },
   fileAppeal: { denialId: 'ID!', expectedVersion: 'Int!', letter: 'String!', via: 'String!' },
   recordAppealOutcome: { appealId: 'ID!', expectedVersion: 'Int!', outcome: 'String!' },
+  // Phase 4: payments, refunds, statements, plans
+  takePayment: { patientId: 'ID!', locationId: 'ID!', amount: 'String!', tender: 'String!', checkNumber: 'String', testMethod: 'String', methodTokenId: 'ID', statementId: 'ID', allocations: '[JSON!]', saveCard: 'Boolean', consentText: 'String' },
+  requestRefund: { paymentId: 'ID', accountId: 'ID', locationId: 'ID', amount: 'String!', method: 'String', reason: 'String!' },
+  recordRefundPaid: { refundId: 'ID!', reference: 'String' },
+  correctLedgerNote: { entryId: 'ID!', text: 'String!' },
+  generateStatements: { locationId: 'ID!', cycleDate: 'String' },
+  sendStatement: { statementId: 'ID!', channel: 'String' },
+  holdStatements: { patientId: 'ID!', hold: 'Boolean!', reason: 'String' },
+  proposePaymentPlan: { patientId: 'ID!', locationId: 'ID!', downPayment: 'String', installments: 'Int!', firstDueDate: 'String!', intervalDays: 'Int', autopayTokenId: 'ID', amount: 'String' },
+  activatePaymentPlan: { planId: 'ID!', expectedVersion: 'Int!', agreedByName: 'String!' },
+  cancelPaymentPlan: { planId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
   rebuildAccountBalance: { accountId: 'ID!' },
 }
 

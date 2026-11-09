@@ -17,6 +17,11 @@ const UNIQUE_MESSAGES: Record<string, string> = {
   Denial: 'That denial is already open on this line.',
   ClaimVersion: 'That claim version already exists. Refresh to see it.',
   ClaimLine: 'That claim line already exists.',
+  Payment: 'That payment was already recorded. Nothing was charged twice.',
+  PaymentAllocation: 'That payment was already applied to that charge.',
+  Statement: 'A statement for that account and date already exists.',
+  PaymentPlanInstallment: 'That instalment already exists.',
+  CreditBalance: 'That account already has an open credit.',
 }
 
 /** CHECK constraints and guard triggers, by name prefix, in words a front-desk person can act on. */
@@ -29,6 +34,8 @@ const CHECK_MESSAGES: [RegExp, string][] = [
   [/^Claim_|^ClaimLine_/, 'That claim change was refused: the amounts or state do not make sense together. Nothing was changed.'],
   [/^RemittanceLine_conservation/, 'A remittance line must balance: the charge equals the payment plus the adjustments. Nothing was posted.'],
   [/^(Remittance|PaymentPosting|Denial|Appeal)_/, 'That payment change was refused: it would break a payment rule. Nothing was changed.'],
+  [/^PaymentAllocation_|^Payment_allocation|^Refund_guard|^Refund_/, 'That payment or refund change was refused: it would apply or refund more than was paid, or it needs a second person. Nothing was changed.'],
+  [/^(Payment|PaymentPlan|PaymentPlanInstallment|Statement|PaymentMethodToken|CreditBalance)_/, 'That payment change was refused: it would break a payment rule. Nothing was changed.'],
   [/^(LedgerEntry|AdjustmentRequest|AdjustmentType|DayClose|PeriodClose|Restatement)_/, 'That ledger change was refused: the ledger only grows, and a closed period takes no new entries. Nothing was changed.'],
   [/_bound$/, 'That amount is larger than the system allows. Check it and try again.'],
   [/^BenefitVerification_/, 'That verification change was refused: the verification is not in a state that allows it.'],

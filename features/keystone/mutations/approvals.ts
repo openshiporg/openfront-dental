@@ -24,6 +24,13 @@ export async function decideApprovalRequest(_root: unknown, args: { requestId: s
       await consumeApproval(uow, { requestId: request.id, action: request.action, targetList: request.targetList, targetId: request.targetId, payload: request.payload })
       applied = await registration.apply(uow, actor, request)
     }
+    if (args.decision === 'reject' && decided.targetList === 'Refund') {
+      const refund = await uow.tx.refund.findUnique({ where: { id: String(decided.targetId) }, select: { accountId: true, status: true } })
+      if (refund?.status === 'requested') {
+        await uow.tx.refund.update({ where: { id: String(decided.targetId) }, data: { status: 'rejected', failureNote: String(args.reason ?? '').slice(0, 200), version: { increment: 1 } } })
+        if (refund.accountId) await uow.tx.creditBalance.updateMany({ where: { accountId: refund.accountId, status: 'refund_requested' }, data: { status: 'open', version: { increment: 1 } } })
+      }
+    }
     return { id: decided.id, status: decided.status, applied }
   })
   return { replay: result.replay, ...result.value }

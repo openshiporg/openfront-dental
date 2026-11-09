@@ -119,6 +119,15 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   RemittanceLine: { chargeMinor: 'fin', allowedMinor: 'fin', paidMinor: 'fin', adjustmentsTotalMinor: 'fin', adjustments: 'fin', rarc: 'fin' },
   Denial: { amountMinor: 'ins', rarc: 'ins', resolutionNote: 'ins' },
   Appeal: { letter: 'ins' },
+  PaymentMethodToken: { last4: 'fin', brand: 'fin', expMonth: 'fin', expYear: 'fin', providerCustomerId: 'fin', providerMethodId: 'fin', consentText: 'fin' },
+  Statement: { snapshot: 'fin', amountDueMinor: 'fin' },
+  Payment: { amountMinor: 'fin', refundedMinor: 'fin', checkNumber: 'fin', failureNote: 'fin' },
+  PaymentAllocation: { amountMinor: 'fin' },
+  Refund: { amountMinor: 'fin', reason: 'fin', failureNote: 'fin' },
+  CreditBalance: { amountMinor: 'fin' },
+  PaymentPlan: { principalMinor: 'fin', downPaymentMinor: 'fin', schedule: 'fin', agreementText: 'fin' },
+  PaymentPlanInstallment: { amountMinor: 'fin' },
+  LedgerNote: { text: 'fin' },
 }
 
 /** Every PHI field name, for log redaction (field names only, never values). */

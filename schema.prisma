@@ -96,6 +96,10 @@ model User {
   from_ClaimVersion_releasedBy            ClaimVersion[]           @relation("ClaimVersion_releasedBy")
   from_Denial_assignedTo                  Denial[]                 @relation("Denial_assignedTo")
   from_PaymentPosting_postedBy            PaymentPosting[]         @relation("PaymentPosting_postedBy")
+  from_LedgerNote_by                      LedgerNote[]             @relation("LedgerNote_by")
+  from_Payment_receivedBy                 Payment[]                @relation("Payment_receivedBy")
+  from_Refund_requestedBy                 Refund[]                 @relation("Refund_requestedBy")
+  from_Refund_approvedBy                  Refund[]                 @relation("Refund_approvedBy")
 
   @@index([roleId])
 }
@@ -306,6 +310,7 @@ model ApprovalRequest {
   from_FeeScheduleVersion_approval FeeScheduleVersion[] @relation("FeeScheduleVersion_approval")
   from_AdjustmentRequest_approval  AdjustmentRequest[]  @relation("AdjustmentRequest_approval")
   from_PeriodClose_approval        PeriodClose[]        @relation("PeriodClose_approval")
+  from_Refund_approval             Refund[]             @relation("Refund_approval")
 
   @@index([action])
   @@index([targetId])
@@ -605,6 +610,10 @@ model Location {
   from_DayClose_location             DayClose[]             @relation("DayClose_location")
   from_PeriodClose_location          PeriodClose[]          @relation("PeriodClose_location")
   from_Claim_location                Claim[]                @relation("Claim_location")
+  from_Payment_location              Payment[]              @relation("Payment_location")
+  from_PaymentPlan_location          PaymentPlan[]          @relation("PaymentPlan_location")
+  from_Refund_location               Refund[]               @relation("Refund_location")
+  from_Statement_location            Statement[]            @relation("Statement_location")
 
   @@index([jurisdictionId])
   @@index([billingEntityId])
@@ -1108,6 +1117,8 @@ model Patient {
   from_Subscriber_patient                Subscriber[]             @relation("Subscriber_patient")
   from_AdjustmentRequest_patient         AdjustmentRequest[]      @relation("AdjustmentRequest_patient")
   from_Claim_patient                     Claim[]                  @relation("Claim_patient")
+  from_Payment_patient                   Payment[]                @relation("Payment_patient")
+  from_PaymentPlan_patient               PaymentPlan[]            @relation("PaymentPlan_patient")
 
   @@index([mergedIntoId])
   @@index([familyId])
@@ -1865,18 +1876,24 @@ model FeeScheduleVersion {
 }
 
 model GuarantorAccount {
-  id                             String              @id @default(cuid())
-  ref                            String              @unique @default("")
-  guarantor                      Guarantor?          @relation("GuarantorAccount_guarantor", fields: [guarantorId], references: [id])
-  guarantorId                    String?             @map("guarantor")
-  balanceCache                   Json?               @default("{}")
-  balanceRebuiltAt               DateTime?
-  isSynthetic                    Boolean             @default(false)
-  version                        Int                 @default(0)
-  createdAt                      DateTime            @default(now())
-  updatedAt                      DateTime            @default(now()) @updatedAt
-  from_LedgerEntry_account       LedgerEntry[]       @relation("LedgerEntry_account")
-  from_AdjustmentRequest_account AdjustmentRequest[] @relation("AdjustmentRequest_account")
+  id                              String               @id @default(cuid())
+  ref                             String               @unique @default("")
+  guarantor                       Guarantor?           @relation("GuarantorAccount_guarantor", fields: [guarantorId], references: [id])
+  guarantorId                     String?              @map("guarantor")
+  balanceCache                    Json?                @default("{}")
+  balanceRebuiltAt                DateTime?
+  isSynthetic                     Boolean              @default(false)
+  version                         Int                  @default(0)
+  createdAt                       DateTime             @default(now())
+  updatedAt                       DateTime             @default(now()) @updatedAt
+  from_LedgerEntry_account        LedgerEntry[]        @relation("LedgerEntry_account")
+  from_AdjustmentRequest_account  AdjustmentRequest[]  @relation("AdjustmentRequest_account")
+  from_CreditBalance_account      CreditBalance[]      @relation("CreditBalance_account")
+  from_Payment_account            Payment[]            @relation("Payment_account")
+  from_PaymentMethodToken_account PaymentMethodToken[] @relation("PaymentMethodToken_account")
+  from_PaymentPlan_account        PaymentPlan[]        @relation("PaymentPlan_account")
+  from_Refund_account             Refund[]             @relation("Refund_account")
+  from_Statement_account          Statement[]          @relation("Statement_account")
 
   @@index([guarantorId])
 }
@@ -1910,6 +1927,10 @@ model LedgerEntry {
   paymentPostingId                    String?             @map("paymentPosting")
   claim                               Claim?              @relation("LedgerEntry_claim", fields: [claimId], references: [id])
   claimId                             String?             @map("claim")
+  payment                             Payment?            @relation("LedgerEntry_payment", fields: [paymentId], references: [id])
+  paymentId                           String?             @map("payment")
+  refund                              Refund?             @relation("LedgerEntry_refund", fields: [refundId], references: [id])
+  refundId                            String?             @map("refund")
   memo                                String              @default("")
   postedBy                            User?               @relation("LedgerEntry_postedBy", fields: [postedById], references: [id])
   postedById                          String?             @map("postedBy")
@@ -1921,6 +1942,10 @@ model LedgerEntry {
   from_ChartEntry_ledgerEntry         ChartEntry[]        @relation("ChartEntry_ledgerEntry")
   from_AdjustmentRequest_relatedEntry AdjustmentRequest[] @relation("AdjustmentRequest_relatedEntry")
   from_AdjustmentRequest_postedEntry  AdjustmentRequest[] @relation("AdjustmentRequest_postedEntry")
+  from_LedgerNote_entry               LedgerNote[]        @relation("LedgerNote_entry")
+  from_Payment_ledgerEntry            Payment[]           @relation("Payment_ledgerEntry")
+  from_PaymentAllocation_ledgerEntry  PaymentAllocation[] @relation("PaymentAllocation_ledgerEntry")
+  from_Refund_ledgerEntry             Refund[]            @relation("Refund_ledgerEntry")
 
   @@index([accountId])
   @@index([patientId])
@@ -1933,6 +1958,8 @@ model LedgerEntry {
   @@index([restatementId])
   @@index([paymentPostingId])
   @@index([claimId])
+  @@index([paymentId])
+  @@index([refundId])
   @@index([postedById])
 }
 
@@ -3483,6 +3510,237 @@ model ScrubRule {
   rulesetVersion String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @default(now()) @updatedAt
+}
+
+model CreditBalance {
+  id            String            @id @default(cuid())
+  account       GuarantorAccount? @relation("CreditBalance_account", fields: [accountId], references: [id])
+  accountId     String?           @map("account")
+  amountMinor   BigInt
+  arisenOn      DateTime?         @postgresql.Date
+  status        String            @default("open")
+  dormancyDueOn DateTime?         @postgresql.Date
+  noticeSentAt  DateTime?
+  version       Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @default(now()) @updatedAt
+
+  @@index([accountId])
+}
+
+model LedgerNote {
+  id        String       @id @default(cuid())
+  entry     LedgerEntry? @relation("LedgerNote_entry", fields: [entryId], references: [id])
+  entryId   String?      @map("entry")
+  text      String       @default("")
+  by        User?        @relation("LedgerNote_by", fields: [byId], references: [id])
+  byId      String?      @map("by")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @default(now()) @updatedAt
+
+  @@index([entryId])
+  @@index([byId])
+}
+
+model Payment {
+  id                                  String                   @id @default(cuid())
+  ref                                 String                   @unique @default("")
+  account                             GuarantorAccount?        @relation("Payment_account", fields: [accountId], references: [id])
+  accountId                           String?                  @map("account")
+  patient                             Patient?                 @relation("Payment_patient", fields: [patientId], references: [id])
+  patientId                           String?                  @map("patient")
+  location                            Location?                @relation("Payment_location", fields: [locationId], references: [id])
+  locationId                          String?                  @map("location")
+  amountMinor                         BigInt
+  refundedMinor                       BigInt                   @default(0)
+  currencyCode                        String                   @default("")
+  tender                              String
+  status                              String                   @default("initiated")
+  adapterKey                          String                   @default("")
+  providerIntentId                    String                   @default("")
+  providerMethodId                    String                   @default("")
+  idempotencyKey                      String                   @unique @default("")
+  methodToken                         PaymentMethodToken?      @relation("Payment_methodToken", fields: [methodTokenId], references: [id])
+  methodTokenId                       String?                  @map("methodToken")
+  checkNumber                         String                   @default("")
+  receivedBy                          User?                    @relation("Payment_receivedBy", fields: [receivedById], references: [id])
+  receivedById                        String?                  @map("receivedBy")
+  source                              String
+  statement                           Statement?               @relation("Payment_statement", fields: [statementId], references: [id])
+  statementId                         String?                  @map("statement")
+  ledgerEntry                         LedgerEntry?             @relation("Payment_ledgerEntry", fields: [ledgerEntryId], references: [id])
+  ledgerEntryId                       String?                  @map("ledgerEntry")
+  businessDate                        DateTime?                @postgresql.Date
+  drawer                              String                   @default("")
+  failureNote                         String                   @default("")
+  disputedAt                          DateTime?
+  allocations                         PaymentAllocation[]      @relation("PaymentAllocation_payment")
+  version                             Int                      @default(0)
+  createdAt                           DateTime                 @default(now())
+  updatedAt                           DateTime                 @default(now()) @updatedAt
+  from_LedgerEntry_payment            LedgerEntry[]            @relation("LedgerEntry_payment")
+  from_PaymentPlanInstallment_payment PaymentPlanInstallment[] @relation("PaymentPlanInstallment_payment")
+  from_Refund_payment                 Refund[]                 @relation("Refund_payment")
+
+  @@index([accountId])
+  @@index([patientId])
+  @@index([locationId])
+  @@index([providerIntentId])
+  @@index([methodTokenId])
+  @@index([receivedById])
+  @@index([statementId])
+  @@index([ledgerEntryId])
+}
+
+model PaymentAllocation {
+  id            String       @id @default(cuid())
+  payment       Payment?     @relation("PaymentAllocation_payment", fields: [paymentId], references: [id])
+  paymentId     String?      @map("payment")
+  ledgerEntry   LedgerEntry? @relation("PaymentAllocation_ledgerEntry", fields: [ledgerEntryId], references: [id])
+  ledgerEntryId String?      @map("ledgerEntry")
+  amountMinor   BigInt
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
+
+  @@index([paymentId])
+  @@index([ledgerEntryId])
+}
+
+model PaymentMethodToken {
+  id                       String            @id @default(cuid())
+  account                  GuarantorAccount? @relation("PaymentMethodToken_account", fields: [accountId], references: [id])
+  accountId                String?           @map("account")
+  adapterKey               String            @default("")
+  providerCustomerId       String            @default("")
+  providerMethodId         String            @default("")
+  brand                    String            @default("")
+  last4                    String            @default("")
+  expMonth                 Int?
+  expYear                  Int?
+  consentText              String            @default("")
+  consentAt                DateTime?
+  consentBy                String            @default("")
+  status                   String            @default("active")
+  version                  Int               @default(0)
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @default(now()) @updatedAt
+  from_Payment_methodToken Payment[]         @relation("Payment_methodToken")
+  from_PaymentPlan_autopay PaymentPlan[]     @relation("PaymentPlan_autopay")
+
+  @@index([accountId])
+}
+
+model PaymentPlan {
+  id               String                   @id @default(cuid())
+  ref              String                   @unique @default("")
+  account          GuarantorAccount?        @relation("PaymentPlan_account", fields: [accountId], references: [id])
+  accountId        String?                  @map("account")
+  patient          Patient?                 @relation("PaymentPlan_patient", fields: [patientId], references: [id])
+  patientId        String?                  @map("patient")
+  location         Location?                @relation("PaymentPlan_location", fields: [locationId], references: [id])
+  locationId       String?                  @map("location")
+  principalMinor   BigInt
+  downPaymentMinor BigInt                   @default(0)
+  interestRatePct  Decimal                  @postgresql.Decimal(9, 4)
+  schedule         Json?                    @default("{}")
+  agreementText    String                   @default("")
+  agreementHash    String                   @default("")
+  agreedAt         DateTime?
+  agreedByName     String                   @default("")
+  autopay          PaymentMethodToken?      @relation("PaymentPlan_autopay", fields: [autopayId], references: [id])
+  autopayId        String?                  @map("autopay")
+  status           String                   @default("proposed")
+  installments     PaymentPlanInstallment[] @relation("PaymentPlanInstallment_plan")
+  version          Int                      @default(0)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @default(now()) @updatedAt
+
+  @@index([accountId])
+  @@index([patientId])
+  @@index([locationId])
+  @@index([autopayId])
+}
+
+model PaymentPlanInstallment {
+  id            String       @id @default(cuid())
+  plan          PaymentPlan? @relation("PaymentPlanInstallment_plan", fields: [planId], references: [id])
+  planId        String?      @map("plan")
+  dueDate       DateTime?    @postgresql.Date
+  amountMinor   BigInt
+  status        String       @default("due")
+  payment       Payment?     @relation("PaymentPlanInstallment_payment", fields: [paymentId], references: [id])
+  paymentId     String?      @map("payment")
+  attempts      Int?         @default(0)
+  lastAttemptOn DateTime?    @postgresql.Date
+  version       Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
+
+  @@index([planId])
+  @@index([paymentId])
+}
+
+model Refund {
+  id                      String            @id @default(cuid())
+  ref                     String            @unique @default("")
+  account                 GuarantorAccount? @relation("Refund_account", fields: [accountId], references: [id])
+  accountId               String?           @map("account")
+  location                Location?         @relation("Refund_location", fields: [locationId], references: [id])
+  locationId              String?           @map("location")
+  payment                 Payment?          @relation("Refund_payment", fields: [paymentId], references: [id])
+  paymentId               String?           @map("payment")
+  target                  String
+  amountMinor             BigInt
+  method                  String
+  status                  String            @default("requested")
+  reason                  String            @default("")
+  approval                ApprovalRequest?  @relation("Refund_approval", fields: [approvalId], references: [id])
+  approvalId              String?           @map("approval")
+  adapterRef              String            @default("")
+  requestedBy             User?             @relation("Refund_requestedBy", fields: [requestedById], references: [id])
+  requestedById           String?           @map("requestedBy")
+  approvedBy              User?             @relation("Refund_approvedBy", fields: [approvedById], references: [id])
+  approvedById            String?           @map("approvedBy")
+  ledgerEntry             LedgerEntry?      @relation("Refund_ledgerEntry", fields: [ledgerEntryId], references: [id])
+  ledgerEntryId           String?           @map("ledgerEntry")
+  failureNote             String            @default("")
+  version                 Int               @default(0)
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @default(now()) @updatedAt
+  from_LedgerEntry_refund LedgerEntry[]     @relation("LedgerEntry_refund")
+
+  @@index([accountId])
+  @@index([locationId])
+  @@index([paymentId])
+  @@index([approvalId])
+  @@index([requestedById])
+  @@index([approvedById])
+  @@index([ledgerEntryId])
+}
+
+model Statement {
+  id             String            @id @default(cuid())
+  ref            String            @unique @default("")
+  account        GuarantorAccount? @relation("Statement_account", fields: [accountId], references: [id])
+  accountId      String?           @map("account")
+  location       Location?         @relation("Statement_location", fields: [locationId], references: [id])
+  locationId     String?           @map("location")
+  cycleDate      DateTime?         @postgresql.Date
+  snapshot       Json?             @default("{}")
+  amountDueMinor BigInt
+  dueDate        DateTime?         @postgresql.Date
+  status         String            @default("generated")
+  payLinkCode    String            @unique @default("")
+  documentSha256 String            @default("")
+  sentAt         DateTime?
+  sentChannel    String            @default("")
+  payments       Payment[]         @relation("Payment_statement")
+  version        Int               @default(0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @default(now()) @updatedAt
+
+  @@index([accountId])
+  @@index([locationId])
 }
 
 enum UserKindType {

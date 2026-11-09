@@ -6,6 +6,7 @@ import * as plans from './plans'
 import * as insurance from './insurance'
 import * as claims from './claims'
 import * as ledger from './ledger'
+import * as payments from './payments'
 import { PHASE2_ARGS } from './phase2Args'
 
 /* Every Phase 2 command's resolver. index.ts builds the GraphQL schema from this table and PHASE2_ARGS. */
@@ -84,6 +85,16 @@ const RESOLVERS: Record<string, Resolver> = {
   resolveDenial: claims.resolveDenial,
   fileAppeal: claims.fileAppeal,
   recordAppealOutcome: claims.recordAppealOutcome,
+  takePayment: payments.takePayment,
+  requestRefund: payments.requestRefund,
+  recordRefundPaid: payments.recordRefundPaid,
+  correctLedgerNote: payments.correctLedgerNote,
+  generateStatements: payments.generateStatements,
+  sendStatement: payments.sendStatement,
+  holdStatements: payments.holdStatements,
+  proposePaymentPlan: payments.proposePaymentPlan,
+  activatePaymentPlan: payments.activatePaymentPlan,
+  cancelPaymentPlan: payments.cancelPaymentPlan,
 }
 
 export const PHASE2_OPS = Object.fromEntries(Object.entries(PHASE2_ARGS).map(([name, args]) => [name, { args, fn: RESOLVERS[name] }]))

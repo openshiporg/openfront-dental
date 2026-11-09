@@ -78,6 +78,21 @@ describe('hidden fields cannot be filtered or sorted (GraphQL)', { skip: !hasTes
     'remittanceClaimsCount(where: { paidMinor: { gt: "0" } })',
     'appealsCount(where: { letter: { contains: "x" } })',
     'claimVersionsCount(where: { payload: { equals: {} } })',
+    'paymentsCount(where: { amountMinor: { gt: "100" } })',
+    'payments(orderBy: { checkNumber: asc }, take: 5) { id }',
+    'paymentsCount(where: { failureNote: { contains: "x" } })',
+    'paymentAllocationsCount(where: { amountMinor: { gt: "0" } })',
+    'refundsCount(where: { reason: { contains: "x" } })',
+    'refunds(orderBy: { amountMinor: asc }, take: 5) { id }',
+    'statementsCount(where: { amountDueMinor: { gt: "0" } })',
+    'statementsCount(where: { snapshot: { equals: {} } })',
+    'creditBalancesCount(where: { amountMinor: { gt: "0" } })',
+    'paymentPlansCount(where: { principalMinor: { gt: "0" } })',
+    'paymentPlansCount(where: { agreementText: { contains: "x" } })',
+    'paymentPlanInstallmentsCount(where: { amountMinor: { gt: "0" } })',
+    'paymentMethodTokensCount(where: { last4: { equals: "4242" } })',
+    'paymentMethodTokens(orderBy: { providerMethodId: asc }, take: 5) { id }',
+    'ledgerNotesCount(where: { text: { contains: "x" } })',
   ]) {
     it(`a reader without the money tier: ${selection} is refused`, async () => {
       const r = await run(sessionOf(['canAccessDashboard', 'canManagePatients', 'canCloseDay']), `{ ${selection} }`)

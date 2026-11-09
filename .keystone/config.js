@@ -36,7 +36,7 @@ module.exports = __toCommonJS(keystone_exports);
 
 // features/keystone/index.ts
 var import_auth = require("@keystone-6/auth");
-var import_core20 = require("@keystone-6/core");
+var import_core21 = require("@keystone-6/core");
 var import_config = require("dotenv/config");
 
 // features/keystone/models/User.ts
@@ -2260,6 +2260,8 @@ var LedgerEntry = (0, import_core13.list)({
     restatement: (0, import_fields13.relationship)({ ref: "Restatement.entries", ...readOnly }),
     paymentPosting: (0, import_fields13.relationship)({ ref: "PaymentPosting.entries", ...readOnly }),
     claim: (0, import_fields13.relationship)({ ref: "Claim", ...readOnly }),
+    payment: (0, import_fields13.relationship)({ ref: "Payment", ...readOnly }),
+    refund: (0, import_fields13.relationship)({ ref: "Refund", ...readOnly }),
     memo: systemText(),
     postedBy: (0, import_fields13.relationship)({ ref: "User", ...readOnly }),
     postedAt: (0, import_fields13.timestamp)({ ...readOnly }),
@@ -3584,6 +3586,214 @@ var PayerEnrollment = (0, import_core18.list)({
   }
 });
 
+// features/keystone/models/payments.ts
+var payments_exports = {};
+__export(payments_exports, {
+  CREDIT_STATUSES: () => CREDIT_STATUSES,
+  CreditBalance: () => CreditBalance,
+  INSTALLMENT_STATUSES: () => INSTALLMENT_STATUSES,
+  LedgerNote: () => LedgerNote,
+  PAYMENT_SOURCES: () => PAYMENT_SOURCES,
+  PAYMENT_STATUSES: () => PAYMENT_STATUSES,
+  PAYMENT_TENDERS: () => PAYMENT_TENDERS,
+  PLAN_STATUSES: () => PLAN_STATUSES2,
+  Payment: () => Payment,
+  PaymentAllocation: () => PaymentAllocation,
+  PaymentMethodToken: () => PaymentMethodToken,
+  PaymentPlan: () => PaymentPlan,
+  PaymentPlanInstallment: () => PaymentPlanInstallment,
+  REFUND_METHODS: () => REFUND_METHODS,
+  REFUND_STATUSES: () => REFUND_STATUSES,
+  REFUND_TARGETS: () => REFUND_TARGETS,
+  Refund: () => Refund,
+  STATEMENT_STATUSES: () => STATEMENT_STATUSES,
+  Statement: () => Statement,
+  TOKEN_STATUSES: () => TOKEN_STATUSES
+});
+var import_core19 = require("@keystone-6/core");
+var import_fields19 = require("@keystone-6/core/fields");
+var PAYMENT_TENDERS = ["card", "ach", "cash", "check", "financing", "membership_credit", "other"];
+var PAYMENT_STATUSES = ["initiated", "requires_action", "succeeded", "failed", "unknown", "partially_refunded", "refunded"];
+var PAYMENT_SOURCES = ["front_desk", "pay_link", "autopay", "portal_api", "payment_plan", "membership"];
+var TOKEN_STATUSES = ["active", "revoked", "expired"];
+var REFUND_TARGETS = ["patient", "payer"];
+var REFUND_METHODS = ["original_tender", "check", "ach"];
+var REFUND_STATUSES = ["requested", "approved", "executing", "completed", "failed", "unknown", "rejected"];
+var CREDIT_STATUSES = ["open", "refund_requested", "refunded", "applied", "transferred", "escheat_pending", "escheat_reported"];
+var STATEMENT_STATUSES = ["generated", "sent", "paid", "partially_paid", "overdue", "payment_plan", "collections_hold", "suppressed"];
+var PLAN_STATUSES2 = ["proposed", "active", "delinquent", "completed", "cancelled"];
+var INSTALLMENT_STATUSES = ["due", "paid", "failed", "missed"];
+var READ = ["canReadLedger", "canTakePayments", "canIssueRefunds", "canApproveRefunds"];
+var scoped = (path = ["location"]) => scopedGoverned(READ, locationFilter(path));
+var PaymentMethodToken = (0, import_core19.list)({
+  access: scopedGoverned(READ, locationFilter(["account", "guarantor", "patient", "homeLocation"])),
+  ui: { labelField: "last4", listView: { initialColumns: ["brand", "last4", "expMonth", "expYear", "status"] } },
+  fields: {
+    account: (0, import_fields19.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    adapterKey: systemText({ required: true }),
+    providerCustomerId: systemText(),
+    providerMethodId: systemText(),
+    brand: systemText(),
+    last4: systemText(),
+    expMonth: (0, import_fields19.integer)({ ...readOnly }),
+    expYear: (0, import_fields19.integer)({ ...readOnly }),
+    consentText: systemText(),
+    consentAt: (0, import_fields19.timestamp)({ ...readOnly }),
+    consentBy: systemText(),
+    status: lifecycle(TOKEN_STATUSES),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var Statement = (0, import_core19.list)({
+  access: scoped(),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "account", "cycleDate", "amountDueMinor", "dueDate", "status"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    ref: systemText({ indexed: "unique", required: true }),
+    account: (0, import_fields19.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    location: (0, import_fields19.relationship)({ ref: "Location", ...readOnly }),
+    cycleDate: (0, import_fields19.calendarDay)({ ...readOnly }),
+    snapshot: (0, import_fields19.json)({ defaultValue: {}, ...readOnly }),
+    amountDueMinor: minor({ required: true }),
+    dueDate: (0, import_fields19.calendarDay)({ ...readOnly }),
+    status: lifecycle(STATEMENT_STATUSES),
+    payLinkCode: systemText({ indexed: "unique", required: true }),
+    documentSha256: systemText(),
+    sentAt: (0, import_fields19.timestamp)({ ...readOnly }),
+    sentChannel: systemText(),
+    payments: (0, import_fields19.relationship)({ ref: "Payment.statement", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var Payment = (0, import_core19.list)({
+  access: scoped(),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "account", "tender", "amountMinor", "status", "businessDate"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    ref: systemText({ indexed: "unique", required: true }),
+    account: (0, import_fields19.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    patient: (0, import_fields19.relationship)({ ref: "Patient", ...readOnly }),
+    location: (0, import_fields19.relationship)({ ref: "Location", ...readOnly }),
+    amountMinor: minor({ required: true }),
+    refundedMinor: minor({ defaultValue: 0n }),
+    currencyCode: systemText(),
+    tender: fixedChoice(PAYMENT_TENDERS),
+    status: lifecycle(PAYMENT_STATUSES),
+    adapterKey: systemText(),
+    providerIntentId: systemText({ indexed: true }),
+    providerMethodId: systemText(),
+    idempotencyKey: systemText({ indexed: "unique", required: true }),
+    methodToken: (0, import_fields19.relationship)({ ref: "PaymentMethodToken", ...readOnly }),
+    checkNumber: systemText(),
+    receivedBy: (0, import_fields19.relationship)({ ref: "User", ...readOnly }),
+    source: fixedChoice(PAYMENT_SOURCES),
+    statement: (0, import_fields19.relationship)({ ref: "Statement.payments", ...readOnly }),
+    ledgerEntry: (0, import_fields19.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    businessDate: (0, import_fields19.calendarDay)({ ...readOnly }),
+    drawer: systemText(),
+    failureNote: systemText(),
+    disputedAt: (0, import_fields19.timestamp)({ ...readOnly }),
+    allocations: (0, import_fields19.relationship)({ ref: "PaymentAllocation.payment", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PaymentAllocation = (0, import_core19.list)({
+  access: scoped(["payment", "location"]),
+  ui: { labelField: "amountMinor", listView: { initialColumns: ["payment", "ledgerEntry", "amountMinor"] } },
+  fields: {
+    payment: (0, import_fields19.relationship)({ ref: "Payment.allocations", ...readOnly }),
+    ledgerEntry: (0, import_fields19.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    amountMinor: minor({ required: true }),
+    ...trackingFields
+  }
+});
+var Refund = (0, import_core19.list)({
+  access: scoped(),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "account", "amountMinor", "method", "status", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    ref: systemText({ indexed: "unique", required: true }),
+    account: (0, import_fields19.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    location: (0, import_fields19.relationship)({ ref: "Location", ...readOnly }),
+    payment: (0, import_fields19.relationship)({ ref: "Payment", ...readOnly }),
+    target: fixedChoice(REFUND_TARGETS),
+    amountMinor: minor({ required: true }),
+    method: fixedChoice(REFUND_METHODS),
+    status: lifecycle(REFUND_STATUSES),
+    reason: systemText(),
+    approval: (0, import_fields19.relationship)({ ref: "ApprovalRequest", ...readOnly }),
+    adapterRef: systemText(),
+    requestedBy: (0, import_fields19.relationship)({ ref: "User", ...readOnly }),
+    approvedBy: (0, import_fields19.relationship)({ ref: "User", ...readOnly }),
+    ledgerEntry: (0, import_fields19.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    failureNote: systemText(),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var CreditBalance = (0, import_core19.list)({
+  access: scopedGoverned(READ, locationFilter(["account", "guarantor", "patient", "homeLocation"])),
+  ui: { labelField: "status", listView: { initialColumns: ["account", "amountMinor", "arisenOn", "status", "dormancyDueOn"] } },
+  fields: {
+    account: (0, import_fields19.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    amountMinor: minor({ required: true }),
+    arisenOn: (0, import_fields19.calendarDay)({ ...readOnly }),
+    status: lifecycle(CREDIT_STATUSES),
+    dormancyDueOn: (0, import_fields19.calendarDay)({ ...readOnly }),
+    noticeSentAt: (0, import_fields19.timestamp)({ ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PaymentPlan = (0, import_core19.list)({
+  access: scoped(),
+  ui: { labelField: "ref", listView: { initialColumns: ["ref", "account", "principalMinor", "status", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
+  fields: {
+    ref: systemText({ indexed: "unique", required: true }),
+    account: (0, import_fields19.relationship)({ ref: "GuarantorAccount", ...readOnly }),
+    patient: (0, import_fields19.relationship)({ ref: "Patient", ...readOnly }),
+    location: (0, import_fields19.relationship)({ ref: "Location", ...readOnly }),
+    principalMinor: minor({ required: true, description: "The amount spread over the instalments (after any payment up front)." }),
+    downPaymentMinor: minor({ defaultValue: 0n }),
+    interestRatePct: pct({ required: true, description: "Always 0: plans are interest-free in this version." }),
+    schedule: (0, import_fields19.json)({ defaultValue: {}, ...readOnly }),
+    agreementText: systemText(),
+    agreementHash: systemText(),
+    agreedAt: (0, import_fields19.timestamp)({ ...readOnly }),
+    agreedByName: systemText(),
+    autopay: (0, import_fields19.relationship)({ ref: "PaymentMethodToken", ...readOnly }),
+    status: lifecycle(PLAN_STATUSES2),
+    installments: (0, import_fields19.relationship)({ ref: "PaymentPlanInstallment.plan", many: true, ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var PaymentPlanInstallment = (0, import_core19.list)({
+  access: scoped(["plan", "location"]),
+  ui: { labelField: "dueDate", listView: { initialColumns: ["plan", "dueDate", "amountMinor", "status"] } },
+  fields: {
+    plan: (0, import_fields19.relationship)({ ref: "PaymentPlan.installments", ...readOnly }),
+    dueDate: (0, import_fields19.calendarDay)({ ...readOnly }),
+    amountMinor: minor({ required: true }),
+    status: lifecycle(INSTALLMENT_STATUSES),
+    payment: (0, import_fields19.relationship)({ ref: "Payment", ...readOnly }),
+    attempts: (0, import_fields19.integer)({ defaultValue: 0, ...readOnly }),
+    lastAttemptOn: (0, import_fields19.calendarDay)({ ...readOnly }),
+    version: versionField(),
+    ...trackingFields
+  }
+});
+var LedgerNote = (0, import_core19.list)({
+  access: governed(["canReadLedger"]),
+  ui: { labelField: "text", listView: { initialColumns: ["entry", "text", "createdAt"] } },
+  fields: {
+    entry: (0, import_fields19.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    text: systemText({ required: true }),
+    by: (0, import_fields19.relationship)({ ref: "User", ...readOnly }),
+    ...trackingFields
+  }
+});
+
 // features/keystone/security/phiFields.ts
 var TIER_PERMISSION = {
   dem: "canReadDemographics",
@@ -3684,17 +3894,26 @@ var PHI_FIELDS = {
   RemittanceClaim: { chargeMinor: "fin", paidMinor: "fin", patientRespMinor: "fin", crossoverCarrier: "fin" },
   RemittanceLine: { chargeMinor: "fin", allowedMinor: "fin", paidMinor: "fin", adjustmentsTotalMinor: "fin", adjustments: "fin", rarc: "fin" },
   Denial: { amountMinor: "ins", rarc: "ins", resolutionNote: "ins" },
-  Appeal: { letter: "ins" }
+  Appeal: { letter: "ins" },
+  PaymentMethodToken: { last4: "fin", brand: "fin", expMonth: "fin", expYear: "fin", providerCustomerId: "fin", providerMethodId: "fin", consentText: "fin" },
+  Statement: { snapshot: "fin", amountDueMinor: "fin" },
+  Payment: { amountMinor: "fin", refundedMinor: "fin", checkNumber: "fin", failureNote: "fin" },
+  PaymentAllocation: { amountMinor: "fin" },
+  Refund: { amountMinor: "fin", reason: "fin", failureNote: "fin" },
+  CreditBalance: { amountMinor: "fin" },
+  PaymentPlan: { principalMinor: "fin", downPaymentMinor: "fin", schedule: "fin", agreementText: "fin" },
+  PaymentPlanInstallment: { amountMinor: "fin" },
+  LedgerNote: { text: "fin" }
 };
 var PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap((fields) => Object.keys(fields)));
 function applyPhiTiers(models2) {
-  for (const [listKey, list17] of Object.entries(models2)) {
+  for (const [listKey, list18] of Object.entries(models2)) {
     const tiers = PHI_FIELDS[listKey];
     if (!tiers) continue;
     for (const [fieldKey, tier] of Object.entries(tiers)) {
-      const original = list17.fields?.[fieldKey];
+      const original = list18.fields?.[fieldKey];
       if (typeof original !== "function") throw new Error(`PHI_FIELDS names ${listKey}.${fieldKey}, which does not exist.`);
-      list17.fields[fieldKey] = (args) => {
+      list18.fields[fieldKey] = (args) => {
         const field = original(args);
         const access = field.access;
         const baseRead = typeof access === "function" ? access : access?.read;
@@ -3709,10 +3928,10 @@ function applyPhiTiers(models2) {
   return gateFilterAndOrder(models2);
 }
 function gateFilterAndOrder(models2) {
-  for (const list17 of Object.values(models2)) {
-    for (const [fieldKey, original] of Object.entries(list17.fields ?? {})) {
+  for (const list18 of Object.values(models2)) {
+    for (const [fieldKey, original] of Object.entries(list18.fields ?? {})) {
       if (typeof original !== "function" || fieldKey.startsWith("__group")) continue;
-      list17.fields[fieldKey] = (args) => {
+      list18.fields[fieldKey] = (args) => {
         const field = original(args);
         const read = typeof field.access === "function" ? field.access : field.access?.read;
         if (typeof read !== "function") return field;
@@ -3759,7 +3978,8 @@ var models = boundTake(hideRefusedActions(applyPhiTiers({
   ...listsOf(treatment_exports),
   ...listsOf(insurance_exports),
   ...listsOf(ledger_exports),
-  ...listsOf(claims_exports)
+  ...listsOf(claims_exports),
+  ...listsOf(payments_exports)
 })));
 
 // features/keystone/mutations/index.ts
@@ -3847,7 +4067,12 @@ var UNIQUE_MESSAGES = {
   PaymentPosting: "That payment was already posted. Nothing was posted twice.",
   Denial: "That denial is already open on this line.",
   ClaimVersion: "That claim version already exists. Refresh to see it.",
-  ClaimLine: "That claim line already exists."
+  ClaimLine: "That claim line already exists.",
+  Payment: "That payment was already recorded. Nothing was charged twice.",
+  PaymentAllocation: "That payment was already applied to that charge.",
+  Statement: "A statement for that account and date already exists.",
+  PaymentPlanInstallment: "That instalment already exists.",
+  CreditBalance: "That account already has an open credit."
 };
 var CHECK_MESSAGES = [
   [/^Estimate_/, "The estimate could not be saved: its amounts break an insurance rule (for example a plan paying on a line it does not cover). Nothing was changed. Check the plans\u2019 benefits, then estimate again."],
@@ -3858,6 +4083,8 @@ var CHECK_MESSAGES = [
   [/^Claim_|^ClaimLine_/, "That claim change was refused: the amounts or state do not make sense together. Nothing was changed."],
   [/^RemittanceLine_conservation/, "A remittance line must balance: the charge equals the payment plus the adjustments. Nothing was posted."],
   [/^(Remittance|PaymentPosting|Denial|Appeal)_/, "That payment change was refused: it would break a payment rule. Nothing was changed."],
+  [/^PaymentAllocation_|^Payment_allocation|^Refund_guard|^Refund_/, "That payment or refund change was refused: it would apply or refund more than was paid, or it needs a second person. Nothing was changed."],
+  [/^(Payment|PaymentPlan|PaymentPlanInstallment|Statement|PaymentMethodToken|CreditBalance)_/, "That payment change was refused: it would break a payment rule. Nothing was changed."],
   [/^(LedgerEntry|AdjustmentRequest|AdjustmentType|DayClose|PeriodClose|Restatement)_/, "That ledger change was refused: the ledger only grows, and a closed period takes no new entries. Nothing was changed."],
   [/_bound$/, "That amount is larger than the system allows. Check it and try again."],
   [/^BenefitVerification_/, "That verification change was refused: the verification is not in a state that allows it."]
@@ -3867,21 +4094,21 @@ var prismaCodeOf = (error) => String(error?.code ?? error?.extensions?.prisma?.c
 var isUniqueConflict = (error) => prismaCodeOf(error) === "P2002" || /Unique constraint failed|duplicate key value violates unique constraint/i.test(textOf(error));
 function dbRefusal(error) {
   const e = error;
-  const text18 = textOf(e);
+  const text19 = textOf(e);
   if (isUniqueConflict(e)) {
     const model = String(e?.meta?.modelName ?? e?.extensions?.prisma?.meta?.modelName ?? "");
-    const index = /unique constraint "([^"]+)"/i.exec(text18)?.[1] ?? "";
-    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text18) ? "BenefitVerification" : /EligibilityCheck/.test(text18) ? "EligibilityCheck" : "");
+    const index = /unique constraint "([^"]+)"/i.exec(text19)?.[1] ?? "";
+    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text19) ? "BenefitVerification" : /EligibilityCheck/.test(text19) ? "EligibilityCheck" : "");
     return new DomainError(Codes.STALE_STATE, UNIQUE_MESSAGES[key] ?? "Someone else made the same change at the same moment. Refresh and try again.");
   }
-  const check = /violates check constraint "([^"]+)"/i.exec(text18)?.[1];
+  const check = /violates check constraint "([^"]+)"/i.exec(text19)?.[1];
   if (check) {
     const message = CHECK_MESSAGES.find(([pattern]) => pattern.test(check))?.[1] ?? "The change was refused because it would break a practice rule. Nothing was changed.";
     return new DomainError(Codes.GUARD_FAILED, message, { reason: check });
   }
-  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text18)?.[1];
-  if (raised && /23514|check_violation|RAISE|P0001/i.test(text18 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
-  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text18)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
+  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text19)?.[1];
+  if (raised && /23514|check_violation|RAISE|P0001/i.test(text19 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
+  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text19)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
   return null;
 }
 
@@ -4007,9 +4234,9 @@ function dec(value) {
     if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
     return new Decimal(value);
   }
-  const text18 = String(value).trim();
-  if (!DECIMAL_TEXT.test(text18)) throw new Error(`Not a decimal number: ${JSON.stringify(text18).slice(0, 40)}`);
-  return new Decimal(text18);
+  const text19 = String(value).trim();
+  if (!DECIMAL_TEXT.test(text19)) throw new Error(`Not a decimal number: ${JSON.stringify(text19).slice(0, 40)}`);
+  return new Decimal(text19);
 }
 function toScale(value, scale, rounding = Decimal.ROUND_HALF_EVEN) {
   const places = typeof scale === "number" ? scale : Scale[scale];
@@ -4041,11 +4268,11 @@ function canonicalize(value) {
   throw new Error(`Canonical JSON cannot hold a ${typeof value}`);
 }
 var canonicalJson = (value) => JSON.stringify(canonicalize(value));
-var sha256 = (text18) => (0, import_node_crypto2.createHash)("sha256").update(text18).digest("hex");
+var sha256 = (text19) => (0, import_node_crypto2.createHash)("sha256").update(text19).digest("hex");
 var memberIdHash = (memberId, keyText = process.env.DENTAL_SECRET_KEY) => {
-  const text18 = String(keyText || "").trim();
-  if (!text18) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
-  const root = /^[a-f0-9]{64}$/i.test(text18) ? Buffer.from(text18, "hex") : Buffer.from(text18, "base64");
+  const text19 = String(keyText || "").trim();
+  if (!text19) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
+  const root = /^[a-f0-9]{64}$/i.test(text19) ? Buffer.from(text19, "hex") : Buffer.from(text19, "base64");
   const key = (0, import_node_crypto2.createHmac)("sha256", root).update("dental.member-id-hash.v1").digest();
   return `h1:${(0, import_node_crypto2.createHmac)("sha256", key).update(memberId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")).digest("hex")}`;
 };
@@ -4569,7 +4796,7 @@ function rng(seed) {
 }
 function samplePatients(today2) {
   const rand = rng(20261107);
-  const pick = (list17) => list17[Math.floor(rand() * list17.length)];
+  const pick = (list18) => list18[Math.floor(rand() * list18.length)];
   const year = Number(today2.slice(0, 4));
   const dobFor = (age) => {
     const month = 1 + Math.floor(rand() * 12);
@@ -4979,6 +5206,8 @@ async function postEntry(tx, input, now) {
       restatementId: input.restatementId ?? null,
       paymentPostingId: input.paymentPostingId ?? null,
       claimId: input.claimId ?? null,
+      paymentId: input.paymentId ?? null,
+      refundId: input.refundId ?? null,
       memo: input.memo ?? "",
       postedById: input.postedById ?? null,
       postedAt: now,
@@ -4988,8 +5217,8 @@ async function postEntry(tx, input, now) {
   await rebuildBalance(tx, input.accountId, now);
   return entry;
 }
-function parseMoney(text18, field = "amount") {
-  const raw = String(text18 ?? "").trim().replace(/^\$/, "").replaceAll(",", "");
+function parseMoney(text19, field = "amount") {
+  const raw = String(text19 ?? "").trim().replace(/^\$/, "").replaceAll(",", "");
   if (!/^\d{1,7}(\.\d{1,2})?$/.test(raw)) throw new DomainError(Codes.INVALID_INPUT, `Enter the ${field} in dollars and cents, like 125.00.`, { field });
   const [whole2, cents = ""] = raw.split(".");
   const minor2 = BigInt(whole2) * 100n + BigInt(cents.padEnd(2, "0"));
@@ -5506,9 +5735,9 @@ async function seedPracticePlatform(uow, actor2) {
 var import_node_crypto4 = require("node:crypto");
 var SECRET_KEY_VERSION = 1;
 function decodeKey(value) {
-  const text18 = String(value || "").trim();
-  if (!text18) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
-  const key = /^[a-f0-9]{64}$/i.test(text18) ? Buffer.from(text18, "hex") : Buffer.from(text18, "base64");
+  const text19 = String(value || "").trim();
+  if (!text19) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
+  const key = /^[a-f0-9]{64}$/i.test(text19) ? Buffer.from(text19, "hex") : Buffer.from(text19, "base64");
   if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
   return key;
 }
@@ -5701,8 +5930,14 @@ async function seedClaimSample(db) {
     }
   }
   let enrollments = 0;
-  const entity = await db.billingEntity.findFirst({ orderBy: { createdAt: "asc" } });
+  let entity = await db.billingEntity.findFirst({ orderBy: { createdAt: "asc" } });
+  const sampleLocations = await db.location.findMany({ where: { billingEntityId: null }, select: { id: true, address: true } });
+  if (!entity && sampleLocations.length && await db.payer.count({ where: { isSynthetic: true } })) {
+    const where = sampleLocations[0].address ?? {};
+    entity = await db.billingEntity.create({ data: { legalName: "Bayview Family Dental, P.A.", tinLast4: "4417", npiType2: "1999900017", address: where, payToAddress: where, clearinghouseSubmitterIds: {} } });
+  }
   if (entity) {
+    await db.location.updateMany({ where: { billingEntityId: null }, data: { billingEntityId: entity.id } });
     for (const payer of await db.payer.findMany({ where: { isSynthetic: true } })) {
       if (!await db.payerEnrollment.findFirst({ where: { billingEntityId: entity.id, payerId: payer.id, transaction: "claims" } })) {
         await db.payerEnrollment.create({ data: { billingEntityId: entity.id, payerId: payer.id, adapterKey: "stedi", transaction: "claims", status: "live", notes: "Sample practice" } });
@@ -6430,10 +6665,10 @@ var toDate = (value, field) => {
   return date;
 };
 var requireText = (value, field, max2 = 500) => {
-  const text18 = String(value ?? "").trim();
-  if (!text18) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-  if (text18.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
-  return text18;
+  const text19 = String(value ?? "").trim();
+  if (!text19) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+  if (text19.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+  return text19;
 };
 var optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
 function normalizeContact(kind, value) {
@@ -7164,11 +7399,11 @@ async function addPatientAlert(_root, args, context) {
   requirePermission(actor2, "canManagePatients", "canChart");
   if (!ALERT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown alert kind.", { field: "kind" });
   if (!["info", "caution", "critical"].includes(args.severity)) throw new DomainError(Codes.INVALID_INPUT, "Choose info, caution or critical.", { field: "severity" });
-  const text18 = requireText(args.text, "alert text", 500);
+  const text19 = requireText(args.text, "alert text", 500);
   const { idempotencyKey, ...params } = args;
   const result = await command(context.prisma, { name: "patient.alert_add", actor: actor2, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text18, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
+    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text19, source: "manual", activeFrom: uow.now, recordedById: actor2.kind === "user" ? actor2.userId : null } });
     auditCreate(uow, actor2, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
     return { alertId: alert.id };
   });
@@ -7300,21 +7535,21 @@ async function applyMergeIn(uow, actor2, mergeCaseId, approverId) {
   let seq = 0;
   const entries = [];
   const survivorPrimary = new Set((await uow.tx.contactPoint.findMany({ where: { patientId: survivorId, isPrimary: true, isActive: true }, select: { kind: true } })).map((c) => c.kind));
-  for (const { list: list17, field } of MERGE_CHILDREN) {
-    const rows = await delegateOf(uow.tx, list17).findMany({ where: { [field]: mergedId }, select: { id: true, ...list17 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
+  for (const { list: list18, field } of MERGE_CHILDREN) {
+    const rows = await delegateOf(uow.tx, list18).findMany({ where: { [field]: mergedId }, select: { id: true, ...list18 === "ContactPoint" ? { kind: true, isPrimary: true, isActive: true } : {} } });
     for (const row of rows) {
-      if (list17 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
+      if (list18 === "ContactPoint" && row.isPrimary && row.isActive && survivorPrimary.has(row.kind)) {
         await uow.tx.contactPoint.update({ where: { id: row.id }, data: { isPrimary: false } });
-        entries.push({ listKey: list17, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
+        entries.push({ listKey: list18, rowId: row.id, field: "isPrimary", fromId: "true", toId: "false", seq: seq++ });
       }
       try {
-        await delegateOf(uow.tx, list17).update({ where: { id: row.id }, data: { [field]: survivorId } });
+        await delegateOf(uow.tx, list18).update({ where: { id: row.id }, data: { [field]: survivorId } });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list17 === "Appointment" ? "overlapping appointments" : list17} rows. Resolve them before merging.`);
+        if (/exclusion constraint|unique constraint|Unique constraint/i.test(message)) throw new DomainError(Codes.MERGE_CONFLICT, `The two records have conflicting ${list18 === "Appointment" ? "overlapping appointments" : list18} rows. Resolve them before merging.`);
         throw error;
       }
-      entries.push({ listKey: list17, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
+      entries.push({ listKey: list18, rowId: row.id, field, fromId: mergedId, toId: survivorId, seq: seq++ });
     }
   }
   if (entries.length) await uow.tx.mergeMap.createMany({ data: entries.map((e) => ({ ...e, mergeCaseId })) });
@@ -7384,12 +7619,12 @@ function verifiedInternalIdentity(headers, socketAddress, secret4, now) {
   const loopback = /^(?:127\.|::1$|::ffff:127\.)/.test(String(socketAddress || ""));
   if (!loopback || secret4.length < 32) return null;
   const identity = String(headers["x-openfront-client-identity"] || "");
-  const timestamp16 = String(headers["x-openfront-client-timestamp"] || "");
+  const timestamp17 = String(headers["x-openfront-client-timestamp"] || "");
   const signature2 = String(headers["x-openfront-client-signature"] || "");
-  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp16) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
-  const age = Math.abs(now - Number(timestamp16) * 1e3);
+  if (!/^[a-f0-9]{64}$/.test(identity) || !/^\d{10}$/.test(timestamp17) || !/^[a-f0-9]{64}$/.test(signature2)) return null;
+  const age = Math.abs(now - Number(timestamp17) * 1e3);
   if (!Number.isFinite(age) || age > INTERNAL_IDENTITY_MAX_AGE_MS) return null;
-  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp16}:${identity}`).digest("hex");
+  const expected = (0, import_node_crypto8.createHmac)("sha256", secret4).update(`${timestamp17}:${identity}`).digest("hex");
   return safeEqual(signature2, expected) ? `forwarded:${identity}` : null;
 }
 
@@ -7433,8 +7668,8 @@ var keyHash = (value) => (0, import_node_crypto10.createHash)("sha256").update(v
 var secret2 = () => process.env.SESSION_SECRET || "local-development-session-secret-change-me-now";
 var clientFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(clientKey(req, secret2())).digest("hex").slice(0, 32);
 var userAgentFingerprint = (req) => (0, import_node_crypto10.createHmac)("sha256", secret2()).update(String(req?.headers?.["user-agent"] ?? "")).digest("hex").slice(0, 32);
-function limitsFrom(json15) {
-  const value = json15 && typeof json15 === "object" ? json15 : {};
+function limitsFrom(json16) {
+  const value = json16 && typeof json16 === "object" ? json16 : {};
   const pick = (n, fallback, max2) => Number.isInteger(n) && Number(n) > 0 ? Math.min(Number(n), max2) : fallback;
   return {
     perClientPerHour: pick(value.perClientPerHour, DEFAULT_PUBLIC_LIMITS.perClientPerHour, 1e3),
@@ -7735,9 +7970,9 @@ var import_node_crypto13 = require("node:crypto");
 // features/keystone/security/phiReadAudit.ts
 var import_node_crypto12 = require("node:crypto");
 var import_graphql4 = require("graphql");
-function referenceToken(secret4, list17, id) {
+function referenceToken(secret4, list18, id) {
   if (!secret4 || secret4.length < 32) throw new Error("A strong PHI audit reference secret (SESSION_SECRET) is required.");
-  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list17}\0${id}`).digest("hex");
+  return (0, import_node_crypto12.createHmac)("sha256", secret4).update(`${list18}\0${id}`).digest("hex");
 }
 async function recordPhiReadAudit(prisma, actor2, descriptor) {
   await prisma.phiReadAudit.create({
@@ -7888,8 +8123,8 @@ function assertPortalScope(principal, patientId, capability) {
   if (!scope || !scope.capabilities.includes(capability)) throw new DomainError(Codes.PORTAL_SCOPE_DENIED, "You don\u2019t have access to that.");
   return scope;
 }
-async function auditPortalRead(context, principal, operationName, list17, ids, fields) {
-  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list17, ids, fields, tiers: ["dem"] });
+async function auditPortalRead(context, principal, operationName, list18, ids, fields) {
+  await recordDirectPhiRead(context.prisma, { purpose: "patient_request", correlationReference: `portal:${principal.accountId}` }, { operationName, list: list18, ids, fields, tiers: ["dem"] });
 }
 async function portalMe(_root, _args, context) {
   const principal = await portalPrincipal(context);
@@ -8094,9 +8329,9 @@ async function accountFor(uow, patientId) {
   return tx.guarantorAccount.create({ data: { guarantorId, ref } });
 }
 function requireReason(value, what = "reason") {
-  const text18 = String(value ?? "").trim();
-  if (text18.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
-  return text18.slice(0, 1e3);
+  const text19 = String(value ?? "").trim();
+  if (text19.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
+  return text19.slice(0, 1e3);
 }
 var oneOf = (value, allowed, field) => {
   if (!allowed.includes(String(value))) throw new DomainError(Codes.INVALID_INPUT, `Unknown ${field}.`, { field });
@@ -9628,9 +9863,9 @@ var TASK_TITLES = {
 };
 var taskTitle = (field) => TASK_TITLES[field] ?? `Ask the payer: ${field.replaceAll("_", " ")}`;
 var money = (value, field) => {
-  const text18 = String(value ?? "").trim();
-  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text18)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
-  return toMinor(text18, "USD");
+  const text19 = String(value ?? "").trim();
+  if (!/^\d{1,9}(\.\d{1,2})?$/.test(text19)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
+  return toMinor(text19, "USD");
 };
 var optMoney = (value, field) => value === void 0 || value === null || String(value).trim() === "" ? null : money(value, field);
 async function savePayer(_root, args, context) {
@@ -9691,7 +9926,7 @@ var last4 = (value) => value.replace(/[^A-Za-z0-9]/g, "").slice(-4);
 async function addCoverage(_root, args, context) {
   const { actor: actor2, locationIds } = staff(context);
   requirePermission(actor2, "canManageInsurance");
-  const relationship16 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
+  const relationship17 = oneOf(args.relationship, RELATIONSHIPS, "relationship");
   const ordinal = oneOf(args.ordinal, ORDINALS, "order");
   const memberId = requireText(args.memberId, "member ID", 40);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(args.effectiveFrom ?? "")) throw new DomainError(Codes.INVALID_INPUT, "Enter the effective date.", { field: "effectiveFrom" });
@@ -9702,7 +9937,7 @@ async function addCoverage(_root, args, context) {
     if (!plan) throw new DomainError(Codes.NOT_FOUND, "Insurance plan not found.");
     const open = await uow.tx.coverage.findFirst({ where: { patientId: patient.id, ordinal, status: { in: ["pending_verification", "active"] } } });
     if (open) throw new DomainError(Codes.GUARD_FAILED, `This patient already has a ${ordinal} coverage. Change the order or end that coverage first.`, { field: "ordinal" });
-    const self = relationship16 === "self";
+    const self = relationship17 === "self";
     const patientRow = await uow.tx.patient.findUniqueOrThrow({ where: { id: patient.id }, select: { firstName: true, lastName: true, dateOfBirth: true, isSynthetic: true } });
     const secret4 = await storeSecret(uow.tx, "subscriber.memberId", memberId);
     const subscriber = await uow.tx.subscriber.create({
@@ -9719,9 +9954,9 @@ async function addCoverage(_root, args, context) {
       }
     });
     const coverage = await uow.tx.coverage.create({
-      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship16, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
+      data: { patientId: patient.id, subscriberId: subscriber.id, ordinal, relationship: relationship17, status: "pending_verification", verificationLevel: "unverified", effectiveFrom: dayOf(args.effectiveFrom), isSynthetic: patientRow.isSynthetic }
     });
-    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship16 });
+    auditCreate(uow, actor2, "Coverage", coverage.id, "coverage.added", { patientId: patient.id, planId: plan.id, ordinal, relationship: relationship17 });
     return { coverageId: coverage.id, subscriberId: subscriber.id };
   });
   return { replay: result.replay, ...result.value };
@@ -10274,7 +10509,7 @@ var patientRespOf = (adjustments) => adjustments.filter((a) => a.group === "PR")
 
 // features/keystone/mutations/remittance.ts
 var ADJUSTABLE_FROM = ["submitted", "acknowledged", "pending_payer", "submission_unknown", "adjudicated", "appealed", "appeal_decided"];
-var asJson = (list17) => list17.map((a) => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }));
+var asJson = (list18) => list18.map((a) => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }));
 var sum = (values) => values.reduce((a, b) => a + b, 0n);
 var lineAdjTotal = (line) => sum(line.adjustments.map((a) => a.amountMinor));
 async function applyParsedEra(uow, actor2, era, origin) {
@@ -11365,7 +11600,7 @@ var { withAuth } = (0, import_auth.createAuth)({
   `
 });
 var keystone_default = withAuth(
-  (0, import_core20.config)({
+  (0, import_core21.config)({
     db: {
       provider: "postgresql",
       url: databaseURL,

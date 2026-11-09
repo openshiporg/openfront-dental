@@ -7740,6 +7740,8 @@ type LedgerEntry {
   restatement: Restatement
   paymentPosting: PaymentPosting
   claim: Claim
+  payment: Payment
+  refund: Refund
   memo: String
   postedBy: User
   postedAt: DateTime
@@ -7773,6 +7775,8 @@ input LedgerEntryWhereInput {
   restatement: RestatementWhereInput
   paymentPosting: PaymentPostingWhereInput
   claim: ClaimWhereInput
+  payment: PaymentWhereInput
+  refund: RefundWhereInput
   memo: StringFilter
   postedBy: UserWhereInput
   postedAt: DateTimeNullableFilter
@@ -7812,6 +7816,8 @@ input LedgerEntryUpdateInput {
   restatement: RestatementRelateToOneForUpdateInput
   paymentPosting: PaymentPostingRelateToOneForUpdateInput
   claim: ClaimRelateToOneForUpdateInput
+  payment: PaymentRelateToOneForUpdateInput
+  refund: RefundRelateToOneForUpdateInput
   memo: String
   postedBy: UserRelateToOneForUpdateInput
   postedAt: DateTime
@@ -7868,6 +7874,18 @@ input ClaimRelateToOneForUpdateInput {
   disconnect: Boolean
 }
 
+input PaymentRelateToOneForUpdateInput {
+  create: PaymentCreateInput
+  connect: PaymentWhereUniqueInput
+  disconnect: Boolean
+}
+
+input RefundRelateToOneForUpdateInput {
+  create: RefundCreateInput
+  connect: RefundWhereUniqueInput
+  disconnect: Boolean
+}
+
 input LedgerEntryUpdateArgs {
   where: LedgerEntryWhereUniqueInput!
   data: LedgerEntryUpdateInput!
@@ -7890,6 +7908,8 @@ input LedgerEntryCreateInput {
   restatement: RestatementRelateToOneForCreateInput
   paymentPosting: PaymentPostingRelateToOneForCreateInput
   claim: ClaimRelateToOneForCreateInput
+  payment: PaymentRelateToOneForCreateInput
+  refund: RefundRelateToOneForCreateInput
   memo: String
   postedBy: UserRelateToOneForCreateInput
   postedAt: DateTime
@@ -7936,6 +7956,16 @@ input PaymentPostingRelateToOneForCreateInput {
 input ClaimRelateToOneForCreateInput {
   create: ClaimCreateInput
   connect: ClaimWhereUniqueInput
+}
+
+input PaymentRelateToOneForCreateInput {
+  create: PaymentCreateInput
+  connect: PaymentWhereUniqueInput
+}
+
+input RefundRelateToOneForCreateInput {
+  create: RefundCreateInput
+  connect: RefundWhereUniqueInput
 }
 
 type ProcedureCode {
@@ -14477,6 +14507,963 @@ input ScrubRuleCreateInput {
   updatedAt: DateTime
 }
 
+type CreditBalance {
+  id: ID!
+  account: GuarantorAccount
+  amountMinor: BigInt
+  arisenOn: CalendarDay
+  status: String
+  dormancyDueOn: CalendarDay
+  noticeSentAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CreditBalanceWhereUniqueInput {
+  id: ID
+}
+
+input CreditBalanceWhereInput {
+  AND: [CreditBalanceWhereInput!]
+  OR: [CreditBalanceWhereInput!]
+  NOT: [CreditBalanceWhereInput!]
+  id: IDFilter
+  account: GuarantorAccountWhereInput
+  amountMinor: BigIntFilter
+  arisenOn: CalendarDayNullableFilter
+  status: StringFilter
+  dormancyDueOn: CalendarDayNullableFilter
+  noticeSentAt: DateTimeNullableFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input CreditBalanceOrderByInput {
+  id: OrderDirection
+  amountMinor: OrderDirection
+  arisenOn: OrderDirection
+  status: OrderDirection
+  dormancyDueOn: OrderDirection
+  noticeSentAt: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input CreditBalanceUpdateInput {
+  account: GuarantorAccountRelateToOneForUpdateInput
+  amountMinor: BigInt
+  arisenOn: CalendarDay
+  status: String
+  dormancyDueOn: CalendarDay
+  noticeSentAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input CreditBalanceUpdateArgs {
+  where: CreditBalanceWhereUniqueInput!
+  data: CreditBalanceUpdateInput!
+}
+
+input CreditBalanceCreateInput {
+  account: GuarantorAccountRelateToOneForCreateInput
+  amountMinor: BigInt
+  arisenOn: CalendarDay
+  status: String
+  dormancyDueOn: CalendarDay
+  noticeSentAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type LedgerNote {
+  id: ID!
+  entry: LedgerEntry
+  text: String
+  by: User
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input LedgerNoteWhereUniqueInput {
+  id: ID
+}
+
+input LedgerNoteWhereInput {
+  AND: [LedgerNoteWhereInput!]
+  OR: [LedgerNoteWhereInput!]
+  NOT: [LedgerNoteWhereInput!]
+  id: IDFilter
+  entry: LedgerEntryWhereInput
+  text: StringFilter
+  by: UserWhereInput
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input LedgerNoteOrderByInput {
+  id: OrderDirection
+  text: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input LedgerNoteUpdateInput {
+  entry: LedgerEntryRelateToOneForUpdateInput
+  text: String
+  by: UserRelateToOneForUpdateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input LedgerNoteUpdateArgs {
+  where: LedgerNoteWhereUniqueInput!
+  data: LedgerNoteUpdateInput!
+}
+
+input LedgerNoteCreateInput {
+  entry: LedgerEntryRelateToOneForCreateInput
+  text: String
+  by: UserRelateToOneForCreateInput
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Payment {
+  id: ID!
+  ref: String
+  account: GuarantorAccount
+  patient: Patient
+  location: Location
+  amountMinor: BigInt
+  refundedMinor: BigInt
+  currencyCode: String
+  tender: String
+  status: String
+  adapterKey: String
+  providerIntentId: String
+  providerMethodId: String
+  idempotencyKey: String
+  methodToken: PaymentMethodToken
+  checkNumber: String
+  receivedBy: User
+  source: String
+  statement: Statement
+  ledgerEntry: LedgerEntry
+  businessDate: CalendarDay
+  drawer: String
+  failureNote: String
+  disputedAt: DateTime
+  allocations(where: PaymentAllocationWhereInput! = {}, orderBy: [PaymentAllocationOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentAllocationWhereUniqueInput): [PaymentAllocation!]
+  allocationsCount(where: PaymentAllocationWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentWhereUniqueInput {
+  id: ID
+  ref: String
+  idempotencyKey: String
+}
+
+input PaymentWhereInput {
+  AND: [PaymentWhereInput!]
+  OR: [PaymentWhereInput!]
+  NOT: [PaymentWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  account: GuarantorAccountWhereInput
+  patient: PatientWhereInput
+  location: LocationWhereInput
+  amountMinor: BigIntFilter
+  refundedMinor: BigIntFilter
+  currencyCode: StringFilter
+  tender: StringFilter
+  status: StringFilter
+  adapterKey: StringFilter
+  providerIntentId: StringFilter
+  providerMethodId: StringFilter
+  idempotencyKey: StringFilter
+  methodToken: PaymentMethodTokenWhereInput
+  checkNumber: StringFilter
+  receivedBy: UserWhereInput
+  source: StringFilter
+  statement: StatementWhereInput
+  ledgerEntry: LedgerEntryWhereInput
+  businessDate: CalendarDayNullableFilter
+  drawer: StringFilter
+  failureNote: StringFilter
+  disputedAt: DateTimeNullableFilter
+  allocations: PaymentAllocationManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PaymentAllocationManyRelationFilter {
+  every: PaymentAllocationWhereInput
+  some: PaymentAllocationWhereInput
+  none: PaymentAllocationWhereInput
+}
+
+input PaymentOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  amountMinor: OrderDirection
+  refundedMinor: OrderDirection
+  currencyCode: OrderDirection
+  tender: OrderDirection
+  status: OrderDirection
+  adapterKey: OrderDirection
+  providerIntentId: OrderDirection
+  providerMethodId: OrderDirection
+  idempotencyKey: OrderDirection
+  checkNumber: OrderDirection
+  source: OrderDirection
+  businessDate: OrderDirection
+  drawer: OrderDirection
+  failureNote: OrderDirection
+  disputedAt: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentUpdateInput {
+  ref: String
+  account: GuarantorAccountRelateToOneForUpdateInput
+  patient: PatientRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  amountMinor: BigInt
+  refundedMinor: BigInt
+  currencyCode: String
+  tender: String
+  status: String
+  adapterKey: String
+  providerIntentId: String
+  providerMethodId: String
+  idempotencyKey: String
+  methodToken: PaymentMethodTokenRelateToOneForUpdateInput
+  checkNumber: String
+  receivedBy: UserRelateToOneForUpdateInput
+  source: String
+  statement: StatementRelateToOneForUpdateInput
+  ledgerEntry: LedgerEntryRelateToOneForUpdateInput
+  businessDate: CalendarDay
+  drawer: String
+  failureNote: String
+  disputedAt: DateTime
+  allocations: PaymentAllocationRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentMethodTokenRelateToOneForUpdateInput {
+  create: PaymentMethodTokenCreateInput
+  connect: PaymentMethodTokenWhereUniqueInput
+  disconnect: Boolean
+}
+
+input StatementRelateToOneForUpdateInput {
+  create: StatementCreateInput
+  connect: StatementWhereUniqueInput
+  disconnect: Boolean
+}
+
+input PaymentAllocationRelateToManyForUpdateInput {
+  disconnect: [PaymentAllocationWhereUniqueInput!]
+  set: [PaymentAllocationWhereUniqueInput!]
+  create: [PaymentAllocationCreateInput!]
+  connect: [PaymentAllocationWhereUniqueInput!]
+}
+
+input PaymentUpdateArgs {
+  where: PaymentWhereUniqueInput!
+  data: PaymentUpdateInput!
+}
+
+input PaymentCreateInput {
+  ref: String
+  account: GuarantorAccountRelateToOneForCreateInput
+  patient: PatientRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  amountMinor: BigInt
+  refundedMinor: BigInt
+  currencyCode: String
+  tender: String
+  status: String
+  adapterKey: String
+  providerIntentId: String
+  providerMethodId: String
+  idempotencyKey: String
+  methodToken: PaymentMethodTokenRelateToOneForCreateInput
+  checkNumber: String
+  receivedBy: UserRelateToOneForCreateInput
+  source: String
+  statement: StatementRelateToOneForCreateInput
+  ledgerEntry: LedgerEntryRelateToOneForCreateInput
+  businessDate: CalendarDay
+  drawer: String
+  failureNote: String
+  disputedAt: DateTime
+  allocations: PaymentAllocationRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentMethodTokenRelateToOneForCreateInput {
+  create: PaymentMethodTokenCreateInput
+  connect: PaymentMethodTokenWhereUniqueInput
+}
+
+input StatementRelateToOneForCreateInput {
+  create: StatementCreateInput
+  connect: StatementWhereUniqueInput
+}
+
+input PaymentAllocationRelateToManyForCreateInput {
+  create: [PaymentAllocationCreateInput!]
+  connect: [PaymentAllocationWhereUniqueInput!]
+}
+
+type PaymentAllocation {
+  id: ID!
+  payment: Payment
+  ledgerEntry: LedgerEntry
+  amountMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentAllocationWhereUniqueInput {
+  id: ID
+}
+
+input PaymentAllocationWhereInput {
+  AND: [PaymentAllocationWhereInput!]
+  OR: [PaymentAllocationWhereInput!]
+  NOT: [PaymentAllocationWhereInput!]
+  id: IDFilter
+  payment: PaymentWhereInput
+  ledgerEntry: LedgerEntryWhereInput
+  amountMinor: BigIntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PaymentAllocationOrderByInput {
+  id: OrderDirection
+  amountMinor: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentAllocationUpdateInput {
+  payment: PaymentRelateToOneForUpdateInput
+  ledgerEntry: LedgerEntryRelateToOneForUpdateInput
+  amountMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentAllocationUpdateArgs {
+  where: PaymentAllocationWhereUniqueInput!
+  data: PaymentAllocationUpdateInput!
+}
+
+input PaymentAllocationCreateInput {
+  payment: PaymentRelateToOneForCreateInput
+  ledgerEntry: LedgerEntryRelateToOneForCreateInput
+  amountMinor: BigInt
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PaymentMethodToken {
+  id: ID!
+  account: GuarantorAccount
+  adapterKey: String
+  providerCustomerId: String
+  providerMethodId: String
+  brand: String
+  last4: String
+  expMonth: Int
+  expYear: Int
+  consentText: String
+  consentAt: DateTime
+  consentBy: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentMethodTokenWhereUniqueInput {
+  id: ID
+}
+
+input PaymentMethodTokenWhereInput {
+  AND: [PaymentMethodTokenWhereInput!]
+  OR: [PaymentMethodTokenWhereInput!]
+  NOT: [PaymentMethodTokenWhereInput!]
+  id: IDFilter
+  account: GuarantorAccountWhereInput
+  adapterKey: StringFilter
+  providerCustomerId: StringFilter
+  providerMethodId: StringFilter
+  brand: StringFilter
+  last4: StringFilter
+  expMonth: IntNullableFilter
+  expYear: IntNullableFilter
+  consentText: StringFilter
+  consentAt: DateTimeNullableFilter
+  consentBy: StringFilter
+  status: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PaymentMethodTokenOrderByInput {
+  id: OrderDirection
+  adapterKey: OrderDirection
+  providerCustomerId: OrderDirection
+  providerMethodId: OrderDirection
+  brand: OrderDirection
+  last4: OrderDirection
+  expMonth: OrderDirection
+  expYear: OrderDirection
+  consentText: OrderDirection
+  consentAt: OrderDirection
+  consentBy: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentMethodTokenUpdateInput {
+  account: GuarantorAccountRelateToOneForUpdateInput
+  adapterKey: String
+  providerCustomerId: String
+  providerMethodId: String
+  brand: String
+  last4: String
+  expMonth: Int
+  expYear: Int
+  consentText: String
+  consentAt: DateTime
+  consentBy: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentMethodTokenUpdateArgs {
+  where: PaymentMethodTokenWhereUniqueInput!
+  data: PaymentMethodTokenUpdateInput!
+}
+
+input PaymentMethodTokenCreateInput {
+  account: GuarantorAccountRelateToOneForCreateInput
+  adapterKey: String
+  providerCustomerId: String
+  providerMethodId: String
+  brand: String
+  last4: String
+  expMonth: Int
+  expYear: Int
+  consentText: String
+  consentAt: DateTime
+  consentBy: String
+  status: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type PaymentPlan {
+  id: ID!
+  ref: String
+  account: GuarantorAccount
+  patient: Patient
+  location: Location
+  principalMinor: BigInt
+  downPaymentMinor: BigInt
+  interestRatePct: Decimal
+  schedule: JSON
+  agreementText: String
+  agreementHash: String
+  agreedAt: DateTime
+  agreedByName: String
+  autopay: PaymentMethodToken
+  status: String
+  installments(where: PaymentPlanInstallmentWhereInput! = {}, orderBy: [PaymentPlanInstallmentOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentPlanInstallmentWhereUniqueInput): [PaymentPlanInstallment!]
+  installmentsCount(where: PaymentPlanInstallmentWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentPlanWhereUniqueInput {
+  id: ID
+  ref: String
+}
+
+input PaymentPlanWhereInput {
+  AND: [PaymentPlanWhereInput!]
+  OR: [PaymentPlanWhereInput!]
+  NOT: [PaymentPlanWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  account: GuarantorAccountWhereInput
+  patient: PatientWhereInput
+  location: LocationWhereInput
+  principalMinor: BigIntFilter
+  downPaymentMinor: BigIntFilter
+  interestRatePct: DecimalFilter
+  agreementText: StringFilter
+  agreementHash: StringFilter
+  agreedAt: DateTimeNullableFilter
+  agreedByName: StringFilter
+  autopay: PaymentMethodTokenWhereInput
+  status: StringFilter
+  installments: PaymentPlanInstallmentManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input DecimalFilter {
+  equals: Decimal
+  in: [Decimal!]
+  notIn: [Decimal!]
+  lt: Decimal
+  lte: Decimal
+  gt: Decimal
+  gte: Decimal
+  not: DecimalFilter
+}
+
+input PaymentPlanInstallmentManyRelationFilter {
+  every: PaymentPlanInstallmentWhereInput
+  some: PaymentPlanInstallmentWhereInput
+  none: PaymentPlanInstallmentWhereInput
+}
+
+input PaymentPlanOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  principalMinor: OrderDirection
+  downPaymentMinor: OrderDirection
+  interestRatePct: OrderDirection
+  agreementText: OrderDirection
+  agreementHash: OrderDirection
+  agreedAt: OrderDirection
+  agreedByName: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentPlanUpdateInput {
+  ref: String
+  account: GuarantorAccountRelateToOneForUpdateInput
+  patient: PatientRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  principalMinor: BigInt
+  downPaymentMinor: BigInt
+  interestRatePct: Decimal
+  schedule: JSON
+  agreementText: String
+  agreementHash: String
+  agreedAt: DateTime
+  agreedByName: String
+  autopay: PaymentMethodTokenRelateToOneForUpdateInput
+  status: String
+  installments: PaymentPlanInstallmentRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentPlanInstallmentRelateToManyForUpdateInput {
+  disconnect: [PaymentPlanInstallmentWhereUniqueInput!]
+  set: [PaymentPlanInstallmentWhereUniqueInput!]
+  create: [PaymentPlanInstallmentCreateInput!]
+  connect: [PaymentPlanInstallmentWhereUniqueInput!]
+}
+
+input PaymentPlanUpdateArgs {
+  where: PaymentPlanWhereUniqueInput!
+  data: PaymentPlanUpdateInput!
+}
+
+input PaymentPlanCreateInput {
+  ref: String
+  account: GuarantorAccountRelateToOneForCreateInput
+  patient: PatientRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  principalMinor: BigInt
+  downPaymentMinor: BigInt
+  interestRatePct: Decimal
+  schedule: JSON
+  agreementText: String
+  agreementHash: String
+  agreedAt: DateTime
+  agreedByName: String
+  autopay: PaymentMethodTokenRelateToOneForCreateInput
+  status: String
+  installments: PaymentPlanInstallmentRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentPlanInstallmentRelateToManyForCreateInput {
+  create: [PaymentPlanInstallmentCreateInput!]
+  connect: [PaymentPlanInstallmentWhereUniqueInput!]
+}
+
+type PaymentPlanInstallment {
+  id: ID!
+  plan: PaymentPlan
+  dueDate: CalendarDay
+  amountMinor: BigInt
+  status: String
+  payment: Payment
+  attempts: Int
+  lastAttemptOn: CalendarDay
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentPlanInstallmentWhereUniqueInput {
+  id: ID
+}
+
+input PaymentPlanInstallmentWhereInput {
+  AND: [PaymentPlanInstallmentWhereInput!]
+  OR: [PaymentPlanInstallmentWhereInput!]
+  NOT: [PaymentPlanInstallmentWhereInput!]
+  id: IDFilter
+  plan: PaymentPlanWhereInput
+  dueDate: CalendarDayNullableFilter
+  amountMinor: BigIntFilter
+  status: StringFilter
+  payment: PaymentWhereInput
+  attempts: IntNullableFilter
+  lastAttemptOn: CalendarDayNullableFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PaymentPlanInstallmentOrderByInput {
+  id: OrderDirection
+  dueDate: OrderDirection
+  amountMinor: OrderDirection
+  status: OrderDirection
+  attempts: OrderDirection
+  lastAttemptOn: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input PaymentPlanInstallmentUpdateInput {
+  plan: PaymentPlanRelateToOneForUpdateInput
+  dueDate: CalendarDay
+  amountMinor: BigInt
+  status: String
+  payment: PaymentRelateToOneForUpdateInput
+  attempts: Int
+  lastAttemptOn: CalendarDay
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentPlanRelateToOneForUpdateInput {
+  create: PaymentPlanCreateInput
+  connect: PaymentPlanWhereUniqueInput
+  disconnect: Boolean
+}
+
+input PaymentPlanInstallmentUpdateArgs {
+  where: PaymentPlanInstallmentWhereUniqueInput!
+  data: PaymentPlanInstallmentUpdateInput!
+}
+
+input PaymentPlanInstallmentCreateInput {
+  plan: PaymentPlanRelateToOneForCreateInput
+  dueDate: CalendarDay
+  amountMinor: BigInt
+  status: String
+  payment: PaymentRelateToOneForCreateInput
+  attempts: Int
+  lastAttemptOn: CalendarDay
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentPlanRelateToOneForCreateInput {
+  create: PaymentPlanCreateInput
+  connect: PaymentPlanWhereUniqueInput
+}
+
+type Refund {
+  id: ID!
+  ref: String
+  account: GuarantorAccount
+  location: Location
+  payment: Payment
+  target: String
+  amountMinor: BigInt
+  method: String
+  status: String
+  reason: String
+  approval: ApprovalRequest
+  adapterRef: String
+  requestedBy: User
+  approvedBy: User
+  ledgerEntry: LedgerEntry
+  failureNote: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RefundWhereUniqueInput {
+  id: ID
+  ref: String
+}
+
+input RefundWhereInput {
+  AND: [RefundWhereInput!]
+  OR: [RefundWhereInput!]
+  NOT: [RefundWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  account: GuarantorAccountWhereInput
+  location: LocationWhereInput
+  payment: PaymentWhereInput
+  target: StringFilter
+  amountMinor: BigIntFilter
+  method: StringFilter
+  status: StringFilter
+  reason: StringFilter
+  approval: ApprovalRequestWhereInput
+  adapterRef: StringFilter
+  requestedBy: UserWhereInput
+  approvedBy: UserWhereInput
+  ledgerEntry: LedgerEntryWhereInput
+  failureNote: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input RefundOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  target: OrderDirection
+  amountMinor: OrderDirection
+  method: OrderDirection
+  status: OrderDirection
+  reason: OrderDirection
+  adapterRef: OrderDirection
+  failureNote: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input RefundUpdateInput {
+  ref: String
+  account: GuarantorAccountRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  payment: PaymentRelateToOneForUpdateInput
+  target: String
+  amountMinor: BigInt
+  method: String
+  status: String
+  reason: String
+  approval: ApprovalRequestRelateToOneForUpdateInput
+  adapterRef: String
+  requestedBy: UserRelateToOneForUpdateInput
+  approvedBy: UserRelateToOneForUpdateInput
+  ledgerEntry: LedgerEntryRelateToOneForUpdateInput
+  failureNote: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input RefundUpdateArgs {
+  where: RefundWhereUniqueInput!
+  data: RefundUpdateInput!
+}
+
+input RefundCreateInput {
+  ref: String
+  account: GuarantorAccountRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  payment: PaymentRelateToOneForCreateInput
+  target: String
+  amountMinor: BigInt
+  method: String
+  status: String
+  reason: String
+  approval: ApprovalRequestRelateToOneForCreateInput
+  adapterRef: String
+  requestedBy: UserRelateToOneForCreateInput
+  approvedBy: UserRelateToOneForCreateInput
+  ledgerEntry: LedgerEntryRelateToOneForCreateInput
+  failureNote: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Statement {
+  id: ID!
+  ref: String
+  account: GuarantorAccount
+  location: Location
+  cycleDate: CalendarDay
+  snapshot: JSON
+  amountDueMinor: BigInt
+  dueDate: CalendarDay
+  status: String
+  payLinkCode: String
+  documentSha256: String
+  sentAt: DateTime
+  sentChannel: String
+  payments(where: PaymentWhereInput! = {}, orderBy: [PaymentOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentWhereUniqueInput): [Payment!]
+  paymentsCount(where: PaymentWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input StatementWhereUniqueInput {
+  id: ID
+  ref: String
+  payLinkCode: String
+}
+
+input StatementWhereInput {
+  AND: [StatementWhereInput!]
+  OR: [StatementWhereInput!]
+  NOT: [StatementWhereInput!]
+  id: IDFilter
+  ref: StringFilter
+  account: GuarantorAccountWhereInput
+  location: LocationWhereInput
+  cycleDate: CalendarDayNullableFilter
+  amountDueMinor: BigIntFilter
+  dueDate: CalendarDayNullableFilter
+  status: StringFilter
+  payLinkCode: StringFilter
+  documentSha256: StringFilter
+  sentAt: DateTimeNullableFilter
+  sentChannel: StringFilter
+  payments: PaymentManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input PaymentManyRelationFilter {
+  every: PaymentWhereInput
+  some: PaymentWhereInput
+  none: PaymentWhereInput
+}
+
+input StatementOrderByInput {
+  id: OrderDirection
+  ref: OrderDirection
+  cycleDate: OrderDirection
+  amountDueMinor: OrderDirection
+  dueDate: OrderDirection
+  status: OrderDirection
+  payLinkCode: OrderDirection
+  documentSha256: OrderDirection
+  sentAt: OrderDirection
+  sentChannel: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input StatementUpdateInput {
+  ref: String
+  account: GuarantorAccountRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  cycleDate: CalendarDay
+  snapshot: JSON
+  amountDueMinor: BigInt
+  dueDate: CalendarDay
+  status: String
+  payLinkCode: String
+  documentSha256: String
+  sentAt: DateTime
+  sentChannel: String
+  payments: PaymentRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentRelateToManyForUpdateInput {
+  disconnect: [PaymentWhereUniqueInput!]
+  set: [PaymentWhereUniqueInput!]
+  create: [PaymentCreateInput!]
+  connect: [PaymentWhereUniqueInput!]
+}
+
+input StatementUpdateArgs {
+  where: StatementWhereUniqueInput!
+  data: StatementUpdateInput!
+}
+
+input StatementCreateInput {
+  ref: String
+  account: GuarantorAccountRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  cycleDate: CalendarDay
+  snapshot: JSON
+  amountDueMinor: BigInt
+  dueDate: CalendarDay
+  status: String
+  payLinkCode: String
+  documentSha256: String
+  sentAt: DateTime
+  sentChannel: String
+  payments: PaymentRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input PaymentRelateToManyForCreateInput {
+  create: [PaymentCreateInput!]
+  connect: [PaymentWhereUniqueInput!]
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -15311,6 +16298,60 @@ type Mutation {
   updateScrubRules(data: [ScrubRuleUpdateArgs!]!): [ScrubRule]
   deleteScrubRule(where: ScrubRuleWhereUniqueInput!): ScrubRule
   deleteScrubRules(where: [ScrubRuleWhereUniqueInput!]!): [ScrubRule]
+  createCreditBalance(data: CreditBalanceCreateInput!): CreditBalance
+  createCreditBalances(data: [CreditBalanceCreateInput!]!): [CreditBalance]
+  updateCreditBalance(where: CreditBalanceWhereUniqueInput!, data: CreditBalanceUpdateInput!): CreditBalance
+  updateCreditBalances(data: [CreditBalanceUpdateArgs!]!): [CreditBalance]
+  deleteCreditBalance(where: CreditBalanceWhereUniqueInput!): CreditBalance
+  deleteCreditBalances(where: [CreditBalanceWhereUniqueInput!]!): [CreditBalance]
+  createLedgerNote(data: LedgerNoteCreateInput!): LedgerNote
+  createLedgerNotes(data: [LedgerNoteCreateInput!]!): [LedgerNote]
+  updateLedgerNote(where: LedgerNoteWhereUniqueInput!, data: LedgerNoteUpdateInput!): LedgerNote
+  updateLedgerNotes(data: [LedgerNoteUpdateArgs!]!): [LedgerNote]
+  deleteLedgerNote(where: LedgerNoteWhereUniqueInput!): LedgerNote
+  deleteLedgerNotes(where: [LedgerNoteWhereUniqueInput!]!): [LedgerNote]
+  createPayment(data: PaymentCreateInput!): Payment
+  createPayments(data: [PaymentCreateInput!]!): [Payment]
+  updatePayment(where: PaymentWhereUniqueInput!, data: PaymentUpdateInput!): Payment
+  updatePayments(data: [PaymentUpdateArgs!]!): [Payment]
+  deletePayment(where: PaymentWhereUniqueInput!): Payment
+  deletePayments(where: [PaymentWhereUniqueInput!]!): [Payment]
+  createPaymentAllocation(data: PaymentAllocationCreateInput!): PaymentAllocation
+  createPaymentAllocations(data: [PaymentAllocationCreateInput!]!): [PaymentAllocation]
+  updatePaymentAllocation(where: PaymentAllocationWhereUniqueInput!, data: PaymentAllocationUpdateInput!): PaymentAllocation
+  updatePaymentAllocations(data: [PaymentAllocationUpdateArgs!]!): [PaymentAllocation]
+  deletePaymentAllocation(where: PaymentAllocationWhereUniqueInput!): PaymentAllocation
+  deletePaymentAllocations(where: [PaymentAllocationWhereUniqueInput!]!): [PaymentAllocation]
+  createPaymentMethodToken(data: PaymentMethodTokenCreateInput!): PaymentMethodToken
+  createPaymentMethodTokens(data: [PaymentMethodTokenCreateInput!]!): [PaymentMethodToken]
+  updatePaymentMethodToken(where: PaymentMethodTokenWhereUniqueInput!, data: PaymentMethodTokenUpdateInput!): PaymentMethodToken
+  updatePaymentMethodTokens(data: [PaymentMethodTokenUpdateArgs!]!): [PaymentMethodToken]
+  deletePaymentMethodToken(where: PaymentMethodTokenWhereUniqueInput!): PaymentMethodToken
+  deletePaymentMethodTokens(where: [PaymentMethodTokenWhereUniqueInput!]!): [PaymentMethodToken]
+  createPaymentPlan(data: PaymentPlanCreateInput!): PaymentPlan
+  createPaymentPlans(data: [PaymentPlanCreateInput!]!): [PaymentPlan]
+  updatePaymentPlan(where: PaymentPlanWhereUniqueInput!, data: PaymentPlanUpdateInput!): PaymentPlan
+  updatePaymentPlans(data: [PaymentPlanUpdateArgs!]!): [PaymentPlan]
+  deletePaymentPlan(where: PaymentPlanWhereUniqueInput!): PaymentPlan
+  deletePaymentPlans(where: [PaymentPlanWhereUniqueInput!]!): [PaymentPlan]
+  createPaymentPlanInstallment(data: PaymentPlanInstallmentCreateInput!): PaymentPlanInstallment
+  createPaymentPlanInstallments(data: [PaymentPlanInstallmentCreateInput!]!): [PaymentPlanInstallment]
+  updatePaymentPlanInstallment(where: PaymentPlanInstallmentWhereUniqueInput!, data: PaymentPlanInstallmentUpdateInput!): PaymentPlanInstallment
+  updatePaymentPlanInstallments(data: [PaymentPlanInstallmentUpdateArgs!]!): [PaymentPlanInstallment]
+  deletePaymentPlanInstallment(where: PaymentPlanInstallmentWhereUniqueInput!): PaymentPlanInstallment
+  deletePaymentPlanInstallments(where: [PaymentPlanInstallmentWhereUniqueInput!]!): [PaymentPlanInstallment]
+  createRefund(data: RefundCreateInput!): Refund
+  createRefunds(data: [RefundCreateInput!]!): [Refund]
+  updateRefund(where: RefundWhereUniqueInput!, data: RefundUpdateInput!): Refund
+  updateRefunds(data: [RefundUpdateArgs!]!): [Refund]
+  deleteRefund(where: RefundWhereUniqueInput!): Refund
+  deleteRefunds(where: [RefundWhereUniqueInput!]!): [Refund]
+  createStatement(data: StatementCreateInput!): Statement
+  createStatements(data: [StatementCreateInput!]!): [Statement]
+  updateStatement(where: StatementWhereUniqueInput!, data: StatementUpdateInput!): Statement
+  updateStatements(data: [StatementUpdateArgs!]!): [Statement]
+  deleteStatement(where: StatementWhereUniqueInput!): Statement
+  deleteStatements(where: [StatementWhereUniqueInput!]!): [Statement]
   endSession: Boolean!
   authenticateUserWithPassword(email: String!, password: String!): UserAuthenticationWithPasswordResult
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
@@ -15876,6 +16917,33 @@ type Query {
   scrubRule(where: ScrubRuleWhereUniqueInput!): ScrubRule
   scrubRules(where: ScrubRuleWhereInput! = {}, orderBy: [ScrubRuleOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ScrubRuleWhereUniqueInput): [ScrubRule!]
   scrubRulesCount(where: ScrubRuleWhereInput! = {}): Int
+  creditBalance(where: CreditBalanceWhereUniqueInput!): CreditBalance
+  creditBalances(where: CreditBalanceWhereInput! = {}, orderBy: [CreditBalanceOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: CreditBalanceWhereUniqueInput): [CreditBalance!]
+  creditBalancesCount(where: CreditBalanceWhereInput! = {}): Int
+  ledgerNote(where: LedgerNoteWhereUniqueInput!): LedgerNote
+  ledgerNotes(where: LedgerNoteWhereInput! = {}, orderBy: [LedgerNoteOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: LedgerNoteWhereUniqueInput): [LedgerNote!]
+  ledgerNotesCount(where: LedgerNoteWhereInput! = {}): Int
+  payment(where: PaymentWhereUniqueInput!): Payment
+  payments(where: PaymentWhereInput! = {}, orderBy: [PaymentOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentWhereUniqueInput): [Payment!]
+  paymentsCount(where: PaymentWhereInput! = {}): Int
+  paymentAllocation(where: PaymentAllocationWhereUniqueInput!): PaymentAllocation
+  paymentAllocations(where: PaymentAllocationWhereInput! = {}, orderBy: [PaymentAllocationOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentAllocationWhereUniqueInput): [PaymentAllocation!]
+  paymentAllocationsCount(where: PaymentAllocationWhereInput! = {}): Int
+  paymentMethodToken(where: PaymentMethodTokenWhereUniqueInput!): PaymentMethodToken
+  paymentMethodTokens(where: PaymentMethodTokenWhereInput! = {}, orderBy: [PaymentMethodTokenOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentMethodTokenWhereUniqueInput): [PaymentMethodToken!]
+  paymentMethodTokensCount(where: PaymentMethodTokenWhereInput! = {}): Int
+  paymentPlan(where: PaymentPlanWhereUniqueInput!): PaymentPlan
+  paymentPlans(where: PaymentPlanWhereInput! = {}, orderBy: [PaymentPlanOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentPlanWhereUniqueInput): [PaymentPlan!]
+  paymentPlansCount(where: PaymentPlanWhereInput! = {}): Int
+  paymentPlanInstallment(where: PaymentPlanInstallmentWhereUniqueInput!): PaymentPlanInstallment
+  paymentPlanInstallments(where: PaymentPlanInstallmentWhereInput! = {}, orderBy: [PaymentPlanInstallmentOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: PaymentPlanInstallmentWhereUniqueInput): [PaymentPlanInstallment!]
+  paymentPlanInstallmentsCount(where: PaymentPlanInstallmentWhereInput! = {}): Int
+  refund(where: RefundWhereUniqueInput!): Refund
+  refunds(where: RefundWhereInput! = {}, orderBy: [RefundOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: RefundWhereUniqueInput): [Refund!]
+  refundsCount(where: RefundWhereInput! = {}): Int
+  statement(where: StatementWhereUniqueInput!): Statement
+  statements(where: StatementWhereInput! = {}, orderBy: [StatementOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: StatementWhereUniqueInput): [Statement!]
+  statementsCount(where: StatementWhereInput! = {}): Int
   keystone: KeystoneMeta!
   authenticatedItem: AuthenticatedItem
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult

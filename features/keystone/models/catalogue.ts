@@ -183,6 +183,8 @@ export const LedgerEntry = list({
     restatement: relationship({ ref: 'Restatement.entries', ...readOnly }),
     paymentPosting: relationship({ ref: 'PaymentPosting.entries', ...readOnly }),
     claim: relationship({ ref: 'Claim', ...readOnly }),
+    payment: relationship({ ref: 'Payment', ...readOnly }),
+    refund: relationship({ ref: 'Refund', ...readOnly }),
     memo: systemText(),
     postedBy: relationship({ ref: 'User', ...readOnly }),
     postedAt: timestamp({ ...readOnly }),
