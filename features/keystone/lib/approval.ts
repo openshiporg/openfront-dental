@@ -21,6 +21,8 @@ export type RequestApprovalInput = {
   requiredPermission: Permission
   summary?: string
   expiresInMinutes?: number
+  /** Where the request belongs (N4): the office whose money or record it changes, and the patient(s) and family account it is about. Omit for a practice-wide request. */
+  scope?: { locationId?: string | null; patientId?: string | null; otherPatientId?: string | null; accountId?: string | null }
 }
 
 export async function requestApproval(uow: UnitOfWork, actor: Actor, input: RequestApprovalInput) {
@@ -38,6 +40,10 @@ export async function requestApproval(uow: UnitOfWork, actor: Actor, input: Requ
       requiredPermission,
       requestedById: actorUserId(actor),
       requestedByAgentId: actorAgentId(actor),
+      locationId: input.scope?.locationId ?? null,
+      patientId: input.scope?.patientId ?? null,
+      otherPatientId: input.scope?.otherPatientId ?? null,
+      accountId: input.scope?.accountId ?? null,
       status: 'pending',
       expiresAt: new Date(uow.now.getTime() + minutes * 60_000),
     },
@@ -46,7 +52,7 @@ export async function requestApproval(uow: UnitOfWork, actor: Actor, input: Requ
   return created
 }
 
-export async function decideApproval(uow: UnitOfWork, actor: Actor, input: { requestId: string; decision: 'approve' | 'reject'; reason?: string; expectedVersion?: number | null; strictAgentOwner?: boolean }) {
+export async function decideApproval(uow: UnitOfWork, actor: Actor, input: { requestId: string; decision: 'approve' | 'reject'; reason?: string; expectedVersion?: number | null; strictAgentOwner?: boolean; inScope?: () => Promise<void> }) {
   const request = await lockRow<Record<string, any>>(uow.tx, 'ApprovalRequest', input.requestId)
   let agentOwnerId: string | null = null
   if (request.requestedByAgentId) {
@@ -57,6 +63,8 @@ export async function decideApproval(uow: UnitOfWork, actor: Actor, input: { req
   if (actor.kind !== 'user' || !actor.permissions.has(request.requiredPermission as Permission)) {
     throw new DomainError(Codes.NOT_AUTHORIZED, `Deciding this needs the ${request.requiredPermission} permission.`)
   }
+  // r2 N4: and only for a request at one of my offices, about patients I can see (a practice-wide one needs every office).
+  if (input.inScope) await input.inScope()
   if (request.expiresAt && new Date(request.expiresAt).getTime() <= uow.now.getTime()) {
     await transition(uow, { model: 'ApprovalRequest', id: input.requestId, from: ['pending'], to: 'expired', actor, eventType: 'approval.expired' })
     throw new DomainError(Codes.GUARD_FAILED, 'This approval request has expired.')

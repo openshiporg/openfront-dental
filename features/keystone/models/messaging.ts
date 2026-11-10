@@ -1,7 +1,8 @@
 import { list } from '@keystone-6/core'
 import { checkbox, integer, json, relationship, text, timestamp } from '@keystone-6/core/fields'
 import { choice, fixedChoice, lifecycle, readOnly, systemText, versionField } from './domainFields'
-import { governed, managed } from './listAccess'
+import { managed } from './listAccess'
+import { peopleFilter, scopedGoverned } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -18,7 +19,7 @@ export type ConsentPurpose = (typeof CONSENT_PURPOSES)[number]
 export const MESSAGE_CHANNELS = ['sms', 'email', 'web_chat', 'portal', 'voice', 'manual'] as const
 
 export const ConsentGrant = list({
-  access: governed(['canMessagePatients', 'canManagePatients', 'canReadDemographics']),
+  access: scopedGoverned(['canMessagePatients', 'canManagePatients', 'canReadDemographics'], peopleFilter({ patients: [['contactPoint', 'patient']], guarantors: [['contactPoint', 'guarantor']] })),
   ui: { listView: { initialColumns: ['contactPoint', 'channel', 'purpose', 'status', 'source', 'grantedAt'] } },
   fields: {
     contactPoint: relationship({ ref: 'ContactPoint.consentGrants', ...readOnly }),
@@ -55,7 +56,7 @@ export const MessageTemplate = list({
 })
 
 export const Conversation = list({
-  access: governed(['canMessagePatients', 'canManagePatients']),
+  access: scopedGoverned(['canMessagePatients', 'canManagePatients'], peopleFilter({ patients: [['patient'], ['contactPoint', 'patient']], guarantors: [['contactPoint', 'guarantor']] })),
   ui: { listView: { initialColumns: ['patient', 'channel', 'status', 'assignedTo', 'updatedAt'] } },
   fields: {
     patient: relationship({ ref: 'Patient', ...readOnly }),
@@ -72,7 +73,7 @@ export const Conversation = list({
 })
 
 export const Message = list({
-  access: governed(['canMessagePatients', 'canManagePatients']),
+  access: scopedGoverned(['canMessagePatients', 'canManagePatients'], peopleFilter({ patients: [['conversation', 'patient'], ['conversation', 'contactPoint', 'patient']], guarantors: [['conversation', 'contactPoint', 'guarantor']] })),
   ui: { listView: { initialColumns: ['conversation', 'direction', 'channel', 'purpose', 'status', 'sentAt'] } },
   fields: {
     conversation: relationship({ ref: 'Conversation.messages', ...readOnly }),

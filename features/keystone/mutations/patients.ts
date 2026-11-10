@@ -367,6 +367,7 @@ export async function proposeMergeIn(uow: UnitOfWork, actor: Actor, input: { sur
     action: 'patient.merge', targetList: 'MergeCase', targetId: mergeCase.id, requiredPermission: 'canApprovePatientMerge',
     payload: { mergeCaseId: mergeCase.id, survivorId: input.survivorId, mergedId: input.mergedId },
     summary: `Merge chart ${merged.chartNumber} into ${survivor.chartNumber}`,
+    scope: { locationId: survivor.homeLocationId ?? null, patientId: input.survivorId, otherPatientId: input.mergedId },
   })
   await uow.tx.mergeCase.update({ where: { id: mergeCase.id }, data: { approvalId: approval.id } })
   auditCreate(uow, actor, 'MergeCase', mergeCase.id, 'merge.proposed', { survivorId: input.survivorId, mergedId: input.mergedId }, { reason: input.reason })

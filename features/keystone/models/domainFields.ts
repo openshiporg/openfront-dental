@@ -77,10 +77,11 @@ export const systemText = (options: { indexed?: boolean | 'unique'; required?: b
 export const readOnly = { access: { create: () => false, update: () => false }, ui: { createView: { fieldMode: 'hidden' as const }, itemView: { fieldMode: 'read' as const } } }
 
 /** A choice fixed at creation by server code (e.g. a grant scope): visible, never edited. */
-export const fixedChoice = (values: readonly string[]) =>
+export const fixedChoice = (values: readonly string[], defaultValue?: string) =>
   select({
     type: 'string',
     options: values.map(option),
+    ...(defaultValue !== undefined ? { defaultValue } : {}),
     validation: { isRequired: true },
     access: { create: () => false, update: () => false },
     ui: { createView: { fieldMode: 'hidden' }, itemView: { fieldMode: 'read' } },

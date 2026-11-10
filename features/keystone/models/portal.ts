@@ -3,7 +3,7 @@ import { denyAll } from '@keystone-6/core/access'
 import { calendarDay, checkbox, integer, json, relationship, text, timestamp } from '@keystone-6/core/fields'
 import { fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
 import { governed, managed } from './listAccess'
-import { locationFilter, scopedGoverned, scopedManaged } from './scope'
+import { locationFilter, portalAccountWhere, scopedBy, scopedGoverned, scopedManaged, visiblePatient } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -87,7 +87,8 @@ export const PublicBookingRequest = list({
 })
 
 export const PortalAccount = list({
-  access: governed(['canManagePatients']),
+  // r2 N3: a portal login is mine when every patient it acts for is visible to me.
+  access: scopedGoverned('canManagePatients', scopedBy(portalAccountWhere)),
   ui: { labelField: 'email', listView: { initialColumns: ['email', 'status', 'identityVerifiedAt', 'lastLoginAt'] } },
   fields: {
     email: systemText({ indexed: 'unique', required: true }),
@@ -109,7 +110,7 @@ export const PortalAccount = list({
 })
 
 export const PortalScope = list({
-  access: governed(['canManagePatients']),
+  access: scopedGoverned('canManagePatients', scopedBy(ids => ({ patient: visiblePatient(ids) }))),
   ui: { listView: { initialColumns: ['account', 'patient', 'relationship', 'status', 'expiresAt'] } },
   fields: {
     account: relationship({ ref: 'PortalAccount.scopes', ...readOnly }),
@@ -127,7 +128,7 @@ export const PortalScope = list({
 })
 
 export const IntakeSession = list({
-  access: governed(['canManagePatients']),
+  access: scopedGoverned('canManagePatients', scopedBy(ids => ({ OR: [{ portalAccount: portalAccountWhere(ids) }, { publicBookingRequest: { location: { id: { in: ids } } } }] }))),
   ui: { listView: { initialColumns: ['portalAccount', 'publicBookingRequest', 'status', 'expiresAt'] } },
   fields: {
     portalAccount: relationship({ ref: 'PortalAccount', ...readOnly }),

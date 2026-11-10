@@ -135,6 +135,7 @@ export async function requestRefund(_root: unknown, args: { paymentId?: string |
       action: 'refund.execute', targetList: 'Refund', targetId: refund.id, requiredPermission: 'canApproveRefunds',
       payload: { refundId: refund.id, amountMinor: amountMinor.toString(), paymentId: payment?.id ?? null, accountId, method },
       summary: `Refund ${formatMinor(amountMinor)} (${reason.slice(0, 80)})`,
+      scope: { locationId, patientId: payment?.patientId ?? null, accountId },
     })
     await tx.refund.update({ where: { id: refund.id }, data: { approvalId: approval.id } })
     if (!payment) await tx.creditBalance.updateMany({ where: { accountId, status: 'open' }, data: { status: 'refund_requested' } })

@@ -236,9 +236,10 @@ var init_domainFields = __esm({
       ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "read" } }
     });
     readOnly = { access: { create: () => false, update: () => false }, ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "read" } } };
-    fixedChoice = (values) => (0, import_fields6.select)({
+    fixedChoice = (values, defaultValue) => (0, import_fields6.select)({
       type: "string",
       options: values.map(option),
+      ...defaultValue !== void 0 ? { defaultValue } : {},
       validation: { isRequired: true },
       access: { create: () => false, update: () => false },
       ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "read" } }
@@ -247,7 +248,7 @@ var init_domainFields = __esm({
 });
 
 // features/keystone/models/listAccess.ts
-var rule, governed, managed, immutable, serverOnly;
+var rule, governed, managed, serverOnly;
 var init_listAccess = __esm({
   "features/keystone/models/listAccess.ts"() {
     "use strict";
@@ -259,7 +260,6 @@ var init_listAccess = __esm({
     managed = (read, write2) => ({
       operation: { query: rule(read), create: rule(write2), update: rule(write2), delete: sys }
     });
-    immutable = governed;
     serverOnly = {
       operation: { query: sys, create: sys, update: sys, delete: sys }
     };
@@ -292,10 +292,38 @@ function moneyWhere(spec, ids) {
   if (spec.guarantor) parts.push(nest(spec.guarantor, linksWhere(ids)));
   return parts.length === 1 ? parts[0] : { AND: parts };
 }
+function peopleWhere(spec, ids) {
+  const visible = patientWhere(ids);
+  const parts = [];
+  const some = [];
+  const optional = (path, where) => path.length === 1 ? { OR: [{ [path[0]]: null }, { [path[0]]: where }] } : { OR: [{ [path[0]]: null }, { [path[0]]: optional(path.slice(1), where) }] };
+  if (spec.location) parts.push(nest(spec.location, { id: { in: ids } }));
+  for (const path of spec.patients ?? []) {
+    parts.push(optional(path, visible));
+    some.push(nest(path, visible));
+  }
+  for (const path of spec.guarantors ?? []) {
+    parts.push(optional(path, linksWhere(ids)));
+    some.push(nest(path, linksWhere(ids)));
+  }
+  if (spec.members) {
+    parts.push(nest(spec.members, { none: { NOT: [visible] } }));
+    some.push(nest(spec.members, { some: visible }));
+  }
+  if (some.length) parts.push(some.length === 1 ? some[0] : { OR: some });
+  return parts.length === 1 ? parts[0] : { AND: parts };
+}
+function portalAccountWhere(ids) {
+  const visible = patientWhere(ids);
+  return { scopes: { some: { patient: visible }, none: { OR: [{ patient: null }, { patient: { NOT: [visible] } }] } } };
+}
+function approvalWhere(ids) {
+  return moneyWhere({ location: ["location"], patient: ["patient"], account: ["account"] }, ids);
+}
 function nest(path, leaf) {
   return path.reduceRight((inner, key) => ({ [key]: inner }), leaf);
 }
-var rule2, PATIENT_LOCATION_LOOKBACK_YEARS, locationFilter, patientFilter, under, MONEY, moneyFilter, remittanceFilter, scopedGoverned, scopedManaged;
+var rule2, PATIENT_LOCATION_LOOKBACK_YEARS, locationFilter, patientFilter, under, MONEY, moneyFilter, remittanceFilter, peopleFilter, scopedBy, visiblePatient, ownActionsOnly, allOfficesOnly, approvalFilter, scopedGoverned, scopedManaged;
 var init_scope = __esm({
   "features/keystone/models/scope.ts"() {
     "use strict";
@@ -334,6 +362,36 @@ var init_scope = __esm({
       const claim = moneyWhere(MONEY.claim, ids);
       const mine = { some: { claim }, none: { claim: { NOT: [claim] } } };
       return { OR: [{ claims: mine }, { duplicateOf: { claims: mine } }] };
+    };
+    peopleFilter = (spec) => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      const ids = sessionLocationIds(session);
+      if (ids === null) return true;
+      return peopleWhere(spec, ids);
+    };
+    scopedBy = (build) => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      const ids = sessionLocationIds(session);
+      if (ids === null) return true;
+      return build(ids);
+    };
+    visiblePatient = (ids) => patientWhere(ids);
+    ownActionsOnly = (actorPath = ["actorUser"]) => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      if (sessionLocationIds(session) === null) return true;
+      return nest(actorPath, { id: { equals: String(session.itemId) } });
+    };
+    allOfficesOnly = () => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      return sessionLocationIds(session) === null;
+    };
+    approvalFilter = (prefix = []) => ({ session }) => {
+      if (!isSignedIn({ session })) return false;
+      const ids = sessionLocationIds(session);
+      if (ids === null) return true;
+      const visible = patientWhere(ids);
+      const where = { AND: [approvalWhere(ids), { OR: [{ otherPatient: null }, { otherPatient: visible }] }] };
+      return prefix.length ? nest(prefix, where) : where;
     };
     scopedGoverned = (read, filter) => ({
       operation: { query: rule2(read), create: () => false, update: () => false, delete: () => false },
@@ -645,7 +703,8 @@ var init_insurance = __esm({
       }
     });
     WorkTask = (0, import_core16.list)({
-      access: governed(["canAccessDashboard"]),
+      // r2 N3: a work task is about a coverage (a patient); readers limited to some offices see tasks for patients visible to them.
+      access: scopedGoverned("canAccessDashboard", scopedBy((ids) => ({ verification: { coverage: { patient: visiblePatient(ids) } } }))),
       ui: { labelField: "title", listView: { initialColumns: ["title", "kind", "status", "dueAt", "assignee"] } },
       fields: {
         kind: fixedChoice(TASK_KINDS),
@@ -1992,6 +2051,10 @@ async function requestApproval(uow, actor5, input) {
       requiredPermission,
       requestedById: actorUserId(actor5),
       requestedByAgentId: actorAgentId(actor5),
+      locationId: input.scope?.locationId ?? null,
+      patientId: input.scope?.patientId ?? null,
+      otherPatientId: input.scope?.otherPatientId ?? null,
+      accountId: input.scope?.accountId ?? null,
       status: "pending",
       expiresAt: new Date(uow.now.getTime() + minutes * 6e4)
     }
@@ -2066,6 +2129,77 @@ var init_approvalAppliers = __esm({
   "features/keystone/lib/approvalAppliers.ts"() {
     "use strict";
     appliers = /* @__PURE__ */ new Map();
+  }
+});
+
+// features/keystone/mutations/shared.ts
+function staff(context) {
+  const actor5 = actorFromSession(context.session);
+  const locationIds = sessionLocationIds(context.session);
+  return { actor: actor5, locationIds, session: context.session };
+}
+function assertLocation(locationIds, locationId) {
+  if (!locationId) throw new DomainError(Codes.INVALID_INPUT, "Choose a location.", { field: "locationId" });
+  if (locationIds !== null && !locationIds.includes(locationId)) {
+    throw new DomainError(Codes.OUTSIDE_LOCATION_SCOPE, "You are not assigned to that location today.");
+  }
+}
+async function assertPatientInScope(tx, locationIds, patientId) {
+  const patient = await tx.patient.findUnique({ where: { id: patientId }, select: { id: true, status: true, homeLocationId: true, version: true } });
+  if (!patient) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+  if (locationIds === null) return patient;
+  if (patient.homeLocationId && locationIds.includes(patient.homeLocationId)) return patient;
+  const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
+  const seen = await tx.appointment.findFirst({ where: { patientId, locationId: { in: locationIds }, startsAt: { gte: since } }, select: { id: true } });
+  if (!seen) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
+  return patient;
+}
+async function resolvePatientRef(tx, ref) {
+  const value = String(ref ?? "").trim();
+  if (!value.startsWith("chart:")) return value;
+  const chartNumber = value.slice(6).trim().replace(/^(chart\s*)?#?/i, "");
+  const patient = chartNumber ? await tx.patient.findUnique({ where: { chartNumber }, select: { id: true } }) : null;
+  if (!patient) throw new DomainError(Codes.NOT_FOUND, "No patient has that chart number.", { field: "patientId" });
+  return patient.id;
+}
+function assertBookablePatient(patient) {
+  if (!BOOKABLE_PATIENT.has(patient.status)) {
+    throw new DomainError(Codes.GUARD_FAILED, patient.status === "merged_into" ? "This record was merged; book on the surviving record." : `A ${patient.status} patient can't be booked.`, { currentStatus: patient.status });
+  }
+}
+function normalizeContact(kind, value) {
+  const raw = String(value ?? "").trim();
+  if (kind === "email") {
+    const email = raw.toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid email address.", { field: "value" });
+    return { value: raw, normalized: email };
+  }
+  const digits = raw.replace(/\D/g, "");
+  const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith("1") ? `+${digits}` : digits.length >= 8 && digits.length <= 15 ? `+${digits}` : "";
+  if (!e164) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid phone number.", { field: "value" });
+  return { value: raw, normalized: e164 };
+}
+var BOOKABLE_PATIENT, toDate, requireText, optionalText;
+var init_shared = __esm({
+  "features/keystone/mutations/shared.ts"() {
+    "use strict";
+    init_access();
+    init_actor();
+    init_errors();
+    init_scope();
+    BOOKABLE_PATIENT = /* @__PURE__ */ new Set(["prospect", "active", "inactive"]);
+    toDate = (value, field) => {
+      const date = new Date(String(value ?? ""));
+      if (Number.isNaN(date.getTime())) throw new DomainError(Codes.INVALID_INPUT, `Enter a valid ${field}.`, { field });
+      return date;
+    };
+    requireText = (value, field, max2 = 500) => {
+      const text19 = String(value ?? "").trim();
+      if (!text19) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+      if (text19.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+      return text19;
+    };
+    optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
   }
 });
 
@@ -2203,77 +2337,6 @@ var init_clinicalShared = __esm({
       if (!allowed.includes(String(value))) throw new DomainError(Codes.INVALID_INPUT, `Unknown ${field}.`, { field });
       return String(value);
     };
-  }
-});
-
-// features/keystone/mutations/shared.ts
-function staff(context) {
-  const actor5 = actorFromSession(context.session);
-  const locationIds = sessionLocationIds(context.session);
-  return { actor: actor5, locationIds, session: context.session };
-}
-function assertLocation(locationIds, locationId) {
-  if (!locationId) throw new DomainError(Codes.INVALID_INPUT, "Choose a location.", { field: "locationId" });
-  if (locationIds !== null && !locationIds.includes(locationId)) {
-    throw new DomainError(Codes.OUTSIDE_LOCATION_SCOPE, "You are not assigned to that location today.");
-  }
-}
-async function assertPatientInScope(tx, locationIds, patientId) {
-  const patient = await tx.patient.findUnique({ where: { id: patientId }, select: { id: true, status: true, homeLocationId: true, version: true } });
-  if (!patient) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
-  if (locationIds === null) return patient;
-  if (patient.homeLocationId && locationIds.includes(patient.homeLocationId)) return patient;
-  const since = new Date(Date.now() - PATIENT_LOCATION_LOOKBACK_YEARS * 365.25 * 864e5);
-  const seen = await tx.appointment.findFirst({ where: { patientId, locationId: { in: locationIds }, startsAt: { gte: since } }, select: { id: true } });
-  if (!seen) throw new DomainError(Codes.NOT_FOUND, "Patient not found.");
-  return patient;
-}
-async function resolvePatientRef(tx, ref) {
-  const value = String(ref ?? "").trim();
-  if (!value.startsWith("chart:")) return value;
-  const chartNumber = value.slice(6).trim().replace(/^(chart\s*)?#?/i, "");
-  const patient = chartNumber ? await tx.patient.findUnique({ where: { chartNumber }, select: { id: true } }) : null;
-  if (!patient) throw new DomainError(Codes.NOT_FOUND, "No patient has that chart number.", { field: "patientId" });
-  return patient.id;
-}
-function assertBookablePatient(patient) {
-  if (!BOOKABLE_PATIENT.has(patient.status)) {
-    throw new DomainError(Codes.GUARD_FAILED, patient.status === "merged_into" ? "This record was merged; book on the surviving record." : `A ${patient.status} patient can't be booked.`, { currentStatus: patient.status });
-  }
-}
-function normalizeContact(kind, value) {
-  const raw = String(value ?? "").trim();
-  if (kind === "email") {
-    const email = raw.toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid email address.", { field: "value" });
-    return { value: raw, normalized: email };
-  }
-  const digits = raw.replace(/\D/g, "");
-  const e164 = digits.length === 10 ? `+1${digits}` : digits.length === 11 && digits.startsWith("1") ? `+${digits}` : digits.length >= 8 && digits.length <= 15 ? `+${digits}` : "";
-  if (!e164) throw new DomainError(Codes.INVALID_INPUT, "Enter a valid phone number.", { field: "value" });
-  return { value: raw, normalized: e164 };
-}
-var BOOKABLE_PATIENT, toDate, requireText, optionalText;
-var init_shared = __esm({
-  "features/keystone/mutations/shared.ts"() {
-    "use strict";
-    init_access();
-    init_actor();
-    init_errors();
-    init_scope();
-    BOOKABLE_PATIENT = /* @__PURE__ */ new Set(["prospect", "active", "inactive"]);
-    toDate = (value, field) => {
-      const date = new Date(String(value ?? ""));
-      if (Number.isNaN(date.getTime())) throw new DomainError(Codes.INVALID_INPUT, `Enter a valid ${field}.`, { field });
-      return date;
-    };
-    requireText = (value, field, max2 = 500) => {
-      const text19 = String(value ?? "").trim();
-      if (!text19) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-      if (text19.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
-      return text19;
-    };
-    optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
   }
 });
 
@@ -2434,7 +2497,8 @@ async function requestPeriodReopen(_root, args, context) {
       targetId: row.id,
       requiredPermission: "canApprovePeriodReopen",
       payload: { periodCloseId: row.id, period: row.period, reason },
-      summary: `Reopen ${row.period}: ${reason.slice(0, 80)}`
+      summary: `Reopen ${row.period}: ${reason.slice(0, 80)}`,
+      scope: { locationId: row.locationId }
     });
     await uow.tx.periodClose.update({ where: { id: row.id }, data: { approvalId: approval.id } });
     return { id: row.id, status: "reopen_requested", approvalId: approval.id };
@@ -4363,24 +4427,47 @@ var init_era = __esm({
 });
 
 // features/keystone/mutations/remittance.ts
-async function reversibleFor(tx, claimId, exceptPostingId) {
+async function postingContext(tx, claim, remittancePayerId, statusCode) {
+  const own = claim.coverageId ? await tx.coverage.findUnique({ where: { id: claim.coverageId }, select: { ordinal: true, subscriber: { select: { plan: { select: { payerId: true } } } } } }) : null;
+  const claimPayerId = own?.subscriber?.plan?.payerId ?? null;
+  const payerId = remittancePayerId ?? claimPayerId;
+  const held = claim.patientId && payerId ? await tx.coverage.findMany({ where: { patientId: claim.patientId, status: { not: "invalid" }, subscriber: { plan: { payerId } } }, select: { id: true, ordinal: true } }) : [];
+  const levels = new Set(held.map((c) => c.ordinal));
+  if (own && payerId === claimPayerId) levels.add(own.ordinal);
+  const byCode = LEVEL_BY_CODE[statusCode];
+  const level = byCode && levels.has(byCode) && byCode !== own?.ordinal ? byCode : own && payerId === claimPayerId ? own.ordinal : ["primary", "secondary", "tertiary"].find((l) => levels.has(l)) ?? null;
+  const version = claim.currentVersionId ? (await tx.claimVersion.findUnique({ where: { id: claim.currentVersionId }, select: { number: true } }))?.number ?? 0 : 0;
+  const appeals = await tx.appeal.count({ where: { denial: { claimId: claim.id } } });
+  return { payerId, level, round: `v${version}/a${appeals}` };
+}
+async function reversiblePayments(tx, claimId, ctx) {
   const candidates = await tx.paymentPosting.findMany({
-    where: { remittanceClaim: { claimId, claimStatusCode: { not: "22" }, paidMinor: { gte: 0n } }, status: "posted", ...exceptPostingId ? { id: { not: exceptPostingId } } : {} },
+    where: { claimId, payerId: ctx.payerId, coverageLevel: ctx.level ?? "", kind: "payment", status: "posted" },
     orderBy: { createdAt: "desc" },
     include: { entries: true }
   });
+  const out = [];
   for (const posting of candidates) {
     const own = posting.entries.filter((e) => e.kind !== "reversal" && !e.reversesId);
     if (!own.length) continue;
     const already = new Set((await tx.ledgerEntry.findMany({ where: { reversesId: { in: own.map((e) => e.id) } }, select: { reversesId: true } })).map((e) => e.reversesId));
     const open = own.filter((e) => !already.has(e.id));
-    if (open.length) return { posting, entries: open };
+    if (open.length === own.length) out.push({ posting, entries: open });
   }
-  return null;
+  return out;
 }
-async function alreadyPaid(tx, claim, parsed) {
-  if (["2", "3"].includes(parsed.statusCode) || ["appealed", "appeal_decided"].includes(claim.status)) return false;
-  return !!await reversibleFor(tx, claim.id);
+async function takebackTarget(tx, claim, ctx, recoupedMinor) {
+  if (!ctx.level) return { problem: `${claim.ref}: this payer does not cover the patient, so its takeback was not applied.`, found: null };
+  const live = await reversiblePayments(tx, claim.id, ctx);
+  if (!live.length) return { problem: `${claim.ref} has no payment from this payer left to take back, so nothing was reversed.`, found: null };
+  const exact2 = live.find((p) => p.posting.paidMinor === recoupedMinor && recoupedMinor > 0n);
+  if (!exact2) return { problem: `${claim.ref}: the takeback (${formatMinor(recoupedMinor)}) does not match the payment from this payer (${live.map((p) => formatMinor(p.posting.paidMinor)).join(", ")}). Nothing was reversed; handle it by hand.`, found: null };
+  return { problem: "", found: exact2 };
+}
+async function paymentProblem(tx, claim, ctx) {
+  if (!ctx.level) return `${claim.ref}: this payer does not cover the patient, so its payment was not posted.`;
+  const live = await tx.paymentPosting.count({ where: { claimId: claim.id, payerId: ctx.payerId, coverageLevel: ctx.level, round: ctx.round, kind: "payment", status: "posted" } });
+  return live ? `${claim.ref} already has a payment from this payer posted. Post a takeback first, or enter it as a secondary payment.` : "";
 }
 async function applyParsedEra(uow, actor5, era, origin) {
   const { tx } = uow;
@@ -4388,7 +4475,8 @@ async function applyParsedEra(uow, actor5, era, origin) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`era:${key}`}))`;
   const claimRows = await tx.claim.findMany({ where: { patientControlNumber: { in: era.claims.map((c) => c.patientControlNumber).filter(Boolean) } }, include: { lines: true, coverage: { include: { subscriber: { include: { plan: true } } } } } });
   const byPcn = new Map(claimRows.map((c) => [c.patientControlNumber, c]));
-  const payerId = origin.payerId ?? claimRows[0]?.coverage?.subscriber?.plan?.payerId ?? (era.payerName ? (await tx.payer.findFirst({ where: { name: era.payerName }, select: { id: true } }))?.id ?? null : null);
+  const named = era.payerName ? (await tx.payer.findFirst({ where: { name: era.payerName }, select: { id: true } }))?.id ?? null : null;
+  const payerId = origin.payerId ?? named ?? claimRows[0]?.coverage?.subscriber?.plan?.payerId ?? null;
   const earlier = key ? (await tx.$queryRaw`SELECT id, ref FROM "Remittance" WHERE payer IS NOT DISTINCT FROM ${payerId} AND dental_trace_key("traceNumber") = ${key} AND status <> 'duplicate' ORDER BY "createdAt" ASC LIMIT 1`)[0] ?? null : null;
   const ref = await nextReference(tx, "ERA", uow.now);
   if (earlier) {
@@ -4418,7 +4506,9 @@ async function applyParsedEra(uow, actor5, era, origin) {
       });
       lineRows.push({ id: row.id, line, claimLineId: claimLine?.id ?? null, conserves });
     }
-    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum2(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : isTakeback(parsed) && !await reversibleFor(tx, claim.id) ? `${claim.ref} has no payment left to take back, so nothing was reversed.` : !isTakeback(parsed) && await alreadyPaid(tx, claim, parsed) ? `${claim.ref} already has a payment posted. Post a takeback first, or enter it as a secondary payment.` : "";
+    if (claim) await lockRow(tx, "Claim", claim.id);
+    const ctx = claim ? await postingContext(tx, claim, payerId, parsed.statusCode) : null;
+    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum2(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : isTakeback(parsed) ? (await takebackTarget(tx, claim, ctx, recoupedOf(parsed))).problem : await paymentProblem(tx, claim, ctx);
     if (problem) {
       held += 1;
       notes.push(problem);
@@ -4443,12 +4533,29 @@ async function postClaimPayment(uow, actor5, input) {
   await lockRow(tx, "Claim", claim.id);
   const takeback = isTakeback(parsed);
   const writeoff = parsed.lines.length ? sum2(parsed.lines.map((l) => writeOffMinor(l.adjustments))) : writeOffMinor(parsed.adjustments);
-  const posting = await tx.paymentPosting.create({ data: { remittanceId: remittance.id, remittanceClaimId: input.remittanceClaimId, postedById, at: uow.now, status: "posted" } });
+  const ctx = await postingContext(tx, claim, remittance.payerId, parsed.statusCode);
+  const target = takeback ? await takebackTarget(tx, claim, ctx, recoupedOf(parsed)) : null;
+  const refused = target ? target.problem : await paymentProblem(tx, claim, ctx);
+  if (refused) throw new DomainError(Codes.GUARD_FAILED, refused);
+  const posting = await tx.paymentPosting.create({
+    data: {
+      remittanceId: remittance.id,
+      remittanceClaimId: input.remittanceClaimId,
+      claimId: claim.id,
+      payerId: ctx.payerId,
+      kind: takeback ? "takeback" : "payment",
+      coverageLevel: ctx.level,
+      paidMinor: takeback ? recoupedOf(parsed) : parsed.paidMinor > 0n ? parsed.paidMinor : 0n,
+      round: ctx.round,
+      postedById,
+      at: uow.now,
+      status: "posted"
+    }
+  });
   const base = { accountId: account.id, patientId: claim.patientId, currencyCode: currency, businessDate, locationId: claim.locationId, paymentPostingId: posting.id, claimId: claim.id, postedById };
   const label = payer?.name ?? "insurance";
   if (takeback) {
-    const found = await reversibleFor(tx, claim.id, posting.id);
-    if (!found) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} has no payment left to take back, so nothing was reversed.`);
+    const found = target.found;
     const earlier = found.posting;
     for (const entry of found.entries) {
       await postEntry(tx, { ...base, kind: "reversal", amountMinor: -entry.amountMinor, originalBusinessDate: entry.originalBusinessDate ?? void 0, reversesId: entry.id, providerId: entry.providerId, chartEntryId: entry.chartEntryId, adjustmentId: entry.adjustmentId, memo: `Payment taken back by ${label} (${remittance.ref})` }, uow.now);
@@ -4502,8 +4609,6 @@ async function matchRemittanceClaim(uow, actor5, remittanceClaimId, claimId) {
   await lockRow(tx, "Claim", claimId);
   const claim = await tx.claim.findUniqueOrThrow({ where: { id: claimId }, include: { lines: true } });
   if (!ADJUSTABLE_FROM.includes(claim.status)) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.`);
-  const asParsed = { statusCode: rc.claimStatusCode, paidMinor: rc.paidMinor };
-  if (!isTakeback(asParsed) && await alreadyPaid(tx, claim, asParsed)) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} already has a payment posted. Post a takeback first, or enter it as a secondary payment.`);
   const byControl = new Map(claim.lines.map((l) => [l.lineControlNumber, l]));
   const lineRows = [];
   for (const row of rc.lines) {
@@ -4521,7 +4626,7 @@ async function matchRemittanceClaim(uow, actor5, remittanceClaimId, claimId) {
   await tx.remittance.update({ where: { id: rc.remittanceId }, data: { status: "posted", postedCompleteness: open ? "partial" : "complete", exceptionNote: open ? rc.remittance?.exceptionNote ?? "" : "", version: { increment: 1 } } });
   return { claimId };
 }
-var traceKey, isTakeback, ADJUSTABLE_FROM, asJson, sum2, lineAdjTotal;
+var traceKey, isTakeback, recoupedOf, LEVEL_BY_CODE, ADJUSTABLE_FROM, asJson, sum2, lineAdjTotal;
 var init_remittance = __esm({
   "features/keystone/mutations/remittance.ts"() {
     "use strict";
@@ -4535,6 +4640,8 @@ var init_remittance = __esm({
     init_clinicalShared();
     traceKey = (trace) => String(trace ?? "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
     isTakeback = (c) => c.statusCode === "22" || c.paidMinor < 0n;
+    recoupedOf = (c) => c.paidMinor < 0n ? -c.paidMinor : c.paidMinor;
+    LEVEL_BY_CODE = { "1": "primary", "2": "secondary", "3": "tertiary", "19": "primary", "20": "secondary", "21": "tertiary" };
     ADJUSTABLE_FROM = ["submitted", "acknowledged", "pending_payer", "submission_unknown", "adjudicated", "appealed", "appeal_decided"];
     asJson = (list19) => list19.map((a) => ({ group: a.group, reason: a.reason, amountMinor: a.amountMinor.toString() }));
     sum2 = (values) => values.reduce((a, b) => a + b, 0n);
@@ -5719,7 +5826,8 @@ async function requestRefund(_root, args, context) {
       targetId: refund.id,
       requiredPermission: "canApproveRefunds",
       payload: { refundId: refund.id, amountMinor: amountMinor.toString(), paymentId: payment?.id ?? null, accountId, method },
-      summary: `Refund ${formatMinor(amountMinor)} (${reason.slice(0, 80)})`
+      summary: `Refund ${formatMinor(amountMinor)} (${reason.slice(0, 80)})`,
+      scope: { locationId, patientId: payment?.patientId ?? null, accountId }
     });
     await tx.refund.update({ where: { id: refund.id }, data: { approvalId: approval.id } });
     if (!payment) await tx.creditBalance.updateMany({ where: { accountId, status: "open" }, data: { status: "refund_requested" } });
@@ -6472,11 +6580,12 @@ __export(platform_exports, {
   StaffAssignment: () => StaffAssignment
 });
 var import_core7 = require("@keystone-6/core");
-var import_access8 = require("@keystone-6/core/access");
+var import_access9 = require("@keystone-6/core/access");
 var import_fields7 = require("@keystone-6/core/fields");
 init_access();
 init_domainFields();
 init_listAccess();
+init_scope();
 init_trackingFields();
 var PracticeSettings = (0, import_core7.list)({
   isSingleton: true,
@@ -6539,7 +6648,7 @@ var BillingEntity = (0, import_core7.list)({
   fields: {
     legalName: (0, import_fields7.text)({ validation: { isRequired: true } }),
     tinLast4: (0, import_fields7.text)({ validation: { match: { regex: /^(\d{4})?$/, explanation: "Last four digits only" } } }),
-    tinSecretId: (0, import_fields7.text)({ access: { read: import_access8.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
+    tinSecretId: (0, import_fields7.text)({ access: { read: import_access9.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
     npiType2: (0, import_fields7.text)(),
     address: (0, import_fields7.json)({ defaultValue: {} }),
     payToAddress: (0, import_fields7.json)({ defaultValue: {} }),
@@ -6590,7 +6699,7 @@ var Credential = (0, import_core7.list)({
     kind: choice(["dental_licence", "hygiene_licence", "da_radiography", "dea", "state_controlled_substance", "cpr_bls", "sedation_permit", "other"], "dental_licence"),
     jurisdiction: (0, import_fields7.text)({ defaultValue: "US-FL" }),
     numberLast4: (0, import_fields7.text)({ ui: { description: "Shown to staff. DEA numbers are stored sealed; this is the last four only." } }),
-    numberSecretId: (0, import_fields7.text)({ access: { read: import_access8.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
+    numberSecretId: (0, import_fields7.text)({ access: { read: import_access9.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
     issuedOn: (0, import_fields7.calendarDay)(),
     expiresOn: (0, import_fields7.calendarDay)(),
     status: choice(["active", "expired", "suspended"], "active"),
@@ -6604,7 +6713,7 @@ var MachineCredential = (0, import_core7.list)({
   fields: {
     name: systemText({ required: true }),
     agent: (0, import_fields7.relationship)({ ref: "AgentIdentity", ...readOnly }),
-    tokenDigest: (0, import_fields7.text)({ isIndexed: "unique", validation: { isRequired: true }, access: { read: import_access8.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
+    tokenDigest: (0, import_fields7.text)({ isIndexed: "unique", validation: { isRequired: true }, access: { read: import_access9.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
     tokenPrefix: systemText(),
     status: lifecycle(["active", "revoked"]),
     expiresAt: (0, import_fields7.timestamp)({ ...readOnly }),
@@ -6613,7 +6722,7 @@ var MachineCredential = (0, import_core7.list)({
   }
 });
 var BreakGlassEvent = (0, import_core7.list)({
-  access: governed(["canReviewPrivacy", "canBreakGlass", "canBreakGlassRecords"]),
+  access: scopedGoverned(["canReviewPrivacy", "canBreakGlass", "canBreakGlassRecords"], scopedBy((ids) => ({ location: { id: { in: ids } } }))),
   ui: { labelField: "reason", listView: { initialColumns: ["user", "subjectType", "status", "openedAt", "expiresAt"] } },
   fields: {
     user: (0, import_fields7.relationship)({ ref: "User", ...readOnly }),
@@ -6633,7 +6742,8 @@ var BreakGlassEvent = (0, import_core7.list)({
   }
 });
 var AuditEvent = (0, import_core7.list)({
-  access: immutable("canReadAudit"),
+  // r2 N3: audit rows name any patient in any office (entityId, before/after). A reader limited to some offices sees only their own actions.
+  access: scopedGoverned("canReadAudit", ownActionsOnly()),
   ui: { labelField: "eventType", listView: { initialColumns: ["seq", "at", "eventType", "entityType", "entityId", "actorUser"], initialSort: { field: "seq", direction: "DESC" } } },
   fields: {
     seq: (0, import_fields7.integer)({ isIndexed: "unique", validation: { isRequired: true }, ...readOnly }),
@@ -6691,7 +6801,7 @@ var OUTBOX_TOPICS = [
   "confirmation.dispatch"
 ];
 var InboundObservation = (0, import_core7.list)({
-  access: governed(["canManageAdapters"]),
+  access: scopedGoverned("canManageAdapters", allOfficesOnly()),
   ui: { listView: { initialColumns: ["source", "kind", "externalId", "receivedAt", "appliedAt"] } },
   fields: {
     source: systemText({ indexed: true, required: true }),
@@ -6699,7 +6809,7 @@ var InboundObservation = (0, import_core7.list)({
     externalId: systemText(),
     contentHash: systemText({ required: true }),
     raw: (0, import_fields7.relationship)({ ref: "Document", ...readOnly }),
-    rawSecretId: (0, import_fields7.text)({ access: { read: import_access8.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
+    rawSecretId: (0, import_fields7.text)({ access: { read: import_access9.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
     receivedAt: (0, import_fields7.timestamp)({ defaultValue: { kind: "now" }, ...readOnly }),
     appliedAt: (0, import_fields7.timestamp)({ ...readOnly }),
     applyResult: (0, import_fields7.json)({ ...readOnly }),
@@ -6771,6 +6881,7 @@ var Notification = (0, import_core7.list)({
     ...trackingFields
   }
 });
+var approvalScope = (prefix = []) => approvalFilter(prefix);
 var ApprovalPolicy = (0, import_core7.list)({
   access: { operation: { query: permissions.canAccessDashboard, create: permissions.canManagePractice, update: sys, delete: sys } },
   ui: { labelField: "action" },
@@ -6785,7 +6896,10 @@ var ApprovalPolicy = (0, import_core7.list)({
   }
 });
 var ApprovalRequest = (0, import_core7.list)({
-  access: governed("canAccessDashboard"),
+  // Phase 4 r2 N4: an approval is about one office's money or one patient's record. A reader limited to some offices sees only the
+  // requests whose office is theirs and whose patients and family account they can see; a practice-wide request (fee schedule, code
+  // import, practice controls) names no office and is seen only by a reader with every office.
+  access: scopedGoverned("canAccessDashboard", approvalScope()),
   ui: { labelField: "action", listView: { initialColumns: ["action", "status", "targetList", "requestedBy", "createdAt", "expiresAt"] } },
   fields: {
     action: systemText({ indexed: true, required: true }),
@@ -6797,6 +6911,10 @@ var ApprovalRequest = (0, import_core7.list)({
     requiredPermission: systemText({ required: true }),
     requestedBy: (0, import_fields7.relationship)({ ref: "User", ...readOnly }),
     requestedByAgent: (0, import_fields7.relationship)({ ref: "AgentIdentity", ...readOnly }),
+    location: (0, import_fields7.relationship)({ ref: "Location", ...readOnly }),
+    patient: (0, import_fields7.relationship)({ ref: "Patient", ...readOnly }),
+    otherPatient: (0, import_fields7.relationship)({ ref: "Patient", ...readOnly }),
+    account: (0, import_fields7.relationship)({ ref: "GuarantorAccount", ...readOnly }),
     status: lifecycle(["pending", "approved", "rejected", "expired", "cancelled"]),
     expiresAt: (0, import_fields7.timestamp)({ ...readOnly }),
     consumedAt: (0, import_fields7.timestamp)({ ...readOnly, ui: { ...readOnly.ui, description: "When the approved action was carried out. An approval is used once." } }),
@@ -6806,7 +6924,7 @@ var ApprovalRequest = (0, import_core7.list)({
   }
 });
 var ApprovalDecision = (0, import_core7.list)({
-  access: immutable("canAccessDashboard"),
+  access: scopedGoverned("canAccessDashboard", approvalScope(["request"])),
   fields: {
     request: (0, import_fields7.relationship)({ ref: "ApprovalRequest.decisions", ...readOnly }),
     decidedBy: (0, import_fields7.relationship)({ ref: "User", ...readOnly }),
@@ -6816,7 +6934,8 @@ var ApprovalDecision = (0, import_core7.list)({
   }
 });
 var Document = (0, import_core7.list)({
-  access: governed("canAccessDashboard"),
+  // r2 N3: a stored file (an EOB, a raw clearinghouse payload, a letter) can hold any office's PHI; only a reader with every office lists them.
+  access: scopedGoverned("canAccessDashboard", allOfficesOnly()),
   fields: {
     title: (0, import_fields7.text)({ validation: { isRequired: true } }),
     kind: choice(["radiograph", "photo", "clinical_attachment", "eob", "era", "claim_attachment", "consent", "form", "id_card", "insurance_card", "statement", "baa", "credential", "policy", "export", "import", "transcript", "recording", "other"], "other"),
@@ -6875,7 +6994,7 @@ var AdapterInstallation = (0, import_core7.list)({
     displayName: systemText(),
     mode: (0, import_fields7.select)({ type: "string", options: ["manual_export", "sandbox", "live"].map((value) => ({ label: value.replace("_", " "), value })), defaultValue: "manual_export", ...readOnly }),
     status: lifecycle(["configured", "sandbox_verified", "live", "suspended"]),
-    secret: (0, import_fields7.relationship)({ ref: "SecretBox", access: { read: import_access8.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
+    secret: (0, import_fields7.relationship)({ ref: "SecretBox", access: { read: import_access9.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
     config: (0, import_fields7.json)({ ...readOnly }),
     handlesPhi: (0, import_fields7.checkbox)({ defaultValue: true, ...readOnly }),
     baa: (0, import_fields7.relationship)({ ref: "BusinessAssociate.adapterInstallations", ...readOnly }),
@@ -6917,7 +7036,7 @@ var JurisdictionPack = (0, import_core7.list)({
   }
 });
 var PhiReadAudit = (0, import_core7.list)({
-  access: immutable("canReadPhiAudit"),
+  access: scopedGoverned("canReadPhiAudit", ownActionsOnly()),
   ui: { labelField: "operationName", listView: { initialColumns: ["at", "actorUser", "purpose", "listKeys", "recordCount", "operationName"], initialSort: { field: "at", direction: "DESC" } } },
   fields: {
     actorUser: (0, import_fields7.relationship)({ ref: "User", ...readOnly }),
@@ -6947,7 +7066,7 @@ var InferenceProvider = (0, import_core7.list)({
     kind: fixedChoice(["self_hosted", "baa_hosted", "no_phi"]),
     endpoint: systemText(),
     model: systemText(),
-    secret: (0, import_fields7.relationship)({ ref: "SecretBox", access: { read: import_access8.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
+    secret: (0, import_fields7.relationship)({ ref: "SecretBox", access: { read: import_access9.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
     baa: (0, import_fields7.relationship)({ ref: "BusinessAssociate", ...readOnly }),
     retainsPrompts: (0, import_fields7.checkbox)({ defaultValue: false, ...readOnly }),
     isActive: (0, import_fields7.checkbox)({ defaultValue: true, ...readOnly }),
@@ -6961,6 +7080,7 @@ var import_fields8 = require("@keystone-6/core/fields");
 init_access();
 init_domainFields();
 init_listAccess();
+init_scope();
 init_trackingFields();
 var PROPOSAL_KINDS = [
   "fill_slot",
@@ -7025,7 +7145,8 @@ var AgentToolGrant = (0, import_core8.list)({
   }
 });
 var AgentRun = (0, import_core8.list)({
-  access: governed(["canManageAgents", "canReadSignals"]),
+  // r2 N3: a run's tool calls can name any office's patients; only a reader with every office lists runs.
+  access: scopedGoverned(["canManageAgents", "canReadSignals"], allOfficesOnly()),
   ui: { labelField: "promptHash", listView: { initialColumns: ["agent", "status", "startedAt", "endedAt"] } },
   fields: {
     agent: (0, import_fields8.relationship)({ ref: "AgentIdentity.runs", ...readOnly }),
@@ -7044,7 +7165,7 @@ var AgentRun = (0, import_core8.list)({
   }
 });
 var Proposal = (0, import_core8.list)({
-  access: governed(["canReadSignals", "canDecideProposals"]),
+  access: scopedGoverned(["canReadSignals", "canDecideProposals"], scopedBy((ids) => ({ location: { id: { in: ids } } }))),
   ui: { labelField: "kind", listView: { initialColumns: ["kind", "status", "proposedByAgent", "proposedByUser", "createdAt"] } },
   fields: {
     kind: fixedChoice(PROPOSAL_KINDS),
@@ -7180,7 +7301,8 @@ var PatientIdentifier = (0, import_core9.list)({
   }
 });
 var FamilyGroup = (0, import_core9.list)({
-  access: managed(["canReadDemographics", "canManagePatients"], "canManagePatients"),
+  // r2 N3: a family is mine when every member is visible to me (and it has one), like a family account.
+  access: scopedManaged(["canReadDemographics", "canManagePatients"], "canManagePatients", peopleFilter({ members: ["members"] })),
   ui: { labelField: "name", listView: { initialColumns: ["name", "members"] } },
   fields: {
     name: (0, import_fields9.text)({ validation: { isRequired: true } }),
@@ -7218,7 +7340,8 @@ var GuarantorLink = (0, import_core9.list)({
   }
 });
 var ContactPoint = (0, import_core9.list)({
-  access: governed(["canReadDemographics", "canManagePatients", "canMessagePatients"]),
+  // r2 N3: a phone or email is read only by staff who can see the patient (or every patient of the guarantor) it belongs to.
+  access: scopedGoverned(["canReadDemographics", "canManagePatients", "canMessagePatients"], peopleFilter({ patients: [["patient"]], guarantors: [["guarantor"]] })),
   ui: { labelField: "kind", listView: { initialColumns: ["patient", "kind", "value", "isPrimary", "isActive"] } },
   fields: {
     patient: (0, import_fields9.relationship)({ ref: "Patient.contactPoints", ...readOnly }),
@@ -7274,7 +7397,7 @@ var Referral = (0, import_core9.list)({
   }
 });
 var MergeCase = (0, import_core9.list)({
-  access: governed(["canManagePatients", "canApprovePatientMerge"]),
+  access: scopedGoverned(["canManagePatients", "canApprovePatientMerge"], peopleFilter({ patients: [["survivor"], ["merged"]] })),
   ui: { listView: { initialColumns: ["survivor", "merged", "status", "createdAt", "revertibleUntil"] } },
   fields: {
     survivor: (0, import_fields9.relationship)({ ref: "Patient", ...readOnly }),
@@ -7294,7 +7417,7 @@ var MergeCase = (0, import_core9.list)({
   }
 });
 var MergeMap = (0, import_core9.list)({
-  access: immutable(["canManagePatients", "canApprovePatientMerge"]),
+  access: scopedGoverned(["canManagePatients", "canApprovePatientMerge"], peopleFilter({ patients: [["mergeCase", "survivor"], ["mergeCase", "merged"]] })),
   ui: { listView: { initialColumns: ["mergeCase", "listKey", "rowId", "field"] } },
   fields: {
     mergeCase: (0, import_fields9.relationship)({ ref: "MergeCase.entries", ...readOnly }),
@@ -7578,7 +7701,8 @@ var ConfirmationAttempt = (0, import_core10.list)({
   }
 });
 var BrokenAppointmentEvent = (0, import_core10.list)({
-  access: immutable(scheduleRead),
+  // r2 N3: the appointment's office is mine and the patient is visible to me.
+  access: scopedGoverned(scheduleRead, peopleFilter({ location: ["appointment", "location"], patients: [["patient"]] })),
   ui: { listView: { initialColumns: ["appointment", "patient", "kind", "at"] } },
   fields: {
     appointment: (0, import_fields10.relationship)({ ref: "Appointment", ...readOnly }),
@@ -7606,6 +7730,7 @@ var import_core11 = require("@keystone-6/core");
 var import_fields11 = require("@keystone-6/core/fields");
 init_domainFields();
 init_listAccess();
+init_scope();
 init_trackingFields();
 var CONSENT_CHANNELS = ["sms", "voice", "email"];
 var CONSENT_PURPOSES = [
@@ -7621,7 +7746,7 @@ var CONSENT_PURPOSES = [
 ];
 var MESSAGE_CHANNELS = ["sms", "email", "web_chat", "portal", "voice", "manual"];
 var ConsentGrant = (0, import_core11.list)({
-  access: governed(["canMessagePatients", "canManagePatients", "canReadDemographics"]),
+  access: scopedGoverned(["canMessagePatients", "canManagePatients", "canReadDemographics"], peopleFilter({ patients: [["contactPoint", "patient"]], guarantors: [["contactPoint", "guarantor"]] })),
   ui: { listView: { initialColumns: ["contactPoint", "channel", "purpose", "status", "source", "grantedAt"] } },
   fields: {
     contactPoint: (0, import_fields11.relationship)({ ref: "ContactPoint.consentGrants", ...readOnly }),
@@ -7656,7 +7781,7 @@ var MessageTemplate = (0, import_core11.list)({
   }
 });
 var Conversation = (0, import_core11.list)({
-  access: governed(["canMessagePatients", "canManagePatients"]),
+  access: scopedGoverned(["canMessagePatients", "canManagePatients"], peopleFilter({ patients: [["patient"], ["contactPoint", "patient"]], guarantors: [["contactPoint", "guarantor"]] })),
   ui: { listView: { initialColumns: ["patient", "channel", "status", "assignedTo", "updatedAt"] } },
   fields: {
     patient: (0, import_fields11.relationship)({ ref: "Patient", ...readOnly }),
@@ -7672,7 +7797,7 @@ var Conversation = (0, import_core11.list)({
   }
 });
 var Message = (0, import_core11.list)({
-  access: governed(["canMessagePatients", "canManagePatients"]),
+  access: scopedGoverned(["canMessagePatients", "canManagePatients"], peopleFilter({ patients: [["conversation", "patient"], ["conversation", "contactPoint", "patient"]], guarantors: [["conversation", "contactPoint", "guarantor"]] })),
   ui: { listView: { initialColumns: ["conversation", "direction", "channel", "purpose", "status", "sentAt"] } },
   fields: {
     conversation: (0, import_fields11.relationship)({ ref: "Conversation.messages", ...readOnly }),
@@ -7781,7 +7906,8 @@ var PublicBookingRequest = (0, import_core12.list)({
   }
 });
 var PortalAccount = (0, import_core12.list)({
-  access: governed(["canManagePatients"]),
+  // r2 N3: a portal login is mine when every patient it acts for is visible to me.
+  access: scopedGoverned("canManagePatients", scopedBy(portalAccountWhere)),
   ui: { labelField: "email", listView: { initialColumns: ["email", "status", "identityVerifiedAt", "lastLoginAt"] } },
   fields: {
     email: systemText({ indexed: "unique", required: true }),
@@ -7802,7 +7928,7 @@ var PortalAccount = (0, import_core12.list)({
   }
 });
 var PortalScope = (0, import_core12.list)({
-  access: governed(["canManagePatients"]),
+  access: scopedGoverned("canManagePatients", scopedBy((ids) => ({ patient: visiblePatient(ids) }))),
   ui: { listView: { initialColumns: ["account", "patient", "relationship", "status", "expiresAt"] } },
   fields: {
     account: (0, import_fields12.relationship)({ ref: "PortalAccount.scopes", ...readOnly }),
@@ -7819,7 +7945,7 @@ var PortalScope = (0, import_core12.list)({
   }
 });
 var IntakeSession = (0, import_core12.list)({
-  access: governed(["canManagePatients"]),
+  access: scopedGoverned("canManagePatients", scopedBy((ids) => ({ OR: [{ portalAccount: portalAccountWhere(ids) }, { publicBookingRequest: { location: { id: { in: ids } } } }] }))),
   ui: { listView: { initialColumns: ["portalAccount", "publicBookingRequest", "status", "expiresAt"] } },
   fields: {
     portalAccount: (0, import_fields12.relationship)({ ref: "PortalAccount", ...readOnly }),
@@ -8724,6 +8850,8 @@ __export(claims_exports, {
   INQUIRY_STATUSES: () => INQUIRY_STATUSES,
   PAYMENT_METHODS: () => PAYMENT_METHODS,
   POSTED_COMPLETENESS: () => POSTED_COMPLETENESS,
+  POSTING_KINDS: () => POSTING_KINDS,
+  POSTING_LEVELS: () => POSTING_LEVELS,
   POSTING_STATUSES: () => POSTING_STATUSES,
   PayerEnrollment: () => PayerEnrollment,
   PaymentPosting: () => PaymentPosting,
@@ -8760,6 +8888,8 @@ var PAYMENT_METHODS = ["eft", "check", "virtual_card", "none"];
 var REMITTANCE_STATUSES = ["received", "parsed", "matched", "posting", "posted", "reconciled", "exception", "duplicate"];
 var POSTED_COMPLETENESS = ["", "partial", "complete"];
 var POSTING_STATUSES = ["posted", "reversed"];
+var POSTING_KINDS = ["payment", "takeback"];
+var POSTING_LEVELS = ["primary", "secondary", "tertiary"];
 var DENIAL_CLASSES = ["frequency", "eligibility", "attachment", "coding", "timely_filing", "coordination", "non_covered", "duplicate", "other"];
 var DENIAL_STATUSES = ["open", "working", "appealed", "corrected", "written_off", "billed_to_patient", "resolved"];
 var APPEAL_VIA = ["mail", "portal", "fax", "clearinghouse"];
@@ -8978,6 +9108,12 @@ var PaymentPosting = (0, import_core18.list)({
   fields: {
     remittance: (0, import_fields18.relationship)({ ref: "Remittance", ...readOnly }),
     remittanceClaim: (0, import_fields18.relationship)({ ref: "RemittanceClaim", ...readOnly }),
+    claim: (0, import_fields18.relationship)({ ref: "Claim", ...readOnly }),
+    payer: (0, import_fields18.relationship)({ ref: "Payer", ...readOnly }),
+    kind: fixedChoice(POSTING_KINDS, "payment"),
+    coverageLevel: fixedChoice(POSTING_LEVELS, "primary"),
+    paidMinor: minor({ defaultValue: 0n, description: "What this posting paid, or (for a takeback) what it took back. Always zero or more." }),
+    round: (0, import_fields18.text)({ defaultValue: "", ...readOnly, ui: { ...readOnly.ui, description: "Which adjudication this paid: the claim version sent and how many appeals came before (v1/a0)." } }),
     postedBy: (0, import_fields18.relationship)({ ref: "User", ...readOnly }),
     at: (0, import_fields18.timestamp)({ ...readOnly }),
     status: lifecycle(POSTING_STATUSES),
@@ -10565,12 +10701,30 @@ registerApplier("practice.controls", async (uow, actor5, request) => {
 });
 
 // features/keystone/mutations/approvals.ts
+init_access();
+init_shared();
+async function assertApprovalInScope(tx, locationIds, requestId) {
+  if (locationIds === null) return;
+  const request = await tx.approvalRequest.findUnique({ where: { id: requestId }, select: { locationId: true, patientId: true, otherPatientId: true, accountId: true } });
+  if (!request) throw new DomainError(Codes.NOT_FOUND, "Approval request not found.");
+  if (!request.locationId) throw new DomainError(Codes.OUTSIDE_LOCATION_SCOPE, "This request covers the whole practice. Someone who works at every office decides it.");
+  assertLocation(locationIds, request.locationId);
+  for (const patientId of [request.patientId, request.otherPatientId]) if (patientId) await assertPatientInScope(tx, locationIds, patientId);
+  if (request.accountId) {
+    const account = await tx.guarantorAccount.findUnique({ where: { id: request.accountId }, select: { guarantorId: true } });
+    const links = account?.guarantorId ? await tx.guarantorLink.findMany({ where: { guarantorId: account.guarantorId }, select: { patientId: true } }) : [];
+    if (!links.length) throw new DomainError(Codes.NOT_FOUND, "Approval request not found.");
+    for (const link of links) if (link.patientId) await assertPatientInScope(tx, locationIds, link.patientId);
+  }
+}
 async function decideApprovalRequest(_root, args, context) {
   const actor5 = actorFromSession(context.session);
   requirePermission(actor5, "canAccessDashboard");
   if (args.decision !== "approve" && args.decision !== "reject") throw new DomainError(Codes.INVALID_INPUT, "Decision must be approve or reject.");
   if (args.decision === "reject" && !args.reason?.trim()) throw new DomainError(Codes.INVALID_INPUT, "Say why you are rejecting it.", { field: "reason" });
+  const locationIds = sessionLocationIds(context.session);
   const result = await command(context.prisma, { name: "approval.decide", actor: actor5, idempotencyKey: args.idempotencyKey, params: { requestId: args.requestId, decision: args.decision, reason: args.reason ?? "", expectedVersion: args.expectedVersion } }, async (uow) => {
+    await assertApprovalInScope(uow.tx, locationIds, args.requestId);
     const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { strictAgentOwnerSoD: true } });
     const decided = await decideApproval(uow, actor5, { requestId: args.requestId, decision: args.decision, reason: args.reason ?? void 0, expectedVersion: args.expectedVersion, strictAgentOwner: practice?.strictAgentOwnerSoD ?? true });
     let applied = null;
@@ -11920,7 +12074,8 @@ async function proposeMergeIn(uow, actor5, input) {
     targetId: mergeCase.id,
     requiredPermission: "canApprovePatientMerge",
     payload: { mergeCaseId: mergeCase.id, survivorId: input.survivorId, mergedId: input.mergedId },
-    summary: `Merge chart ${merged.chartNumber} into ${survivor.chartNumber}`
+    summary: `Merge chart ${merged.chartNumber} into ${survivor.chartNumber}`,
+    scope: { locationId: survivor.homeLocationId ?? null, patientId: input.survivorId, otherPatientId: input.mergedId }
   });
   await uow.tx.mergeCase.update({ where: { id: mergeCase.id }, data: { approvalId: approval.id } });
   auditCreate(uow, actor5, "MergeCase", mergeCase.id, "merge.proposed", { survivorId: input.survivorId, mergedId: input.mergedId }, { reason: input.reason });
@@ -14247,10 +14402,13 @@ async function requestClaimStatus(_root, args, context) {
   return { replay: result.replay, ...result.value };
 }
 async function enterManualEob(_root, args, context) {
-  const { actor: actor5 } = staff(context);
+  const { actor: actor5, locationIds } = staff(context);
   requirePermission(actor5, "canPostRemittances");
   const { idempotencyKey, ...params } = args;
   const result = await command(context.prisma, { name: "remittance.manual_eob", actor: actor5, idempotencyKey, params }, async (uow) => {
+    const refs = (args.claims ?? []).map((c) => String(c?.claimRef ?? "")).filter(Boolean);
+    const named = refs.length ? await uow.tx.claim.findMany({ where: { patientControlNumber: { in: refs } }, select: { locationId: true } }) : [];
+    for (const claim of named) assertLocation(locationIds, claim.locationId);
     const method = oneOf(args.method, ["eft", "check", "virtual_card", "none"], "method");
     const trace = String(args.traceNumber ?? "").trim();
     if (!trace) throw new DomainError(Codes.INVALID_INPUT, "Enter the check or payment number.", { field: "traceNumber" });
@@ -14429,7 +14587,8 @@ async function requestAdjustment(_root, args, context) {
       targetId: row.id,
       requiredPermission: "canApproveAdjustments",
       payload: { adjustmentId: row.id, typeId: type.id, amountMinor: amountMinor.toString(), accountId: account.id },
-      summary: `${type.name}: ${formatMinor(amountMinor)} (${reason.slice(0, 80)})`
+      summary: `${type.name}: ${formatMinor(amountMinor)} (${reason.slice(0, 80)})`,
+      scope: { locationId: args.locationId, patientId, accountId: account.id }
     });
     await tx.adjustmentRequest.update({ where: { id: row.id }, data: { approvalId: approval.id, version: { increment: 1 } } });
     return { id: row.id, status: "requested", approvalId: approval.id };

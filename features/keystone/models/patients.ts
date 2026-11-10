@@ -2,7 +2,7 @@ import { list, graphql } from '@keystone-6/core'
 import { calendarDay, checkbox, integer, json, relationship, text, timestamp, virtual } from '@keystone-6/core/fields'
 import { choice, fixedChoice, lifecycle, readOnly, systemText, versionField } from './domainFields'
 import { governed, immutable, managed } from './listAccess'
-import { moneyFilter, patientFilter, scopedGoverned, scopedManaged } from './scope'
+import { moneyFilter, patientFilter, peopleFilter, scopedGoverned, scopedManaged } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -101,7 +101,8 @@ export const PatientIdentifier = list({
 })
 
 export const FamilyGroup = list({
-  access: managed(['canReadDemographics', 'canManagePatients'], 'canManagePatients'),
+  // r2 N3: a family is mine when every member is visible to me (and it has one), like a family account.
+  access: scopedManaged(['canReadDemographics', 'canManagePatients'], 'canManagePatients', peopleFilter({ members: ['members'] })),
   ui: { labelField: 'name', listView: { initialColumns: ['name', 'members'] } },
   fields: {
     name: text({ validation: { isRequired: true } }),
@@ -142,7 +143,8 @@ export const GuarantorLink = list({
 })
 
 export const ContactPoint = list({
-  access: governed(['canReadDemographics', 'canManagePatients', 'canMessagePatients']),
+  // r2 N3: a phone or email is read only by staff who can see the patient (or every patient of the guarantor) it belongs to.
+  access: scopedGoverned(['canReadDemographics', 'canManagePatients', 'canMessagePatients'], peopleFilter({ patients: [['patient']], guarantors: [['guarantor']] })),
   ui: { labelField: 'kind', listView: { initialColumns: ['patient', 'kind', 'value', 'isPrimary', 'isActive'] } },
   fields: {
     patient: relationship({ ref: 'Patient.contactPoints', ...readOnly }),
@@ -202,7 +204,7 @@ export const Referral = list({
 })
 
 export const MergeCase = list({
-  access: governed(['canManagePatients', 'canApprovePatientMerge']),
+  access: scopedGoverned(['canManagePatients', 'canApprovePatientMerge'], peopleFilter({ patients: [['survivor'], ['merged']] })),
   ui: { listView: { initialColumns: ['survivor', 'merged', 'status', 'createdAt', 'revertibleUntil'] } },
   fields: {
     survivor: relationship({ ref: 'Patient', ...readOnly }),
@@ -223,7 +225,7 @@ export const MergeCase = list({
 })
 
 export const MergeMap = list({
-  access: immutable(['canManagePatients', 'canApprovePatientMerge']),
+  access: scopedGoverned(['canManagePatients', 'canApprovePatientMerge'], peopleFilter({ patients: [['mergeCase', 'survivor'], ['mergeCase', 'merged']] })),
   ui: { listView: { initialColumns: ['mergeCase', 'listKey', 'rowId', 'field'] } },
   fields: {
     mergeCase: relationship({ ref: 'MergeCase.entries', ...readOnly }),

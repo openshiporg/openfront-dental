@@ -3,6 +3,7 @@ import { integer, json, relationship, text, timestamp } from '@keystone-6/core/f
 import { permissions, sys } from '../access'
 import { choice, fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
 import { governed } from './listAccess'
+import { allOfficesOnly, scopedBy, scopedGoverned } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -67,7 +68,8 @@ export const AgentToolGrant = list({
 })
 
 export const AgentRun = list({
-  access: governed(['canManageAgents', 'canReadSignals']),
+  // r2 N3: a run's tool calls can name any office's patients; only a reader with every office lists runs.
+  access: scopedGoverned(['canManageAgents', 'canReadSignals'], allOfficesOnly()),
   ui: { labelField: 'promptHash', listView: { initialColumns: ['agent', 'status', 'startedAt', 'endedAt'] } },
   fields: {
     agent: relationship({ ref: 'AgentIdentity.runs', ...readOnly }),
@@ -87,7 +89,7 @@ export const AgentRun = list({
 })
 
 export const Proposal = list({
-  access: governed(['canReadSignals', 'canDecideProposals']),
+  access: scopedGoverned(['canReadSignals', 'canDecideProposals'], scopedBy(ids => ({ location: { id: { in: ids } } }))),
   ui: { labelField: 'kind', listView: { initialColumns: ['kind', 'status', 'proposedByAgent', 'proposedByUser', 'createdAt'] } },
   fields: {
     kind: fixedChoice(PROPOSAL_KINDS),

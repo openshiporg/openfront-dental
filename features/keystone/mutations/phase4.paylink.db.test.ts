@@ -25,6 +25,10 @@ const fakeStripe = (intents: { id: string; status: string }[], calls: string[] =
   fetch: (async (url: string, init: any) => {
     const path = new URL(url).pathname
     calls.push(`${init?.method} ${path}`)
+    if (path.endsWith('/cancel')) {
+      const body = { id: path.split('/')[3], status: 'canceled' }
+      return { status: 200, json: async () => body, text: async () => JSON.stringify(body) } as any
+    }
     if (init?.method === 'POST') { intentCount += 1; lastIntent = `pi_link_${intentCount}` }
     const id = init?.method === 'POST' ? lastIntent : path.split('/').pop()!
     const body = init?.method === 'POST'
@@ -158,5 +162,29 @@ describe.skipIf(!hasTestDatabase)('Slice 4 add-on: statement PDF and pay link (d
     const pay = await prisma.payment.findFirstOrThrow({ where: { ref: started.ref } })
     expect(pay.status).toBe('failed')
     expect(await prisma.ledgerEntry.count({ where: { paymentId: pay.id } })).toBe(0)
+  })
+
+  it('r2 m-b: a pay-link payment left unfinished for 30 minutes expires on the next read; the TEST intent is cancelled, a paid one is settled', async () => {
+    const calls: string[] = []
+    const started = await startPayLinkPayment(prisma as any, stmtA.payLinkCode, '2.00', new Date(), fakeStripe([], calls))
+    const pay = await prisma.payment.findFirstOrThrow({ where: { ref: started.ref } })
+    expect(pay.status).toBe('requires_action')
+    // within 30 minutes: a read changes nothing
+    await openPayLink(prisma as any, stmtA.payLinkCode, new Date(Date.now() + 10 * 60_000), fakeStripe([{ id: pay.providerIntentId, status: 'requires_payment_method' }], calls))
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: pay.id } })).status).toBe('requires_action')
+    // after 30 minutes: the read asks Stripe, cancels the TEST intent and expires the payment; nothing is posted
+    const later: string[] = []
+    await openPayLink(prisma as any, stmtA.payLinkCode, new Date(Date.now() + 31 * 60_000), fakeStripe([{ id: pay.providerIntentId, status: 'requires_payment_method' }], later))
+    const expired = await prisma.payment.findUniqueOrThrow({ where: { id: pay.id } })
+    expect(expired.status).toBe('failed')
+    expect(expired.failureNote).toMatch(/expired/)
+    expect(later.some(c => c.endsWith(`/v1/payment_intents/${pay.providerIntentId}/cancel`))).toBe(true)
+    expect(await prisma.ledgerEntry.count({ where: { paymentId: pay.id } })).toBe(0)
+    // one that went through after all is settled on that read, never failed
+    const second = await startPayLinkPayment(prisma as any, stmtA.payLinkCode, '1.00', new Date(), fakeStripe([]))
+    const pay2 = await prisma.payment.findFirstOrThrow({ where: { ref: second.ref } })
+    await openPayLink(prisma as any, stmtA.payLinkCode, new Date(Date.now() + 31 * 60_000), fakeStripe([{ id: pay2.providerIntentId, status: 'succeeded' }]))
+    expect((await prisma.payment.findUniqueOrThrow({ where: { id: pay2.id } })).status).toBe('succeeded')
+    expect(await prisma.ledgerEntry.count({ where: { paymentId: pay2.id } })).toBe(1)
   })
 })

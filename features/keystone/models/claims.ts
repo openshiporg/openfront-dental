@@ -31,6 +31,8 @@ export const PAYMENT_METHODS = ['eft', 'check', 'virtual_card', 'none'] as const
 export const REMITTANCE_STATUSES = ['received', 'parsed', 'matched', 'posting', 'posted', 'reconciled', 'exception', 'duplicate'] as const
 export const POSTED_COMPLETENESS = ['', 'partial', 'complete'] as const
 export const POSTING_STATUSES = ['posted', 'reversed'] as const
+export const POSTING_KINDS = ['payment', 'takeback'] as const
+export const POSTING_LEVELS = ['primary', 'secondary', 'tertiary'] as const
 export const DENIAL_CLASSES = ['frequency', 'eligibility', 'attachment', 'coding', 'timely_filing', 'coordination', 'non_covered', 'duplicate', 'other'] as const
 export const DENIAL_STATUSES = ['open', 'working', 'appealed', 'corrected', 'written_off', 'billed_to_patient', 'resolved'] as const
 export const APPEAL_VIA = ['mail', 'portal', 'fax', 'clearinghouse'] as const
@@ -262,6 +264,12 @@ export const PaymentPosting = list({
   fields: {
     remittance: relationship({ ref: 'Remittance', ...readOnly }),
     remittanceClaim: relationship({ ref: 'RemittanceClaim', ...readOnly }),
+    claim: relationship({ ref: 'Claim', ...readOnly }),
+    payer: relationship({ ref: 'Payer', ...readOnly }),
+    kind: fixedChoice(POSTING_KINDS, 'payment'),
+    coverageLevel: fixedChoice(POSTING_LEVELS, 'primary'),
+    paidMinor: minor({ defaultValue: 0n, description: 'What this posting paid, or (for a takeback) what it took back. Always zero or more.' }),
+    round: text({ defaultValue: '', ...readOnly, ui: { ...readOnly.ui, description: 'Which adjudication this paid: the claim version sent and how many appeals came before (v1/a0).' } }),
     postedBy: relationship({ ref: 'User', ...readOnly }),
     at: timestamp({ ...readOnly }),
     status: lifecycle(POSTING_STATUSES),

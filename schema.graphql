@@ -1260,6 +1260,10 @@ type ApprovalRequest {
   requiredPermission: String
   requestedBy: User
   requestedByAgent: AgentIdentity
+  location: Location
+  patient: Patient
+  otherPatient: Patient
+  account: GuarantorAccount
   status: String
   expiresAt: DateTime
   consumedAt: DateTime
@@ -1287,6 +1291,10 @@ input ApprovalRequestWhereInput {
   requiredPermission: StringFilter
   requestedBy: UserWhereInput
   requestedByAgent: AgentIdentityWhereInput
+  location: LocationWhereInput
+  patient: PatientWhereInput
+  otherPatient: PatientWhereInput
+  account: GuarantorAccountWhereInput
   status: StringFilter
   expiresAt: DateTimeNullableFilter
   consumedAt: DateTimeNullableFilter
@@ -1328,6 +1336,10 @@ input ApprovalRequestUpdateInput {
   requiredPermission: String
   requestedBy: UserRelateToOneForUpdateInput
   requestedByAgent: AgentIdentityRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  patient: PatientRelateToOneForUpdateInput
+  otherPatient: PatientRelateToOneForUpdateInput
+  account: GuarantorAccountRelateToOneForUpdateInput
   status: String
   expiresAt: DateTime
   consumedAt: DateTime
@@ -1340,6 +1352,24 @@ input ApprovalRequestUpdateInput {
 input AgentIdentityRelateToOneForUpdateInput {
   create: AgentIdentityCreateInput
   connect: AgentIdentityWhereUniqueInput
+  disconnect: Boolean
+}
+
+input LocationRelateToOneForUpdateInput {
+  create: LocationCreateInput
+  connect: LocationWhereUniqueInput
+  disconnect: Boolean
+}
+
+input PatientRelateToOneForUpdateInput {
+  create: PatientCreateInput
+  connect: PatientWhereUniqueInput
+  disconnect: Boolean
+}
+
+input GuarantorAccountRelateToOneForUpdateInput {
+  create: GuarantorAccountCreateInput
+  connect: GuarantorAccountWhereUniqueInput
   disconnect: Boolean
 }
 
@@ -1365,6 +1395,10 @@ input ApprovalRequestCreateInput {
   requiredPermission: String
   requestedBy: UserRelateToOneForCreateInput
   requestedByAgent: AgentIdentityRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  patient: PatientRelateToOneForCreateInput
+  otherPatient: PatientRelateToOneForCreateInput
+  account: GuarantorAccountRelateToOneForCreateInput
   status: String
   expiresAt: DateTime
   consumedAt: DateTime
@@ -1377,6 +1411,21 @@ input ApprovalRequestCreateInput {
 input AgentIdentityRelateToOneForCreateInput {
   create: AgentIdentityCreateInput
   connect: AgentIdentityWhereUniqueInput
+}
+
+input LocationRelateToOneForCreateInput {
+  create: LocationCreateInput
+  connect: LocationWhereUniqueInput
+}
+
+input PatientRelateToOneForCreateInput {
+  create: PatientCreateInput
+  connect: PatientWhereUniqueInput
+}
+
+input GuarantorAccountRelateToOneForCreateInput {
+  create: GuarantorAccountCreateInput
+  connect: GuarantorAccountWhereUniqueInput
 }
 
 input ApprovalDecisionRelateToManyForCreateInput {
@@ -1659,12 +1708,6 @@ input BreakGlassEventUpdateInput {
   updatedAt: DateTime
 }
 
-input LocationRelateToOneForUpdateInput {
-  create: LocationCreateInput
-  connect: LocationWhereUniqueInput
-  disconnect: Boolean
-}
-
 input BreakGlassEventUpdateArgs {
   where: BreakGlassEventWhereUniqueInput!
   data: BreakGlassEventUpdateInput!
@@ -1686,11 +1729,6 @@ input BreakGlassEventCreateInput {
   version: Int
   createdAt: DateTime
   updatedAt: DateTime
-}
-
-input LocationRelateToOneForCreateInput {
-  create: LocationCreateInput
-  connect: LocationWhereUniqueInput
 }
 
 type BusinessAssociate {
@@ -3614,12 +3652,6 @@ input ContactPointUpdateInput {
   updatedAt: DateTime
 }
 
-input PatientRelateToOneForUpdateInput {
-  create: PatientCreateInput
-  connect: PatientWhereUniqueInput
-  disconnect: Boolean
-}
-
 input GuarantorRelateToOneForUpdateInput {
   create: GuarantorCreateInput
   connect: GuarantorWhereUniqueInput
@@ -3650,11 +3682,6 @@ input ContactPointCreateInput {
   consentGrants: ConsentGrantRelateToManyForCreateInput
   createdAt: DateTime
   updatedAt: DateTime
-}
-
-input PatientRelateToOneForCreateInput {
-  create: PatientCreateInput
-  connect: PatientWhereUniqueInput
 }
 
 input GuarantorRelateToOneForCreateInput {
@@ -7707,12 +7734,6 @@ input LedgerEntryUpdateInput {
   updatedAt: DateTime
 }
 
-input GuarantorAccountRelateToOneForUpdateInput {
-  create: GuarantorAccountCreateInput
-  connect: GuarantorAccountWhereUniqueInput
-  disconnect: Boolean
-}
-
 input ChartEntryRelateToOneForUpdateInput {
   create: ChartEntryCreateInput
   connect: ChartEntryWhereUniqueInput
@@ -7797,11 +7818,6 @@ input LedgerEntryCreateInput {
   isSynthetic: Boolean
   createdAt: DateTime
   updatedAt: DateTime
-}
-
-input GuarantorAccountRelateToOneForCreateInput {
-  create: GuarantorAccountCreateInput
-  connect: GuarantorAccountWhereUniqueInput
 }
 
 input ChartEntryRelateToOneForCreateInput {
@@ -13872,6 +13888,12 @@ type PaymentPosting {
   id: ID!
   remittance: Remittance
   remittanceClaim: RemittanceClaim
+  claim: Claim
+  payer: Payer
+  kind: String
+  coverageLevel: String
+  paidMinor: BigInt
+  round: String
   postedBy: User
   at: DateTime
   status: String
@@ -13893,6 +13915,12 @@ input PaymentPostingWhereInput {
   id: IDFilter
   remittance: RemittanceWhereInput
   remittanceClaim: RemittanceClaimWhereInput
+  claim: ClaimWhereInput
+  payer: PayerWhereInput
+  kind: StringFilter
+  coverageLevel: StringFilter
+  paidMinor: BigIntFilter
+  round: StringFilter
   postedBy: UserWhereInput
   at: DateTimeNullableFilter
   status: StringFilter
@@ -13904,6 +13932,10 @@ input PaymentPostingWhereInput {
 
 input PaymentPostingOrderByInput {
   id: OrderDirection
+  kind: OrderDirection
+  coverageLevel: OrderDirection
+  paidMinor: OrderDirection
+  round: OrderDirection
   at: OrderDirection
   status: OrderDirection
   version: OrderDirection
@@ -13914,6 +13946,12 @@ input PaymentPostingOrderByInput {
 input PaymentPostingUpdateInput {
   remittance: RemittanceRelateToOneForUpdateInput
   remittanceClaim: RemittanceClaimRelateToOneForUpdateInput
+  claim: ClaimRelateToOneForUpdateInput
+  payer: PayerRelateToOneForUpdateInput
+  kind: String
+  coverageLevel: String
+  paidMinor: BigInt
+  round: String
   postedBy: UserRelateToOneForUpdateInput
   at: DateTime
   status: String
@@ -13943,6 +13981,12 @@ input PaymentPostingUpdateArgs {
 input PaymentPostingCreateInput {
   remittance: RemittanceRelateToOneForCreateInput
   remittanceClaim: RemittanceClaimRelateToOneForCreateInput
+  claim: ClaimRelateToOneForCreateInput
+  payer: PayerRelateToOneForCreateInput
+  kind: String
+  coverageLevel: String
+  paidMinor: BigInt
+  round: String
   postedBy: UserRelateToOneForCreateInput
   at: DateTime
   status: String

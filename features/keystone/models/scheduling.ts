@@ -2,7 +2,7 @@ import { list } from '@keystone-6/core'
 import { calendarDay, checkbox, integer, json, relationship, text, timestamp } from '@keystone-6/core/fields'
 import { choice, fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
 import { immutable, managed } from './listAccess'
-import { locationFilter, scopedGoverned, scopedManaged } from './scope'
+import { locationFilter, peopleFilter, scopedGoverned, scopedManaged } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -257,7 +257,8 @@ export const ConfirmationAttempt = list({
 })
 
 export const BrokenAppointmentEvent = list({
-  access: immutable(scheduleRead),
+  // r2 N3: the appointment's office is mine and the patient is visible to me.
+  access: scopedGoverned(scheduleRead, peopleFilter({ location: ['appointment', 'location'], patients: [['patient']] })),
   ui: { listView: { initialColumns: ['appointment', 'patient', 'kind', 'at'] } },
   fields: {
     appointment: relationship({ ref: 'Appointment', ...readOnly }),

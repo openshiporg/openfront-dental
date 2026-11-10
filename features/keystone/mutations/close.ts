@@ -167,6 +167,7 @@ export async function requestPeriodReopen(_root: unknown, args: { periodCloseId:
     const approval = await requestApproval(uow, actor, {
       action: 'period.reopen', targetList: 'PeriodClose', targetId: row.id, requiredPermission: 'canApprovePeriodReopen',
       payload: { periodCloseId: row.id, period: row.period, reason }, summary: `Reopen ${row.period}: ${reason.slice(0, 80)}`,
+      scope: { locationId: row.locationId },
     })
     await uow.tx.periodClose.update({ where: { id: row.id }, data: { approvalId: approval.id } })
     return { id: row.id, status: 'reopen_requested', approvalId: approval.id }

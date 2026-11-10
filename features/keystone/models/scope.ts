@@ -103,6 +103,89 @@ export const remittanceFilter = () => ({ session }: AccessArgs) => {
   return { OR: [{ claims: mine }, { duplicateOf: { claims: mine } }] }
 }
 
+/**
+ * Rows that name patients or guarantors (Phase 4 r2 N3): contact points, consent, family groups, broken appointments. A row is mine
+ * when its office (if it has one) is mine, and every patient and guarantor it names is visible to me, and it names at least one.
+ * `patients` are paths to a single Patient relationship (may be empty on the row); `members` is a path to a Patient list (a family:
+ * at least one member, and none outside my scope); `guarantors` are paths to a Guarantor relationship (may be empty).
+ */
+export type PeoplePaths = { location?: string[]; patients?: string[][]; members?: string[]; guarantors?: string[][] }
+
+export function peopleWhere(spec: PeoplePaths, ids: string[]): Record<string, unknown> {
+  const visible = patientWhere(ids)
+  const parts: Record<string, unknown>[] = []
+  const some: Record<string, unknown>[] = []
+  // Empty at any step of the path is allowed (a conversation with no contact point); filled in, it must be visible.
+  const optional = (path: string[], where: Record<string, unknown>): Record<string, unknown> =>
+    path.length === 1 ? { OR: [{ [path[0]]: null }, { [path[0]]: where }] } : { OR: [{ [path[0]]: null }, { [path[0]]: optional(path.slice(1), where) }] }
+  if (spec.location) parts.push(nest(spec.location, { id: { in: ids } }))
+  for (const path of spec.patients ?? []) {
+    parts.push(optional(path, visible))
+    some.push(nest(path, visible))
+  }
+  for (const path of spec.guarantors ?? []) {
+    parts.push(optional(path, linksWhere(ids)))
+    some.push(nest(path, linksWhere(ids)))
+  }
+  if (spec.members) {
+    parts.push(nest(spec.members, { none: { NOT: [visible] } }))
+    some.push(nest(spec.members, { some: visible }))
+  }
+  if (some.length) parts.push(some.length === 1 ? some[0] : { OR: some })
+  return parts.length === 1 ? parts[0] : { AND: parts }
+}
+
+export const peopleFilter = (spec: PeoplePaths) => ({ session }: AccessArgs) => {
+  if (!isSignedIn({ session })) return false
+  const ids = sessionLocationIds(session)
+  if (ids === null) return true
+  return peopleWhere(spec, ids)
+}
+
+/** Any rule as a where for a reader limited to `ids` (all-offices readers see everything). */
+export const scopedBy = (build: (ids: string[]) => Record<string, unknown>) => ({ session }: AccessArgs) => {
+  if (!isSignedIn({ session })) return false
+  const ids = sessionLocationIds(session)
+  if (ids === null) return true
+  return build(ids)
+}
+
+/** Portal accounts: every patient the account may act for is visible to me, and it acts for at least one. */
+export function portalAccountWhere(ids: string[]) {
+  const visible = patientWhere(ids)
+  return { scopes: { some: { patient: visible }, none: { OR: [{ patient: null }, { patient: { NOT: [visible] } }] } } }
+}
+
+/** The patient-visibility rule for a reader limited to `ids`, for use in other rules. */
+export const visiblePatient = (ids: string[]) => patientWhere(ids)
+
+/** Rows that record what a person did (audit, PHI reads): a reader limited to some offices sees only what they did themselves. */
+export const ownActionsOnly = (actorPath: string[] = ['actorUser']) => ({ session }: AccessArgs) => {
+  if (!isSignedIn({ session })) return false
+  if (sessionLocationIds(session) === null) return true
+  return nest(actorPath, { id: { equals: String(session!.itemId) } })
+}
+
+/** Who may read a row that has no office and no patient of its own: only a reader with every office. */
+export const allOfficesOnly = () => ({ session }: AccessArgs) => {
+  if (!isSignedIn({ session })) return false
+  return sessionLocationIds(session) === null
+}
+
+/** The where an approval request must match for a reader limited to `ids` (N4): its office is mine, and its patients and account are visible. */
+export function approvalWhere(ids: string[]) {
+  return moneyWhere({ location: ['location'], patient: ['patient'], account: ['account'] }, ids) as Record<string, unknown>
+}
+
+export const approvalFilter = (prefix: string[] = []) => ({ session }: AccessArgs) => {
+  if (!isSignedIn({ session })) return false
+  const ids = sessionLocationIds(session)
+  if (ids === null) return true
+  const visible = patientWhere(ids)
+  const where = { AND: [approvalWhere(ids), { OR: [{ otherPatient: null }, { otherPatient: visible }] }] }
+  return prefix.length ? nest(prefix, where) : where
+}
+
 function nest(path: string[], leaf: Record<string, unknown>): Record<string, unknown> {
   return path.reduceRight<Record<string, unknown>>((inner, key) => ({ [key]: inner }), leaf)
 }

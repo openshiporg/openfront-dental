@@ -7,7 +7,7 @@ import { parseMoney } from './ledger'
 import { failPayment, settlePayment } from './payments'
 import { nextReference } from './sequence'
 import { runInTransaction } from './unitOfWork'
-import { createIntent, paymentsConfigured, retrieveIntent, type PaymentCtx } from '../../integrations/payments/stripe'
+import { cancelIntent, createIntent, isTestMode, paymentsConfigured, retrieveIntent, type PaymentCtx } from '../../integrations/payments/stripe'
 
 /*
  * The pay link (STATE-MACHINES §6.3). A statement carries a random code; the code opens that one statement's balance, nothing else,
@@ -49,12 +49,44 @@ async function loadStatement(db: Db, code: string, now: Date) {
   return row as { id: string; ref: string; accountId: string; locationId: string; status: string; dueDate: Date | null; amountDueMinor: bigint; snapshot: any; payLinkExpiresAt: Date; pdfSha256: string; cycleDate: Date | null; payLinkCode: string; location: { name: string } | null }
 }
 
+/** A pay-link payment the patient started and never finished stops holding the statement after this long (r2 m-b). */
+export const PAY_LINK_PENDING_MINUTES = 30
+
+/**
+ * Expire this statement's pay-link payments left in `requires_action` (or `initiated`) for more than 30 minutes, when the link is
+ * read: no timer, no background work. The processor is asked first; a payment that did go through is settled, never failed. An
+ * unfinished TEST-mode intent is cancelled at Stripe; a live-mode one is only asked about (its own expiry applies). Then the
+ * payment is marked failed ("expired"), so it no longer blocks a new attempt or day close.
+ */
+export async function expireStalePayLinkPayments(db: Db, statementId: string, now = new Date(), deps: PaymentCtx = {}) {
+  const cutoff = new Date(now.getTime() - PAY_LINK_PENDING_MINUTES * 60_000)
+  const stale = await (db as any).payment.findMany({ where: { statementId, source: 'pay_link', status: { in: ['initiated', 'requires_action'] }, createdAt: { lt: cutoff } }, select: { id: true, providerIntentId: true }, take: 10 })
+  let expired = 0
+  for (const pay of stale as { id: string; providerIntentId: string }[]) {
+    if (pay.providerIntentId) {
+      const intent = await retrieveIntent(pay.providerIntentId, deps)
+      if (!intent) continue
+      if (intent.status === 'succeeded') { await runInTransaction(db, uow => settlePayment(uow, actor, pay.id, { providerIntentId: pay.providerIntentId })); continue }
+      if (intent.status === 'processing') continue
+      if (intent.status !== 'canceled' && isTestMode(deps.apiKey)) {
+        const cancelled = await cancelIntent(pay.providerIntentId, deps)
+        if (cancelled.kind === 'succeeded') { await runInTransaction(db, uow => settlePayment(uow, actor, pay.id, { providerIntentId: pay.providerIntentId })); continue }
+        if (cancelled.kind === 'unknown') continue
+      }
+    }
+    const done = await runInTransaction(db, uow => failPayment(uow, actor, pay.id, `Not finished within ${PAY_LINK_PENDING_MINUTES} minutes; expired.`, 'failed'))
+    if (done.changed) expired += 1
+  }
+  return { expired }
+}
+
 const balanceOf = async (db: Db, accountId: string) => ((await (db as any).ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n) as bigint
 
 /** What this link can show and take: the statement's open lines, and what is still owed on the account now (never more than the statement's amount). */
-export async function openPayLink(db: Db, code: string, now = new Date()): Promise<PayLinkView> {
+export async function openPayLink(db: Db, code: string, now = new Date(), deps: PaymentCtx = {}): Promise<PayLinkView> {
   const row = await loadStatement(db, code, now)
   if (!row) throw NOT_FOUND()
+  await expireStalePayLinkPayments(db, row.id, now, deps)
   const balance = await balanceOf(db, row.accountId)
   const owed = balance <= 0n ? 0n : balance < row.amountDueMinor ? balance : row.amountDueMinor
   const settings = await (db as any).practiceSettings.findUnique({ where: { id: 1 }, select: { displayName: true } })
@@ -77,6 +109,7 @@ export async function startPayLinkPayment(db: Db, code: string, amountText: stri
   const row = await loadStatement(db, code, now)
   if (!row) throw NOT_FOUND()
   if (!paymentsConfigured()) throw new DomainError(Codes.GUARD_FAILED, 'Online payment is not available right now. Please call the front desk.')
+  await expireStalePayLinkPayments(db, row.id, now, deps)
   const created = await runInTransaction(db, async uow => {
     const { tx } = uow
     await advisoryLock(tx, `ledger:${row.accountId}`)

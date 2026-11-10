@@ -1,0 +1,217 @@
+import assert from 'node:assert/strict'
+import { after, before, describe, it } from 'node:test'
+import { graphql } from 'graphql'
+import { getContext } from '@keystone-6/core/context'
+import * as PrismaModule from '@prisma/client'
+import { NEVER_DEFAULT, permissionNames, sys, type Permission } from '../access'
+
+/*
+ * Phase 4 review r2, N3/N4: every list that holds a patient's data (directly, or through an appointment, contact point, claim,
+ * approval or family) is filtered by office and patient for a reader limited to some offices, both ways: Tampa-only staff see no
+ * St. Petersburg patient's rows, St. Petersburg-only staff see no Tampa patient's rows. The sweep reads every list the schema
+ * exposes, as each role, with lists, counts, single items, relation filters (the oracle), OR and aliases; MCP queryData and
+ * modelSpecificSearch run these same GraphQL queries under the caller's session. A new patient-data list with no filter fails here.
+ */
+
+const TPA = 'seed_loc_tpa'
+const STP = 'seed_loc_stp'
+const BASE: Permission[] = ['canAccessDashboard', 'canSeeOtherPeople', 'canReadSchedule', 'canReadDemographics']
+const FRONT: Permission[] = [...BASE, 'canManagePatients', 'canManageSchedule', 'canMessagePatients', 'canTakePayments', 'canVerifyBenefits', 'canReadInsurance', 'canReadLedger']
+const CLINICAL: Permission[] = [...BASE, 'canReadClinical', 'canChart', 'canManagePerio', 'canReadInsurance', 'canCompleteProcedures', 'canSignClinicalNotes', 'canManageSchedule']
+const BILLING: Permission[] = [...BASE, 'canReadInsurance', 'canManageInsurance', 'canVerifyBenefits', 'canManageClaims', 'canSubmitClaims', 'canPostRemittances', 'canReadLedger', 'canTakePayments', 'canAdjust', 'canDecideClaimProposals', 'canDecideFinancialProposals']
+const MANAGER: Permission[] = [...FRONT, 'canManagePeople', 'canAdjust', 'canReadSignals', 'canDecideProposals', 'canApproveAdjustments', 'canReadAudit']
+const EVERYTHING = permissionNames.filter(p => !NEVER_DEFAULT.includes(p) && p !== 'canAccessAllLocations')
+
+const sessionOf = (id: string, granted: Permission[], locations: string[] | 'all') => ({
+  itemId: id, listKey: 'User',
+  data: {
+    name: id, email: `${id}@test.local`, kind: 'staff', accessExpiresAt: null,
+    role: { id: 'r', name: 'r', ...Object.fromEntries(permissionNames.map(p => [p, granted.includes(p)])), canAccessAllLocations: locations === 'all' },
+    assignments: locations === 'all' ? [] : locations.map(id => ({ location: { id }, role: null, startsOn: null, endsOn: null })),
+  },
+})
+
+/** Lists that hold no patient's data: reference data, configuration and staff records. Anything not here must be filtered. */
+const NOT_PATIENT_DATA = new Set([
+  'User', 'Role', 'OAuthApp', 'OAuthToken', 'AdapterInstallation', 'ApprovalPolicy', 'BillingEntity', 'BusinessAssociate', 'CommandReceipt', 'Credential',
+  'InferenceProvider', 'Job', 'JurisdictionPack', 'Lease', 'Location', 'MachineCredential', 'PracticeSettings', 'ProviderProfile', 'RateLimitBucket',
+  'SecretBox', 'Sequence', 'StaffAssignment', 'AgentIdentity', 'AgentToolGrant', 'ReferralSource', 'AppointmentType', 'MessageTemplate', 'StorefrontSite',
+  'CodeImportBatch', 'CodeSystem', 'ExplosionCode', 'Fee', 'FeeSchedule', 'FeeScheduleVersion', 'ProcedureCode', 'ProcedureCodeCrosswalk', 'ConditionType',
+  'MedicalHistoryForm', 'NoteTemplate', 'NoteTemplateVersion', 'FormTemplate', 'FormTemplateVersion', 'BenefitRule', 'Employer', 'InsurancePlan', 'Payer',
+  'AdjustmentType', 'DenialReasonMap', 'PayerEnrollment', 'ScrubRule', 'MembershipPlan', 'RegulatoryLicence',
+])
+
+const TEST_DATABASE_URL = process.env.DENTAL_TEST_DATABASE_URL ?? ''
+const hasTestDatabase = /^postgres(ql)?:\/\//.test(TEST_DATABASE_URL) && /[?&]schema=vitest\b/.test(TEST_DATABASE_URL)
+if (hasTestDatabase) {
+  const url = new URL(TEST_DATABASE_URL); url.searchParams.set('connection_limit', '3')
+  process.env.DATABASE_URL = url.toString()
+}
+
+describe('every list is classified: patient data is filtered by office and patient (N3 sweep)', () => {
+  it('no list outside the reference-data allow-list is readable without a query filter', async () => {
+    process.env.SESSION_SECRET ||= 'dental-node-test-session-secret-0123456789abcdef'
+    const config = (await import('../index')).default as any
+    const unfiltered: string[] = []
+    for (const [key, list] of Object.entries<any>(config.lists)) {
+      if (NOT_PATIENT_DATA.has(key)) continue
+      const access = list.access
+      const query = access?.operation?.query ?? access?.operation
+      const closed = query === false || query === sys
+      if (closed || access?.filter?.query) continue
+      unfiltered.push(key)
+    }
+    assert.deepEqual(unfiltered, [], `patient-data lists with no office/patient filter: ${unfiltered.join(', ')}`)
+  })
+})
+
+describe('patient-data lists, both ways, as Tampa-only and St. Petersburg-only staff (N3, N4)', { skip: !hasTestDatabase }, () => {
+  let context: any
+  let prisma: any
+  let config: any
+  const ids: Record<string, string> = {}
+  const people: Record<'tpa' | 'stp', string[]> = { tpa: [], stp: [] }
+
+  before(async () => {
+    process.env.SESSION_SECRET ||= 'dental-node-test-session-secret-0123456789abcdef'
+    process.env.DENTAL_SECRET_KEY ||= Buffer.alloc(32, 7).toString('base64')
+    config = (await import('../index')).default
+    context = getContext(config, PrismaModule)
+    prisma = context.prisma
+    const { resetDatabase } = await import('../../../tests/helpers/db')
+    await resetDatabase(prisma)
+    const { loadPracticeSetup } = await import('../mutations/setup')
+    const admin = await prisma.user.create({ data: { name: 'owner', email: `owner-${Date.now()}@test.local`, password: 'x'.repeat(60) } })
+    await loadPracticeSetup(null, { idempotencyKey: `setup-${Date.now()}` }, { session: sessionOf(admin.id, permissionNames.filter(p => !NEVER_DEFAULT.includes(p)), 'all'), prisma })
+    const stamp = Date.now()
+    const make = async (name: string, home: string) => {
+      const p = await prisma.patient.create({ data: { chartNumber: `PHI-${name}-${stamp}`, firstName: name, lastName: 'Scope', dateOfBirth: new Date('1980-01-01T00:00:00Z'), sexAssignedAtBirth: 'unknown', homeLocationId: home, status: 'active' } })
+      const g = await prisma.guarantor.create({ data: { patientId: p.id } })
+      await prisma.guarantorLink.create({ data: { patientId: p.id, guarantorId: g.id, relationship: 'self', status: 'active' } })
+      const a = await prisma.guarantorAccount.create({ data: { ref: `ACC-${name}-${stamp}`, guarantorId: g.id, balanceCache: { totalMinor: '0' } } })
+      const cp = await prisma.contactPoint.create({ data: { patientId: p.id, kind: 'email', value: `${name.toLowerCase()}@example.test`, valueNormalized: `${name.toLowerCase()}@example.test` } })
+      const gcp = await prisma.contactPoint.create({ data: { guarantorId: g.id, kind: 'mobile', value: '+17275550100', valueNormalized: '+17275550100' } })
+      await prisma.consentGrant.create({ data: { contactPointId: cp.id, channel: 'email', purpose: 'appointment_reminders', source: 'staff', status: 'granted' } })
+      const fam = await prisma.familyGroup.create({ data: { name: `${name} family`, members: { connect: [{ id: p.id }] } } })
+      // a seeded booking at this office, re-pointed at this test patient (the seed's bookings satisfy every booking rule)
+      const appt = await prisma.appointment.findFirst({ where: { locationId: home, operatoryId: { not: null } }, orderBy: { startsAt: 'asc' } })
+      if (appt) await prisma.appointment.update({ where: { id: appt.id }, data: { patientId: p.id } })
+      const bae = await prisma.brokenAppointmentEvent.create({ data: { appointmentId: appt?.id ?? null, patientId: p.id, kind: 'no_show', at: new Date(), reason: `${name} private reason` } })
+      const conv = await prisma.conversation.create({ data: { patientId: p.id, contactPointId: cp.id, channel: 'email' } }).catch(() => null)
+      const appr = await prisma.approvalRequest.create({ data: { action: 'adjustment.post', targetList: 'AdjustmentRequest', targetId: `adj-${name}`, payload: { amountMinor: '7500' }, payloadHash: `h-${name}-${stamp}`, requiredPermission: 'canApproveAdjustments', summary: `${name} $75 courtesy discount`, status: 'pending', locationId: home, patientId: p.id, accountId: a.id } })
+      const scope = await prisma.portalAccount.create({ data: { email: `${name.toLowerCase()}-portal-${stamp}@example.test`, status: 'active', scopes: { create: [{ patientId: p.id, relationship: 'self', status: 'active' }] } } })
+      Object.assign(ids, { [`${name}Patient`]: p.id, [`${name}Contact`]: cp.id, [`${name}GuarantorContact`]: gcp.id, [`${name}Family`]: fam.id, [`${name}Broken`]: bae.id, [`${name}Approval`]: appr.id, [`${name}Portal`]: scope.id, ...(conv ? { [`${name}Conversation`]: conv.id } : {}) })
+      return p.id
+    }
+    people.tpa.push(await make('Tampa', TPA))
+    people.stp.push(await make('Pete', STP))
+    // a practice-wide approval (fee schedule): only a reader with every office sees it
+    ids.practiceApproval = (await prisma.approvalRequest.create({ data: { action: 'fee_schedule.publish', targetList: 'FeeScheduleVersion', targetId: 'fsv', payload: {}, payloadHash: `h-practice-${stamp}`, requiredPermission: 'canApproveFeePublish', summary: 'Publish fees', status: 'pending' } })).id
+    // a mixed family (one Tampa, one St. Pete member) is visible to neither single-office reader
+    ids.mixedFamily = (await prisma.familyGroup.create({ data: { name: 'Mixed family', members: { connect: [{ id: people.tpa[0] }] } } })).id
+    const extra = await prisma.patient.create({ data: { chartNumber: `PHI-Mixed-${stamp}`, firstName: 'Mixed', lastName: 'Scope', dateOfBirth: new Date('1990-01-01T00:00:00Z'), sexAssignedAtBirth: 'unknown', homeLocationId: STP, status: 'active', familyId: ids.mixedFamily } })
+    ids.mixedPatient = extra.id
+  })
+  after(async () => { await context?.prisma?.$disconnect() })
+
+  const run = async (session: unknown, source: string, variables?: Record<string, unknown>) => {
+    const ctx = context.withSession(session)
+    const r = await graphql({ schema: ctx.graphql.schema, source, contextValue: ctx, variableValues: variables })
+    assert.equal(r.errors, undefined, String(r.errors?.[0]?.message))
+    return JSON.parse(JSON.stringify(r.data)) as any
+  }
+  const ROLES = {
+    kerry: sessionOf('kerry', FRONT, [TPA]), jenna: sessionOf('jenna', CLINICAL, [TPA]), dana: sessionOf('dana', BILLING, [TPA]), tampaManager: sessionOf('tm', MANAGER, [TPA]), tampaAll: sessionOf('ta', EVERYTHING, [TPA]),
+    vivian: sessionOf('vivian', FRONT, [STP]), grace: sessionOf('grace', CLINICAL, [STP]), peteManager: sessionOf('pm', MANAGER, [STP]), peteAll: sessionOf('pa', EVERYTHING, [STP]),
+  }
+  const homeOf = (role: string) => (role.startsWith('kerry') || role.startsWith('jenna') || role.startsWith('dana') || role.startsWith('tampa') ? 'Tampa' : 'Pete')
+  const other = (mine: string) => (mine === 'Tampa' ? 'Pete' : 'Tampa')
+
+  it('ContactPoint, ConsentGrant, BrokenAppointmentEvent, FamilyGroup, Conversation, PortalAccount/Scope, ApprovalRequest: the other office is invisible on every path', async () => {
+    for (const [role, session] of Object.entries(ROLES)) {
+      const mine = homeOf(role); const theirs = other(mine)
+      const d = await run(session, `query($p: ID!, $c: ID!, $gc: ID!, $f: ID!, $b: ID!, $a: ID!, $pa: ID!) {
+        cp: contactPoints(where: { OR: [{ id: { equals: $c } }, { id: { equals: $gc } }] }) { id value }
+        cpOne: contactPoint(where: { id: $c }) { id }
+        cpOracle: contactPointsCount(where: { patient: { id: { equals: $p } } })
+        cpOrder: contactPoints(orderBy: { value: asc }, take: 500) { id patient { id } guarantor { id } }
+        cg: consentGrantsCount(where: { contactPoint: { patient: { id: { equals: $p } } } })
+        cgAll: consentGrants(take: 500) { id contactPoint { id } }
+        fam: familyGroup(where: { id: $f }) { id name }
+        famOracle: familyGroupsCount(where: { members: { some: { id: { equals: $p } } } })
+        famAll: familyGroups(take: 500) { id members { id } }
+        bae: brokenAppointmentEvent(where: { id: $b }) { id reason }
+        baeOracle: brokenAppointmentEventsCount(where: { patient: { id: { equals: $p } } })
+        baeAll: brokenAppointmentEvents(take: 500) { id reason }
+        appr: approvalRequest(where: { id: $a }) { id summary }
+        apprAll: approvalRequests(take: 500) { id summary }
+        apprOracle: approvalRequestsCount(where: { patient: { id: { equals: $p } } })
+        portal: portalAccount(where: { id: $pa }) { id email }
+        portalOracle: portalScopesCount(where: { patient: { id: { equals: $p } } })
+      }`, { p: ids[`${theirs}Patient`], c: ids[`${theirs}Contact`], gc: ids[`${theirs}GuarantorContact`], f: ids[`${theirs}Family`], b: ids[`${theirs}Broken`], a: ids[`${theirs}Approval`], pa: ids[`${theirs}Portal`] })
+      const label = `${role} (${mine}) reading ${theirs}`
+      assert.deepEqual([d.cp, d.cpOne, d.cpOracle, d.cg, d.fam, d.famOracle, d.bae, d.baeOracle, d.appr, d.apprOracle, d.portal, d.portalOracle], [[], null, 0, 0, null, 0, null, 0, null, 0, null, 0], label)
+      assert.ok(!d.cpOrder.some((r: any) => r.id === ids[`${theirs}Contact`] || r.id === ids[`${theirs}GuarantorContact`]), label)
+      assert.ok(!d.cgAll.some((r: any) => r.contactPoint?.id === ids[`${theirs}Contact`]), label)
+      assert.ok(!d.famAll.some((r: any) => r.id === ids.mixedFamily || r.id === ids[`${theirs}Family`]), `${label}: a family with someone I cannot see`)
+      assert.ok(!d.baeAll.some((r: any) => r.reason.startsWith(theirs)), label)
+      assert.ok(!d.apprAll.some((r: any) => r.id === ids.practiceApproval || r.summary.startsWith(theirs)), `${label}: approvals`)
+    }
+  })
+
+  it('my own office stays visible, and a reader with every office sees both', async () => {
+    const mine = await run(ROLES.vivian, `query($c: ID!, $a: ID!, $b: ID!) { cp: contactPoint(where: { id: $c }) { id } appr: approvalRequest(where: { id: $a }) { id } bae: brokenAppointmentEvent(where: { id: $b }) { id } }`, { c: ids.PeteContact, a: ids.PeteApproval, b: ids.PeteBroken })
+    assert.equal(mine.cp?.id, ids.PeteContact)
+    assert.equal(mine.appr?.id, ids.PeteApproval)
+    assert.equal(mine.bae?.id, ids.PeteBroken)
+    const all = await run(sessionOf('owner', EVERYTHING, 'all'), `{ contactPointsCount approvalRequestsCount familyGroupsCount brokenAppointmentEventsCount }`)
+    const kerry = await run(ROLES.kerry, `{ contactPointsCount approvalRequestsCount familyGroupsCount brokenAppointmentEventsCount }`)
+    for (const key of Object.keys(all)) assert.ok(all[key] > kerry[key], `${key}: all-locations sees more`)
+  })
+
+  it('every list the schema exposes: a Tampa-only and a St. Pete-only reader never see the other office\'s test patient', async () => {
+    const lists = Object.keys(config.lists)
+    const queryName = (key: string) => (config.lists[key].graphql?.plural ?? `${key[0].toLowerCase()}${key.slice(1)}s`)
+    const schema = context.withSession(ROLES.kerry).graphql.schema
+    const queryFields = schema.getQueryType().getFields()
+    const problems: string[] = []
+    const checked = new Set<string>()
+    for (const [role, session] of Object.entries({ tampaAll: ROLES.tampaAll, peteAll: ROLES.peteAll })) {
+      const theirs = other(homeOf(role))
+      for (const key of lists) {
+        const plural = Object.keys(queryFields).find(f => f.toLowerCase() === queryName(key).toLowerCase() || f.toLowerCase() === `${key.toLowerCase()}s` || f.toLowerCase() === `${key.toLowerCase()}es` || (key.endsWith('y') && f.toLowerCase() === `${key.slice(0, -1).toLowerCase()}ies`))
+        if (!plural) continue
+        const type = schema.getType(key) as any
+        const fields = type?.getFields?.() ?? {}
+        // every relation to a Patient on this list, one level deep, is an oracle to try
+        const patientPaths = Object.entries<any>(fields).filter(([, f]) => String(f.type).replace(/[[\]!]/g, '') === 'Patient').map(([n, f]) => [n, String(f.type).startsWith('[')] as const)
+        for (const [field, many] of patientPaths) {
+          const where = many ? `{ ${field}: { some: { id: { equals: "${ids[`${theirs}Patient`]}" } } } }` : `{ ${field}: { id: { equals: "${ids[`${theirs}Patient`]}" } } }`
+          const ctx = context.withSession(session)
+          const r = await graphql({ schema: ctx.graphql.schema, source: `{ n: ${plural}Count(where: ${where}) }`, contextValue: ctx })
+          if (r.errors) continue // no read permission at all is fine
+          checked.add(`${plural}.${field}`)
+          if ((r.data as any).n > 0) problems.push(`${role}: ${plural}.${field} shows ${(r.data as any).n} ${theirs} row(s)`)
+        }
+      }
+    }
+    assert.deepEqual(problems, [])
+    for (const path of ['contactPoints.patient', 'brokenAppointmentEvents.patient', 'familyGroups.members', 'approvalRequests.patient', 'portalScopes.patient', 'conversations.patient', 'ledgerEntries.patient', 'claims.patient']) assert.ok(checked.has(path), `the sweep reached ${path}`)
+    assert.ok(checked.size > 40, `the sweep checked ${checked.size} patient paths`)
+  })
+
+  it('N4: a single-office manager cannot decide another office\'s approval or a practice-wide one; their own office is fine', async () => {
+    const { decideApprovalRequest } = await import('../mutations/approvals')
+    const decide = (session: any, requestId: string) => decideApprovalRequest(null, { requestId, decision: 'reject', reason: 'scope test', expectedVersion: 0, idempotencyKey: `d-${requestId}-${session.itemId}-${Date.now()}` }, { session, prisma })
+    const u = async (name: string) => (await prisma.user.create({ data: { name, email: `${name}-${Date.now()}@test.local`, password: 'x'.repeat(60) } })).id
+    const peteManager = sessionOf(await u('pm'), [...MANAGER, 'canApproveFeePublish'], [STP])
+    await assert.rejects(decide(peteManager, ids.TampaApproval), /office|location|not found/i)
+    await assert.rejects(decide(peteManager, ids.practiceApproval), /every office|whole practice|location/i)
+    assert.equal((await prisma.approvalRequest.findUnique({ where: { id: ids.TampaApproval } })).status, 'pending')
+    const tampaManager = sessionOf(await u('tm'), MANAGER, [TPA])
+    await assert.rejects(decide(tampaManager, ids.PeteApproval), /office|location|not found/i)
+    // a manager deciding their own office's request still can
+    const own = await decide(tampaManager, ids.TampaApproval)
+    assert.equal(own.status, 'rejected')
+  })
+})

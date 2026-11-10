@@ -296,6 +296,14 @@ model ApprovalRequest {
   requestedById                    String?              @map("requestedBy")
   requestedByAgent                 AgentIdentity?       @relation("ApprovalRequest_requestedByAgent", fields: [requestedByAgentId], references: [id])
   requestedByAgentId               String?              @map("requestedByAgent")
+  location                         Location?            @relation("ApprovalRequest_location", fields: [locationId], references: [id])
+  locationId                       String?              @map("location")
+  patient                          Patient?             @relation("ApprovalRequest_patient", fields: [patientId], references: [id])
+  patientId                        String?              @map("patient")
+  otherPatient                     Patient?             @relation("ApprovalRequest_otherPatient", fields: [otherPatientId], references: [id])
+  otherPatientId                   String?              @map("otherPatient")
+  account                          GuarantorAccount?    @relation("ApprovalRequest_account", fields: [accountId], references: [id])
+  accountId                        String?              @map("account")
   status                           String               @default("pending")
   expiresAt                        DateTime?
   consumedAt                       DateTime?
@@ -316,6 +324,10 @@ model ApprovalRequest {
   @@index([targetId])
   @@index([requestedById])
   @@index([requestedByAgentId])
+  @@index([locationId])
+  @@index([patientId])
+  @@index([otherPatientId])
+  @@index([accountId])
 }
 
 model AuditEvent {
@@ -590,6 +602,7 @@ model Location {
   isSynthetic                        Boolean                @default(false)
   createdAt                          DateTime               @default(now())
   updatedAt                          DateTime               @default(now()) @updatedAt
+  from_ApprovalRequest_location      ApprovalRequest[]      @relation("ApprovalRequest_location")
   from_BreakGlassEvent_location      BreakGlassEvent[]      @relation("BreakGlassEvent_location")
   from_Proposal_location             Proposal[]             @relation("Proposal_location")
   from_Patient_homeLocation          Patient[]              @relation("Patient_homeLocation")
@@ -1061,6 +1074,8 @@ model Patient {
   version                                Int                      @default(0)
   createdAt                              DateTime                 @default(now())
   updatedAt                              DateTime                 @default(now()) @updatedAt
+  from_ApprovalRequest_patient           ApprovalRequest[]        @relation("ApprovalRequest_patient")
+  from_ApprovalRequest_otherPatient      ApprovalRequest[]        @relation("ApprovalRequest_otherPatient")
   from_Guarantor_patient                 Guarantor[]              @relation("Guarantor_patient")
   from_MergeCase_survivor                MergeCase[]              @relation("MergeCase_survivor")
   from_MergeCase_merged                  MergeCase[]              @relation("MergeCase_merged")
@@ -1864,6 +1879,7 @@ model GuarantorAccount {
   version                         Int                  @default(0)
   createdAt                       DateTime             @default(now())
   updatedAt                       DateTime             @default(now()) @updatedAt
+  from_ApprovalRequest_account    ApprovalRequest[]    @relation("ApprovalRequest_account")
   from_LedgerEntry_account        LedgerEntry[]        @relation("LedgerEntry_account")
   from_AdjustmentRequest_account  AdjustmentRequest[]  @relation("AdjustmentRequest_account")
   from_CreditBalance_account      CreditBalance[]      @relation("CreditBalance_account")
@@ -2969,6 +2985,7 @@ model Payer {
   updatedAt                  DateTime          @default(now()) @updatedAt
   from_InsurancePlan_payer   InsurancePlan[]   @relation("InsurancePlan_payer")
   from_PayerEnrollment_payer PayerEnrollment[] @relation("PayerEnrollment_payer")
+  from_PaymentPosting_payer  PaymentPosting[]  @relation("PaymentPosting_payer")
   from_Remittance_payer      Remittance[]      @relation("Remittance_payer")
 }
 
@@ -3191,6 +3208,7 @@ model Claim {
   from_Claim_primaryClaim       Claim[]                @relation("Claim_primaryClaim")
   from_ClaimStatusInquiry_claim ClaimStatusInquiry[]   @relation("ClaimStatusInquiry_claim")
   from_Denial_claim             Denial[]               @relation("Denial_claim")
+  from_PaymentPosting_claim     PaymentPosting[]       @relation("PaymentPosting_claim")
   from_RemittanceClaim_claim    RemittanceClaim[]      @relation("RemittanceClaim_claim")
 
   @@index([patientId])
@@ -3386,6 +3404,14 @@ model PaymentPosting {
   remittanceId      String?          @map("remittance")
   remittanceClaim   RemittanceClaim? @relation("PaymentPosting_remittanceClaim", fields: [remittanceClaimId], references: [id])
   remittanceClaimId String?          @map("remittanceClaim")
+  claim             Claim?           @relation("PaymentPosting_claim", fields: [claimId], references: [id])
+  claimId           String?          @map("claim")
+  payer             Payer?           @relation("PaymentPosting_payer", fields: [payerId], references: [id])
+  payerId           String?          @map("payer")
+  kind              String           @default("payment")
+  coverageLevel     String           @default("primary")
+  paidMinor         BigInt           @default(0)
+  round             String           @default("")
   postedBy          User?            @relation("PaymentPosting_postedBy", fields: [postedById], references: [id])
   postedById        String?          @map("postedBy")
   at                DateTime?
@@ -3397,6 +3423,8 @@ model PaymentPosting {
 
   @@index([remittanceId])
   @@index([remittanceClaimId])
+  @@index([claimId])
+  @@index([payerId])
   @@index([postedById])
 }
 

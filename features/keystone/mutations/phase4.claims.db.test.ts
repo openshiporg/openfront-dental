@@ -20,7 +20,7 @@ const sessionFor = (id: string, granted: Permission[]) => ({
 const run = (name: string, args: Record<string, unknown>, ctx: unknown) => PHASE2_OPS[name].fn(null, { ...args, idempotencyKey: uniqueKey(name) }, ctx) as Promise<any>
 
 /** A 835 report in Stedi's JSON shape, built at test time from the claim's own numbers. */
-const eraFor = (claim: { patientControlNumber: string; lines: { lineControlNumber: string; feeMinor: bigint; code: string }[] }, options: { trace: string; paid: (fee: bigint) => bigint; writeOff: (fee: bigint) => bigint; patient?: (fee: bigint) => bigint; status?: string }) => {
+const eraFor = (claim: { patientControlNumber: string; lines: { lineControlNumber: string; feeMinor: bigint; code: string }[] }, options: { trace: string; paid: (fee: bigint) => bigint; writeOff: (fee: bigint) => bigint; patient?: (fee: bigint) => bigint; status?: string; payerName?: string }) => {
   const dollars = (n: bigint) => `${n < 0n ? '-' : ''}${(n < 0n ? -n : n) / 100n}.${String((n < 0n ? -n : n) % 100n).padStart(2, '0')}`
   const lines = claim.lines.map(l => {
     const paid = options.paid(l.feeMinor); const co = options.writeOff(l.feeMinor); const pr = options.patient?.(l.feeMinor) ?? 0n
@@ -36,7 +36,7 @@ const eraFor = (claim: { patientControlNumber: string; lines: { lineControlNumbe
     transactions: [{
       financialInformation: { paymentMethodCode: 'ACH', totalActualProviderPaymentAmount: dollars(total), checkIssueOrEFTEffectiveDate: '20261110' },
       paymentAndRemitReassociationDetails: { checkOrEFTTraceNumber: options.trace },
-      payer: { name: 'Harbor Mutual Dental' },
+      payer: { name: options.payerName ?? 'Harbor Mutual Dental' },
       detailInfo: [{ paymentInfo: [{ claimPaymentInfo: { patientControlNumber: claim.patientControlNumber, claimStatusCode: options.status ?? '1', totalClaimChargeAmount: dollars(charge), claimPaymentAmount: dollars(total), patientResponsibilityAmount: dollars(claim.lines.reduce((s, l) => s + (options.patient?.(l.feeMinor) ?? 0n), 0n)), payerClaimControlNumber: `PCN-${options.trace}` }, serviceLines: lines }] }],
     }],
   }
@@ -100,7 +100,7 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
     biller = { session: sessionFor(b.id, ['canAccessDashboard', 'canManageClaims', 'canSubmitClaims', 'canPostRemittances', 'canOverrideScrub', 'canReadInsurance', 'canReadLedger', 'canAccessAllLocations']), prisma }
     front = { session: sessionFor(f.id, ['canAccessDashboard', 'canAccessAllLocations']), prisma }
     await loadPracticeSetup(null, { idempotencyKey: uniqueKey('setup') }, owner)
-    const coverage = await prisma.coverage.findFirstOrThrow({ where: { ordinal: 'primary', status: 'active', subscriber: { plan: { payer: { name: 'Harbor Mutual Dental' } } } } })
+    const coverage = await prisma.coverage.findFirstOrThrow({ where: { ordinal: 'primary', status: 'active', subscriber: { plan: { payer: { name: 'Harbor Mutual Dental' } } }, patient: { from_Coverage_patient: { some: { id: 'seed_cov_evg_1' } } } } })
     coverageId = coverage.id; patientId = coverage.patientId!
     locationId = (await prisma.location.findFirstOrThrow({ where: { isActive: true } })).id
     providerId = (await prisma.providerProfile.findFirstOrThrow({ where: { isActive: true, npiType1: { not: null } } })).id
@@ -147,7 +147,13 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
     await expect(prisma.claim.delete({ where: { id: claim.id } })).rejects.toThrow(/append-only|no-delete|cannot be deleted/i)
     const entry = await makeEntry(3)
     const draft = await build([entry.id])
+    await expect(prisma.claim.update({ where: { id: draft.id }, data: { status: 'released' } })).rejects.toThrow(/Claim_status_forward_only|Claim_frozen_version/)
+    // r2 m2: the claim state machine is forward only in the database. A legal move with no version is still refused by the freeze.
+    await expect(prisma.claim.update({ where: { id: draft.id }, data: { status: 'ready' } })).resolves.toBeTruthy()
     await expect(prisma.claim.update({ where: { id: draft.id }, data: { status: 'released' } })).rejects.toThrow(/Claim_frozen_version/)
+    await expect(prisma.claim.update({ where: { id: draft.id }, data: { status: 'adjudicated' } })).rejects.toThrow(/Claim_status_forward_only/)
+    await prisma.claim.update({ where: { id: draft.id }, data: { status: 'voided' } })
+    for (const to of ['draft', 'ready', 'closed']) await expect(prisma.claim.update({ where: { id: draft.id }, data: { status: to } })).rejects.toThrow(/Claim_status_forward_only/)
   })
 
   it('blocks a claim whose procedure has no confirmed insurance code, and an override needs its own permission and a reason', async () => {
@@ -293,6 +299,76 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
     expect(new Set(reversed).size).toBe(reversed.length)
   })
 
+  it('r2 N1: a takeback reverses only the same payer\'s payment for exactly the amount recouped; anything else is held, nothing reversed', async () => {
+    const entry = await makeEntry(5, { dateOfService: new Date('2026-11-08T00:00:00Z') })
+    const sent = await toSent([entry.id])
+    const lines = sent.lines.map(l => ({ lineControlNumber: l.lineControlNumber, feeMinor: l.feeMinor, code: 'X' }))
+    const negated = lines.map(l => ({ ...l, feeMinor: -l.feeMinor }))
+    const fee = sent.lines[0].feeMinor
+    const net = async () => (await prisma.ledgerEntry.aggregate({ where: { claimId: sent.id }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n
+    const imp = (body: unknown) => importEraBody(prisma as never, body, { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    await imp(eraFor({ patientControlNumber: sent.patientControlNumber, lines }, { trace: `TRC-${uniqueKey('p')}`, paid: f => (f * 7n) / 10n, writeOff: f => (f * 3n) / 10n }))
+    expect(await net()).toBe(-fee)
+    // another payer (Evergreen, the patient's secondary) recouping Harbor's full amount: held, nothing reversed
+    const other = await imp(eraFor({ patientControlNumber: sent.patientControlNumber, lines: negated }, { trace: `TRC-${uniqueKey('o')}`, paid: f => (f * 7n) / 10n, writeOff: f => (f * 3n) / 10n, status: '22', payerName: 'Evergreen Benefit Partners' }))
+    expect(other.results[0]).toMatchObject({ status: 'exception', claimsPosted: 0, claimsHeld: 1 })
+    expect(await net()).toBe(-fee)
+    // a payer nobody knows (no coverage with this patient): held
+    const stranger = await imp(eraFor({ patientControlNumber: sent.patientControlNumber, lines: negated }, { trace: `TRC-${uniqueKey('s')}`, paid: f => (f * 7n) / 10n, writeOff: f => (f * 3n) / 10n, status: '22', payerName: 'Coastal State Medicaid Dental' }))
+    expect(stranger.results[0]).toMatchObject({ claimsPosted: 0 })
+    expect(await net()).toBe(-fee)
+    // the same payer recouping one cent (-$0.01): held, the payment stands
+    const cent: any = eraFor({ patientControlNumber: sent.patientControlNumber, lines: lines.map(l => ({ ...l, feeMinor: -1n })), }, { trace: `TRC-${uniqueKey('c')}`, paid: f => f, writeOff: () => 0n, status: '22' })
+    const tiny = await imp(cent)
+    expect(tiny.results[0]).toMatchObject({ status: 'exception', claimsPosted: 0, claimsHeld: 1 })
+    expect(await net()).toBe(-fee)
+    // the same payer recouping half: held for a person, never the full posting
+    const half = lines.map(l => ({ ...l, feeMinor: -(l.feeMinor / 2n) }))
+    const partial = await imp(eraFor({ patientControlNumber: sent.patientControlNumber, lines: half }, { trace: `TRC-${uniqueKey('h')}`, paid: f => f, writeOff: () => 0n, status: '22' }))
+    expect(partial.results[0]).toMatchObject({ status: 'exception', claimsPosted: 0, claimsHeld: 1 })
+    expect(await net()).toBe(-fee)
+    expect(await prisma.ledgerEntry.count({ where: { claimId: sent.id, kind: 'reversal' } })).toBe(0)
+    // the same payer recouping exactly what it paid: reversed entry for entry
+    const exact = await imp(eraFor({ patientControlNumber: sent.patientControlNumber, lines: negated }, { trace: `TRC-${uniqueKey('x')}`, paid: f => (f * 7n) / 10n, writeOff: f => (f * 3n) / 10n, status: '22' }))
+    expect(exact.results[0]).toMatchObject({ status: 'posted', claimsPosted: 1 })
+    expect(await net()).toBe(0n)
+    const postings = await prisma.paymentPosting.findMany({ where: { claimId: sent.id }, orderBy: { createdAt: 'asc' } })
+    expect(postings.map(p => [p.kind, p.status, p.paidMinor])).toEqual([['payment', 'reversed', (fee * 7n) / 10n], ['takeback', 'posted', (fee * 7n) / 10n]])
+    const reversals = await prisma.ledgerEntry.findMany({ where: { claimId: sent.id, kind: 'reversal' }, include: { reverses: true } })
+    for (const r of reversals) expect(r.amountMinor).toBe(-r.reverses!.amountMinor)
+  })
+
+  it('r2 N2: the primary payer cannot pay again by calling itself secondary or tertiary; the real secondary payer can pay; the database holds one live payment', async () => {
+    const entry = await makeEntry(1, { dateOfService: new Date('2026-11-09T00:00:00Z') })
+    const sent = await toSent([entry.id])
+    const lines = sent.lines.map(l => ({ lineControlNumber: l.lineControlNumber, feeMinor: l.feeMinor, code: 'X' }))
+    const fee = sent.lines[0].feeMinor
+    const net = async () => (await prisma.ledgerEntry.aggregate({ where: { claimId: sent.id }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n
+    const imp = (body: unknown) => importEraBody(prisma as never, body, { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    const pay = (status: string, payerName?: string, share = 7n) => eraFor({ patientControlNumber: sent.patientControlNumber, lines }, { trace: `TRC-${uniqueKey('p')}`, paid: f => (f * share) / 10n, writeOff: f => (f * (10n - share)) / 10n, status, payerName })
+    await imp(pay('1'))
+    expect(await net()).toBe(-fee)
+    for (const status of ['2', '3', '1', '19']) {
+      const again = await imp(pay(status))
+      expect(again.results[0]).toMatchObject({ status: 'exception', claimsPosted: 0 })
+    }
+    expect(await net()).toBe(-fee)
+    // the patient's secondary payer (Evergreen) pays its share of the same claim, as secondary
+    const before = await prisma.ledgerEntry.count({ where: { claimId: sent.id, kind: 'insurance_payment' } })
+    const second = await imp(eraFor({ patientControlNumber: sent.patientControlNumber, lines }, { trace: `TRC-${uniqueKey('e')}`, paid: () => 0n, writeOff: f => f, status: '2', payerName: 'Evergreen Benefit Partners' }))
+    expect(second.results[0]).toMatchObject({ status: 'posted', claimsPosted: 1 })
+    expect(await prisma.ledgerEntry.count({ where: { claimId: sent.id, kind: 'insurance_payment' } })).toBeGreaterThanOrEqual(before)
+    const postings = await prisma.paymentPosting.findMany({ where: { claimId: sent.id, status: 'posted' }, include: { payer: true } })
+    expect(postings.map(p => [p.payer?.name, p.coverageLevel]).sort()).toEqual([['Evergreen Benefit Partners', 'secondary'], ['Harbor Mutual Dental', 'primary']])
+    // ...but only once
+    const secondAgain = await imp(eraFor({ patientControlNumber: sent.patientControlNumber, lines }, { trace: `TRC-${uniqueKey('e')}`, paid: () => 0n, writeOff: f => f, status: '2', payerName: 'Evergreen Benefit Partners' }))
+    expect(secondAgain.results[0]).toMatchObject({ status: 'exception', claimsPosted: 0 })
+    // the database refuses a second live payment from the same payer at the same level for the same adjudication, even written directly
+    const live = postings.find(p => p.coverageLevel === 'primary')!
+    const rc = await prisma.remittanceClaim.findFirstOrThrow({ where: { claimId: sent.id, NOT: { id: live.remittanceClaimId! } } })
+    await expect(prisma.paymentPosting.create({ data: { remittanceId: rc.remittanceId, remittanceClaimId: rc.id, claimId: sent.id, payerId: live.payerId, kind: 'payment', coverageLevel: 'primary', round: live.round, paidMinor: 1n, status: 'posted' } })).rejects.toThrow(/PaymentPosting_one_live_payment|Unique constraint/)
+  })
+
   it('r1 B2: a trace that differs only in case, spaces or dashes is the same payment, and the database holds one per payer', async () => {
     const entry = await makeEntry(4, { dateOfService: new Date('2026-11-07T00:00:00Z') })
     const sent = await toSent([entry.id])
@@ -362,5 +438,17 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
     const fee = sent.lines[0].feeMinor
     const result = await run('enterManualEob', { payerId: (await prisma.payer.findFirstOrThrow({ where: { name: 'Harbor Mutual Dental' } })).id, traceNumber: `CHK-${uniqueKey('c')}`, paymentDate: '2026-11-12', method: 'check', claims: [{ claimRef: sent.patientControlNumber, payerClaimNumber: 'PCN-9', statusCode: '1', charge: `${fee / 100n}.${String(fee % 100n).padStart(2, '0')}`, paidMinor: (fee / 2n).toString(), lines: [{ lineControl: 'L01', code: 'X', chargeMinor: fee.toString(), paidMinor: (fee / 2n).toString(), adjustments: [{ group: 'CO', reason: '45', amountMinor: (fee - fee / 2n).toString() }] }] }] }, biller)
     expect(result).toMatchObject({ status: 'posted', claimsPosted: 1 })
+  })
+
+  it('r2 M-a: a coordinator limited to another office cannot post a hand-entered EOB against this office\'s claim', async () => {
+    const entry = await makeEntry(2, { dateOfService: new Date('2026-11-05T00:00:00Z') })
+    const sent = await toSent([entry.id])
+    const other = await prisma.location.findFirstOrThrow({ where: { id: { not: sent.locationId! } } })
+    const coordinator = { session: { ...biller.session, data: { ...biller.session.data, role: { ...biller.session.data.role, canAccessAllLocations: false }, assignments: [{ location: { id: other.id }, role: null, startsOn: null, endsOn: null }] } }, prisma }
+    const fee = sent.lines[0].feeMinor
+    const eob = { payerId: (await prisma.payer.findFirstOrThrow({ where: { name: 'Harbor Mutual Dental' } })).id, traceNumber: `CHK-${uniqueKey('m')}`, paymentDate: '2026-11-12', method: 'check', claims: [{ claimRef: sent.patientControlNumber, statusCode: '1', paidMinor: fee.toString(), lines: [{ lineControl: 'L01', code: 'X', chargeMinor: fee.toString(), paidMinor: fee.toString(), adjustments: [] }] }] }
+    await expect(run('enterManualEob', eob, coordinator)).rejects.toMatchObject({ code: 'OUTSIDE_LOCATION_SCOPE' })
+    expect(await prisma.paymentPosting.count({ where: { claimId: sent.id } })).toBe(0)
+    expect(await prisma.remittance.count({ where: { traceNumber: eob.traceNumber } })).toBe(0)
   })
 })

@@ -69,6 +69,7 @@ export async function requestAdjustment(_root: unknown, args: { patientId: strin
       action: 'ledger.adjustment', targetList: 'AdjustmentRequest', targetId: row.id, requiredPermission: 'canApproveAdjustments',
       payload: { adjustmentId: row.id, typeId: type.id, amountMinor: amountMinor.toString(), accountId: account.id },
       summary: `${type.name}: ${formatMinor(amountMinor)} (${reason.slice(0, 80)})`,
+      scope: { locationId: args.locationId, patientId, accountId: account.id },
     })
     await tx.adjustmentRequest.update({ where: { id: row.id }, data: { approvalId: approval.id, version: { increment: 1 } } })
     return { id: row.id, status: 'requested', approvalId: approval.id }

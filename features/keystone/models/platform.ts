@@ -4,6 +4,7 @@ import { calendarDay, checkbox, integer, json, relationship, select, text, times
 import { anyOf, isSignedIn, permissions, sys } from '../access'
 import { choice, fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
 import { governed, immutable, managed, serverOnly } from './listAccess'
+import { allOfficesOnly, approvalFilter, ownActionsOnly, scopedBy, scopedGoverned } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -155,7 +156,7 @@ export const MachineCredential = list({
 })
 
 export const BreakGlassEvent = list({
-  access: governed(['canReviewPrivacy', 'canBreakGlass', 'canBreakGlassRecords']),
+  access: scopedGoverned(['canReviewPrivacy', 'canBreakGlass', 'canBreakGlassRecords'], scopedBy(ids => ({ location: { id: { in: ids } } }))),
   ui: { labelField: 'reason', listView: { initialColumns: ['user', 'subjectType', 'status', 'openedAt', 'expiresAt'] } },
   fields: {
     user: relationship({ ref: 'User', ...readOnly }),
@@ -178,7 +179,8 @@ export const BreakGlassEvent = list({
 // ── §18 Platform ─────────────────────────────────────────────────────────────────────────────────
 
 export const AuditEvent = list({
-  access: immutable('canReadAudit'),
+  // r2 N3: audit rows name any patient in any office (entityId, before/after). A reader limited to some offices sees only their own actions.
+  access: scopedGoverned('canReadAudit', ownActionsOnly()),
   ui: { labelField: 'eventType', listView: { initialColumns: ['seq', 'at', 'eventType', 'entityType', 'entityId', 'actorUser'], initialSort: { field: 'seq', direction: 'DESC' } } },
   fields: {
     seq: integer({ isIndexed: 'unique', validation: { isRequired: true }, ...readOnly }),
@@ -224,7 +226,7 @@ export const OUTBOX_TOPICS = [
 ] as const
 
 export const InboundObservation = list({
-  access: governed(['canManageAdapters']),
+  access: scopedGoverned('canManageAdapters', allOfficesOnly()),
   ui: { listView: { initialColumns: ['source', 'kind', 'externalId', 'receivedAt', 'appliedAt'] } },
   fields: {
     source: systemText({ indexed: true, required: true }),
@@ -311,6 +313,8 @@ export const Notification = list({
   },
 })
 
+const approvalScope = (prefix: string[] = []) => approvalFilter(prefix)
+
 export const ApprovalPolicy = list({
   access: { operation: { query: permissions.canAccessDashboard, create: permissions.canManagePractice, update: sys, delete: sys } },
   ui: { labelField: 'action' },
@@ -326,7 +330,10 @@ export const ApprovalPolicy = list({
 })
 
 export const ApprovalRequest = list({
-  access: governed('canAccessDashboard'),
+  // Phase 4 r2 N4: an approval is about one office's money or one patient's record. A reader limited to some offices sees only the
+  // requests whose office is theirs and whose patients and family account they can see; a practice-wide request (fee schedule, code
+  // import, practice controls) names no office and is seen only by a reader with every office.
+  access: scopedGoverned('canAccessDashboard', approvalScope()),
   ui: { labelField: 'action', listView: { initialColumns: ['action', 'status', 'targetList', 'requestedBy', 'createdAt', 'expiresAt'] } },
   fields: {
     action: systemText({ indexed: true, required: true }),
@@ -338,6 +345,10 @@ export const ApprovalRequest = list({
     requiredPermission: systemText({ required: true }),
     requestedBy: relationship({ ref: 'User', ...readOnly }),
     requestedByAgent: relationship({ ref: 'AgentIdentity', ...readOnly }),
+    location: relationship({ ref: 'Location', ...readOnly }),
+    patient: relationship({ ref: 'Patient', ...readOnly }),
+    otherPatient: relationship({ ref: 'Patient', ...readOnly }),
+    account: relationship({ ref: 'GuarantorAccount', ...readOnly }),
     status: lifecycle(['pending', 'approved', 'rejected', 'expired', 'cancelled']),
     expiresAt: timestamp({ ...readOnly }),
     consumedAt: timestamp({ ...readOnly, ui: { ...readOnly.ui, description: 'When the approved action was carried out. An approval is used once.' } }),
@@ -348,7 +359,7 @@ export const ApprovalRequest = list({
 })
 
 export const ApprovalDecision = list({
-  access: immutable('canAccessDashboard'),
+  access: scopedGoverned('canAccessDashboard', approvalScope(['request'])),
   fields: {
     request: relationship({ ref: 'ApprovalRequest.decisions', ...readOnly }),
     decidedBy: relationship({ ref: 'User', ...readOnly }),
@@ -359,7 +370,8 @@ export const ApprovalDecision = list({
 })
 
 export const Document = list({
-  access: governed('canAccessDashboard'),
+  // r2 N3: a stored file (an EOB, a raw clearinghouse payload, a letter) can hold any office's PHI; only a reader with every office lists them.
+  access: scopedGoverned('canAccessDashboard', allOfficesOnly()),
   fields: {
     title: text({ validation: { isRequired: true } }),
     kind: choice(['radiograph', 'photo', 'clinical_attachment', 'eob', 'era', 'claim_attachment', 'consent', 'form', 'id_card', 'insurance_card', 'statement', 'baa', 'credential', 'policy', 'export', 'import', 'transcript', 'recording', 'other'], 'other'),
@@ -450,7 +462,7 @@ export const JurisdictionPack = list({
 })
 
 export const PhiReadAudit = list({
-  access: immutable('canReadPhiAudit'),
+  access: scopedGoverned('canReadPhiAudit', ownActionsOnly()),
   ui: { labelField: 'operationName', listView: { initialColumns: ['at', 'actorUser', 'purpose', 'listKeys', 'recordCount', 'operationName'], initialSort: { field: 'at', direction: 'DESC' } } },
   fields: {
     actorUser: relationship({ ref: 'User', ...readOnly }),

@@ -26,7 +26,7 @@ describe.skipIf(!hasTestDatabase)('Phase 0 commands (database)', () => {
     const make = (name: string) => prisma.user.create({ data: { name, email: `${uniqueKey(name)}@test.local`, password: 'x'.repeat(60) } })
     const [o, c, f] = await Promise.all([make('owner'), make('checker'), make('front')])
     owner = { session: sessionFor(o.id, permissionNames.filter(p => !NEVER_DEFAULT.includes(p))), prisma }
-    checker = { session: sessionFor(c.id, ['canAccessDashboard', 'canApproveAutonomy', 'canReadAudit']), prisma }
+    checker = { session: sessionFor(c.id, ['canAccessDashboard', 'canApproveAutonomy', 'canReadAudit', 'canAccessAllLocations']), prisma }
     frontDesk = { session: sessionFor(f.id, ['canAccessDashboard', 'canManagePatients', 'canManageSchedule']), prisma }
   })
 

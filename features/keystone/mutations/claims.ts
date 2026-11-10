@@ -242,10 +242,14 @@ export async function requestClaimStatus(_root: unknown, args: { claimId: string
 
 /** Enter a paper or portal explanation of benefits by hand. It is applied by exactly the same code as an electronic remittance. */
 export async function enterManualEob(_root: unknown, args: { payerId: string; traceNumber: string; paymentDate: string; method: string; claims: any[]; idempotencyKey: string }, context: Ctx) {
-  const { actor } = staff(context)
+  const { actor, locationIds } = staff(context)
   requirePermission(actor, 'canPostRemittances')
   const { idempotencyKey, ...params } = args
   const result = await command(context.prisma, { name: 'remittance.manual_eob', actor, idempotencyKey, params }, async uow => {
+    // r2 M-a: like matchRemittance, every claim named on a hand-entered EOB must be at one of my offices (an unknown one is held as usual).
+    const refs = (args.claims ?? []).map((c: any) => String(c?.claimRef ?? '')).filter(Boolean)
+    const named = refs.length ? await uow.tx.claim.findMany({ where: { patientControlNumber: { in: refs } }, select: { locationId: true } }) : []
+    for (const claim of named) assertLocation(locationIds, claim.locationId)
     const method = oneOf(args.method, ['eft', 'check', 'virtual_card', 'none'] as const, 'method')
     const trace = String(args.traceNumber ?? '').trim()
     if (!trace) throw new DomainError(Codes.INVALID_INPUT, 'Enter the check or payment number.', { field: 'traceNumber' })

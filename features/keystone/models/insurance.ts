@@ -4,7 +4,7 @@ import { denyAll } from '@keystone-6/core/access'
 import { sys } from '../access'
 import { ccy, fixedChoice, lifecycle, minor, pct, readOnly, systemText, versionField } from './domainFields'
 import { governed } from './listAccess'
-import { patientFilter, scopedGoverned } from './scope'
+import { patientFilter, scopedBy, scopedGoverned, visiblePatient } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -293,7 +293,8 @@ export const BenefitUsage = list({
 })
 
 export const WorkTask = list({
-  access: governed(['canAccessDashboard']),
+  // r2 N3: a work task is about a coverage (a patient); readers limited to some offices see tasks for patients visible to them.
+  access: scopedGoverned('canAccessDashboard', scopedBy(ids => ({ verification: { coverage: { patient: visiblePatient(ids) } } }))),
   ui: { labelField: 'title', listView: { initialColumns: ['title', 'kind', 'status', 'dueAt', 'assignee'] } },
   fields: {
     kind: fixedChoice(TASK_KINDS),

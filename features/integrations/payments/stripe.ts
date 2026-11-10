@@ -110,6 +110,21 @@ export async function retrieveIntent(intentId: string, ctx: PaymentCtx = {}): Pr
   } catch { return null }
 }
 
+/**
+ * Cancel an intent nobody finished (r2 m-b). Only an intent that can still be cancelled is touched; one that succeeded meanwhile
+ * comes back as `succeeded` so the caller settles it instead. Never charges, never refunds.
+ */
+export async function cancelIntent(intentId: string, ctx: PaymentCtx = {}): Promise<{ kind: 'canceled' } | { kind: 'succeeded' } | { kind: 'unknown' }> {
+  try {
+    const { status, json } = await call(ctx, 'POST', `/v1/payment_intents/${encodeURIComponent(intentId)}/cancel`, { cancellation_reason: 'abandoned' }, `cancel:${intentId}`)
+    if (status < 400 && json?.status === 'canceled') return { kind: 'canceled' }
+    const current = json?.error?.payment_intent?.status ?? (status < 400 ? json?.status : '')
+    if (current === 'succeeded') return { kind: 'succeeded' }
+    if (current === 'canceled') return { kind: 'canceled' }
+    return { kind: 'unknown' }
+  } catch { return { kind: 'unknown' } }
+}
+
 export async function refundIntent(input: { intentId: string; amountMinor: bigint; reference: string; idempotencyKey: string }, ctx: PaymentCtx = {}): Promise<RefundOutcome> {
   try {
     const { status, json } = await call(ctx, 'POST', '/v1/refunds', { payment_intent: input.intentId, amount: input.amountMinor.toString(), 'metadata[ref]': input.reference }, input.idempotencyKey)
