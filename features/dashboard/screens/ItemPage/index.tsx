@@ -3,7 +3,6 @@
  * Based on Keystone's ItemPage but adapted for server-side rendering
  */
 
-import { PUBLIC_REQUEST_ERROR } from '@/features/dashboard/lib/security';
 import { getItemAction } from '../../actions/getItemAction'
 import { getListByPath } from '../../actions/getListByPath'
 import { getAdminMetaAction, getItemValidationAction } from '../../actions'
@@ -39,14 +38,11 @@ export async function ItemPage({ params }: ItemPageParams) {
   // Use the working dashboard action for item data
   const response = await getItemAction(list, itemId, {}, cacheOptions)
 
-  let fetchedItem: Record<string, unknown> = {}
-
-  if (response.success) {
-    fetchedItem = response.data.item as Record<string, unknown>
-  } else {
-    console.error('Error fetching item:', PUBLIC_REQUEST_ERROR)
-    fetchedItem = {}
+  // An unreadable or missing item is a 404, never a 500.
+  if (!response.success || !response.data?.item) {
+    notFound()
   }
+  const fetchedItem = response.data.item as Record<string, unknown>
 
   // Get adminMeta for the list structure
   const adminMetaResponse = await getAdminMetaAction(list.key)

@@ -172,6 +172,13 @@ export const allOfficesOnly = () => ({ session }: AccessArgs) => {
   return sessionLocationIds(session) === null
 }
 
+/**
+ * A relationship whose rows can sit in another office than the row holding it (Restatement.entries, ChartEntry.ledgerEntry):
+ * a relation filter runs inside the related list without that list's office filter, so it would confirm hidden rows one guess at
+ * a time (Phase 4 r3 R3-2). Only a reader with every office may filter on it; reading the relation still applies the list's filter.
+ */
+export const filterableWithEveryOffice = ({ session }: AccessArgs) => isSignedIn({ session }) && sessionLocationIds(session) === null
+
 /** The where an approval request must match for a reader limited to `ids` (N4): its office is mine, and its patients and account are visible. */
 export function approvalWhere(ids: string[]) {
   return moneyWhere({ location: ['location'], patient: ['patient'], account: ['account'] }, ids) as Record<string, unknown>

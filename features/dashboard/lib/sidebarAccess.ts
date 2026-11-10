@@ -5,7 +5,12 @@
  */
 
 type SidebarList = { path: string; isHidden?: boolean | null }
-type SidebarUser = { role?: { canAccessDashboard?: boolean | null } | null } | null | undefined
+type SidebarUser = { role?: { canAccessDashboard?: boolean | null; canReadAudit?: boolean | null } | null } | null | undefined
+
+/** Pages that need a permission the role may lack: the link is shown only when the role holds one of them (R3-5). */
+const PLATFORM_PAGE_PERMISSIONS: Record<string, 'canReadAudit'[]> = {
+  audit: ['canReadAudit'],
+}
 
 /** Only an explicit false hides navigation; an unknown user is left to the middleware. */
 export function canUseDashboardNav(user: SidebarUser) {
@@ -30,6 +35,8 @@ export function visiblePlatformItems<T extends { href: string }>(
   const hiddenPaths = new Set(lists.filter((list) => list.isHidden).map((list) => list.path))
   return items.filter((item) => {
     const slug = item.href.split('/platform/')[1]?.split(/[/?#]/)[0]
-    return !slug || !hiddenPaths.has(slug)
+    if (slug && hiddenPaths.has(slug)) return false
+    const needs = slug ? PLATFORM_PAGE_PERMISSIONS[slug] : undefined
+    return !needs || needs.some((name) => user?.role?.[name] === true)
   })
 }

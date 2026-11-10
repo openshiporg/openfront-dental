@@ -59,6 +59,7 @@ interface User {
   role?: {
     canAccessDashboard?: boolean;
     canManageOnboarding?: boolean;
+    canReadAudit?: boolean;
   };
 }
 

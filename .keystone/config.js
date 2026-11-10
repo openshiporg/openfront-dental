@@ -323,7 +323,7 @@ function approvalWhere(ids) {
 function nest(path, leaf) {
   return path.reduceRight((inner, key) => ({ [key]: inner }), leaf);
 }
-var rule2, PATIENT_LOCATION_LOOKBACK_YEARS, locationFilter, patientFilter, under, MONEY, moneyFilter, remittanceFilter, peopleFilter, scopedBy, visiblePatient, ownActionsOnly, allOfficesOnly, approvalFilter, scopedGoverned, scopedManaged;
+var rule2, PATIENT_LOCATION_LOOKBACK_YEARS, locationFilter, patientFilter, under, MONEY, moneyFilter, remittanceFilter, peopleFilter, scopedBy, visiblePatient, ownActionsOnly, allOfficesOnly, filterableWithEveryOffice, approvalFilter, scopedGoverned, scopedManaged;
 var init_scope = __esm({
   "features/keystone/models/scope.ts"() {
     "use strict";
@@ -385,6 +385,7 @@ var init_scope = __esm({
       if (!isSignedIn({ session })) return false;
       return sessionLocationIds(session) === null;
     };
+    filterableWithEveryOffice = ({ session }) => isSignedIn({ session }) && sessionLocationIds(session) === null;
     approvalFilter = (prefix = []) => ({ session }) => {
       if (!isSignedIn({ session })) return false;
       const ids = sessionLocationIds(session);
@@ -2073,6 +2074,7 @@ async function decideApproval(uow, actor5, input) {
   if (actor5.kind !== "user" || !actor5.permissions.has(request.requiredPermission)) {
     throw new DomainError(Codes.NOT_AUTHORIZED, `Deciding this needs the ${request.requiredPermission} permission.`);
   }
+  if (input.inScope) await input.inScope();
   if (request.expiresAt && new Date(request.expiresAt).getTime() <= uow.now.getTime()) {
     await transition(uow, { model: "ApprovalRequest", id: input.requestId, from: ["pending"], to: "expired", actor: actor5, eventType: "approval.expired" });
     throw new DomainError(Codes.GUARD_FAILED, "This approval request has expired.");
@@ -4437,7 +4439,7 @@ async function postingContext(tx, claim, remittancePayerId, statusCode) {
   const byCode = LEVEL_BY_CODE[statusCode];
   const level = byCode && levels.has(byCode) && byCode !== own?.ordinal ? byCode : own && payerId === claimPayerId ? own.ordinal : ["primary", "secondary", "tertiary"].find((l) => levels.has(l)) ?? null;
   const version = claim.currentVersionId ? (await tx.claimVersion.findUnique({ where: { id: claim.currentVersionId }, select: { number: true } }))?.number ?? 0 : 0;
-  const appeals = await tx.appeal.count({ where: { denial: { claimId: claim.id } } });
+  const appeals = await tx.appeal.count({ where: { denial: { claimId: claim.id }, outcome: { not: "pending" } } });
   return { payerId, level, round: `v${version}/a${appeals}` };
 }
 async function reversiblePayments(tx, claimId, ctx) {
@@ -4464,10 +4466,13 @@ async function takebackTarget(tx, claim, ctx, recoupedMinor) {
   if (!exact2) return { problem: `${claim.ref}: the takeback (${formatMinor(recoupedMinor)}) does not match the payment from this payer (${live.map((p) => formatMinor(p.posting.paidMinor)).join(", ")}). Nothing was reversed; handle it by hand.`, found: null };
   return { problem: "", found: exact2 };
 }
-async function paymentProblem(tx, claim, ctx) {
+async function paymentProblem(tx, claim, ctx, paidMinor) {
   if (!ctx.level) return `${claim.ref}: this payer does not cover the patient, so its payment was not posted.`;
-  const live = await tx.paymentPosting.count({ where: { claimId: claim.id, payerId: ctx.payerId, coverageLevel: ctx.level, round: ctx.round, kind: "payment", status: "posted" } });
-  return live ? `${claim.ref} already has a payment from this payer posted. Post a takeback first, or enter it as a secondary payment.` : "";
+  const live = await tx.paymentPosting.findMany({ where: { claimId: claim.id, payerId: ctx.payerId, coverageLevel: ctx.level, kind: "payment", status: "posted" }, select: { round: true, paidMinor: true } });
+  if (live.some((p) => p.round === ctx.round)) return `${claim.ref} already has a payment from this payer posted. Post a takeback first, or enter it as a secondary payment.`;
+  const amount = paidMinor > 0n ? paidMinor : 0n;
+  if (live.some((p) => p.paidMinor === amount)) return `${claim.ref} already has a payment of ${formatMinor(amount)} from this payer posted, so this looks like a copy of it and was held. Post a takeback first if the payer paid it again.`;
+  return "";
 }
 async function applyParsedEra(uow, actor5, era, origin) {
   const { tx } = uow;
@@ -4508,7 +4513,7 @@ async function applyParsedEra(uow, actor5, era, origin) {
     }
     if (claim) await lockRow(tx, "Claim", claim.id);
     const ctx = claim ? await postingContext(tx, claim, payerId, parsed.statusCode) : null;
-    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum2(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : isTakeback(parsed) ? (await takebackTarget(tx, claim, ctx, recoupedOf(parsed))).problem : await paymentProblem(tx, claim, ctx);
+    const problem = !claim ? `No claim matches control number ${parsed.patientControlNumber || "(blank)"}.` : !ADJUSTABLE_FROM.includes(claim.status) ? `${claim.ref} is ${claim.status.replaceAll("_", " ")}, so it cannot take a payment.` : lineRows.some((l) => !l.claimLineId) ? `A line on ${claim.ref} does not match any line sent.` : lineRows.some((l) => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge \u2260 paid + adjustments).` : sum2(lineRows.map((l) => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.` : isTakeback(parsed) ? (await takebackTarget(tx, claim, ctx, recoupedOf(parsed))).problem : await paymentProblem(tx, claim, ctx, parsed.paidMinor);
     if (problem) {
       held += 1;
       notes.push(problem);
@@ -4535,7 +4540,7 @@ async function postClaimPayment(uow, actor5, input) {
   const writeoff = parsed.lines.length ? sum2(parsed.lines.map((l) => writeOffMinor(l.adjustments))) : writeOffMinor(parsed.adjustments);
   const ctx = await postingContext(tx, claim, remittance.payerId, parsed.statusCode);
   const target = takeback ? await takebackTarget(tx, claim, ctx, recoupedOf(parsed)) : null;
-  const refused = target ? target.problem : await paymentProblem(tx, claim, ctx);
+  const refused = target ? target.problem : await paymentProblem(tx, claim, ctx, parsed.paidMinor);
   if (refused) throw new DomainError(Codes.GUARD_FAILED, refused);
   const posting = await tx.paymentPosting.create({
     data: {
@@ -8229,7 +8234,8 @@ var ChartEntry = (0, import_core14.list)({
     feeMinor: minor(),
     feeScheduleVersion: (0, import_fields14.relationship)({ ref: "FeeScheduleVersion", ...readOnly }),
     units: (0, import_fields14.integer)({ defaultValue: 1, ...readOnly }),
-    ledgerEntry: (0, import_fields14.relationship)({ ref: "LedgerEntry", ...readOnly }),
+    // R3-2: the chart follows the patient, the ledger row its office; a filter on it would confirm other offices' rows.
+    ledgerEntry: (0, import_fields14.relationship)({ ref: "LedgerEntry", ...readOnly, isFilterable: filterableWithEveryOffice }),
     correctedBy: (0, import_fields14.relationship)({ ref: "ChartEntry", ...readOnly }),
     corrects: (0, import_fields14.relationship)({ ref: "ChartEntry", ...readOnly }),
     diagnosisCodes: (0, import_fields14.json)({ defaultValue: [], ...readOnly }),
@@ -8812,7 +8818,8 @@ var Restatement = (0, import_core17.list)({
   fields: {
     periodClose: (0, import_fields17.relationship)({ ref: "PeriodClose", ...readOnly }),
     reason: systemText({ required: true }),
-    entries: (0, import_fields17.relationship)({ ref: "LedgerEntry.restatement", many: true, ...readOnly }),
+    // R3-2: restatements are practice-wide reading, their entries are not; a filter on them would reach other offices' rows.
+    entries: (0, import_fields17.relationship)({ ref: "LedgerEntry.restatement", many: true, ...readOnly, isFilterable: filterableWithEveryOffice }),
     approvedBy: (0, import_fields17.relationship)({ ref: "User", ...readOnly }),
     ...trackingFields
   }
@@ -10724,9 +10731,8 @@ async function decideApprovalRequest(_root, args, context) {
   if (args.decision === "reject" && !args.reason?.trim()) throw new DomainError(Codes.INVALID_INPUT, "Say why you are rejecting it.", { field: "reason" });
   const locationIds = sessionLocationIds(context.session);
   const result = await command(context.prisma, { name: "approval.decide", actor: actor5, idempotencyKey: args.idempotencyKey, params: { requestId: args.requestId, decision: args.decision, reason: args.reason ?? "", expectedVersion: args.expectedVersion } }, async (uow) => {
-    await assertApprovalInScope(uow.tx, locationIds, args.requestId);
     const practice = await uow.tx.practiceSettings.findUnique({ where: { id: 1 }, select: { strictAgentOwnerSoD: true } });
-    const decided = await decideApproval(uow, actor5, { requestId: args.requestId, decision: args.decision, reason: args.reason ?? void 0, expectedVersion: args.expectedVersion, strictAgentOwner: practice?.strictAgentOwnerSoD ?? true });
+    const decided = await decideApproval(uow, actor5, { requestId: args.requestId, decision: args.decision, reason: args.reason ?? void 0, expectedVersion: args.expectedVersion, strictAgentOwner: practice?.strictAgentOwnerSoD ?? true, inScope: () => assertApprovalInScope(uow.tx, locationIds, args.requestId) });
     let applied = null;
     const registration = applierFor(String(decided.action));
     if (args.decision === "approve" && registration?.applyOnApprove) {

@@ -7,6 +7,17 @@ export async function q<T = any>(query: string, variables: Record<string, unknow
   return r.data as T
 }
 
+/** Whether the signed-in role holds at least one of these permissions (for pages whose queries would otherwise be refused). */
+export async function holdsAny(names: 'canReadAudit'[]): Promise<boolean> {
+  try {
+    const d: any = await q(`{ authenticatedItem { ... on User { role { ${names.join(' ')} } } } }`)
+    const role = d.authenticatedItem?.role
+    return names.some((n) => role?.[n] === true)
+  } catch {
+    return false
+  }
+}
+
 /** The practice's default time zone (PracticeSettings.defaultTimeZone); each location also has its own. */
 export async function practiceTimeZone(): Promise<string> {
   try {

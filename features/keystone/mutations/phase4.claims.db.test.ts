@@ -369,6 +369,48 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
     await expect(prisma.paymentPosting.create({ data: { remittanceId: rc.remittanceId, remittanceClaimId: rc.id, claimId: sent.id, payerId: live.payerId, kind: 'payment', coverageLevel: 'primary', round: live.round, paidMinor: 1n, status: 'posted' } })).rejects.toThrow(/PaymentPosting_one_live_payment|Unique constraint/)
   })
 
+  it('r3 R3-1: filing an appeal does not open the claim to a copy of its payment; after the appeal is decided the payer\'s new payment posts once', async () => {
+    const sent = await toSent([(await makeEntry(2, { dateOfService: new Date('2026-11-03T00:00:00Z') })).id, (await makeEntry(3, { dateOfService: new Date('2026-11-03T00:00:00Z') })).id])
+    const lines = sent.lines.map(l => ({ lineControlNumber: l.lineControlNumber, feeMinor: l.feeMinor, code: 'X' }))
+    const dollars = (n: bigint) => `${n / 100n}.${String(n % 100n).padStart(2, '0')}`
+    const net = async () => (await prisma.ledgerEntry.aggregate({ where: { claimId: sent.id }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n
+    const imp = (body: unknown) => importEraBody(prisma as never, body, { externalId: uniqueKey('tx'), adapterKey: 'stedi' })
+    // the original remittance: line 1 denied (frequency), line 2 paid 70% with a 30% write-off
+    const original = (trace: string) => {
+      const body: any = eraFor({ patientControlNumber: sent.patientControlNumber, lines }, { trace, paid: f => (f * 7n) / 10n, writeOff: f => (f * 3n) / 10n })
+      const info = body.transactions[0].detailInfo[0].paymentInfo[0]
+      const first = info.serviceLines[0]
+      first.servicePaymentInformation.lineItemProviderPaymentAmount = '0.00'
+      first.serviceAdjustments = [{ claimAdjustmentGroupCode: 'CO', adjustmentReasonCode1: '151', adjustmentAmount1: dollars(lines[0].feeMinor) }]
+      const paid = (lines[1].feeMinor * 7n) / 10n
+      info.claimPaymentInfo.claimPaymentAmount = dollars(paid)
+      body.transactions[0].financialInformation.totalActualProviderPaymentAmount = dollars(paid)
+      return body
+    }
+    expect((await imp(original(`TRC-${uniqueKey('o')}`))).results[0]).toMatchObject({ status: 'posted', claimsPosted: 1 })
+    const afterOriginal = await net()
+    const denial = await prisma.denial.findFirstOrThrow({ where: { claimId: sent.id } })
+    await run('startDenialWork', { denialId: denial.id, expectedVersion: denial.version }, biller)
+    await run('fileAppeal', { denialId: denial.id, expectedVersion: denial.version + 1, letter: 'The earlier service was more than a year ago.', via: 'portal' }, biller)
+    // appeal filed, still pending: a byte-identical copy of the original under a new trace is held, nothing moves
+    expect((await imp(original(`TRC-${uniqueKey('c')}`))).results[0]).toMatchObject({ status: 'exception', claimsPosted: 0, claimsHeld: 1 })
+    expect(await net()).toBe(afterOriginal)
+    const appeal = await prisma.appeal.findFirstOrThrow({ where: { denialId: denial.id } })
+    await run('recordAppealOutcome', { appealId: appeal.id, expectedVersion: appeal.version, outcome: 'overturned' }, biller)
+    // appeal decided: the original copied again is still held (same payer, same amount as the payment that stands)
+    expect((await imp(original(`TRC-${uniqueKey('d')}`))).results[0]).toMatchObject({ status: 'exception', claimsPosted: 0 })
+    expect(await net()).toBe(afterOriginal)
+    // the payer's new payment for the overturned line posts, once
+    const supplemental = () => eraFor({ patientControlNumber: sent.patientControlNumber, lines: [lines[0]] }, { trace: `TRC-${uniqueKey('s')}`, paid: f => (f * 8n) / 10n, writeOff: f => (f * 2n) / 10n })
+    expect((await imp(supplemental())).results[0]).toMatchObject({ status: 'posted', claimsPosted: 1 })
+    expect(await net()).toBe(afterOriginal - lines[0].feeMinor)
+    expect((await imp(supplemental())).results[0]).toMatchObject({ status: 'exception', claimsPosted: 0 })
+    expect((await imp(original(`TRC-${uniqueKey('e')}`))).results[0]).toMatchObject({ status: 'exception', claimsPosted: 0 })
+    expect(await net()).toBe(afterOriginal - lines[0].feeMinor)
+    const live = await prisma.paymentPosting.findMany({ where: { claimId: sent.id, kind: 'payment', status: 'posted' }, orderBy: { createdAt: 'asc' } })
+    expect(live.map(p => p.round.replace(/^v\d+/, 'v'))).toEqual(['v/a0', 'v/a1'])
+  })
+
   it('r1 B2: a trace that differs only in case, spaces or dashes is the same payment, and the database holds one per payer', async () => {
     const entry = await makeEntry(4, { dateOfService: new Date('2026-11-07T00:00:00Z') })
     const sent = await toSent([entry.id])

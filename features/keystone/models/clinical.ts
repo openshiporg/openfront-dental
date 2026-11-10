@@ -1,7 +1,7 @@
 import { list } from '@keystone-6/core'
 import { calendarDay, checkbox, decimal, integer, json, relationship, text, timestamp } from '@keystone-6/core/fields'
 import { fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
-import { scopedGoverned, patientFilter } from './scope'
+import { filterableWithEveryOffice, scopedGoverned, patientFilter } from './scope'
 import { governed } from './listAccess'
 import { trackingFields } from './trackingFields'
 
@@ -57,7 +57,8 @@ export const ChartEntry = list({
     feeMinor: minor(),
     feeScheduleVersion: relationship({ ref: 'FeeScheduleVersion', ...readOnly }),
     units: integer({ defaultValue: 1, ...readOnly }),
-    ledgerEntry: relationship({ ref: 'LedgerEntry', ...readOnly }),
+    // R3-2: the chart follows the patient, the ledger row its office; a filter on it would confirm other offices' rows.
+    ledgerEntry: relationship({ ref: 'LedgerEntry', ...readOnly, isFilterable: filterableWithEveryOffice }),
     correctedBy: relationship({ ref: 'ChartEntry', ...readOnly }),
     corrects: relationship({ ref: 'ChartEntry', ...readOnly }),
     diagnosisCodes: json({ defaultValue: [], ...readOnly }),

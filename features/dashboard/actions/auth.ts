@@ -176,6 +176,7 @@ export async function getAuthenticatedUser() {
           role {
             canAccessDashboard
             canManageOnboarding
+            canReadAudit
           }
         }
       }

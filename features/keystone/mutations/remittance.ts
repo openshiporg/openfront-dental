@@ -46,9 +46,10 @@ export async function postingContext(tx: Tx, claim: ClaimForPosting, remittanceP
   const level = byCode && levels.has(byCode) && byCode !== own?.ordinal ? byCode
     : own && payerId === claimPayerId ? own.ordinal
     : ['primary', 'secondary', 'tertiary'].find(l => levels.has(l)) ?? null
-  // A payer may pay a claim again only for a new adjudication: a corrected version sent, or an appeal decided.
+  // A payer may pay a claim again only for a new adjudication: a corrected version sent, or an appeal decided. Filing an appeal
+  // (outcome still pending) is not a new adjudication, so it never opens a new round (Phase 4 r3 R3-1).
   const version = claim.currentVersionId ? (await tx.claimVersion.findUnique({ where: { id: claim.currentVersionId }, select: { number: true } }))?.number ?? 0 : 0
-  const appeals = await tx.appeal.count({ where: { denial: { claimId: claim.id } } })
+  const appeals = await tx.appeal.count({ where: { denial: { claimId: claim.id }, outcome: { not: 'pending' } } })
   return { payerId, level, round: `v${version}/a${appeals}` }
 }
 
@@ -85,11 +86,18 @@ async function takebackTarget(tx: Tx, claim: ClaimForPosting, ctx: Context, reco
   return { problem: '', found: exact }
 }
 
-/** Why an ordinary payment cannot post: the payer does not cover the patient, or already has a live payment on this claim, at this level, for this adjudication. */
-async function paymentProblem(tx: Tx, claim: ClaimForPosting, ctx: Context) {
+/**
+ * Why an ordinary payment cannot post: the payer does not cover the patient, or already has a live payment on this claim, at this
+ * level, for this adjudication. In a new adjudication (an appeal decided, a corrected version), a payment for the same amount as
+ * a payment from this payer that is still standing is a copy of it, not a new payment: it is held too (R3-1).
+ */
+async function paymentProblem(tx: Tx, claim: ClaimForPosting, ctx: Context, paidMinor: bigint) {
   if (!ctx.level) return `${claim.ref}: this payer does not cover the patient, so its payment was not posted.`
-  const live = await tx.paymentPosting.count({ where: { claimId: claim.id, payerId: ctx.payerId, coverageLevel: ctx.level, round: ctx.round, kind: 'payment', status: 'posted' } })
-  return live ? `${claim.ref} already has a payment from this payer posted. Post a takeback first, or enter it as a secondary payment.` : ''
+  const live = await tx.paymentPosting.findMany({ where: { claimId: claim.id, payerId: ctx.payerId, coverageLevel: ctx.level, kind: 'payment', status: 'posted' }, select: { round: true, paidMinor: true } })
+  if (live.some(p => p.round === ctx.round)) return `${claim.ref} already has a payment from this payer posted. Post a takeback first, or enter it as a secondary payment.`
+  const amount = paidMinor > 0n ? paidMinor : 0n
+  if (live.some(p => p.paidMinor === amount)) return `${claim.ref} already has a payment of ${formatMinor(amount)} from this payer posted, so this looks like a copy of it and was held. Post a takeback first if the payer paid it again.`
+  return ''
 }
 
 const ADJUSTABLE_FROM = ['submitted', 'acknowledged', 'pending_payer', 'submission_unknown', 'adjudicated', 'appealed', 'appeal_decided']
@@ -152,7 +160,7 @@ export async function applyParsedEra(uow: UnitOfWork, actor: Actor, era: ParsedE
       : lineRows.some(l => !l.conserves) ? `The amounts on ${claim.ref} do not add up (charge ≠ paid + adjustments).`
       : sum(lineRows.map(l => l.line.paidMinor)) !== parsed.paidMinor && parsed.lines.length ? `The line payments on ${claim.ref} do not add up to the claim payment.`
       : isTakeback(parsed) ? (await takebackTarget(tx, claim, ctx!, recoupedOf(parsed))).problem
-      : await paymentProblem(tx, claim, ctx!)
+      : await paymentProblem(tx, claim, ctx!, parsed.paidMinor)
     if (problem) {
       held += 1
       notes.push(problem)
@@ -183,7 +191,7 @@ export async function postClaimPayment(uow: UnitOfWork, actor: Actor, input: { r
   // Checked again under the claim's lock: callers check first so they can hold the remittance instead of failing.
   const ctx = await postingContext(tx, claim, remittance.payerId, parsed.statusCode)
   const target = takeback ? await takebackTarget(tx, claim, ctx, recoupedOf(parsed)) : null
-  const refused = target ? target.problem : await paymentProblem(tx, claim, ctx)
+  const refused = target ? target.problem : await paymentProblem(tx, claim, ctx, parsed.paidMinor)
   if (refused) throw new DomainError(Codes.GUARD_FAILED, refused)
   const posting = await tx.paymentPosting.create({
     data: {

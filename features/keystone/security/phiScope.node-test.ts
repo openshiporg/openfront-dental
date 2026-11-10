@@ -100,7 +100,7 @@ describe('patient-data lists, both ways, as Tampa-only and St. Petersburg-only s
       const conv = await prisma.conversation.create({ data: { patientId: p.id, contactPointId: cp.id, channel: 'email' } }).catch(() => null)
       const appr = await prisma.approvalRequest.create({ data: { action: 'adjustment.post', targetList: 'AdjustmentRequest', targetId: `adj-${name}`, payload: { amountMinor: '7500' }, payloadHash: `h-${name}-${stamp}`, requiredPermission: 'canApproveAdjustments', summary: `${name} $75 courtesy discount`, status: 'pending', locationId: home, patientId: p.id, accountId: a.id } })
       const scope = await prisma.portalAccount.create({ data: { email: `${name.toLowerCase()}-portal-${stamp}@example.test`, status: 'active', scopes: { create: [{ patientId: p.id, relationship: 'self', status: 'active' }] } } })
-      Object.assign(ids, { [`${name}Patient`]: p.id, [`${name}Contact`]: cp.id, [`${name}GuarantorContact`]: gcp.id, [`${name}Family`]: fam.id, [`${name}Broken`]: bae.id, [`${name}Approval`]: appr.id, [`${name}Portal`]: scope.id, ...(conv ? { [`${name}Conversation`]: conv.id } : {}) })
+      Object.assign(ids, { [`${name}Account`]: a.id, [`${name}Patient`]: p.id, [`${name}Contact`]: cp.id, [`${name}GuarantorContact`]: gcp.id, [`${name}Family`]: fam.id, [`${name}Broken`]: bae.id, [`${name}Approval`]: appr.id, [`${name}Portal`]: scope.id, ...(conv ? { [`${name}Conversation`]: conv.id } : {}) })
       return p.id
     }
     people.tpa.push(await make('Tampa', TPA))
@@ -198,6 +198,54 @@ describe('patient-data lists, both ways, as Tampa-only and St. Petersburg-only s
     assert.deepEqual(problems, [])
     for (const path of ['contactPoints.patient', 'brokenAppointmentEvents.patient', 'familyGroups.members', 'approvalRequests.patient', 'portalScopes.patient', 'conversations.patient', 'ledgerEntries.patient', 'claims.patient']) assert.ok(checked.has(path), `the sweep reached ${path}`)
     assert.ok(checked.size > 40, `the sweep checked ${checked.size} patient paths`)
+  })
+
+  it('R3-2: relation filters through Restatement.entries and ChartEntry.ledgerEntry cannot reach the other office, both ways', async () => {
+    const today = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')
+    const entry = (name: string, location: string, extra: Record<string, unknown> = {}) => prisma.ledgerEntry.create({ data: { accountId: ids[`${name}Account`], patientId: ids[`${name}Patient`], kind: 'finance_charge', amountMinor: 500n, currencyCode: 'USD', businessDate: today, originalBusinessDate: today, locationId: location, memo: 'r3 oracle test', ...extra } })
+    for (const [home, office] of [['Tampa', TPA], ['Pete', STP]] as const) {
+      // A restatement at each office, holding an entry about each office's patient (the reviewer's oracle: the restatement is
+      // readable, the entry is not), and a chart entry for each patient pointing at a ledger row the reader cannot see.
+      const close = await prisma.periodClose.create({ data: { locationId: office, period: `2020-${home === 'Tampa' ? '01' : '02'}`, status: 'reopened' } })
+      const restatement = await prisma.restatement.create({ data: { periodCloseId: close.id, reason: 'r3 oracle test' } })
+      const theirs = other(home)
+      ids[`${home}Restatement`] = restatement.id
+      ids[`${theirs}EntryIn${home}Restatement`] = (await entry(theirs, office, { restatementId: restatement.id })).id
+      // my patient's ledger row at the other office: hidden from me by its office, but named by my patient's chart entry
+      const hidden = await entry(home, home === 'Tampa' ? STP : TPA)
+      ids[`${home}HiddenLedger`] = hidden.id
+      ids[`${home}Chart`] = (await prisma.chartEntry.create({ data: { patientId: ids[`${home}Patient`], kind: 'procedure', area: 'mouth', source: 'test', ledgerEntryId: hidden.id } })).id
+    }
+    const sweep: [string, any, string][] = [['kerry', ROLES.kerry, 'Tampa'], ['dana', ROLES.dana, 'Tampa'], ['tampaAll', ROLES.tampaAll, 'Tampa'], ['jenna', ROLES.jenna, 'Tampa'],
+      ['vivian', ROLES.vivian, 'Pete'], ['grace', ROLES.grace, 'Pete'], ['peteAll', ROLES.peteAll, 'Pete']]
+    let refused = 0
+    for (const [role, session, mine] of sweep) {
+      const theirs = other(mine)
+      for (const selection of [
+        `restatementsCount(where: { entries: { some: { patient: { id: { equals: "${ids[`${theirs}Patient`]}" } } } } })`,
+        `restatementsCount(where: { entries: { some: { patient: { lastName: { startsWith: "S" } } } } })`,
+        `restatementsCount(where: { entries: { some: { amountMinor: { lt: "0" } } } })`,
+        `restatementsCount(where: { entries: { none: { location: { id: { equals: "${mine === 'Tampa' ? TPA : STP}" } } } } })`,
+        `restatements(where: { entries: { every: { id: { equals: "${ids[`${theirs}EntryIn${mine}Restatement`]}" } } } }, take: 5) { id }`,
+        `chartEntriesCount(where: { ledgerEntry: { id: { equals: "${ids[`${mine}HiddenLedger`]}" } } })`,
+        `chartEntriesCount(where: { ledgerEntry: { account: { id: { equals: "${ids[`${mine}Account`]}" } } } })`,
+        `chartEntries(where: { ledgerEntry: { kind: { equals: "finance_charge" } } }, take: 5) { id }`,
+      ]) {
+        const ctx = context.withSession(session)
+        const r = await graphql({ schema: ctx.graphql.schema, source: `{ n: ${selection} }`, contextValue: ctx })
+        if (r.errors?.length) { refused++; continue }
+        const value: any = (r.data as any).n
+        assert.ok(value === 0 || (Array.isArray(value) && value.length === 0), `${role} (${mine}): ${selection} answered ${JSON.stringify(value)}`)
+      }
+      // The relations still read, filtered by the related list's own rule: no other-office row comes back.
+      const d = await run(session, `query($r: ID!, $c: ID!) { r: restatement(where: { id: $r }) { entries { id } } c: chartEntry(where: { id: $c }) { ledgerEntry { id } } }`, { r: ids[`${mine}Restatement`], c: ids[`${mine}Chart`] })
+      assert.ok(!(d.r?.entries ?? []).some((e: any) => e.id === ids[`${theirs}EntryIn${mine}Restatement`]), `${role}: restatement entries`)
+      assert.equal(d.c?.ledgerEntry ?? null, null, `${role}: chart entry ledger row`)
+    }
+    assert.ok(refused > 0, 'the relation filters are refused for single-office readers')
+    // A reader with every office may still filter on both relations.
+    const owner = await run(sessionOf('owner', EVERYTHING, 'all'), `query($p: ID!, $l: ID!) { a: restatementsCount(where: { entries: { some: { patient: { id: { equals: $p } } } } }) b: chartEntriesCount(where: { ledgerEntry: { id: { equals: $l } } }) }`, { p: ids.PetePatient, l: ids.TampaHiddenLedger })
+    assert.deepEqual(owner, { a: 1, b: 1 })
   })
 
   it('N4: a single-office manager cannot decide another office\'s approval or a practice-wide one; their own office is fine', async () => {

@@ -2,7 +2,7 @@ import { list } from '@keystone-6/core'
 import { calendarDay, checkbox, json, relationship, text, timestamp } from '@keystone-6/core/fields'
 import { fixedChoice, lifecycle, minor, readOnly, systemText, versionField } from './domainFields'
 import { governed } from './listAccess'
-import { moneyFilter, scopedGoverned } from './scope'
+import { filterableWithEveryOffice, moneyFilter, scopedGoverned } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -89,7 +89,8 @@ export const Restatement = list({
   fields: {
     periodClose: relationship({ ref: 'PeriodClose', ...readOnly }),
     reason: systemText({ required: true }),
-    entries: relationship({ ref: 'LedgerEntry.restatement', many: true, ...readOnly }),
+    // R3-2: restatements are practice-wide reading, their entries are not; a filter on them would reach other offices' rows.
+    entries: relationship({ ref: 'LedgerEntry.restatement', many: true, ...readOnly, isFilterable: filterableWithEveryOffice }),
     approvedBy: relationship({ ref: 'User', ...readOnly }),
     ...trackingFields,
   },
