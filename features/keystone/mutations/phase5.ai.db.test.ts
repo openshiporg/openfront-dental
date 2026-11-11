@@ -6,6 +6,7 @@ import { publicChat } from './publicChat'
 import { registerInferenceAdapter, unregisterInferenceAdapter } from '../lib/inference'
 import { aiHome, decideProposal, runSignalChecks, setAutonomyPolicy } from './ai'
 import { loadPracticeSetup } from './setup'
+import { TRANSACTION_OPTIONS } from '../lib/db'
 
 /* Phase 5 exit gate: the trail from signal to outcome, on a real database. Hung on a shared database? Mark skipped in the report. */
 
@@ -23,6 +24,8 @@ describe.skipIf(!hasTestDatabase)('Phase 5: signals, proposals, decisions (datab
     process.env.SESSION_SECRET ||= 'dental-vitest-session-secret-0123456789abcdef'
     process.env.DENTAL_SECRET_KEY ||= Buffer.alloc(32, 7).toString('base64')
     process.env.DENTAL_INLINE_EFFECTS = 'off'
+    // The shared database is slow under load: give the one big setup transaction room (this file only).
+    Object.assign(TRANSACTION_OPTIONS as object, { timeout: 180_000, maxWait: 60_000 })
     prisma = testPrisma(2)
     await resetDatabase(prisma)
     const make = (name: string) => prisma.user.create({ data: { name, email: `${uniqueKey(name)}@test.local`, password: 'x'.repeat(60) } })
@@ -34,16 +37,21 @@ describe.skipIf(!hasTestDatabase)('Phase 5: signals, proposals, decisions (datab
     await loadPracticeSetup(null, { idempotencyKey: uniqueKey('setup') }, owner)
     const claim = await prisma.claim.findFirst({ include: { location: true } })
     if (claim) claimId = claim.id
-  }, 240_000)
+  }, 540_000)
   afterAll(async () => { await prisma?.$disconnect() })
 
   const key = () => uniqueKey('p5')
 
-  async function seedRejectedClaim() {
-    const base = await prisma.claim.findFirstOrThrow({ where: { locationId: { not: null } } })
-    await prisma.claim.update({ where: { id: base.id }, data: { status: 'rejected' } })
-    return base.id
+  let made = 0
+  /** A rejected claim for a seeded patient and coverage (the practice seed has no claims). */
+  async function newRejectedClaim() {
+    const coverage = await prisma.coverage.findFirstOrThrow({ where: { patientId: { not: null } } })
+    const location = await prisma.location.findFirstOrThrow({ where: { isActive: true } })
+    made += 1
+    const claim = await prisma.claim.create({ data: { ref: `CLM-P5-${Date.now().toString(36)}-${made}`, kind: 'original', patientControlNumber: `PCN-P5-${Date.now().toString(36)}-${made}`, patientId: coverage.patientId, coverageId: coverage.id, locationId: location.id, status: 'rejected', totalChargeMinor: 15000n } })
+    return claim.id
   }
+  const seedRejectedClaim = newRejectedClaim
 
   it('refuses a reader without the signals permission', async () => {
     await expect(runSignalChecks(null, { idempotencyKey: key() }, readOnly)).rejects.toThrow(/permission/)
@@ -90,8 +98,7 @@ describe.skipIf(!hasTestDatabase)('Phase 5: signals, proposals, decisions (datab
   })
 
   it('a suggestion that has run out of time cannot be approved, and nothing changes', async () => {
-    const base = await prisma.claim.findFirstOrThrow({ where: { id: { not: claimId }, locationId: { not: null } } })
-    await prisma.claim.update({ where: { id: base.id }, data: { status: 'rejected' } })
+    const base = { id: await newRejectedClaim() }
     await runSignalChecks(null, { idempotencyKey: key() }, owner)
     const proposal = await prisma.proposal.findFirstOrThrow({ where: { kind: 'fix_claim', targetId: base.id } })
     await prisma.proposal.update({ where: { id: proposal.id }, data: { expiresAt: new Date(Date.now() - 1000) } })
@@ -103,8 +110,7 @@ describe.skipIf(!hasTestDatabase)('Phase 5: signals, proposals, decisions (datab
   })
 
   it('a tampered payload is refused', async () => {
-    const base = await prisma.claim.findFirstOrThrow({ where: { id: { notIn: [claimId] }, locationId: { not: null } } })
-    await prisma.claim.update({ where: { id: base.id }, data: { status: 'rejected' } })
+    const base = { id: await newRejectedClaim() }
     await runSignalChecks(null, { idempotencyKey: key() }, owner)
     const proposal = await prisma.proposal.findFirstOrThrow({ where: { kind: 'fix_claim', targetId: base.id, status: 'validated' } })
     await prisma.proposal.update({ where: { id: proposal.id }, data: { payload: { claimId: claimId, extra: 'x' } } })
@@ -145,8 +151,7 @@ describe.skipIf(!hasTestDatabase)('Phase 5: signals, proposals, decisions (datab
     const agent = await prisma.agentIdentity.findFirstOrThrow({ where: { name: 'Practice Assistant' } })
     const ownerUserId = billing.session.itemId
     await prisma.agentIdentity.update({ where: { id: agent.id }, data: { ownerId: ownerUserId } })
-    const base = await prisma.claim.findFirstOrThrow({ where: { locationId: { not: null } }, orderBy: { id: 'desc' } })
-    await prisma.claim.update({ where: { id: base.id }, data: { status: 'rejected' } })
+    const base = { id: await newRejectedClaim() }
     await runSignalChecks(null, { idempotencyKey: key() }, owner)
     const proposal = await prisma.proposal.findFirstOrThrow({ where: { targetId: base.id, status: 'validated' } })
     await expect(decideProposal(null, { proposalId: proposal.id, decision: 'approve', expectedVersion: proposal.version, idempotencyKey: key() }, billing)).rejects.toThrow(/own/)

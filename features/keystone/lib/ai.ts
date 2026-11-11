@@ -39,9 +39,11 @@ export async function ensureCatalogue(tx: Tx) {
       update: { riskClass: 'never_autonomous' },
     })
   }
+  // The practice owner is the accountable owner of the assistant, so the owner can't also approve what it suggests.
+  const owner = await tx.user.findFirst({ where: { role: { name: 'Practice Owner' } }, orderBy: { createdAt: 'asc' }, select: { id: true } })
   const found = await tx.agentIdentity.findUnique({ where: { name: AGENT_NAME } })
-  if (found) return found
-  return tx.agentIdentity.create({ data: { name: AGENT_NAME, purpose: 'Looks across the schedule, benefits and claims and suggests next steps. It can suggest; it can never approve.', kind: 'rules_engine', status: 'active' } })
+  if (found) return found.ownerId || !owner ? found : tx.agentIdentity.update({ where: { id: found.id }, data: { ownerId: owner.id } })
+  return tx.agentIdentity.create({ data: { name: AGENT_NAME, purpose: 'Looks across the schedule, benefits and claims and suggests next steps. It can suggest; it can never approve.', kind: 'rules_engine', status: 'active', ownerId: owner?.id ?? null } })
 }
 
 type Finding = { subjectType: string; subjectId: string; patientId: string | null; summary: string; evidence: { list: string; id: string; version: number; hash: string }[]; impact: Record<string, unknown>; payload: Record<string, string | null> }
@@ -331,6 +333,7 @@ export async function loadHome(db: Db, locationIds: string[] | null, now = new D
 export async function setAutonomyPolicyIn(uow: UnitOfWork, actor: Actor, input: { kind: string; mode: string }) {
   if (actor.kind !== 'user' || !actor.permissions.has('canApproveAutonomy')) throw new DomainError(Codes.NOT_AUTHORIZED, 'This needs the canApproveAutonomy permission.')
   if (!['suggest_only', 'carry_out_low_risk'].includes(input.mode)) throw new DomainError(Codes.INVALID_INPUT, 'Choose suggest only or carry out low-risk.', { field: 'mode' })
+  await ensureCatalogue(uow.tx)
   const kind = await uow.tx.proposalKind.findUnique({ where: { key: input.kind } })
   if (!kind) throw new DomainError(Codes.NOT_FOUND, 'That kind of suggestion does not exist.')
   if (kind.riskClass === 'never_autonomous' && input.mode !== 'suggest_only') throw new DomainError(Codes.GUARD_FAILED, 'This kind always needs a person. It cannot be set to carry out on its own.')
