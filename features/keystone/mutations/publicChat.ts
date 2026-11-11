@@ -2,15 +2,15 @@ import { systemActor } from '../lib/actor'
 import { Codes, DomainError, isDomainError } from '../lib/errors'
 import { infer } from '../lib/inference'
 import { payloadHash } from '../lib/canonical'
-import { MAX_CHAT_TURNS, buildSystemPrompt, cleanVisitorText, looksLikePhi, sanitizeReply, type PublicFacts } from '../lib/aiPure'
+import { MAX_CHAT_TURNS, buildSystemPrompt, cleanVisitorText, sanitizeReply, type PublicFacts } from '../lib/aiPure'
 import { enforcePublicLimit } from '../security/publicRateLimit'
 import type { Ctx } from './shared'
 
 /*
  * Front Desk Assistant, web only (Phase 5 override: no texting). It answers from public practice facts and nothing else:
- * no patient, schedule, bill or staff data is ever put in its prompt, and it has no tools. A visitor's text that looks
- * like personal health details is never sent to a provider that may not hold it (the inference guard decides), and the
- * visitor is told to call the office instead.
+ * no patient, schedule, bill or staff data is ever put in its prompt, and it has no tools. A visitor's text is always treated as
+ * possible personal health details, so it is never sent to a provider that may not hold it (the inference guard decides),
+ * and the visitor is told to call the office instead.
  */
 
 const actor = systemActor('front-desk-assistant')
@@ -35,7 +35,8 @@ export async function publicChat(_root: unknown, args: { slug: string; messages:
   const last = visitor[visitor.length - 1]
   if (!last) throw new DomainError(Codes.INVALID_INPUT, 'Type a question first.', { field: 'messages' })
   const callOffice = `I can't look at or discuss personal details here. Please call the office${facts.locations[0]?.phone ? ` at ${facts.locations[0].phone}` : ''} and the team will help.`
-  const carriesPhi = visitor.some(t => looksLikePhi(t.content))
+  // Fail closed: a visitor can type anything, and no pattern list can tell names or health details from other words. Visitor free text is always treated as PHI, so only a self-hosted or BAA-backed provider ever receives it.
+  const carriesPhi = true
   const providerRow = await context.prisma.inferenceProvider.findFirst({ where: { isActive: true }, include: { baa: { select: { status: true, expiresOn: true } } }, orderBy: { createdAt: 'asc' } })
   if (!providerRow) return { reply: sanitizeReply('', facts), assistant: true }
   const started = new Date()
