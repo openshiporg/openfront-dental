@@ -63,8 +63,8 @@ if (target) {
   check('trace: decision', (t?.decision?.length ?? 0) > 0, JSON.stringify(t?.decision?.map(d => d.by)))
   check('trace: command receipt', !!t?.receipt, JSON.stringify(t?.receipt)?.slice(0, 80))
   check('trace: outcome', !!after?.outcome, JSON.stringify(after?.outcome)?.slice(0, 100))
-  const au = await gql(approvedBy ?? a, '{ auditEvents(where:{ targetId:{equals:"' + target.id + '"} }, take: 20){ action } }')
-  check('audit rows for the proposal', !au.errors ? (au.data?.auditEvents?.length ?? 0) > 0 : true, au.errors ? 'audit list not readable by this person: ' + msg(au).slice(0, 60) : `${au.data.auditEvents.map(e => e.action).join(', ')}`)
+  const au = await gql(approvedBy ?? a, '{ auditEvents(where:{ entityId:{equals:"' + target.id + '"} }, take: 20){ eventType } }')
+  check('audit rows for the proposal', !au.errors && (au.data?.auditEvents?.length ?? 0) > 0, au.errors ? 'audit list not readable by this person: ' + msg(au).slice(0, 60) : `${au.data.auditEvents.map(e => e.eventType).join(', ')}`)
 } else check('trace (needs a proposal)', false, 'none available')
 
 // 5. publicChat with PHI, no_phi provider

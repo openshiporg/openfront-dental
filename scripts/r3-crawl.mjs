@@ -15,7 +15,7 @@ const cookie = 'keystonejs-session=' + auth.data?.authenticateUserWithPassword?.
 const meta = (await gql('{keystone{adminMeta{lists{key path listQueryName}}}}', cookie)).data?.keystone?.adminMeta?.lists
 if (!meta) { console.log('CHECK crawl setup: FAIL'); process.exit(1) }
 
-const platform = ['approvals', 'audit', 'claims', 'close', 'codes', 'fees', 'forms', 'insurance', 'memberships', 'patients', 'payments', 'remittances',
+const platform = ['approvals', 'assistant', 'audit', 'claims', 'close', 'codes', 'fees', 'forms', 'insurance', 'memberships', 'patients', 'payments', 'remittances',
   'schedule', 'schedule/asap', 'schedule/booking-requests', 'schedule/confirmations', 'settings/locations', 'settings/security', 'verifications']
 const pages = ['/dashboard', ...platform.map(s => '/dashboard/platform/' + s)]
 const expect404 = new Set()
@@ -35,13 +35,15 @@ const b = await chromium.launch({ executablePath: process.env.HOME + '/Library/C
 let bad = 0, total = 0
 const broken = /something went wrong|application error|server-side exception|internal server error|this page could not be loaded|QUERY_TOO_BROAD/i
 for (const role of roles) {
-  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: true }); const p = await ctx.newPage()
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: true }); let p = await ctx.newPage()
   await p.goto(BASE + '/dashboard/signin'); await p.fill('input[name=email]', people[role].email); await p.fill('input[name=password]', people[role].password)
   const signedIn = await Promise.all([p.waitForURL(u => !u.pathname.includes('signin'), { timeout: 30000 }), p.click('button[type=submit]')]).then(() => true, () => false)
   if (!signedIn) { bad++; console.log(`CHECK ${role} sign-in: FAIL`); await ctx.close(); continue }
   let n = 0, f = 0
   for (const path of pages) {
-    const r = await p.goto(BASE + path, { waitUntil: 'load', timeout: 90000 }).catch(() => null)
+    let r = await p.goto(BASE + path, { waitUntil: 'load', timeout: 90000 }).catch(() => null)
+    // A status 0 is a slow load or a crashed tab, not a server answer: open a fresh tab and fetch it once more.
+    if (!r) { await p.close().catch(() => null); p = await ctx.newPage(); r = await p.goto(BASE + path, { waitUntil: 'load', timeout: 120000 }).catch(() => null) }
     await p.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null) // some list pages keep a request open; the load status decides
     const txt = await p.evaluate(() => document.body.innerText).catch(() => '')
     const http = r?.status() ?? 0
