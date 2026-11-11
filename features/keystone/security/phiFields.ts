@@ -50,7 +50,8 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   // Snapshots and payloads can carry any tier; they are read under the strictest relevant tier.
   AuditEvent: { before: 'clin', after: 'clin', reason: 'clin' },
   ApprovalRequest: { payload: 'fin' },
-  Proposal: { payload: 'clin', validation: 'clin', execution: 'clin', realised: 'clin' },
+  Proposal: { payload: 'clin', summary: 'dem', validation: 'clin', execution: 'clin', realised: 'clin' },
+  Signal: { summary: 'dem', evidence: 'clin', impact: 'fin' },
   Document: { title: 'clin' },
   BreakGlassEvent: { reason: 'clin' },
   // Phase 1: patients, scheduling, messaging, portal (SCHEMA §3, §4, §15, §16)

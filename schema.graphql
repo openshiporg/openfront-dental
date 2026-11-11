@@ -3470,6 +3470,9 @@ type Proposal {
   targetList: String
   targetId: String
   approval: ApprovalRequest
+  signals(where: SignalWhereInput! = {}, orderBy: [SignalOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: SignalWhereUniqueInput): [Signal!]
+  signalsCount(where: SignalWhereInput! = {}): Int
+  summary: String
   validation: JSON
   execution: JSON
   realised: JSON
@@ -3499,11 +3502,19 @@ input ProposalWhereInput {
   targetList: StringFilter
   targetId: StringFilter
   approval: ApprovalRequestWhereInput
+  signals: SignalManyRelationFilter
+  summary: StringFilter
   expiresAt: DateTimeNullableFilter
   autonomyPolicyVersion: IntNullableFilter
   version: IntFilter
   createdAt: DateTimeFilter
   updatedAt: DateTimeFilter
+}
+
+input SignalManyRelationFilter {
+  every: SignalWhereInput
+  some: SignalWhereInput
+  none: SignalWhereInput
 }
 
 input ProposalOrderByInput {
@@ -3513,6 +3524,7 @@ input ProposalOrderByInput {
   status: OrderDirection
   targetList: OrderDirection
   targetId: OrderDirection
+  summary: OrderDirection
   expiresAt: OrderDirection
   autonomyPolicyVersion: OrderDirection
   version: OrderDirection
@@ -3533,6 +3545,8 @@ input ProposalUpdateInput {
   targetList: String
   targetId: String
   approval: ApprovalRequestRelateToOneForUpdateInput
+  signals: SignalRelateToManyForUpdateInput
+  summary: String
   validation: JSON
   execution: JSON
   realised: JSON
@@ -3547,6 +3561,13 @@ input AgentRunRelateToOneForUpdateInput {
   create: AgentRunCreateInput
   connect: AgentRunWhereUniqueInput
   disconnect: Boolean
+}
+
+input SignalRelateToManyForUpdateInput {
+  disconnect: [SignalWhereUniqueInput!]
+  set: [SignalWhereUniqueInput!]
+  create: [SignalCreateInput!]
+  connect: [SignalWhereUniqueInput!]
 }
 
 input ProposalUpdateArgs {
@@ -3567,6 +3588,8 @@ input ProposalCreateInput {
   targetList: String
   targetId: String
   approval: ApprovalRequestRelateToOneForCreateInput
+  signals: SignalRelateToManyForCreateInput
+  summary: String
   validation: JSON
   execution: JSON
   realised: JSON
@@ -3580,6 +3603,425 @@ input ProposalCreateInput {
 input AgentRunRelateToOneForCreateInput {
   create: AgentRunCreateInput
   connect: AgentRunWhereUniqueInput
+}
+
+input SignalRelateToManyForCreateInput {
+  create: [SignalCreateInput!]
+  connect: [SignalWhereUniqueInput!]
+}
+
+type AutonomyPolicy {
+  id: ID!
+  kind: String
+  mode: String
+  isActive: Boolean
+  approval: ApprovalRequest
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AutonomyPolicyWhereUniqueInput {
+  id: ID
+}
+
+input AutonomyPolicyWhereInput {
+  AND: [AutonomyPolicyWhereInput!]
+  OR: [AutonomyPolicyWhereInput!]
+  NOT: [AutonomyPolicyWhereInput!]
+  id: IDFilter
+  kind: StringFilter
+  mode: StringFilter
+  isActive: BooleanFilter
+  approval: ApprovalRequestWhereInput
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input AutonomyPolicyOrderByInput {
+  id: OrderDirection
+  kind: OrderDirection
+  mode: OrderDirection
+  isActive: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input AutonomyPolicyUpdateInput {
+  kind: String
+  mode: String
+  isActive: Boolean
+  approval: ApprovalRequestRelateToOneForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input AutonomyPolicyUpdateArgs {
+  where: AutonomyPolicyWhereUniqueInput!
+  data: AutonomyPolicyUpdateInput!
+}
+
+input AutonomyPolicyCreateInput {
+  kind: String
+  mode: String
+  isActive: Boolean
+  approval: ApprovalRequestRelateToOneForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type ProposalKind {
+  id: ID!
+  key: String
+  title: String
+  riskClass: String
+  requiredPermission: String
+  defaultExpiryMinutes: Int
+  validatorVersion: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ProposalKindWhereUniqueInput {
+  id: ID
+  key: String
+}
+
+input ProposalKindWhereInput {
+  AND: [ProposalKindWhereInput!]
+  OR: [ProposalKindWhereInput!]
+  NOT: [ProposalKindWhereInput!]
+  id: IDFilter
+  key: StringFilter
+  title: StringFilter
+  riskClass: StringFilter
+  requiredPermission: StringFilter
+  defaultExpiryMinutes: IntNullableFilter
+  validatorVersion: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input ProposalKindOrderByInput {
+  id: OrderDirection
+  key: OrderDirection
+  title: OrderDirection
+  riskClass: OrderDirection
+  requiredPermission: OrderDirection
+  defaultExpiryMinutes: OrderDirection
+  validatorVersion: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input ProposalKindUpdateInput {
+  key: String
+  title: String
+  riskClass: String
+  requiredPermission: String
+  defaultExpiryMinutes: Int
+  validatorVersion: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input ProposalKindUpdateArgs {
+  where: ProposalKindWhereUniqueInput!
+  data: ProposalKindUpdateInput!
+}
+
+input ProposalKindCreateInput {
+  key: String
+  title: String
+  riskClass: String
+  requiredPermission: String
+  defaultExpiryMinutes: Int
+  validatorVersion: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type Signal {
+  id: ID!
+  type: SignalType
+  run: SignalRun
+  location: Location
+  subjectType: String
+  subjectId: String
+  patient: Patient
+  summary: String
+  evidence: JSON
+  impact: JSON
+  dedupeKey: String
+  status: String
+  proposals(where: ProposalWhereInput! = {}, orderBy: [ProposalOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ProposalWhereUniqueInput): [Proposal!]
+  proposalsCount(where: ProposalWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SignalWhereUniqueInput {
+  id: ID
+}
+
+input SignalWhereInput {
+  AND: [SignalWhereInput!]
+  OR: [SignalWhereInput!]
+  NOT: [SignalWhereInput!]
+  id: IDFilter
+  type: SignalTypeWhereInput
+  run: SignalRunWhereInput
+  location: LocationWhereInput
+  subjectType: StringFilter
+  subjectId: StringFilter
+  patient: PatientWhereInput
+  summary: StringFilter
+  dedupeKey: StringFilter
+  status: StringFilter
+  proposals: ProposalManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input SignalOrderByInput {
+  id: OrderDirection
+  subjectType: OrderDirection
+  subjectId: OrderDirection
+  summary: OrderDirection
+  dedupeKey: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input SignalUpdateInput {
+  type: SignalTypeRelateToOneForUpdateInput
+  run: SignalRunRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  subjectType: String
+  subjectId: String
+  patient: PatientRelateToOneForUpdateInput
+  summary: String
+  evidence: JSON
+  impact: JSON
+  dedupeKey: String
+  status: String
+  proposals: ProposalRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SignalTypeRelateToOneForUpdateInput {
+  create: SignalTypeCreateInput
+  connect: SignalTypeWhereUniqueInput
+  disconnect: Boolean
+}
+
+input SignalRunRelateToOneForUpdateInput {
+  create: SignalRunCreateInput
+  connect: SignalRunWhereUniqueInput
+  disconnect: Boolean
+}
+
+input SignalUpdateArgs {
+  where: SignalWhereUniqueInput!
+  data: SignalUpdateInput!
+}
+
+input SignalCreateInput {
+  type: SignalTypeRelateToOneForCreateInput
+  run: SignalRunRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  subjectType: String
+  subjectId: String
+  patient: PatientRelateToOneForCreateInput
+  summary: String
+  evidence: JSON
+  impact: JSON
+  dedupeKey: String
+  status: String
+  proposals: ProposalRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SignalTypeRelateToOneForCreateInput {
+  create: SignalTypeCreateInput
+  connect: SignalTypeWhereUniqueInput
+}
+
+input SignalRunRelateToOneForCreateInput {
+  create: SignalRunCreateInput
+  connect: SignalRunWhereUniqueInput
+}
+
+type SignalRun {
+  id: ID!
+  signalType: SignalType
+  location: Location
+  windowStart: DateTime
+  windowEnd: DateTime
+  status: String
+  counts: JSON
+  signals(where: SignalWhereInput! = {}, orderBy: [SignalOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: SignalWhereUniqueInput): [Signal!]
+  signalsCount(where: SignalWhereInput! = {}): Int
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SignalRunWhereUniqueInput {
+  id: ID
+}
+
+input SignalRunWhereInput {
+  AND: [SignalRunWhereInput!]
+  OR: [SignalRunWhereInput!]
+  NOT: [SignalRunWhereInput!]
+  id: IDFilter
+  signalType: SignalTypeWhereInput
+  location: LocationWhereInput
+  windowStart: DateTimeNullableFilter
+  windowEnd: DateTimeNullableFilter
+  status: StringFilter
+  signals: SignalManyRelationFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input SignalRunOrderByInput {
+  id: OrderDirection
+  windowStart: OrderDirection
+  windowEnd: OrderDirection
+  status: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input SignalRunUpdateInput {
+  signalType: SignalTypeRelateToOneForUpdateInput
+  location: LocationRelateToOneForUpdateInput
+  windowStart: DateTime
+  windowEnd: DateTime
+  status: String
+  counts: JSON
+  signals: SignalRelateToManyForUpdateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SignalRunUpdateArgs {
+  where: SignalRunWhereUniqueInput!
+  data: SignalRunUpdateInput!
+}
+
+input SignalRunCreateInput {
+  signalType: SignalTypeRelateToOneForCreateInput
+  location: LocationRelateToOneForCreateInput
+  windowStart: DateTime
+  windowEnd: DateTime
+  status: String
+  counts: JSON
+  signals: SignalRelateToManyForCreateInput
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+type SignalType {
+  id: ID!
+  key: String
+  title: String
+  detectorVersion: String
+  isEnabled: Boolean
+  params: JSON
+  defaultProposalKind: String
+  ownerRole: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SignalTypeWhereUniqueInput {
+  id: ID
+  key: String
+}
+
+input SignalTypeWhereInput {
+  AND: [SignalTypeWhereInput!]
+  OR: [SignalTypeWhereInput!]
+  NOT: [SignalTypeWhereInput!]
+  id: IDFilter
+  key: StringFilter
+  title: StringFilter
+  detectorVersion: StringFilter
+  isEnabled: BooleanFilter
+  defaultProposalKind: StringFilter
+  ownerRole: StringFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input SignalTypeOrderByInput {
+  id: OrderDirection
+  key: OrderDirection
+  title: OrderDirection
+  detectorVersion: OrderDirection
+  isEnabled: OrderDirection
+  defaultProposalKind: OrderDirection
+  ownerRole: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input SignalTypeUpdateInput {
+  key: String
+  title: String
+  detectorVersion: String
+  isEnabled: Boolean
+  params: JSON
+  defaultProposalKind: String
+  ownerRole: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input SignalTypeUpdateArgs {
+  where: SignalTypeWhereUniqueInput!
+  data: SignalTypeUpdateInput!
+}
+
+input SignalTypeCreateInput {
+  key: String
+  title: String
+  detectorVersion: String
+  isEnabled: Boolean
+  params: JSON
+  defaultProposalKind: String
+  ownerRole: String
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
 }
 
 type ContactPoint {
@@ -16198,6 +16640,36 @@ type Mutation {
   updateProposals(data: [ProposalUpdateArgs!]!): [Proposal]
   deleteProposal(where: ProposalWhereUniqueInput!): Proposal
   deleteProposals(where: [ProposalWhereUniqueInput!]!): [Proposal]
+  createAutonomyPolicy(data: AutonomyPolicyCreateInput!): AutonomyPolicy
+  createAutonomyPolicies(data: [AutonomyPolicyCreateInput!]!): [AutonomyPolicy]
+  updateAutonomyPolicy(where: AutonomyPolicyWhereUniqueInput!, data: AutonomyPolicyUpdateInput!): AutonomyPolicy
+  updateAutonomyPolicies(data: [AutonomyPolicyUpdateArgs!]!): [AutonomyPolicy]
+  deleteAutonomyPolicy(where: AutonomyPolicyWhereUniqueInput!): AutonomyPolicy
+  deleteAutonomyPolicies(where: [AutonomyPolicyWhereUniqueInput!]!): [AutonomyPolicy]
+  createProposalKind(data: ProposalKindCreateInput!): ProposalKind
+  createProposalKinds(data: [ProposalKindCreateInput!]!): [ProposalKind]
+  updateProposalKind(where: ProposalKindWhereUniqueInput!, data: ProposalKindUpdateInput!): ProposalKind
+  updateProposalKinds(data: [ProposalKindUpdateArgs!]!): [ProposalKind]
+  deleteProposalKind(where: ProposalKindWhereUniqueInput!): ProposalKind
+  deleteProposalKinds(where: [ProposalKindWhereUniqueInput!]!): [ProposalKind]
+  createSignal(data: SignalCreateInput!): Signal
+  createSignals(data: [SignalCreateInput!]!): [Signal]
+  updateSignal(where: SignalWhereUniqueInput!, data: SignalUpdateInput!): Signal
+  updateSignals(data: [SignalUpdateArgs!]!): [Signal]
+  deleteSignal(where: SignalWhereUniqueInput!): Signal
+  deleteSignals(where: [SignalWhereUniqueInput!]!): [Signal]
+  createSignalRun(data: SignalRunCreateInput!): SignalRun
+  createSignalRuns(data: [SignalRunCreateInput!]!): [SignalRun]
+  updateSignalRun(where: SignalRunWhereUniqueInput!, data: SignalRunUpdateInput!): SignalRun
+  updateSignalRuns(data: [SignalRunUpdateArgs!]!): [SignalRun]
+  deleteSignalRun(where: SignalRunWhereUniqueInput!): SignalRun
+  deleteSignalRuns(where: [SignalRunWhereUniqueInput!]!): [SignalRun]
+  createSignalType(data: SignalTypeCreateInput!): SignalType
+  createSignalTypes(data: [SignalTypeCreateInput!]!): [SignalType]
+  updateSignalType(where: SignalTypeWhereUniqueInput!, data: SignalTypeUpdateInput!): SignalType
+  updateSignalTypes(data: [SignalTypeUpdateArgs!]!): [SignalType]
+  deleteSignalType(where: SignalTypeWhereUniqueInput!): SignalType
+  deleteSignalTypes(where: [SignalTypeWhereUniqueInput!]!): [SignalType]
   createContactPoint(data: ContactPointCreateInput!): ContactPoint
   createContactPoints(data: [ContactPointCreateInput!]!): [ContactPoint]
   updateContactPoint(where: ContactPointWhereUniqueInput!, data: ContactPointUpdateInput!): ContactPoint
@@ -16949,6 +17421,9 @@ type Mutation {
   redeemUserPasswordResetToken(email: String!, token: String!, password: String!): RedeemUserPasswordResetTokenResult
   updateActiveUser(data: UserUpdateProfileInput!): User
   loadPracticeSetup(idempotencyKey: String!): JSON
+  runSignalChecks(idempotencyKey: String!): JSON
+  setAutonomyPolicy(kind: String!, mode: String!, idempotencyKey: String!): JSON
+  decideProposal(proposalId: ID!, decision: String!, reason: String, expectedVersion: Int!, idempotencyKey: String!): JSON
   decideApprovalRequest(requestId: ID!, decision: String!, reason: String, expectedVersion: Int!, idempotencyKey: String!): JSON
   cancelApprovalRequest(requestId: ID!, expectedVersion: Int!, reason: String, idempotencyKey: String!): JSON
   requestPracticeControls(changes: JSON!, reason: String!, idempotencyKey: String!): JSON
@@ -17204,6 +17679,21 @@ type Query {
   proposal(where: ProposalWhereUniqueInput!): Proposal
   proposals(where: ProposalWhereInput! = {}, orderBy: [ProposalOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ProposalWhereUniqueInput): [Proposal!]
   proposalsCount(where: ProposalWhereInput! = {}): Int
+  autonomyPolicy(where: AutonomyPolicyWhereUniqueInput!): AutonomyPolicy
+  autonomyPolicies(where: AutonomyPolicyWhereInput! = {}, orderBy: [AutonomyPolicyOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: AutonomyPolicyWhereUniqueInput): [AutonomyPolicy!]
+  autonomyPoliciesCount(where: AutonomyPolicyWhereInput! = {}): Int
+  proposalKind(where: ProposalKindWhereUniqueInput!): ProposalKind
+  proposalKinds(where: ProposalKindWhereInput! = {}, orderBy: [ProposalKindOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ProposalKindWhereUniqueInput): [ProposalKind!]
+  proposalKindsCount(where: ProposalKindWhereInput! = {}): Int
+  signal(where: SignalWhereUniqueInput!): Signal
+  signals(where: SignalWhereInput! = {}, orderBy: [SignalOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: SignalWhereUniqueInput): [Signal!]
+  signalsCount(where: SignalWhereInput! = {}): Int
+  signalRun(where: SignalRunWhereUniqueInput!): SignalRun
+  signalRuns(where: SignalRunWhereInput! = {}, orderBy: [SignalRunOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: SignalRunWhereUniqueInput): [SignalRun!]
+  signalRunsCount(where: SignalRunWhereInput! = {}): Int
+  signalType(where: SignalTypeWhereUniqueInput!): SignalType
+  signalTypes(where: SignalTypeWhereInput! = {}, orderBy: [SignalTypeOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: SignalTypeWhereUniqueInput): [SignalType!]
+  signalTypesCount(where: SignalTypeWhereInput! = {}): Int
   contactPoint(where: ContactPointWhereUniqueInput!): ContactPoint
   contactPoints(where: ContactPointWhereInput! = {}, orderBy: [ContactPointOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ContactPointWhereUniqueInput): [ContactPoint!]
   contactPointsCount(where: ContactPointWhereInput! = {}): Int
@@ -17584,6 +18074,8 @@ type Query {
   mfaStatus: JSON
   findAvailability(locationId: ID!, typeId: ID!, fromDate: String!, days: Int, providerId: ID, operatoryIds: [ID!], patientId: ID, limit: Int): JSON
   publicSite(slug: String!): JSON
+  aiHome: JSON
+  publicChat(slug: String!, messages: JSON!): JSON
   publicAvailability(slug: String!, locationId: ID, typeId: ID!, fromDate: String!, days: Int, providerId: ID): JSON
   portalMe: JSON
   portalAppointments(patientId: ID!): JSON

@@ -11,6 +11,8 @@ import { keystoneClient } from '@/features/dashboard/lib/keystoneClient';
 const OPS: Record<string, Record<string, string>> = {
   ...Object.fromEntries(Object.entries(PHASE2_ARGS)),
   decideApprovalRequest: { requestId: 'ID!', decision: 'String!', reason: 'String', expectedVersion: 'Int!' },
+  runSignalChecks: {},
+  decideProposal: { proposalId: 'ID!', decision: 'String!', reason: 'String', expectedVersion: 'Int!' },
   cancelApprovalRequest: { requestId: 'ID!', expectedVersion: 'Int!', reason: 'String' },
   requestPracticeControls: { changes: 'JSON!', reason: 'String!' },
   // Phase 1: patients, scheduling and portal administration (staff only; the public and portal

@@ -1,5 +1,5 @@
 import {
-  Activity, BookOpenCheck, CalendarCheck2, CalendarClock, CalendarDays, ClipboardCheck, FileSignature, Inbox, Landmark, BadgeCheck, ListChecks, Receipt, KeyRound, LucideIcon, MapPin, Settings, ShieldCheck, Users,
+  Sparkles, Activity, BookOpenCheck, CalendarCheck2, CalendarClock, CalendarDays, ClipboardCheck, FileSignature, Inbox, Landmark, BadgeCheck, ListChecks, Receipt, KeyRound, LucideIcon, MapPin, Settings, ShieldCheck, Users,
 } from 'lucide-react'
 
 export interface PlatformNavItem {
@@ -25,6 +25,7 @@ export interface PlatformNavGroup {
 export const platformNavItems: PlatformNavItem[] = [
   { title: 'Schedule', href: '/platform/schedule', color: 'blue', description: 'Day and week by operatory and provider, production against goal.', icon: CalendarDays, group: 'standalone' },
   { title: 'Patients', href: '/platform/patients', color: 'emerald', description: 'Patients, families, guarantors and alerts.', icon: Users, group: 'standalone' },
+  { title: 'Assistant', href: '/platform/assistant', color: 'teal', description: 'What the assistant noticed, what it suggests, and what came of it.', icon: Sparkles, group: 'standalone' },
   { title: 'Approvals', href: '/platform/approvals', color: 'amber', description: 'Requests waiting for a second person.', icon: ClipboardCheck, group: 'standalone' },
 
   { title: 'Forms & consents', href: '/platform/forms', color: 'teal', description: 'Send forms, record signatures, withdraw consents.', icon: FileSignature, group: 'clinical' },
@@ -60,6 +61,8 @@ export const SHIPPED_ROUTES = new Set<string>([
   // Phase 3
   '/platform/insurance', '/platform/verifications',
   // Phase 4
+  // Phase 5
+  '/platform/assistant',
   '/platform/claims', '/platform/remittances', '/platform/payments', '/platform/memberships', '/platform/close',
 ])
 

@@ -104,6 +104,8 @@ export const Proposal = list({
     targetList: systemText(),
     targetId: systemText({ indexed: true }),
     approval: relationship({ ref: 'ApprovalRequest', ...readOnly }),
+    signals: relationship({ ref: 'Signal.proposals', many: true, ...readOnly }),
+    summary: systemText(),
     validation: json({ ...readOnly, ui: { ...readOnly.ui, description: 'Check results recorded when the proposal was validated.' } }),
     execution: json({ ...readOnly }),
     realised: json({ ...readOnly }),

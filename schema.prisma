@@ -313,6 +313,7 @@ model ApprovalRequest {
   updatedAt                        DateTime             @default(now()) @updatedAt
   from_AgentToolGrant_approval     AgentToolGrant[]     @relation("AgentToolGrant_approval")
   from_Proposal_approval           Proposal[]           @relation("Proposal_approval")
+  from_AutonomyPolicy_approval     AutonomyPolicy[]     @relation("AutonomyPolicy_approval")
   from_MergeCase_approval          MergeCase[]          @relation("MergeCase_approval")
   from_CodeImportBatch_approval    CodeImportBatch[]    @relation("CodeImportBatch_approval")
   from_FeeScheduleVersion_approval FeeScheduleVersion[] @relation("FeeScheduleVersion_approval")
@@ -605,6 +606,8 @@ model Location {
   from_ApprovalRequest_location      ApprovalRequest[]      @relation("ApprovalRequest_location")
   from_BreakGlassEvent_location      BreakGlassEvent[]      @relation("BreakGlassEvent_location")
   from_Proposal_location             Proposal[]             @relation("Proposal_location")
+  from_Signal_location               Signal[]               @relation("Signal_location")
+  from_SignalRun_location            SignalRun[]            @relation("SignalRun_location")
   from_Patient_homeLocation          Patient[]              @relation("Patient_homeLocation")
   from_Appointment_location          Appointment[]          @relation("Appointment_location")
   from_AsapEntry_location            AsapEntry[]            @relation("AsapEntry_location")
@@ -900,6 +903,8 @@ model Proposal {
   targetId                            String           @default("")
   approval                            ApprovalRequest? @relation("Proposal_approval", fields: [approvalId], references: [id])
   approvalId                          String?          @map("approval")
+  signals                             Signal[]         @relation("Proposal_signals")
+  summary                             String           @default("")
   validation                          Json?
   execution                           Json?
   realised                            Json?
@@ -918,6 +923,98 @@ model Proposal {
   @@index([locationId])
   @@index([targetId])
   @@index([approvalId])
+}
+
+model AutonomyPolicy {
+  id         String           @id @default(cuid())
+  kind       String           @default("")
+  mode       String
+  isActive   Boolean          @default(true)
+  approval   ApprovalRequest? @relation("AutonomyPolicy_approval", fields: [approvalId], references: [id])
+  approvalId String?          @map("approval")
+  version    Int              @default(0)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @default(now()) @updatedAt
+
+  @@index([kind])
+  @@index([approvalId])
+}
+
+model ProposalKind {
+  id                   String   @id @default(cuid())
+  key                  String   @unique @default("")
+  title                String   @default("")
+  riskClass            String
+  requiredPermission   String   @default("")
+  defaultExpiryMinutes Int?     @default(1440)
+  validatorVersion     String   @default("")
+  version              Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
+}
+
+model Signal {
+  id          String      @id @default(cuid())
+  type        SignalType? @relation("Signal_type", fields: [typeId], references: [id])
+  typeId      String?     @map("type")
+  run         SignalRun?  @relation("Signal_run", fields: [runId], references: [id])
+  runId       String?     @map("run")
+  location    Location?   @relation("Signal_location", fields: [locationId], references: [id])
+  locationId  String?     @map("location")
+  subjectType String      @default("")
+  subjectId   String      @default("")
+  patient     Patient?    @relation("Signal_patient", fields: [patientId], references: [id])
+  patientId   String?     @map("patient")
+  summary     String      @default("")
+  evidence    Json?       @default("[]")
+  impact      Json?       @default("{}")
+  dedupeKey   String      @default("")
+  status      String      @default("open")
+  proposals   Proposal[]  @relation("Proposal_signals")
+  version     Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
+
+  @@index([typeId])
+  @@index([runId])
+  @@index([locationId])
+  @@index([subjectId])
+  @@index([patientId])
+}
+
+model SignalRun {
+  id           String      @id @default(cuid())
+  signalType   SignalType? @relation("SignalRun_signalType", fields: [signalTypeId], references: [id])
+  signalTypeId String?     @map("signalType")
+  location     Location?   @relation("SignalRun_location", fields: [locationId], references: [id])
+  locationId   String?     @map("location")
+  windowStart  DateTime?
+  windowEnd    DateTime?
+  status       String      @default("started")
+  counts       Json?       @default("{}")
+  signals      Signal[]    @relation("Signal_run")
+  version      Int         @default(0)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @default(now()) @updatedAt
+
+  @@index([signalTypeId])
+  @@index([locationId])
+}
+
+model SignalType {
+  id                        String      @id @default(cuid())
+  key                       String      @unique @default("")
+  title                     String      @default("")
+  detectorVersion           String      @default("")
+  isEnabled                 Boolean     @default(true)
+  params                    Json?       @default("{}")
+  defaultProposalKind       String      @default("")
+  ownerRole                 String      @default("")
+  version                   Int         @default(0)
+  createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @default(now()) @updatedAt
+  from_Signal_type          Signal[]    @relation("Signal_type")
+  from_SignalRun_signalType SignalRun[] @relation("SignalRun_signalType")
 }
 
 model ContactPoint {
@@ -1076,6 +1173,7 @@ model Patient {
   updatedAt                              DateTime                 @default(now()) @updatedAt
   from_ApprovalRequest_patient           ApprovalRequest[]        @relation("ApprovalRequest_patient")
   from_ApprovalRequest_otherPatient      ApprovalRequest[]        @relation("ApprovalRequest_otherPatient")
+  from_Signal_patient                    Signal[]                 @relation("Signal_patient")
   from_Guarantor_patient                 Guarantor[]              @relation("Guarantor_patient")
   from_MergeCase_survivor                MergeCase[]              @relation("MergeCase_survivor")
   from_MergeCase_merged                  MergeCase[]              @relation("MergeCase_merged")

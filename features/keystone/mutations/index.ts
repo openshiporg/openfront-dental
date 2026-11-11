@@ -6,6 +6,8 @@ import { op } from './op'
 import * as setup from './setup'
 import * as audit from './audit'
 import * as approvals from './approvals'
+import * as ai from './ai'
+import * as chat from './publicChat'
 import * as mfa from './mfa'
 import * as patients from './patients'
 import * as scheduling from './scheduling'
@@ -29,6 +31,8 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
         mfaStatus: JSON
         findAvailability(locationId: ID!, typeId: ID!, fromDate: String!, days: Int, providerId: ID, operatoryIds: [ID!], patientId: ID, limit: Int): JSON
         publicSite(slug: String!): JSON
+        aiHome: JSON
+        publicChat(slug: String!, messages: JSON!): JSON
         publicAvailability(slug: String!, locationId: ID, typeId: ID!, fromDate: String!, days: Int, providerId: ID): JSON
         portalMe: JSON
         portalAppointments(patientId: ID!): JSON
@@ -37,6 +41,9 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
       type Mutation {
         updateActiveUser(data: UserUpdateProfileInput!): User
         loadPracticeSetup(idempotencyKey: String!): JSON
+        runSignalChecks(idempotencyKey: String!): JSON
+        setAutonomyPolicy(kind: String!, mode: String!, idempotencyKey: String!): JSON
+        decideProposal(proposalId: ID!, decision: String!, reason: String, expectedVersion: Int!, idempotencyKey: String!): JSON
         decideApprovalRequest(requestId: ID!, decision: String!, reason: String, expectedVersion: Int!, idempotencyKey: String!): JSON
         cancelApprovalRequest(requestId: ID!, expectedVersion: Int!, reason: String, idempotencyKey: String!): JSON
         requestPracticeControls(changes: JSON!, reason: String!, idempotencyKey: String!): JSON
@@ -93,6 +100,8 @@ ${phase2TypeDefs}
         mfaStatus: op(mfa.mfaStatus),
         findAvailability: op(scheduling.findAvailability),
         publicSite: op(publicApi.publicSite),
+        aiHome: op(ai.aiHome),
+        publicChat: op(chat.publicChat),
         publicAvailability: op(publicApi.publicAvailability),
         portalMe: op(portal.portalMe),
         portalAppointments: op(portal.portalAppointments),
@@ -101,6 +110,9 @@ ${phase2TypeDefs}
         updateActiveUser,
         loadPracticeSetup: op(setup.loadPracticeSetup),
         decideApprovalRequest: op(approvals.decideApprovalRequest),
+        runSignalChecks: op(ai.runSignalChecks),
+        setAutonomyPolicy: op(ai.setAutonomyPolicy),
+        decideProposal: op(ai.decideProposal),
         cancelApprovalRequest: op(approvals.cancelApprovalRequest),
         requestPracticeControls: op(approvals.requestPracticeControls),
         verifyMfa: op(mfa.verifyMfa),

@@ -16,6 +16,7 @@ import * as ledger from './ledger'
 import * as claims from './claims'
 import * as payments from './payments'
 import * as memberships from './memberships'
+import * as signals from './signals'
 import { applyPhiTiers } from '../security/phiFields'
 import { sys } from '../access'
 
@@ -55,6 +56,7 @@ export const models = boundTake(hideRefusedActions(applyPhiTiers({
   AgentToolGrant,
   AgentRun,
   Proposal,
+  ...listsOf(signals),
   ...listsOf(patients),
   ...listsOf(scheduling),
   ...listsOf(messaging),
