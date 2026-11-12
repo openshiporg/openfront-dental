@@ -14,6 +14,7 @@ export const PAYLOADS = {
   verify_eligibility: z.object({ coverageId: id }).strict(),
   claim_status_inquiry: z.object({ claimId: id }).strict(),
   fix_claim: z.object({ claimId: id }).strict(),
+  recall_outreach: z.object({ recallId: id }).strict(),
 } as const
 export type ExecutableKind = keyof typeof PAYLOADS
 export const EXECUTABLE_KINDS = Object.keys(PAYLOADS) as ExecutableKind[]
@@ -40,6 +41,7 @@ export const SIGNAL_DEFS: SignalDef[] = [
   { key: 'coverage.unverified', title: 'Upcoming visit, benefits not checked', detectorVersion: 'v1', defaultProposalKind: 'verify_eligibility', ownerRole: 'Insurance coordinator' },
   { key: 'claim.rejected', title: 'Claim rejected before the payer saw it', detectorVersion: 'v1', defaultProposalKind: 'fix_claim', ownerRole: 'Billing' },
   { key: 'claim.unpaid', title: 'Claim sent a month ago, no answer', detectorVersion: 'v1', defaultProposalKind: 'claim_status_inquiry', ownerRole: 'Billing' },
+  { key: 'recall.overdue', title: 'Overdue for a recall visit with nothing booked', detectorVersion: 'v1', defaultProposalKind: 'recall_outreach', ownerRole: 'Front desk' },
 ]
 
 export function parsePayload(kind: string, payload: unknown) {

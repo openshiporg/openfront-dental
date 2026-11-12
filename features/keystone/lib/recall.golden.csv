@@ -1,0 +1,12 @@
+case,last_service,interval_months,expected_due
+plain six months,2026-01-15,6,2026-07-15
+january 31 plus one,2026-01-31,1,2026-02-28
+leap year february,2024-01-31,1,2024-02-29
+august 31 plus six,2026-08-31,6,2027-02-28
+may 31 plus six,2026-05-31,6,2026-11-30
+year rollover,2026-11-30,3,2027-02-28
+twelve months,2025-02-28,12,2026-02-28
+leap day plus twelve,2024-02-29,12,2025-02-28
+leap day plus forty eight,2024-02-29,48,2028-02-29
+sixty months,2021-03-31,60,2026-03-31
+three months from december,2026-12-31,3,2027-03-31

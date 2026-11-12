@@ -10,6 +10,8 @@ import * as payments from './payments'
 import * as memberships from './memberships'
 import * as close from './close'
 import * as pendingWork from './pendingWork'
+import * as phase6 from './phase6'
+import * as phase6Data from './phase6Data'
 import { PHASE2_ARGS } from './phase2Args'
 
 /* Every Phase 2 command's resolver. index.ts builds the GraphQL schema from this table and PHASE2_ARGS. */
@@ -112,6 +114,45 @@ const RESOLVERS: Record<string, Resolver> = {
   proposePaymentPlan: payments.proposePaymentPlan,
   activatePaymentPlan: payments.activatePaymentPlan,
   cancelPaymentPlan: payments.cancelPaymentPlan,
+  recordManualStudy: phase6.recordManualStudy,
+  receiveExternalFinding: phase6.receiveExternalFinding,
+  decideExternalFinding: phase6.decideExternalFinding,
+  refreshRecall: phase6.refreshRecall,
+  setRecallDisabled: phase6.setRecallDisabled,
+  exportRecallCsv: phase6.exportRecallCsv,
+  prepareRecallMessage: phase6.prepareRecallMessage,
+  saveLab: phase6.saveLab,
+  openLabCase: phase6.openLabCase,
+  attachLabFile: phase6.attachLabFile,
+  advanceLabCase: phase6.advanceLabCase,
+  chaseLabCase: phase6.chaseLabCase,
+  copyReviewRequest: phase6.copyReviewRequest,
+  draftReviewReply: phase6.draftReviewReply,
+  editReviewReply: phase6.editReviewReply,
+  approveReviewReply: phase6.approveReviewReply,
+  markReviewReplyPosted: phase6.markReviewReplyPosted,
+  writePrescription: phase6.writePrescription,
+  recordPdmpCheck: phase6.recordPdmpCheck,
+  signPrescription: phase6.signPrescription,
+  markPrescriptionPrinted: phase6.markPrescriptionPrinted,
+  addComplianceTask: phase6.addComplianceTask,
+  completeComplianceTask: phase6.completeComplianceTask,
+  reportIncident: phase6.reportIncident,
+  advanceIncident: phase6.advanceIncident,
+  openRightsRequest: phase6.openRightsRequest,
+  extendRightsRequest: phase6.extendRightsRequest,
+  resolveRightsRequest: phase6.resolveRightsRequest,
+  recordDisclosure: phase6.recordDisclosure,
+  saveRetentionPolicy: phase6.saveRetentionPolicy,
+  placeRecordHold: phase6.placeRecordHold,
+  releaseRecordHold: phase6.releaseRecordHold,
+  scanRetention: phase6.scanRetention,
+  requestDisposition: phase6.requestDisposition,
+  previewImport: phase6Data.previewImport,
+  requestImportApply: phase6Data.requestImportApply,
+  applyImportChunk: phase6Data.applyImportChunk,
+  exportEhiBundle: phase6Data.exportEhiBundle,
+  exportJournalCsv: phase6Data.exportJournalCsv,
 }
 
 export const PHASE2_OPS = Object.fromEntries(Object.entries(PHASE2_ARGS).map(([name, args]) => [name, { args, fn: RESOLVERS[name] }]))

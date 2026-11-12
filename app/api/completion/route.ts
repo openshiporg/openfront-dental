@@ -9,6 +9,8 @@ import { permissions } from '@/features/keystone/access';
 import { PUBLIC_REQUEST_ERROR, safeErrorSummary } from '@/features/dashboard/lib/security';
 import { createScopedMcpFetch } from './scopedMcpFetch';
 import { DOMAIN_TOOLS } from '@/features/keystone/mcp/registry';
+import { assertInferenceAllowed } from '@/features/keystone/lib/inferenceGuard';
+import { DomainError } from '@/features/keystone/lib/errors';
 
 const WRITE_TOOLS = new Set(DOMAIN_TOOLS.filter((tool) => tool.writes).map((tool) => tool.name));
 
@@ -65,6 +67,21 @@ export async function POST(req: Request) {
       model = process.env.OPENROUTER_MODEL;
       maxTokens = process.env.OPENROUTER_MAX_TOKENS
         ? parseInt(process.env.OPENROUTER_MAX_TOKENS, 10) : 4000;
+    }
+
+    // P5-4: the tools below read patient records, so this provider is held to the same PHI rule as every other inference call.
+    // OpenRouter is used only if it is registered as a provider that may receive PHI (self-hosted, or an active BAA). Otherwise: refused.
+    {
+      const row = await keystoneContext.sudo().prisma.inferenceProvider.findUnique({ where: { key: 'openrouter' }, include: { baa: true } });
+      const provider = row
+        ? { key: row.key, kind: row.kind, isActive: row.isActive, baa: row.baa ? { status: String((row.baa as any).status ?? ''), expiresOn: (row.baa as any).expiresOn ?? (row.baa as any).baaExpiresOn ?? null } : null }
+        : { key: 'openrouter', kind: 'no_phi', isActive: true, baa: null };
+      try {
+        assertInferenceAllowed(provider, true);
+      } catch (error) {
+        if (error instanceof DomainError) return Response.json({ error: 'The assistant is off until its AI provider is cleared to see patient records.' }, { status: 403 });
+        throw error;
+      }
     }
 
     try {

@@ -96,6 +96,22 @@ export const DETECTORS: Record<string, Detector> = {
     }
     return out
   },
+  async 'recall.overdue'(tx, locationId, now) {
+    const recalls = await tx.patientRecall.findMany({ where: { locationId, status: 'overdue' }, include: { type: true, patient: { select: { firstName: true, lastName: true, preferredName: true, status: true } } }, orderBy: { dueOn: 'asc' }, take: 100 })
+    const out: Finding[] = []
+    for (const r of recalls) {
+      if (!r.patientId || r.patient?.status !== 'active') continue
+      if (r.lastOutreachPreparedAt && now.getTime() - r.lastOutreachPreparedAt.getTime() < 30 * DAY) continue
+      const upcoming = await tx.appointment.count({ where: { patientId: r.patientId, startsAt: { gt: now }, status: { in: ['scheduled', 'confirmed'] } } })
+      if (upcoming) continue
+      out.push({
+        subjectType: 'PatientRecall', subjectId: r.id, patientId: r.patientId,
+        summary: `${fullName(r.patient)} was due for ${r.type?.name?.toLowerCase() ?? 'a recall visit'} on ${dayLabel(r.dueOn)} and has nothing booked.`,
+        evidence: [ev('PatientRecall', r)], impact: { visitsAffected: 1 }, payload: { recallId: r.id },
+      })
+    }
+    return out
+  },
   async 'claim.rejected'(tx, locationId) {
     const claims = await tx.claim.findMany({ where: { locationId, status: 'rejected' }, include: { patient: { select: { firstName: true, lastName: true, preferredName: true } } }, take: 200 })
     return claims.map(c => ({
@@ -144,6 +160,7 @@ export async function runChecks(db: Db, actor: Actor, locationIds: string[] | nu
           const key = dedupeKey(type.key, location.id, f.subjectId)
           keys.add(key)
           let signal = await uow.tx.signal.findFirst({ where: { dedupeKey: key, status: { in: ['open', 'proposed'] } } })
+          if (!signal && (await uow.tx.signal.findFirst({ where: { dedupeKey: key, status: 'dismissed', updatedAt: { gte: new Date(now.getTime() - 30 * DAY) } }, select: { id: true } }))) continue // P5-2: turned down, so not suggested again for 30 days
           if (!signal) {
             signal = await uow.tx.signal.create({ data: { typeId: type.id, runId: run.id, locationId: location.id, subjectType: f.subjectType, subjectId: f.subjectId, patientId: f.patientId, summary: f.summary, evidence: f.evidence as never, impact: f.impact as never, dedupeKey: key, status: 'open' } })
             created += 1
@@ -198,6 +215,12 @@ async function stillCurrent(tx: Tx, kind: string, payload: Record<string, string
     const waiting = await tx.asapEntry.count({ where: { patientId: String(payload.patientId), status: 'active' } })
     return upcoming || waiting ? 'The patient already has a visit or is on the earlier-visit list.' : null
   }
+  if (kind === 'recall_outreach') {
+    const r = await tx.patientRecall.findUnique({ where: { id: String(payload.recallId) }, select: { status: true, patientId: true } })
+    if (!r || r.status !== 'overdue') return 'The recall is no longer overdue.'
+    const upcoming = await tx.appointment.count({ where: { patientId: r.patientId!, startsAt: { gt: now }, status: { in: ['scheduled', 'confirmed'] } } })
+    return upcoming ? 'The patient has a visit booked.' : null
+  }
   if (kind === 'verify_eligibility') {
     const c = await tx.coverage.findUnique({ where: { id: String(payload.coverageId) }, select: { status: true, verificationLevel: true } })
     return !c || c.verificationLevel !== 'unverified' || ['terminated', 'invalid'].includes(c.status) ? 'The insurance was checked or ended in the meantime.' : null
@@ -228,7 +251,24 @@ async function execute(uow: UnitOfWork, actor: Actor, kind: ExecutableKind, payl
     const moved = await transition<any>(uow, { model: 'Claim', id: String(payload.claimId), from: ['rejected'], to: 'correction_required', actor, eventType: 'claim.correction_started', reason: 'Reopened from an assistant suggestion.' })
     return { command: 'claim.correct', effects: [{ list: 'Claim', id: moved.id }] }
   }
-  // fill_slot: the patient joins the earlier-visit list. The front desk books from there with the usual schedule tools.
+  if (kind === 'recall_outreach') {
+    // Nothing is sent. The recall is marked as prepared, and the message waits on the recall list to be copied.
+    const r = await lockRow<any>(uow.tx, 'PatientRecall', String(payload.recallId))
+    await uow.tx.patientRecall.update({ where: { id: r.id }, data: { lastOutreachPreparedAt: uow.now, outreachCount: { increment: 1 }, version: { increment: 1 } } })
+    auditCreate(uow, actor, 'PatientRecall', r.id, 'recall.message_prepared', { via: 'proposal' })
+    return { command: 'recall.prepare_message', effects: [{ list: 'PatientRecall', id: r.id }] }
+  }
+  // fill_slot: the patient joins the earlier-visit list. P5-3: the same patient checks as booking, before the entry exists.
+  {
+    const { assertBookablePatient } = await import('../mutations/shared')
+    const patient = await uow.tx.patient.findUnique({ where: { id: String(payload.patientId) }, select: { status: true, homeLocationId: true } })
+    if (!patient) throw new DomainError(Codes.NOT_FOUND, 'The patient was not found.')
+    assertBookablePatient(patient)
+    // The patient must also belong to the office the suggestion names.
+    const { assertPatientInScope } = await import('../mutations/shared')
+    await assertPatientInScope(uow.tx, [String(payload.locationId)], String(payload.patientId))
+  }
+  // The front desk books from there with the usual schedule tools.
   const entry = await uow.tx.asapEntry.create({ data: { patientId: String(payload.patientId), locationId: String(payload.locationId), appointmentTypeId: payload.appointmentTypeId ?? null, status: 'active', priority: 5, note: 'Added from an assistant suggestion after a missed visit.' } })
   auditCreate(uow, actor, 'AsapEntry', entry.id, 'asap.added', { patientId: payload.patientId, locationId: payload.locationId })
   return { command: 'schedule.asap_add', effects: [{ list: 'AsapEntry', id: entry.id }] }
@@ -292,6 +332,11 @@ export async function realisedOutcome(tx: Tx | Db, row: { kind: string; status: 
   if (row.kind === 'fill_slot') {
     const booked = await (tx as any).appointment.count({ where: { patientId: p.patientId, startsAt: { gt: now }, status: { in: ['scheduled', 'confirmed'] } } })
     return booked ? { state: 'achieved', text: 'The patient has a visit booked again.' } : { state: 'waiting', text: 'On the earlier-visit list; no visit booked yet.' }
+  }
+  if (row.kind === 'recall_outreach') {
+    const r = await (tx as any).patientRecall.findUnique({ where: { id: p.recallId }, select: { patientId: true } })
+    const booked = r ? await (tx as any).appointment.count({ where: { patientId: r.patientId, startsAt: { gt: now }, status: { in: ['scheduled', 'confirmed'] } } }) : 0
+    return booked ? { state: 'achieved', text: 'The patient has a visit booked.' } : { state: 'waiting', text: 'Message prepared; no visit booked yet.' }
   }
   if (row.kind === 'verify_eligibility') {
     const c = await (tx as any).coverage.findUnique({ where: { id: p.coverageId }, select: { verificationLevel: true } })

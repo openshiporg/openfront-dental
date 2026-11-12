@@ -100,6 +100,16 @@ model User {
   from_Payment_receivedBy                 Payment[]                @relation("Payment_receivedBy")
   from_Refund_requestedBy                 Refund[]                 @relation("Refund_requestedBy")
   from_Refund_approvedBy                  Refund[]                 @relation("Refund_approvedBy")
+  from_AccountingOfDisclosure_recordedBy  AccountingOfDisclosure[] @relation("AccountingOfDisclosure_recordedBy")
+  from_ComplianceTask_owner               ComplianceTask[]         @relation("ComplianceTask_owner")
+  from_ComplianceTask_completedBy         ComplianceTask[]         @relation("ComplianceTask_completedBy")
+  from_ExportJob_requestedBy              ExportJob[]              @relation("ExportJob_requestedBy")
+  from_ImportBatch_createdBy              ImportBatch[]            @relation("ImportBatch_createdBy")
+  from_IncidentReport_reportedBy          IncidentReport[]         @relation("IncidentReport_reportedBy")
+  from_PdmpCheck_checkedBy                PdmpCheck[]              @relation("PdmpCheck_checkedBy")
+  from_RecordHold_placedBy                RecordHold[]             @relation("RecordHold_placedBy")
+  from_ReviewReply_approvedBy             ReviewReply[]            @relation("ReviewReply_approvedBy")
+  from_ReviewRequest_copiedBy             ReviewRequest[]          @relation("ReviewRequest_copiedBy")
 
   @@index([roleId])
 }
@@ -284,42 +294,44 @@ model ApprovalPolicy {
 }
 
 model ApprovalRequest {
-  id                               String               @id @default(cuid())
-  action                           String               @default("")
-  summary                          String               @default("")
-  targetList                       String               @default("")
-  targetId                         String               @default("")
-  payload                          Json?
-  payloadHash                      String               @default("")
-  requiredPermission               String               @default("")
-  requestedBy                      User?                @relation("ApprovalRequest_requestedBy", fields: [requestedById], references: [id])
-  requestedById                    String?              @map("requestedBy")
-  requestedByAgent                 AgentIdentity?       @relation("ApprovalRequest_requestedByAgent", fields: [requestedByAgentId], references: [id])
-  requestedByAgentId               String?              @map("requestedByAgent")
-  location                         Location?            @relation("ApprovalRequest_location", fields: [locationId], references: [id])
-  locationId                       String?              @map("location")
-  patient                          Patient?             @relation("ApprovalRequest_patient", fields: [patientId], references: [id])
-  patientId                        String?              @map("patient")
-  otherPatient                     Patient?             @relation("ApprovalRequest_otherPatient", fields: [otherPatientId], references: [id])
-  otherPatientId                   String?              @map("otherPatient")
-  account                          GuarantorAccount?    @relation("ApprovalRequest_account", fields: [accountId], references: [id])
-  accountId                        String?              @map("account")
-  status                           String               @default("pending")
-  expiresAt                        DateTime?
-  consumedAt                       DateTime?
-  decisions                        ApprovalDecision[]   @relation("ApprovalDecision_request")
-  version                          Int                  @default(0)
-  createdAt                        DateTime             @default(now())
-  updatedAt                        DateTime             @default(now()) @updatedAt
-  from_AgentToolGrant_approval     AgentToolGrant[]     @relation("AgentToolGrant_approval")
-  from_Proposal_approval           Proposal[]           @relation("Proposal_approval")
-  from_AutonomyPolicy_approval     AutonomyPolicy[]     @relation("AutonomyPolicy_approval")
-  from_MergeCase_approval          MergeCase[]          @relation("MergeCase_approval")
-  from_CodeImportBatch_approval    CodeImportBatch[]    @relation("CodeImportBatch_approval")
-  from_FeeScheduleVersion_approval FeeScheduleVersion[] @relation("FeeScheduleVersion_approval")
-  from_AdjustmentRequest_approval  AdjustmentRequest[]  @relation("AdjustmentRequest_approval")
-  from_PeriodClose_approval        PeriodClose[]        @relation("PeriodClose_approval")
-  from_Refund_approval             Refund[]             @relation("Refund_approval")
+  id                                 String                 @id @default(cuid())
+  action                             String                 @default("")
+  summary                            String                 @default("")
+  targetList                         String                 @default("")
+  targetId                           String                 @default("")
+  payload                            Json?
+  payloadHash                        String                 @default("")
+  requiredPermission                 String                 @default("")
+  requestedBy                        User?                  @relation("ApprovalRequest_requestedBy", fields: [requestedById], references: [id])
+  requestedById                      String?                @map("requestedBy")
+  requestedByAgent                   AgentIdentity?         @relation("ApprovalRequest_requestedByAgent", fields: [requestedByAgentId], references: [id])
+  requestedByAgentId                 String?                @map("requestedByAgent")
+  location                           Location?              @relation("ApprovalRequest_location", fields: [locationId], references: [id])
+  locationId                         String?                @map("location")
+  patient                            Patient?               @relation("ApprovalRequest_patient", fields: [patientId], references: [id])
+  patientId                          String?                @map("patient")
+  otherPatient                       Patient?               @relation("ApprovalRequest_otherPatient", fields: [otherPatientId], references: [id])
+  otherPatientId                     String?                @map("otherPatient")
+  account                            GuarantorAccount?      @relation("ApprovalRequest_account", fields: [accountId], references: [id])
+  accountId                          String?                @map("account")
+  status                             String                 @default("pending")
+  expiresAt                          DateTime?
+  consumedAt                         DateTime?
+  decisions                          ApprovalDecision[]     @relation("ApprovalDecision_request")
+  version                            Int                    @default(0)
+  createdAt                          DateTime               @default(now())
+  updatedAt                          DateTime               @default(now()) @updatedAt
+  from_AgentToolGrant_approval       AgentToolGrant[]       @relation("AgentToolGrant_approval")
+  from_Proposal_approval             Proposal[]             @relation("Proposal_approval")
+  from_AutonomyPolicy_approval       AutonomyPolicy[]       @relation("AutonomyPolicy_approval")
+  from_MergeCase_approval            MergeCase[]            @relation("MergeCase_approval")
+  from_CodeImportBatch_approval      CodeImportBatch[]      @relation("CodeImportBatch_approval")
+  from_FeeScheduleVersion_approval   FeeScheduleVersion[]   @relation("FeeScheduleVersion_approval")
+  from_AdjustmentRequest_approval    AdjustmentRequest[]    @relation("AdjustmentRequest_approval")
+  from_PeriodClose_approval          PeriodClose[]          @relation("PeriodClose_approval")
+  from_Refund_approval               Refund[]               @relation("Refund_approval")
+  from_ImportBatch_approval          ImportBatch[]          @relation("ImportBatch_approval")
+  from_RetentionDisposition_approval RetentionDisposition[] @relation("RetentionDisposition_approval")
 
   @@index([action])
   @@index([targetId])
@@ -487,6 +499,7 @@ model Document {
   from_BenefitFact_evidence          BenefitFact[]        @relation("BenefitFact_evidence")
   from_BenefitRule_evidence          BenefitRule[]        @relation("BenefitRule_evidence")
   from_OutsideHistory_evidence       OutsideHistory[]     @relation("OutsideHistory_evidence")
+  from_PdmpCheck_evidenceDocument    PdmpCheck[]          @relation("PdmpCheck_evidenceDocument")
 
   @@index([supersedesId])
   @@index([uploadedById])
@@ -633,6 +646,12 @@ model Location {
   from_DepositBatch_location         DepositBatch[]         @relation("DepositBatch_location")
   from_MembershipPlan_locations      MembershipPlan[]       @relation("MembershipPlan_locations")
   from_PatientMembership_location    PatientMembership[]    @relation("PatientMembership_location")
+  from_CallRecord_location           CallRecord[]           @relation("CallRecord_location")
+  from_ImportBatch_location          ImportBatch[]          @relation("ImportBatch_location")
+  from_LabCase_location              LabCase[]              @relation("LabCase_location")
+  from_PatientRecall_location        PatientRecall[]        @relation("PatientRecall_location")
+  from_ReviewReply_location          ReviewReply[]          @relation("ReviewReply_location")
+  from_ReviewRequest_location        ReviewRequest[]        @relation("ReviewRequest_location")
 
   @@index([jurisdictionId])
   @@index([billingEntityId])
@@ -763,6 +782,7 @@ model ProviderProfile {
   from_Prescription_prescriber        Prescription[]       @relation("Prescription_prescriber")
   from_Claim_renderingProvider        Claim[]              @relation("Claim_renderingProvider")
   from_PayerEnrollment_provider       PayerEnrollment[]    @relation("PayerEnrollment_provider")
+  from_LabCase_prescriber             LabCase[]            @relation("LabCase_prescriber")
 }
 
 model RateLimitBucket {
@@ -1210,6 +1230,16 @@ model Patient {
   from_Payment_patient                   Payment[]                @relation("Payment_patient")
   from_PaymentPlan_patient               PaymentPlan[]            @relation("PaymentPlan_patient")
   from_PatientMembership_patient         PatientMembership[]      @relation("PatientMembership_patient")
+  from_AccountingOfDisclosure_patient    AccountingOfDisclosure[] @relation("AccountingOfDisclosure_patient")
+  from_CallRecord_patient                CallRecord[]             @relation("CallRecord_patient")
+  from_ExportJob_patient                 ExportJob[]              @relation("ExportJob_patient")
+  from_LabCase_patient                   LabCase[]                @relation("LabCase_patient")
+  from_PatientRecall_patient             PatientRecall[]          @relation("PatientRecall_patient")
+  from_PatientRightsRequest_patient      PatientRightsRequest[]   @relation("PatientRightsRequest_patient")
+  from_PdmpCheck_patient                 PdmpCheck[]              @relation("PdmpCheck_patient")
+  from_RecordHold_patient                RecordHold[]             @relation("RecordHold_patient")
+  from_RetentionDisposition_patient      RetentionDisposition[]   @relation("RetentionDisposition_patient")
+  from_ReviewRequest_patient             ReviewRequest[]          @relation("ReviewRequest_patient")
 
   @@index([mergedIntoId])
   @@index([familyId])
@@ -1344,6 +1374,8 @@ model Appointment {
   from_ClinicalNote_appointment           ClinicalNote[]           @relation("ClinicalNote_appointment")
   from_VitalsReading_appointment          VitalsReading[]          @relation("VitalsReading_appointment")
   from_Estimate_appointment               Estimate[]               @relation("Estimate_appointment")
+  from_LabCase_seatAppointment            LabCase[]                @relation("LabCase_seatAppointment")
+  from_ReviewRequest_appointment          ReviewRequest[]          @relation("ReviewRequest_appointment")
 
   @@index([patientId])
   @@index([locationId])
@@ -1617,23 +1649,24 @@ model TemplateBlock {
 }
 
 model ConsentGrant {
-  id                  String        @id @default(cuid())
-  contactPoint        ContactPoint? @relation("ConsentGrant_contactPoint", fields: [contactPointId], references: [id])
-  contactPointId      String?       @map("contactPoint")
-  channel             String
-  purpose             String
-  status              String        @default("granted")
-  source              String
-  evidence            Json?         @default("{}")
-  recordedBy          User?         @relation("ConsentGrant_recordedBy", fields: [recordedById], references: [id])
-  recordedById        String?       @map("recordedBy")
-  grantedAt           DateTime?
-  revokedAt           DateTime?
-  revokeReason        String        @default("")
-  needsReconfirmation Boolean       @default(false)
-  version             Int           @default(0)
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @default(now()) @updatedAt
+  id                              String          @id @default(cuid())
+  contactPoint                    ContactPoint?   @relation("ConsentGrant_contactPoint", fields: [contactPointId], references: [id])
+  contactPointId                  String?         @map("contactPoint")
+  channel                         String
+  purpose                         String
+  status                          String          @default("granted")
+  source                          String
+  evidence                        Json?           @default("{}")
+  recordedBy                      User?           @relation("ConsentGrant_recordedBy", fields: [recordedById], references: [id])
+  recordedById                    String?         @map("recordedBy")
+  grantedAt                       DateTime?
+  revokedAt                       DateTime?
+  revokeReason                    String          @default("")
+  needsReconfirmation             Boolean         @default(false)
+  version                         Int             @default(0)
+  createdAt                       DateTime        @default(now())
+  updatedAt                       DateTime        @default(now()) @updatedAt
+  from_ReviewRequest_consentGrant ReviewRequest[] @relation("ReviewRequest_consentGrant")
 
   @@index([contactPointId])
   @@index([recordedById])
@@ -2524,28 +2557,29 @@ model PerioToothFinding {
 }
 
 model Prescription {
-  id           String           @id @default(cuid())
-  patient      Patient?         @relation("Prescription_patient", fields: [patientId], references: [id])
-  patientId    String?          @map("patient")
-  prescriber   ProviderProfile? @relation("Prescription_prescriber", fields: [prescriberId], references: [id])
-  prescriberId String?          @map("prescriber")
-  drug         String           @default("")
-  strength     String           @default("")
-  form         String           @default("")
-  sig          String           @default("")
-  quantity     Decimal?         @postgresql.Decimal(10, 3)
-  refills      Int?             @default(0)
-  isControlled Boolean          @default(false)
-  schedule     String
-  pharmacy     Json?            @default("{}")
-  mode         String
-  status       String           @default("draft")
-  signedAt     DateTime?
-  cancelReason String           @default("")
-  isSynthetic  Boolean          @default(false)
-  version      Int              @default(0)
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @default(now()) @updatedAt
+  id                          String           @id @default(cuid())
+  patient                     Patient?         @relation("Prescription_patient", fields: [patientId], references: [id])
+  patientId                   String?          @map("patient")
+  prescriber                  ProviderProfile? @relation("Prescription_prescriber", fields: [prescriberId], references: [id])
+  prescriberId                String?          @map("prescriber")
+  drug                        String           @default("")
+  strength                    String           @default("")
+  form                        String           @default("")
+  sig                         String           @default("")
+  quantity                    Decimal?         @postgresql.Decimal(10, 3)
+  refills                     Int?             @default(0)
+  isControlled                Boolean          @default(false)
+  schedule                    String
+  pharmacy                    Json?            @default("{}")
+  mode                        String
+  status                      String           @default("draft")
+  signedAt                    DateTime?
+  cancelReason                String           @default("")
+  isSynthetic                 Boolean          @default(false)
+  version                     Int              @default(0)
+  createdAt                   DateTime         @default(now())
+  updatedAt                   DateTime         @default(now()) @updatedAt
+  from_PdmpCheck_prescription PdmpCheck[]      @relation("PdmpCheck_prescription")
 
   @@index([patientId])
   @@index([prescriberId])
@@ -3983,6 +4017,385 @@ model RegulatoryLicence {
   evidence      String    @default("")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @default(now()) @updatedAt
+}
+
+model AccountingOfDisclosure {
+  id           String    @id @default(cuid())
+  patient      Patient?  @relation("AccountingOfDisclosure_patient", fields: [patientId], references: [id])
+  patientId    String?   @map("patient")
+  disclosedOn  DateTime? @postgresql.Date
+  recipient    String    @default("")
+  purpose      String    @default("")
+  description  String    @default("")
+  recordedBy   User?     @relation("AccountingOfDisclosure_recordedBy", fields: [recordedById], references: [id])
+  recordedById String?   @map("recordedBy")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([recordedById])
+}
+
+model CallRecord {
+  id              String    @id @default(cuid())
+  patient         Patient?  @relation("CallRecord_patient", fields: [patientId], references: [id])
+  patientId       String?   @map("patient")
+  location        Location? @relation("CallRecord_location", fields: [locationId], references: [id])
+  locationId      String?   @map("location")
+  direction       String
+  startedAt       DateTime?
+  durationSeconds Int?
+  summary         String    @default("")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([locationId])
+}
+
+model ComplianceTask {
+  id            String    @id @default(cuid())
+  title         String    @default("")
+  category      String
+  dueOn         DateTime? @postgresql.Date
+  repeatMonths  Int?
+  owner         User?     @relation("ComplianceTask_owner", fields: [ownerId], references: [id])
+  ownerId       String?   @map("owner")
+  status        String    @default("open")
+  completedAt   DateTime?
+  completedBy   User?     @relation("ComplianceTask_completedBy", fields: [completedById], references: [id])
+  completedById String?   @map("completedBy")
+  note          String    @default("")
+  version       Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  @@index([dueOn])
+  @@index([ownerId])
+  @@index([completedById])
+}
+
+model ExportJob {
+  id            String   @id @default(cuid())
+  ref           String   @unique @default("")
+  kind          String
+  patient       Patient? @relation("ExportJob_patient", fields: [patientId], references: [id])
+  patientId     String?  @map("patient")
+  status        String   @default("completed")
+  sha256        String   @default("")
+  byteCount     Int?
+  counts        Json?    @default("{}")
+  requestedBy   User?    @relation("ExportJob_requestedBy", fields: [requestedById], references: [id])
+  requestedById String?  @map("requestedBy")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([requestedById])
+}
+
+model ImportBatch {
+  id                         String            @id @default(cuid())
+  ref                        String            @unique @default("")
+  source                     String
+  fileName                   String            @default("")
+  fileSha256                 String            @default("")
+  location                   Location?         @relation("ImportBatch_location", fields: [locationId], references: [id])
+  locationId                 String?           @map("location")
+  rows                       Json?             @default("{}")
+  preview                    Json?             @default("{}")
+  reconciliation             Json?             @default("{}")
+  cursor                     Int?              @default(0)
+  status                     String            @default("previewed")
+  approval                   ApprovalRequest?  @relation("ImportBatch_approval", fields: [approvalId], references: [id])
+  approvalId                 String?           @map("approval")
+  appliedAt                  DateTime?
+  createdBy                  User?             @relation("ImportBatch_createdBy", fields: [createdById], references: [id])
+  createdById                String?           @map("createdBy")
+  version                    Int               @default(0)
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @default(now()) @updatedAt
+  from_ImportRecordMap_batch ImportRecordMap[] @relation("ImportRecordMap_batch")
+
+  @@index([locationId])
+  @@index([approvalId])
+  @@index([createdById])
+}
+
+model ImportRecordMap {
+  id         String       @id @default(cuid())
+  batch      ImportBatch? @relation("ImportRecordMap_batch", fields: [batchId], references: [id])
+  batchId    String?      @map("batch")
+  source     String       @default("")
+  entity     String       @default("")
+  externalId String       @default("")
+  internalId String       @default("")
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @default(now()) @updatedAt
+
+  @@index([batchId])
+}
+
+model IncidentReport {
+  id             String    @id @default(cuid())
+  title          String    @default("")
+  description    String    @default("")
+  discoveredAt   DateTime?
+  affectedCount  Int?      @default(0)
+  riskAssessment String    @default("")
+  status         String    @default("reported")
+  notifiedAt     DateTime?
+  reportedBy     User?     @relation("IncidentReport_reportedBy", fields: [reportedById], references: [id])
+  reportedById   String?   @map("reportedBy")
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  @@index([reportedById])
+}
+
+model Lab {
+  id               String    @id @default(cuid())
+  name             String    @unique @default("")
+  contactName      String    @default("")
+  phone            String    @default("")
+  email            String    @default("")
+  turnaroundDays   Int?      @default(10)
+  bufferDays       Int?      @default(2)
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  from_LabCase_lab LabCase[] @relation("LabCase_lab")
+}
+
+model LabCase {
+  id                    String           @id @default(cuid())
+  ref                   String           @unique @default("")
+  patient               Patient?         @relation("LabCase_patient", fields: [patientId], references: [id])
+  patientId             String?          @map("patient")
+  lab                   Lab?             @relation("LabCase_lab", fields: [labId], references: [id])
+  labId                 String?          @map("lab")
+  location              Location?        @relation("LabCase_location", fields: [locationId], references: [id])
+  locationId            String?          @map("location")
+  seatAppointment       Appointment?     @relation("LabCase_seatAppointment", fields: [seatAppointmentId], references: [id])
+  seatAppointmentId     String?          @map("seatAppointment")
+  prescriber            ProviderProfile? @relation("LabCase_prescriber", fields: [prescriberId], references: [id])
+  prescriberId          String?          @map("prescriber")
+  remakeOf              LabCase?         @relation("LabCase_remakeOf", fields: [remakeOfId], references: [id])
+  remakeOfId            String?          @map("remakeOf")
+  workType              String           @default("")
+  tooth                 String           @default("")
+  shade                 String           @default("")
+  instructions          String           @default("")
+  files                 Json?            @default("[]")
+  status                String           @default("draft")
+  dueDate               DateTime?        @postgresql.Date
+  sentAt                DateTime?
+  receivedAt            DateTime?
+  lastChasedAt          DateTime?
+  qcNote                String           @default("")
+  cancelReason          String           @default("")
+  version               Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @default(now()) @updatedAt
+  from_LabCase_remakeOf LabCase[]        @relation("LabCase_remakeOf")
+
+  @@index([patientId])
+  @@index([labId])
+  @@index([locationId])
+  @@index([seatAppointmentId])
+  @@index([prescriberId])
+  @@index([remakeOfId])
+}
+
+model PatientRecall {
+  id                     String      @id @default(cuid())
+  patient                Patient?    @relation("PatientRecall_patient", fields: [patientId], references: [id])
+  patientId              String?     @map("patient")
+  type                   RecallType? @relation("PatientRecall_type", fields: [typeId], references: [id])
+  typeId                 String?     @map("type")
+  location               Location?   @relation("PatientRecall_location", fields: [locationId], references: [id])
+  locationId             String?     @map("location")
+  status                 String      @default("scheduled_due")
+  dueOn                  DateTime?   @postgresql.Date
+  lastCompletedOn        DateTime?   @postgresql.Date
+  disabledReason         String      @default("")
+  lastOutreachPreparedAt DateTime?
+  outreachCount          Int?        @default(0)
+  version                Int         @default(0)
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([typeId])
+  @@index([locationId])
+  @@index([dueOn])
+}
+
+model PatientRightsRequest {
+  id           String    @id @default(cuid())
+  ref          String    @unique @default("")
+  patient      Patient?  @relation("PatientRightsRequest_patient", fields: [patientId], references: [id])
+  patientId    String?   @map("patient")
+  kind         String
+  receivedOn   DateTime? @postgresql.Date
+  dueOn        DateTime? @postgresql.Date
+  status       String    @default("open")
+  extendedOnce Boolean   @default(false)
+  resolution   String    @default("")
+  resolvedAt   DateTime?
+  version      Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  @@index([patientId])
+}
+
+model PdmpCheck {
+  id                 String        @id @default(cuid())
+  prescription       Prescription? @relation("PdmpCheck_prescription", fields: [prescriptionId], references: [id])
+  prescriptionId     String?       @map("prescription")
+  patient            Patient?      @relation("PdmpCheck_patient", fields: [patientId], references: [id])
+  patientId          String?       @map("patient")
+  checkedAt          DateTime?
+  checkedBy          User?         @relation("PdmpCheck_checkedBy", fields: [checkedById], references: [id])
+  checkedById        String?       @map("checkedBy")
+  result             String
+  note               String        @default("")
+  evidenceDocument   Document?     @relation("PdmpCheck_evidenceDocument", fields: [evidenceDocumentId], references: [id])
+  evidenceDocumentId String?       @map("evidenceDocument")
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @default(now()) @updatedAt
+
+  @@index([prescriptionId])
+  @@index([patientId])
+  @@index([checkedById])
+  @@index([evidenceDocumentId])
+}
+
+model RecallRule {
+  id         String      @id @default(cuid())
+  key        String      @unique @default("")
+  trigger    String
+  fromType   RecallType? @relation("RecallRule_fromType", fields: [fromTypeId], references: [id])
+  fromTypeId String?     @map("fromType")
+  toType     RecallType? @relation("RecallRule_toType", fields: [toTypeId], references: [id])
+  toTypeId   String?     @map("toType")
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @default(now()) @updatedAt
+
+  @@index([fromTypeId])
+  @@index([toTypeId])
+}
+
+model RecallType {
+  id                       String          @id @default(cuid())
+  key                      String          @unique @default("")
+  name                     String          @default("")
+  intervalMonths           Int
+  ageMinYears              Int?            @default(0)
+  ageMaxYears              Int?
+  isActive                 Boolean         @default(true)
+  version                  Int             @default(0)
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @default(now()) @updatedAt
+  from_PatientRecall_type  PatientRecall[] @relation("PatientRecall_type")
+  from_RecallRule_fromType RecallRule[]    @relation("RecallRule_fromType")
+  from_RecallRule_toType   RecallRule[]    @relation("RecallRule_toType")
+}
+
+model RecordHold {
+  id            String    @id @default(cuid())
+  patient       Patient?  @relation("RecordHold_patient", fields: [patientId], references: [id])
+  patientId     String?   @map("patient")
+  reason        String    @default("")
+  status        String    @default("active")
+  placedBy      User?     @relation("RecordHold_placedBy", fields: [placedById], references: [id])
+  placedById    String?   @map("placedBy")
+  releasedAt    DateTime?
+  releaseReason String    @default("")
+  version       Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([placedById])
+}
+
+model RetentionDisposition {
+  id            String           @id @default(cuid())
+  patient       Patient?         @relation("RetentionDisposition_patient", fields: [patientId], references: [id])
+  patientId     String?          @map("patient")
+  eligibleOn    DateTime?        @postgresql.Date
+  status        String           @default("eligible")
+  approval      ApprovalRequest? @relation("RetentionDisposition_approval", fields: [approvalId], references: [id])
+  approvalId    String?          @map("approval")
+  blockedReason String           @default("")
+  executedAt    DateTime?
+  version       Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([approvalId])
+}
+
+model RetentionPolicy {
+  id             String   @id @default(cuid())
+  recordType     String   @unique @default("")
+  years          Int
+  minorsUntilAge Int?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+}
+
+model ReviewReply {
+  id             String    @id @default(cuid())
+  location       Location? @relation("ReviewReply_location", fields: [locationId], references: [id])
+  locationId     String?   @map("location")
+  platform       String
+  reviewerName   String    @default("")
+  rating         Int?
+  reviewText     String    @default("")
+  draft          String    @default("")
+  policyFindings Json?     @default("[]")
+  status         String    @default("draft")
+  approvedBy     User?     @relation("ReviewReply_approvedBy", fields: [approvedById], references: [id])
+  approvedById   String?   @map("approvedBy")
+  postedAt       DateTime?
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  @@index([locationId])
+  @@index([approvedById])
+}
+
+model ReviewRequest {
+  id               String        @id @default(cuid())
+  patient          Patient?      @relation("ReviewRequest_patient", fields: [patientId], references: [id])
+  patientId        String?       @map("patient")
+  location         Location?     @relation("ReviewRequest_location", fields: [locationId], references: [id])
+  locationId       String?       @map("location")
+  appointment      Appointment?  @relation("ReviewRequest_appointment", fields: [appointmentId], references: [id])
+  appointmentId    String?       @map("appointment")
+  channel          String
+  consentCheckedAt DateTime?
+  consentGrant     ConsentGrant? @relation("ReviewRequest_consentGrant", fields: [consentGrantId], references: [id])
+  consentGrantId   String?       @map("consentGrant")
+  copiedBy         User?         @relation("ReviewRequest_copiedBy", fields: [copiedById], references: [id])
+  copiedById       String?       @map("copiedBy")
+  status           String        @default("copied")
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([locationId])
+  @@index([appointmentId])
+  @@index([consentGrantId])
+  @@index([copiedById])
 }
 
 enum UserKindType {

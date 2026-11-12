@@ -44,6 +44,12 @@ export const platformNavItems: PlatformNavItem[] = [
   { title: 'Confirmations', href: '/platform/schedule/confirmations', color: 'green', description: 'Tomorrow and the next two days: who has confirmed.', icon: CalendarCheck2, group: 'front-desk' },
   { title: 'Booking requests', href: '/platform/schedule/booking-requests', color: 'orange', description: 'Online booking requests waiting for review.', icon: Inbox, group: 'front-desk' },
 
+  { title: 'Recall', href: '/platform/recall', color: 'green', description: 'Who is due for a cleaning or check-up, and the message to send.', icon: CalendarClock, group: 'front-desk' },
+  { title: 'Lab cases', href: '/platform/labs', color: 'orange', description: 'Crowns and other work at the lab, and when it is due back.', icon: ClipboardCheck, group: 'clinical' },
+  { title: 'Prescriptions', href: '/platform/prescriptions', color: 'sky', description: 'Write, sign and print prescriptions, with the state check for controlled drugs.', icon: FileSignature, group: 'clinical' },
+  { title: 'Reviews', href: '/platform/reviews', color: 'amber', description: 'Review requests to copy and replies to approve.', icon: BadgeCheck, group: 'front-desk' },
+  { title: 'Compliance', href: '/platform/compliance', color: 'rose', description: 'Deadlines, incidents, patient requests, legal holds and retention.', icon: ShieldCheck, group: 'practice' },
+  { title: 'Import and export', href: '/platform/data', color: 'slate', description: 'Bring in a patient list, or take records and the ledger out.', icon: Inbox, group: 'practice' },
   { title: 'Locations & operatories', href: '/platform/settings/locations', color: 'slate', description: 'Offices, chairs, appointment types and schedule templates.', icon: MapPin, group: 'practice' },
   { title: 'Audit log', href: '/platform/audit', color: 'slate', description: 'Hash-chained audit events and chain verification.', icon: BookOpenCheck, group: 'practice' },
   { title: 'Privacy', href: '/platform/privacy', color: 'rose', description: 'PHI access log and break-glass reviews.', icon: ShieldCheck, group: 'practice' },
@@ -63,6 +69,8 @@ export const SHIPPED_ROUTES = new Set<string>([
   // Phase 4
   // Phase 5
   '/platform/assistant',
+  // Phase 6
+  '/platform/recall', '/platform/labs', '/platform/prescriptions', '/platform/reviews', '/platform/compliance', '/platform/data',
   '/platform/claims', '/platform/remittances', '/platform/payments', '/platform/memberships', '/platform/close',
 ])
 

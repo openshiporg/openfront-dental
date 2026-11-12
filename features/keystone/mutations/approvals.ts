@@ -54,6 +54,10 @@ export async function decideApprovalRequest(_root: unknown, args: { requestId: s
         if (refund.accountId) await uow.tx.creditBalance.updateMany({ where: { accountId: refund.accountId, status: 'refund_requested' }, data: { status: 'open', version: { increment: 1 } } })
       }
     }
+    if (args.decision === 'reject' && ['RetentionDisposition', 'ImportBatch', 'AdjustmentRequest'].includes(String(decided.targetList))) {
+      const { approvalEnded } = await import('./phase6')
+      await approvalEnded(uow, actor, String(decided.targetList), String(decided.targetId))
+    }
     if (args.decision === 'reject' && decided.targetList === 'PeriodClose') {
       const { periodReopenRejected } = await import('./close')
       await periodReopenRejected(uow, actor, String(decided.targetId))
@@ -75,6 +79,11 @@ export async function cancelApprovalRequest(_root: unknown, args: { requestId: s
         if (actor.kind !== 'user' || request.requestedById !== actor.userId) throw new DomainError(Codes.NOT_AUTHORIZED, 'Only the person who asked can withdraw a request.')
       },
     })
+    const ended = await uow.tx.approvalRequest.findUnique({ where: { id: args.requestId }, select: { targetList: true, targetId: true } })
+    if (ended && ['RetentionDisposition', 'ImportBatch', 'AdjustmentRequest'].includes(ended.targetList)) {
+      const { approvalEnded } = await import('./phase6')
+      await approvalEnded(uow, actor, ended.targetList, ended.targetId)
+    }
     return { id: row.id, status: row.status }
   })
   return { replay: result.replay, ...result.value }

@@ -248,9 +248,10 @@ export async function preflight(tx: Tx, req: { locationId: string; operatoryId: 
   return { providerIds: providerIds.filter((id): id is string => !!id) }
 }
 
-/** Lab-gate hook (I-S6). Lab cases arrive in Phase 6; until then nothing is attached, so nothing blocks. */
-export async function labGate(_tx: Tx, _appointmentId: string): Promise<{ blocked: false } | { blocked: true; reason: string }> {
-  return { blocked: false }
+/** Lab-gate (I-S6): a lab case tied to this visit that has not come back blocks check-in unless someone with the override says why. */
+export async function labGate(tx: Tx, appointmentId: string): Promise<{ blocked: false } | { blocked: true; reason: string }> {
+  const { labGateFor } = await import('../mutations/phase6')
+  return labGateFor(tx, appointmentId)
 }
 
 /** Translate a database exclusion refusal into SLOT_TAKEN (the backstop fired after a race). */
