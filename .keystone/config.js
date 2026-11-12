@@ -1255,7 +1255,23 @@ var init_phiFields = __esm({
       CreditBalance: { amountMinor: "fin" },
       PaymentPlan: { principalMinor: "fin", downPaymentMinor: "fin", schedule: "fin", agreementText: "fin" },
       PaymentPlanInstallment: { amountMinor: "fin" },
-      LedgerNote: { text: "fin" }
+      LedgerNote: { text: "fin" },
+      // Phase 6 (r1 B2/B3): every read of these writes a PhiReadAudit row. PdmpCheck.note is also prescribers-only (its field access).
+      PatientRecall: { dueOn: "dem", lastCompletedOn: "dem", disabledReason: "dem" },
+      LabCase: { workType: "clin", tooth: "clin", shade: "clin", instructions: "clin", files: "clin", qcNote: "clin", cancelReason: "clin" },
+      ReviewRequest: { channel: "dem", consentCheckedAt: "dem" },
+      ReviewReply: { reviewerName: "dem", reviewText: "dem", draft: "dem" },
+      PdmpCheck: { result: "clin", note: "clin" },
+      IncidentReport: { title: "dem", description: "dem", riskAssessment: "dem", affectedCount: "dem" },
+      PatientRightsRequest: { kind: "dem", receivedOn: "dem", resolution: "dem" },
+      AccountingOfDisclosure: { disclosedOn: "dem", recipient: "dem", purpose: "dem", description: "dem" },
+      RecordHold: { reason: "dem", releaseReason: "dem" },
+      RetentionDisposition: { eligibleOn: "dem", blockedReason: "dem" },
+      // ImportBatch.rows is the whole file (names, birth dates, phones, balances).
+      ImportBatch: { fileName: "dem", rows: "dem", preview: "dem", reconciliation: "dem" },
+      ImportRecordMap: { externalId: "dem", internalId: "dem" },
+      ExportJob: { counts: "dem", sha256: "dem" },
+      CallRecord: { startedAt: "dem", durationSeconds: "dem", summary: "dem" }
     };
     PHI_FIELD_NAMES = new Set(Object.values(PHI_FIELDS).flatMap((fields) => Object.keys(fields)));
     ALWAYS_REDACT = /* @__PURE__ */ new Set([
@@ -1384,9 +1400,9 @@ function dec(value) {
     if (!Number.isSafeInteger(value)) throw new Error(`Refusing float ${value}: pass the exact decimal as a string`);
     return new Decimal(value);
   }
-  const text20 = String(value).trim();
-  if (!DECIMAL_TEXT.test(text20)) throw new Error(`Not a decimal number: ${JSON.stringify(text20).slice(0, 40)}`);
-  return new Decimal(text20);
+  const text21 = String(value).trim();
+  if (!DECIMAL_TEXT.test(text21)) throw new Error(`Not a decimal number: ${JSON.stringify(text21).slice(0, 40)}`);
+  return new Decimal(text21);
 }
 function toScale(value, scale, rounding = Decimal.ROUND_HALF_EVEN) {
   const places = typeof scale === "number" ? scale : Scale[scale];
@@ -1439,11 +1455,11 @@ var init_canonical = __esm({
     import_node_crypto2 = require("node:crypto");
     init_decimal();
     canonicalJson = (value) => JSON.stringify(canonicalize(value));
-    sha256 = (text20) => (0, import_node_crypto2.createHash)("sha256").update(text20).digest("hex");
+    sha256 = (text21) => (0, import_node_crypto2.createHash)("sha256").update(text21).digest("hex");
     memberIdHash = (memberId, keyText = process.env.DENTAL_SECRET_KEY) => {
-      const text20 = String(keyText || "").trim();
-      if (!text20) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
-      const root = /^[a-f0-9]{64}$/i.test(text20) ? Buffer.from(text20, "hex") : Buffer.from(text20, "base64");
+      const text21 = String(keyText || "").trim();
+      if (!text21) throw new Error("DENTAL_SECRET_KEY is not set: member IDs cannot be hashed.");
+      const root = /^[a-f0-9]{64}$/i.test(text21) ? Buffer.from(text21, "hex") : Buffer.from(text21, "base64");
       const key = (0, import_node_crypto2.createHmac)("sha256", root).update("dental.member-id-hash.v1").digest();
       return `h1:${(0, import_node_crypto2.createHmac)("sha256", key).update(memberId.trim().toUpperCase().replace(/[^A-Z0-9]/g, "")).digest("hex")}`;
     };
@@ -1948,8 +1964,8 @@ async function postEntry(tx, input, now) {
   await rebuildBalance(tx, input.accountId, now);
   return entry;
 }
-function parseMoney(text20, field = "amount") {
-  const raw = String(text20 ?? "").trim().replace(/^\$/, "").replaceAll(",", "");
+function parseMoney(text21, field = "amount") {
+  const raw = String(text21 ?? "").trim().replace(/^\$/, "").replaceAll(",", "");
   if (!/^\d{1,7}(\.\d{1,2})?$/.test(raw)) throw new DomainError(Codes.INVALID_INPUT, `Enter the ${field} in dollars and cents, like 125.00.`, { field });
   const [whole2, cents = ""] = raw.split(".");
   const minor2 = BigInt(whole2) * 100n + BigInt(cents.padEnd(2, "0"));
@@ -1983,9 +1999,9 @@ var init_ledger = __esm({
 
 // features/keystone/lib/secretBox.ts
 function decodeKey(value) {
-  const text20 = String(value || "").trim();
-  if (!text20) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
-  const key = /^[a-f0-9]{64}$/i.test(text20) ? Buffer.from(text20, "hex") : Buffer.from(text20, "base64");
+  const text21 = String(value || "").trim();
+  if (!text21) throw new Error("DENTAL_SECRET_KEY is not set: secrets cannot be stored or read.");
+  const key = /^[a-f0-9]{64}$/i.test(text21) ? Buffer.from(text21, "hex") : Buffer.from(text21, "base64");
   if (key.length !== 32) throw new Error("DENTAL_SECRET_KEY must decode to exactly 32 bytes");
   return key;
 }
@@ -2210,10 +2226,10 @@ var init_shared = __esm({
       return date;
     };
     requireText = (value, field, max2 = 500) => {
-      const text20 = String(value ?? "").trim();
-      if (!text20) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
-      if (text20.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
-      return text20;
+      const text21 = String(value ?? "").trim();
+      if (!text21) throw new DomainError(Codes.INVALID_INPUT, `Enter a ${field}.`, { field });
+      if (text21.length > max2) throw new DomainError(Codes.INVALID_INPUT, `The ${field} is too long.`, { field });
+      return text21;
     };
     optionalText = (value, max2 = 2e3) => String(value ?? "").trim().slice(0, max2);
   }
@@ -2465,11 +2481,11 @@ function eligibleOn(input) {
   const byAge = input.minorsUntilAge ? addMonths(input.dateOfBirth, input.minorsUntilAge * 12) : byActivity;
   return byActivity >= byAge ? byActivity : byAge;
 }
-function checkReviewReply(text20, reviewerName = "") {
-  const findings = CHECKS.filter((c) => c.test.test(text20)).map((c) => ({ rule: c.rule, message: c.message }));
+function checkReviewReply(text21, reviewerName = "") {
+  const findings = CHECKS.filter((c) => c.test.test(text21)).map((c) => ({ rule: c.rule, message: c.message }));
   const name = reviewerName.trim();
-  if (name.length > 2 && text20.toLowerCase().includes(name.toLowerCase())) findings.push({ rule: "uses_name", message: "Do not use the reviewer\u2019s name." });
-  if (!text20.trim()) findings.push({ rule: "empty", message: "Write a reply first." });
+  if (name.length > 2 && text21.toLowerCase().includes(name.toLowerCase())) findings.push({ rule: "uses_name", message: "Do not use the reviewer\u2019s name." });
+  if (!text21.trim()) findings.push({ rule: "empty", message: "Write a reply first." });
   return findings;
 }
 function draftReviewReply(rating, practice) {
@@ -2627,9 +2643,9 @@ async function accountFor(uow, patientId) {
   return tx.guarantorAccount.create({ data: { guarantorId, ref } });
 }
 function requireReason(value, what = "reason") {
-  const text20 = String(value ?? "").trim();
-  if (text20.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
-  return text20.slice(0, 1e3);
+  const text21 = String(value ?? "").trim();
+  if (text21.length < 5) throw new DomainError(Codes.INVALID_INPUT, `Give a ${what} of at least a few words.`, { field: "reason" });
+  return text21.slice(0, 1e3);
 }
 async function verifyPassword(context, userId, password2) {
   const user = await context.prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
@@ -3489,19 +3505,19 @@ async function buildDaySheet(tx, locationId, date) {
   const byTender = {};
   for (const p of payments) byTender[p.tender] = (byTender[p.tender] ?? 0n) + p.amountMinor;
   const adjustments = (byKind.patient_adjustment ?? 0n) + (byKind.insurance_adjustment ?? 0n) + (byKind.insurance_writeoff ?? 0n);
-  const text20 = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.toString()]));
+  const text21 = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, v.toString()]));
   const production_ = Object.values(production).reduce((a, b) => a + b, 0n);
   return {
     businessDate: date,
     entryCount: entries.length,
     productionMinor: production_.toString(),
-    productionByProvider: text20(production),
+    productionByProvider: text21(production),
     collectionsMinor: sum(payments).toString(),
-    collectionsByTender: text20(byTender),
+    collectionsByTender: text21(byTender),
     insurancePaymentsMinor: (-(byKind.insurance_payment ?? 0n)).toString(),
     adjustmentsMinor: adjustments.toString(),
     refundsMinor: (byKind.refund ?? 0n).toString(),
-    byKind: text20(byKind)
+    byKind: text21(byKind)
   };
 }
 async function closeDay(_root, args, context) {
@@ -3823,13 +3839,13 @@ function frequencyOf(quantity, message, category) {
   if (!/^\d{1,2}$/.test(quantity.trim())) return null;
   const count = parseInt(quantity, 10);
   if (count < 1 || count > 12) return null;
-  const text20 = message.toLowerCase();
+  const text21 = message.toLowerCase();
   let months = null;
-  if (/(per|each|every|a)\s+(calendar\s+|benefit\s+|contract\s+)?year|annually|\byearly\b/.test(text20)) months = 12;
-  else if (/(per|each|every)\s+(\d+|six|twelve)\s+months?/.test(text20)) {
-    const m = text20.match(/(\d+|six|twelve)\s+months?/)[1];
+  if (/(per|each|every|a)\s+(calendar\s+|benefit\s+|contract\s+)?year|annually|\byearly\b/.test(text21)) months = 12;
+  else if (/(per|each|every)\s+(\d+|six|twelve)\s+months?/.test(text21)) {
+    const m = text21.match(/(\d+|six|twelve)\s+months?/)[1];
     months = m === "six" ? 6 : m === "twelve" ? 12 : parseInt(m, 10);
-  } else if (/per\s+(six|6)\s+months/.test(text20)) months = 6;
+  } else if (/per\s+(six|6)\s+months/.test(text21)) months = 6;
   if (!months) return null;
   return { count, months, group: "recall" };
 }
@@ -5135,9 +5151,9 @@ var init_insurance2 = __esm({
     };
     taskTitle = (field) => TASK_TITLES[field] ?? `Ask the payer: ${field.replaceAll("_", " ")}`;
     money = (value, field) => {
-      const text20 = String(value ?? "").trim();
-      if (!/^\d{1,9}(\.\d{1,2})?$/.test(text20)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
-      return toMinor(text20, "USD");
+      const text21 = String(value ?? "").trim();
+      if (!/^\d{1,9}(\.\d{1,2})?$/.test(text21)) throw new DomainError(Codes.INVALID_INPUT, "Enter dollars like 1500 or 1500.00.", { field });
+      return toMinor(text21, "USD");
     };
     optMoney = (value, field) => value === void 0 || value === null || String(value).trim() === "" ? null : money(value, field);
     last4 = (value) => value.replace(/[^A-Za-z0-9]/g, "").slice(-4);
@@ -5213,12 +5229,12 @@ var init_era = __esm({
     "use strict";
     init_money();
     money2 = (value) => {
-      const text20 = String(value ?? "").trim();
-      return /^-?\d+(\.\d+)?$/.test(text20) ? toMinor(text20) : 0n;
+      const text21 = String(value ?? "").trim();
+      return /^-?\d+(\.\d+)?$/.test(text21) ? toMinor(text21) : 0n;
     };
     day4 = (value) => {
-      const text20 = String(value ?? "");
-      return /^\d{8}$/.test(text20) ? `${text20.slice(0, 4)}-${text20.slice(4, 6)}-${text20.slice(6, 8)}` : /^\d{4}-\d{2}-\d{2}/.test(text20) ? text20.slice(0, 10) : null;
+      const text21 = String(value ?? "");
+      return /^\d{8}$/.test(text21) ? `${text21.slice(0, 4)}-${text21.slice(4, 6)}-${text21.slice(6, 8)}` : /^\d{4}-\d{2}-\d{2}/.test(text21) ? text21.slice(0, 10) : null;
     };
     lineConserves = (line) => line.chargeMinor === line.paidMinor + line.adjustments.reduce((sum3, a) => sum3 + a.amountMinor, 0n);
     writeOffMinor = (adjustments) => adjustments.filter((a) => a.group === "CO").reduce((sum3, a) => sum3 + a.amountMinor, 0n);
@@ -5874,7 +5890,7 @@ var init_payments2 = __esm({
     init_ledger();
     init_time();
     dayOf3 = (date) => /* @__PURE__ */ new Date(`${date}T00:00:00Z`);
-    sha2562 = (text20) => (0, import_node_crypto15.createHash)("sha256").update(text20).digest("hex");
+    sha2562 = (text21) => (0, import_node_crypto15.createHash)("sha256").update(text21).digest("hex");
     MAX_INSTALLMENT_ATTEMPTS = 3;
   }
 });
@@ -5897,10 +5913,10 @@ async function call(ctx, method, path, data, idempotencyKey) {
       body: method === "POST" && data ? form(data) : void 0,
       signal: controller.signal
     });
-    const text20 = await response.text();
+    const text21 = await response.text();
     let json19 = null;
     try {
-      json19 = text20 ? JSON.parse(text20) : null;
+      json19 = text21 ? JSON.parse(text21) : null;
     } catch {
       json19 = null;
     }
@@ -6002,29 +6018,29 @@ var init_payLink = __esm({
 });
 
 // features/keystone/lib/pdfWriter.ts
-function ansi(text20) {
+function ansi(text21) {
   const map = { "\u20AC": 128, "\u201A": 130, "\u201E": 132, "\u2026": 133, "\u2018": 145, "\u2019": 146, "\u201C": 147, "\u201D": 148, "\u2022": 149, "\u2013": 150, "\u2014": 151, "\u2122": 153, "\u2212": 45, "\xB7": 183, "\xA7": 167 };
   let out = "";
-  for (const ch of text20) {
+  for (const ch of text21) {
     const c = ch.codePointAt(0);
     const b = map[ch] ?? (c >= 32 && c <= 255 && !(c >= 127 && c < 160) ? c : 63);
     out += String.fromCharCode(b);
   }
   return out;
 }
-function textWidth(text20, size, font = "regular") {
-  if (font === "mono") return ansi(text20).length * 600 * size / 1e3;
+function textWidth(text21, size, font = "regular") {
+  if (font === "mono") return ansi(text21).length * 600 * size / 1e3;
   const table = font === "bold" ? WB : W;
   let w = 0;
-  for (const ch of ansi(text20)) {
+  for (const ch of ansi(text21)) {
     const c = ch.charCodeAt(0);
     w += c >= 32 && c <= 126 ? table[c - 32] : 556;
   }
   return w * size / 1e3;
 }
-function wrap(text20, width, size, font = "regular") {
+function wrap(text21, width, size, font = "regular") {
   const lines = [];
-  for (const para of text20.split("\n")) {
+  for (const para of text21.split("\n")) {
     let line = "";
     for (const word of para.split(/\s+/).filter(Boolean)) {
       const next = line ? `${line} ${word}` : word;
@@ -6768,13 +6784,13 @@ async function recordRefundPaid(_root, args, context) {
 async function correctLedgerNote(_root, args, context) {
   const { actor: actor6, locationIds } = staff(context);
   requirePermission(actor6, "canAdjust");
-  const text20 = requireText(args.text, "note", 200);
+  const text21 = requireText(args.text, "note", 200);
   const { idempotencyKey, ...params } = args;
   const result = await command(context.prisma, { name: "ledger.correct_note", actor: actor6, idempotencyKey, params }, async (uow) => {
     const entry = await uow.tx.ledgerEntry.findUnique({ where: { id: args.entryId }, select: { id: true, locationId: true } });
     if (!entry) throw new DomainError(Codes.NOT_FOUND, "Ledger entry not found.");
     assertLocation(locationIds, entry.locationId);
-    const note = await uow.tx.ledgerNote.create({ data: { entryId: entry.id, text: text20, byId: actor6.kind === "user" ? actor6.userId : null } });
+    const note = await uow.tx.ledgerNote.create({ data: { entryId: entry.id, text: text21, byId: actor6.kind === "user" ? actor6.userId : null } });
     auditCreate(uow, actor6, "LedgerNote", note.id, "ledger.note_corrected", { entryId: entry.id });
     return { id: note.id };
   });
@@ -10143,6 +10159,7 @@ __export(phase6_exports, {
 });
 var import_core21 = require("@keystone-6/core");
 var import_fields21 = require("@keystone-6/core/fields");
+init_access();
 init_domainFields();
 init_listAccess();
 init_scope();
@@ -10162,6 +10179,7 @@ var READ_CLINICAL = ["canChart", "canReadClinical", "canManageSchedule", "canMes
 var COMPLIANCE = ["canManageCompliance", "canReviewPrivacy", "canApproveRetention"];
 var IMPORTERS = ["canImportData", "canExportData", "canApproveImports"];
 var patientScoped = (path = ["patient"]) => scopedGoverned(READ_CLINICAL, patientFilter(path));
+var compliancePatient = () => scopedGoverned(COMPLIANCE, patientFilter(["patient"]));
 var RecallType = (0, import_core21.list)({
   access: governed(["canReadSchedule", "canMessagePatients", "canManageSchedule"]),
   ui: { labelField: "name", listView: { initialColumns: ["name", "key", "intervalMonths", "ageMinYears", "ageMaxYears", "isActive"] } },
@@ -10280,7 +10298,8 @@ var ReviewReply = (0, import_core21.list)({
   }
 });
 var PdmpCheck = (0, import_core21.list)({
-  access: patientScoped(["patient"]),
+  // Controlled-substance history: prescribers and clinical staff see that a check was done; only a prescriber reads what it found (r1 B3).
+  access: scopedGoverned(["canPrescribe", "canReadClinical"], patientFilter(["patient"])),
   ui: { labelField: "id" },
   fields: {
     prescription: (0, import_fields21.relationship)({ ref: "Prescription", ...readOnly }),
@@ -10288,13 +10307,17 @@ var PdmpCheck = (0, import_core21.list)({
     checkedAt: (0, import_fields21.timestamp)({ ...readOnly }),
     checkedBy: (0, import_fields21.relationship)({ ref: "User", ...readOnly }),
     result: fixedChoice(["reviewed_no_concern", "reviewed_concern", "not_required"]),
-    note: systemText(),
+    note: (0, import_fields21.text)({
+      access: { read: ({ session }) => hasPermission(session, "canPrescribe"), create: () => false, update: () => false },
+      ui: { createView: { fieldMode: "hidden" }, itemView: { fieldMode: "read" } }
+    }),
     evidenceDocument: (0, import_fields21.relationship)({ ref: "Document", ...readOnly }),
     ...trackingFields
   }
 });
 var ComplianceTask = (0, import_core21.list)({
-  access: governed(COMPLIANCE),
+  // Practice-wide, with free-text notes that may name a patient: only a reader with every office (r1 B4).
+  access: scopedGoverned(COMPLIANCE, allOfficesOnly()),
   ui: { labelField: "title", listView: { initialColumns: ["title", "category", "dueOn", "status"], initialSort: { field: "dueOn", direction: "ASC" } } },
   fields: {
     title: systemText({ required: true }),
@@ -10311,7 +10334,8 @@ var ComplianceTask = (0, import_core21.list)({
   }
 });
 var IncidentReport = (0, import_core21.list)({
-  access: governed(COMPLIANCE),
+  // An incident can describe any office's patients and names no office of its own: only a reader with every office.
+  access: scopedGoverned(COMPLIANCE, allOfficesOnly()),
   ui: { labelField: "title", listView: { initialColumns: ["title", "discoveredAt", "affectedCount", "status"] } },
   fields: {
     title: systemText({ required: true }),
@@ -10327,7 +10351,7 @@ var IncidentReport = (0, import_core21.list)({
   }
 });
 var PatientRightsRequest = (0, import_core21.list)({
-  access: governed(COMPLIANCE),
+  access: compliancePatient(),
   ui: { labelField: "ref", listView: { initialColumns: ["ref", "patient", "kind", "receivedOn", "dueOn", "status"] } },
   fields: {
     ref: systemText({ indexed: "unique", required: true }),
@@ -10344,7 +10368,7 @@ var PatientRightsRequest = (0, import_core21.list)({
   }
 });
 var AccountingOfDisclosure = (0, import_core21.list)({
-  access: governed(COMPLIANCE),
+  access: compliancePatient(),
   ui: { labelField: "recipient", listView: { initialColumns: ["patient", "disclosedOn", "recipient", "purpose"] } },
   fields: {
     patient: (0, import_fields21.relationship)({ ref: "Patient", ...readOnly }),
@@ -10368,7 +10392,7 @@ var RetentionPolicy = (0, import_core21.list)({
   }
 });
 var RecordHold = (0, import_core21.list)({
-  access: governed(COMPLIANCE),
+  access: compliancePatient(),
   ui: { labelField: "reason", listView: { initialColumns: ["patient", "reason", "status", "createdAt"] } },
   fields: {
     patient: (0, import_fields21.relationship)({ ref: "Patient", ...readOnly }),
@@ -10382,7 +10406,7 @@ var RecordHold = (0, import_core21.list)({
   }
 });
 var RetentionDisposition = (0, import_core21.list)({
-  access: governed(COMPLIANCE),
+  access: compliancePatient(),
   ui: { labelField: "status", listView: { initialColumns: ["patient", "eligibleOn", "status", "createdAt"] } },
   fields: {
     patient: (0, import_fields21.relationship)({ ref: "Patient", ...readOnly }),
@@ -10396,7 +10420,7 @@ var RetentionDisposition = (0, import_core21.list)({
   }
 });
 var ImportBatch = (0, import_core21.list)({
-  access: governed(IMPORTERS),
+  access: scopedGoverned(IMPORTERS, locationFilter()),
   ui: { labelField: "ref", listView: { initialColumns: ["ref", "source", "fileName", "status", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
   fields: {
     ref: systemText({ indexed: "unique", required: true }),
@@ -10417,7 +10441,7 @@ var ImportBatch = (0, import_core21.list)({
   }
 });
 var ImportRecordMap = (0, import_core21.list)({
-  access: governed(IMPORTERS),
+  access: scopedGoverned(IMPORTERS, locationFilter(["batch", "location"])),
   ui: { labelField: "externalId" },
   fields: {
     batch: (0, import_fields21.relationship)({ ref: "ImportBatch", ...readOnly }),
@@ -10429,7 +10453,8 @@ var ImportRecordMap = (0, import_core21.list)({
   }
 });
 var ExportJob = (0, import_core21.list)({
-  access: governed(IMPORTERS),
+  // A patient's export follows the patient; a practice-wide export (journal, recall list) only a reader with every office.
+  access: scopedGoverned(IMPORTERS, scopedBy((ids) => ({ patient: visiblePatient(ids) }))),
   ui: { labelField: "ref", listView: { initialColumns: ["ref", "kind", "status", "sha256", "createdAt"], initialSort: { field: "createdAt", direction: "DESC" } } },
   fields: {
     ref: systemText({ indexed: "unique", required: true }),
@@ -10660,21 +10685,21 @@ var prismaCodeOf = (error) => String(error?.code ?? error?.extensions?.prisma?.c
 var isUniqueConflict = (error) => prismaCodeOf(error) === "P2002" || /Unique constraint failed|duplicate key value violates unique constraint/i.test(textOf(error));
 function dbRefusal(error) {
   const e = error;
-  const text20 = textOf(e);
+  const text21 = textOf(e);
   if (isUniqueConflict(e)) {
     const model = String(e?.meta?.modelName ?? e?.extensions?.prisma?.meta?.modelName ?? "");
-    const index = /unique constraint "([^"]+)"/i.exec(text20)?.[1] ?? "";
-    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text20) ? "BenefitVerification" : /EligibilityCheck/.test(text20) ? "EligibilityCheck" : "");
+    const index = /unique constraint "([^"]+)"/i.exec(text21)?.[1] ?? "";
+    const key = Object.keys(UNIQUE_MESSAGES).find((name) => name === model || index.startsWith(`${name}_`)) ?? (/BenefitVerification/.test(text21) ? "BenefitVerification" : /EligibilityCheck/.test(text21) ? "EligibilityCheck" : "");
     return new DomainError(Codes.STALE_STATE, UNIQUE_MESSAGES[key] ?? "Someone else made the same change at the same moment. Refresh and try again.");
   }
-  const check = /violates check constraint "([^"]+)"/i.exec(text20)?.[1];
+  const check = /violates check constraint "([^"]+)"/i.exec(text21)?.[1];
   if (check) {
     const message = CHECK_MESSAGES.find(([pattern]) => pattern.test(check))?.[1] ?? "The change was refused because it would break a practice rule. Nothing was changed.";
     return new DomainError(Codes.GUARD_FAILED, message, { reason: check });
   }
-  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text20)?.[1];
-  if (raised && /23514|check_violation|RAISE|P0001/i.test(text20 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
-  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text20)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
+  const raised = /(?:ERROR|db error):\s*([A-Z][^\n"]{8,200}?)(?:\n|$)/.exec(text21)?.[1];
+  if (raised && /23514|check_violation|RAISE|P0001/i.test(text21 + prismaCodeOf(e)) && !/prisma|invocation|SQL/i.test(raised)) return new DomainError(Codes.GUARD_FAILED, raised.trim());
+  if (prismaCodeOf(e) === "P2034" || /could not serialize|deadlock detected/i.test(text21)) return new DomainError(Codes.STALE_STATE, "Someone else changed this at the same moment. Refresh and try again.");
   return null;
 }
 
@@ -12215,8 +12240,8 @@ var dedupeKey = (type, location, subject) => `${type}|${location}|${subject}`;
 var MAX_CHAT_CHARS = 600;
 var MAX_CHAT_TURNS = 6;
 var CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g;
-function cleanVisitorText(text20) {
-  return String(text20 ?? "").replace(CONTROL, "").replace(/\s+/g, " ").trim().slice(0, MAX_CHAT_CHARS);
+function cleanVisitorText(text21) {
+  return String(text21 ?? "").replace(CONTROL, "").replace(/\s+/g, " ").trim().slice(0, MAX_CHAT_CHARS);
 }
 function buildSystemPrompt(facts) {
   const places = facts.locations.map((l) => `- ${l.name}${l.address ? `, ${l.address}` : ""}${l.phone ? `, phone ${l.phone}` : ""}${l.hours ? `, hours ${l.hours}` : ""}`).join("\n");
@@ -12236,15 +12261,15 @@ function buildSystemPrompt(facts) {
 }
 function sanitizeReply(reply, facts) {
   const fallback = `I can help with our hours, locations and services. For anything else, please call the office${facts.locations[0]?.phone ? ` at ${facts.locations[0].phone}` : ""}.`;
-  let text20 = String(reply ?? "").replace(CONTROL, "").trim();
-  if (!text20) return fallback;
-  if (/<\s*\/?\s*(script|iframe|img|a|style|svg)\b/i.test(text20) || /\bjavascript:/i.test(text20)) return fallback;
+  let text21 = String(reply ?? "").replace(CONTROL, "").trim();
+  if (!text21) return fallback;
+  if (/<\s*\/?\s*(script|iframe|img|a|style|svg)\b/i.test(text21) || /\bjavascript:/i.test(text21)) return fallback;
   const known = new Set(facts.locations.map((l) => (l.phone ?? "").replace(/\D/g, "")).filter(Boolean));
-  for (const match of text20.match(/\+?\d[\d\s().-]{8,}\d/g) ?? []) if (!known.has(match.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "")) && !known.has(match.replace(/\D/g, ""))) return fallback;
-  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text20)) return fallback;
-  if (/https?:\/\//i.test(text20)) return fallback;
-  if (/\b(system prompt|my instructions|these rules)\b/i.test(text20) && /\b(ignore|reveal|here (is|are))\b/i.test(text20)) return fallback;
-  return text20.slice(0, 700);
+  for (const match of text21.match(/\+?\d[\d\s().-]{8,}\d/g) ?? []) if (!known.has(match.replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "")) && !known.has(match.replace(/\D/g, ""))) return fallback;
+  if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(text21)) return fallback;
+  if (/https?:\/\//i.test(text21)) return fallback;
+  if (/\b(system prompt|my instructions|these rules)\b/i.test(text21) && /\b(ignore|reveal|here (is|are))\b/i.test(text21)) return fallback;
+  return text21.slice(0, 700);
 }
 
 // features/keystone/lib/ai.ts
@@ -14061,11 +14086,11 @@ async function addPatientAlert(_root, args, context) {
   requirePermission(actor6, "canManagePatients", "canChart");
   if (!ALERT_KINDS.includes(args.kind)) throw new DomainError(Codes.INVALID_INPUT, "Unknown alert kind.", { field: "kind" });
   if (!["info", "caution", "critical"].includes(args.severity)) throw new DomainError(Codes.INVALID_INPUT, "Choose info, caution or critical.", { field: "severity" });
-  const text20 = requireText(args.text, "alert text", 500);
+  const text21 = requireText(args.text, "alert text", 500);
   const { idempotencyKey, ...params } = args;
   const result = await command(context.prisma, { name: "patient.alert_add", actor: actor6, idempotencyKey, params }, async (uow) => {
     await assertPatientInScope(uow.tx, locationIds, args.patientId);
-    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text20, source: "manual", activeFrom: uow.now, recordedById: actor6.kind === "user" ? actor6.userId : null } });
+    const alert = await uow.tx.patientAlert.create({ data: { patientId: args.patientId, kind: args.kind, severity: args.severity, text: text21, source: "manual", activeFrom: uow.now, recordedById: actor6.kind === "user" ? actor6.userId : null } });
     auditCreate(uow, actor6, "PatientAlert", alert.id, "alert.added", { patientId: args.patientId, kind: args.kind, severity: args.severity });
     return { alertId: alert.id };
   });
@@ -16787,7 +16812,7 @@ function moneyToMinor(value) {
   return m[1] ? -minor2 : minor2;
 }
 var SEX = { "0": "male", "1": "female", "2": "unknown", male: "male", female: "female", m: "male", f: "female" };
-var OD_PROC_STATUS = { "1": "planned", "2": "existing_other", "6": "existing_other", "7": "existing_current" };
+var OD_PROC_STATUS = { "1": "planned", "2": "existing_other", "3": "existing_current", "4": "existing_other", "5": "referred_out", "6": "deleted", "7": "condition" };
 var OD_APT_STATUS = { "1": "scheduled", "2": "completed", "5": "broken", "6": "planned" };
 var phoneOf = (r) => str(r.WirelessPhone) || str(r.HmPhone) || str(r.WkPhone);
 function parseOpenDental(input) {
@@ -16857,10 +16882,10 @@ function parseOpenDental(input) {
   });
   return { patients, appointments, procedures, problems, source: "open_dental" };
 }
-function parseCsv(text20) {
+function parseCsv(text21) {
   const rows = [];
   let row = [], cell = "", quoted = false;
-  const src = text20.replace(/^\uFEFF/, "");
+  const src = text21.replace(/^\uFEFF/, "");
   for (let i = 0; i < src.length; i++) {
     const c = src[i];
     if (quoted) {
@@ -16886,8 +16911,8 @@ function parseCsv(text20) {
   if (row.some((x) => x.trim())) rows.push(row);
   return rows;
 }
-function parseGenericCsv(text20) {
-  const [head = [], ...body] = parseCsv(text20);
+function parseGenericCsv(text21) {
+  const [head = [], ...body] = parseCsv(text21);
   const names = head.map((h) => h.trim().toLowerCase().replaceAll(" ", "_"));
   const at = (row, key) => row[names.indexOf(key)] ?? "";
   const table = body.map((row) => ({ PatNum: at(row, "id") || at(row, "patient_id"), LName: at(row, "last_name"), FName: at(row, "first_name"), Birthdate: at(row, "date_of_birth"), Gender: at(row, "sex"), WirelessPhone: at(row, "phone"), Email: at(row, "email"), EstBalance: at(row, "balance") }));
@@ -16900,13 +16925,13 @@ function previewOf(n, existing) {
     source: n.source,
     patients: { read: n.patients.length + count("patient"), importable: n.patients.length, problems: count("patient"), alreadyInChart: existing.matched, alreadyImported: existing.byExt },
     appointments: { read: n.appointments.length + count("appointment"), importable: n.appointments.length, problems: count("appointment") },
-    procedures: { read: n.procedures.length + count("procedure"), importable: n.procedures.length, problems: count("procedure") },
+    procedures: { read: n.procedures.length + count("procedure"), importable: n.procedures.filter((p) => p.status !== "deleted").length, conditions: n.procedures.filter((p) => p.status === "condition").length, deleted: n.procedures.filter((p) => p.status === "deleted").length, problems: count("procedure") },
     balanceMinor: n.patients.reduce((s, p) => s + p.balanceMinor, 0n).toString(),
     problems: n.problems.slice(0, 50),
     problemCount: n.problems.length
   };
 }
-var fileHash = (text20) => (0, import_node_crypto20.createHash)("sha256").update(text20).digest("hex");
+var fileHash = (text21) => (0, import_node_crypto20.createHash)("sha256").update(text21).digest("hex");
 var freeze = (n) => ({ ...n, patients: n.patients.map((p) => ({ ...p, balanceMinor: p.balanceMinor.toString() })), procedures: n.procedures.map((p) => ({ ...p, feeMinor: p.feeMinor.toString() })) });
 var thaw = (j) => ({ ...j, patients: (j.patients ?? []).map((p) => ({ ...p, balanceMinor: BigInt(p.balanceMinor) })), procedures: (j.procedures ?? []).map((p) => ({ ...p, feeMinor: BigInt(p.feeMinor) })) });
 
@@ -16920,6 +16945,7 @@ init_shared();
 var IMPORT_CHUNK = 100;
 var MAX_FILE_BYTES = 8e6;
 var OPENING = "Opening balance (imported)";
+var IMPORTED_CONDITION = "imported";
 var run2 = async (context, actor6, name, args, work) => {
   const { idempotencyKey, ...params } = args;
   const clipped = Object.fromEntries(Object.entries(params).map(([k, v]) => [k, typeof v === "string" && v.length > 200 ? `sha256:${(0, import_node_crypto21.createHash)("sha256").update(v).digest("hex")}` : v]));
@@ -16988,7 +17014,7 @@ async function requestImportApply(_root, args, context) {
 var emptyRecon = (n) => ({
   patients: { source: n.patients.length + n.problems.filter((p) => p.entity === "patient").length, created: 0, matchedExisting: 0, skipped: n.problems.filter((p) => p.entity === "patient").length },
   appointments: { source: n.appointments.length + n.problems.filter((p) => p.entity === "appointment").length, created: 0, skipped: n.problems.filter((p) => p.entity === "appointment").length, skippedReasons: {} },
-  procedures: { source: n.procedures.length + n.problems.filter((p) => p.entity === "procedure").length, chart: 0, historyOnly: 0, skipped: n.problems.filter((p) => p.entity === "procedure").length },
+  procedures: { source: n.procedures.length + n.problems.filter((p) => p.entity === "procedure").length, chart: 0, conditions: 0, historyOnly: 0, deleted: 0, skipped: n.problems.filter((p) => p.entity === "procedure").length },
   balances: { sourceMinor: "0", ledgerMinor: "0", patientsChecked: 0, mismatches: 0, differenceMinor: "0" },
   balanced: false
 });
@@ -17117,9 +17143,27 @@ async function applyChunk(uow, actor6, batch, n, recon) {
   }
   for (const pr of n.procedures.filter((x) => exts.has(x.patientExt))) {
     if (mapOf.has(`procedure|${pr.ext}`)) continue;
+    if (pr.status === "deleted") {
+      recon.procedures.deleted += 1;
+      continue;
+    }
     const patientId = patientIdOf.get(pr.patientExt);
     if (!patientId) {
       recon.procedures.skipped += 1;
+      continue;
+    }
+    if (pr.status === "condition") {
+      const known = pr.codeText ? await tx.conditionType.findFirst({ where: { code: { equals: pr.codeText, mode: "insensitive" }, isActive: true } }) : null;
+      const condition = known ?? await tx.conditionType.upsert({ where: { code: IMPORTED_CONDITION }, update: {}, create: { code: IMPORTED_CONDITION, label: "Finding from the previous system", chartSymbol: "IM", areaRule: "tooth" } });
+      let site = { area: "mouth" };
+      try {
+        if (pr.tooth) site = normalizeSite("tooth_surface", { tooth: pr.tooth, surfaces: pr.surfaces }, { requiresSurfaces: false });
+      } catch (error) {
+        if (!(error instanceof DomainError)) throw error;
+      }
+      const entry = await tx.chartEntry.create({ data: { patientId, locationId: batch.locationId, kind: "condition", conditionId: condition.id, status: "existing_current", conditionStatus: "active", source: "import", isSynthetic: !!settings?.isSynthetic, dateOfService: dayOf(pr.date), ...site } });
+      recon.procedures.conditions += 1;
+      await remember("procedure", pr.ext, entry.id);
       continue;
     }
     const code = pr.codeText ? await tx.procedureCode.findFirst({ where: { OR: [{ code: pr.codeText }, { code: { equals: `OF-${pr.codeText}`, mode: "insensitive" } }] } }) : null;

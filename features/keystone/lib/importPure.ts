@@ -11,7 +11,7 @@ export const MAX_ROWS = 40_000
 
 export type ImportPatient = { ext: string; firstName: string; lastName: string; middleName: string; preferredName: string; dateOfBirth: string; sex: 'female' | 'male' | 'unknown'; phone: string; email: string; address: Record<string, string>; balanceMinor: bigint }
 export type ImportAppointment = { ext: string; patientExt: string; date: string; time: string; minutes: number; status: 'scheduled' | 'completed' | 'broken' | 'planned'; note: string }
-export type ImportProcedure = { ext: string; patientExt: string; date: string; status: 'planned' | 'existing_other' | 'existing_current'; feeMinor: bigint; tooth: string; surfaces: string; codeText: string }
+export type ImportProcedure = { ext: string; patientExt: string; date: string; status: ImportProcStatus; feeMinor: bigint; tooth: string; surfaces: string; codeText: string }
 export type Problem = { entity: string; row: number; ext: string; problem: string }
 export type Normalised = { patients: ImportPatient[]; appointments: ImportAppointment[]; procedures: ImportProcedure[]; problems: Problem[]; source: 'open_dental' | 'generic_csv' }
 
@@ -28,7 +28,13 @@ export function moneyToMinor(value: unknown): bigint | null {
 }
 
 const SEX: Record<string, 'male' | 'female' | 'unknown'> = { '0': 'male', '1': 'female', '2': 'unknown', male: 'male', female: 'female', m: 'male', f: 'female' }
-const OD_PROC_STATUS: Record<string, ImportProcedure['status']> = { '1': 'planned', '2': 'existing_other', '6': 'existing_other', '7': 'existing_current' }
+/**
+ * Open Dental procedurelog.ProcStatus: 1 TP (treatment planned), 2 C (complete), 3 EC (existing, this office), 4 EO (existing, elsewhere),
+ * 5 R (referred out), 6 D (deleted), 7 Cn (a condition, not a procedure). Deleted rows are read and counted but never charted; a condition
+ * becomes a finding on the chart, never a procedure.
+ */
+export type ImportProcStatus = 'planned' | 'existing_other' | 'existing_current' | 'referred_out' | 'deleted' | 'condition'
+export const OD_PROC_STATUS: Record<string, ImportProcStatus> = { '1': 'planned', '2': 'existing_other', '3': 'existing_current', '4': 'existing_other', '5': 'referred_out', '6': 'deleted', '7': 'condition' }
 const OD_APT_STATUS: Record<string, ImportAppointment['status']> = { '1': 'scheduled', '2': 'completed', '5': 'broken', '6': 'planned' }
 
 const phoneOf = (r: Record<string, unknown>) => str(r.WirelessPhone) || str(r.HmPhone) || str(r.WkPhone)
@@ -127,7 +133,7 @@ export function previewOf(n: Normalised, existing: { matched: number; byExt: num
     source: n.source,
     patients: { read: n.patients.length + count('patient'), importable: n.patients.length, problems: count('patient'), alreadyInChart: existing.matched, alreadyImported: existing.byExt },
     appointments: { read: n.appointments.length + count('appointment'), importable: n.appointments.length, problems: count('appointment') },
-    procedures: { read: n.procedures.length + count('procedure'), importable: n.procedures.length, problems: count('procedure') },
+    procedures: { read: n.procedures.length + count('procedure'), importable: n.procedures.filter(p => p.status !== 'deleted').length, conditions: n.procedures.filter(p => p.status === 'condition').length, deleted: n.procedures.filter(p => p.status === 'deleted').length, problems: count('procedure') },
     balanceMinor: n.patients.reduce((s, p) => s + p.balanceMinor, 0n).toString(),
     problems: n.problems.slice(0, 50),
     problemCount: n.problems.length,
@@ -143,7 +149,8 @@ export const thaw = (j: any): Normalised => ({ ...j, patients: (j.patients ?? []
 export type Reconciliation = {
   patients: { source: number; created: number; matchedExisting: number; skipped: number }
   appointments: { source: number; created: number; skipped: number; skippedReasons: Record<string, number> }
-  procedures: { source: number; chart: number; historyOnly: number; skipped: number }
+  /** source = chart + conditions + historyOnly + deleted + skipped. */
+  procedures: { source: number; chart: number; conditions: number; historyOnly: number; deleted: number; skipped: number }
   balances: { sourceMinor: string; ledgerMinor: string; patientsChecked: number; mismatches: number; differenceMinor: string }
   balanced: boolean
 }

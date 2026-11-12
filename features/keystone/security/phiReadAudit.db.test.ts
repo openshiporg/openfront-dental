@@ -22,6 +22,11 @@ const GENERATED = Object.entries(PHI_FIELDS).map(([list, fields]) => {
 })
 
 describe('PHI read audit (generated across every tiered list)', () => {
+  it('covers every Phase 6 patient-data list (P6 r1 B2)', () => {
+    const P6 = ['LabCase', 'PdmpCheck', 'PatientRecall', 'AccountingOfDisclosure', 'PatientRightsRequest', 'ImportBatch', 'ImportRecordMap', 'ExportJob', 'RecordHold', 'RetentionDisposition', 'IncidentReport', 'ReviewRequest', 'ReviewReply', 'CallRecord']
+    expect(P6.filter(l => !GENERATED.some(g => g.list === l))).toEqual([])
+  })
+
   it.each(GENERATED)('$list: every tiered field is recorded, with reference tokens instead of ids', ({ list, root, fields, source }) => {
     const descriptor = phiReadAuditDescriptor(parse(source), null, { data: { [root]: [{ id: 'rec_1' }, { id: 'rec_2' }] } }, schema, SECRET)
     expect(descriptor?.listKeys).toEqual([list])

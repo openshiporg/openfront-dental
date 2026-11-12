@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache';
 import { PUBLIC_REQUEST_ERROR, safeErrorSummary, sanitizeDashboardRedirect } from '../lib/security';
 import { passwordResetEmailAvailable, RESET_EMAIL_UNAVAILABLE } from '../lib/authFlow';
 import { secretGraphql } from '@/features/platform/lib/secretGraphql';
+import { PAGE_GATE_PERMISSIONS } from '@/features/platform/lib/pageAccess';
 
 /** Matches the server's session ceiling (features/keystone/lib/session.ts). */
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 12;
@@ -176,7 +177,7 @@ export async function getAuthenticatedUser() {
           role {
             canAccessDashboard
             canManageOnboarding
-            canReadAudit
+            ${PAGE_GATE_PERMISSIONS.join('\n            ')}
           }
         }
       }

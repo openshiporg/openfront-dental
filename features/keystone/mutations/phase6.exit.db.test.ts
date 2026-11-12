@@ -31,6 +31,14 @@ const DUMP = {
   procedurelog: [
     { ProcNum: '9001', PatNum: '1001', ProcDate: '2024-02-12', ProcStatus: '2', ProcFee: '120.00', ProcCode: 'LEGACY-1' },
     { ProcNum: '9002', PatNum: '1003', ProcDate: '2023-05-05', ProcStatus: '2', ProcFee: '85.00', ProcCode: 'LEGACY-2', ToothNum: '8' },
+    // every other Open Dental ProcStatus: 1 TP, 3 EC, 4 EO, 5 R, 6 D (deleted), 7 Cn (condition)
+    { ProcNum: '9011', PatNum: '1001', ProcDate: '2024-02-12', ProcStatus: '1', ProcFee: '95.00', ProcCode: 'OF-P001' },
+    { ProcNum: '9013', PatNum: '1001', ProcDate: '2023-01-10', ProcStatus: '3', ProcFee: '0', ProcCode: 'OF-P001' },
+    { ProcNum: '9014', PatNum: '1002', ProcDate: '2019-06-01', ProcStatus: '4', ProcFee: '0', ProcCode: 'OF-P001' },
+    { ProcNum: '9015', PatNum: '1002', ProcDate: '2024-03-01', ProcStatus: '5', ProcFee: '0', ProcCode: 'OF-P001' },
+    { ProcNum: '9016', PatNum: '1001', ProcDate: '2024-02-12', ProcStatus: '6', ProcFee: '45.00', ProcCode: 'OF-P001' },
+    { ProcNum: '9017', PatNum: '1003', ProcDate: '2024-01-05', ProcStatus: '7', ProcFee: '0', ProcCode: 'caries', ToothNum: '30', Surf: 'mo' },
+    { ProcNum: '9018', PatNum: '1003', ProcDate: '2024-01-05', ProcStatus: '7', ProcFee: '0', ProcCode: 'D9999' },
   ],
 }
 
@@ -87,7 +95,10 @@ describe.skipIf(!hasTestDatabase)('Phase 6: import, export, holds (database)', (
     expect(rec.patients).toMatchObject({ source: 4, created: 3, skipped: 1 })
     expect(rec.appointments.created).toBe(2)
     expect(rec.appointments.skipped).toBe(1)
-    expect(rec.procedures.chart + rec.procedures.historyOnly).toBe(2)
+    // every status is accounted for, and the counts tie back to the file
+    expect(rec.procedures).toMatchObject({ source: 9, chart: 4, conditions: 2, historyOnly: 2, deleted: 1, skipped: 0 })
+    const p = rec.procedures
+    expect(p.chart + p.conditions + p.historyOnly + p.deleted + p.skipped).toBe(p.source)
     expect(rec.balances).toMatchObject({ sourceMinor: '8525', ledgerMinor: '8525', mismatches: 0, differenceMinor: '0' })
     expect(rec.balanced).toBe(true)
 
@@ -98,6 +109,18 @@ describe.skipIf(!hasTestDatabase)('Phase 6: import, export, holds (database)', (
     expect(ledger.reduce((s, e) => s + e.amountMinor, 0n)).toBe(12550n)
     const ada = await prisma.patient.findFirstOrThrow({ where: { lastName: 'Okonkwo' } })
     expect((await prisma.ledgerEntry.findMany({ where: { patientId: ada.id } })).reduce((s, e) => s + e.amountMinor, 0n)).toBe(-4025n)
+
+    // The chart round-trips: TP planned, EC existing here, EO existing elsewhere, R referred out, D left out, Cn a finding.
+    const felix = await prisma.patient.findFirstOrThrow({ where: { lastName: 'Duarte' } })
+    const chartOf = async (patientId: string) => (await prisma.chartEntry.findMany({ where: { patientId, source: 'import' }, include: { code: true, condition: true }, orderBy: { createdAt: 'asc' } }))
+    const imaniChart = await chartOf(imani.id)
+    expect(imaniChart.map(e => [e.kind, e.code?.code, e.status]).sort()).toEqual([['procedure', 'OF-P001', 'existing_current'], ['procedure', 'OF-P001', 'planned']])
+    expect((await chartOf(felix.id)).map(e => [e.kind, e.status]).sort()).toEqual([['procedure', 'existing_other'], ['procedure', 'referred_out']])
+    const adaChart = await chartOf(ada.id)
+    expect(adaChart.every(e => e.kind === 'condition' && e.codeId === null)).toBe(true)
+    expect(adaChart.map(e => [e.condition?.code, e.tooth, e.surfaces, e.conditionStatus]).sort()).toEqual([['caries', '30', 'MO', 'active'], ['imported', '', '', 'active']])
+    const maps = await prisma.importRecordMap.findMany({ where: { batchId, entity: 'procedure' } })
+    expect(maps.map(m => m.externalId).sort()).toEqual(['9001', '9002', '9011', '9013', '9014', '9015', '9017', '9018'])
   })
 
   it('applying the same batch again changes nothing', async () => {

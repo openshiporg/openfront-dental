@@ -36,7 +36,7 @@ export function PageContainer({ children, title, header, breadcrumbs }: PageCont
       {/* Header with breadcrumbs */}
       <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b">
         <div className="flex min-w-0 items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
+          <SidebarTrigger className="-ml-1 size-11" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           
           {breadcrumbs && breadcrumbs.length > 0 && (
@@ -47,7 +47,7 @@ export function PageContainer({ children, title, header, breadcrumbs }: PageCont
                     {/* Phones keep the last two crumbs so the trail stays on one line next to the header buttons. */}
                     <BreadcrumbItem className={index < breadcrumbs.length - 2 ? 'max-sm:hidden' : undefined}>
                       {item.type === 'link' && item.href ? (
-                        <BreadcrumbLink href={item.href}>
+                        <BreadcrumbLink href={item.href} className="inline-flex min-h-11 items-center">
                           {item.label}
                         </BreadcrumbLink>
                       ) : (

@@ -79,7 +79,7 @@ const SHAPES = {
 } satisfies Record<string, (v: Values) => Record<string, unknown>>;
 export type CommandShape = keyof typeof SHAPES;
 
-const inputClass = 'h-9 w-full rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const inputClass = 'h-11 w-full rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 /**
  * A small form for one named command. `shape` names how field values become the command variables
@@ -127,7 +127,7 @@ export function CommandForm({ op, fields, shape, submitLabel, paths, onDoneHref,
         {fields.map((f) => (
           <label key={f.name} className={cn('min-w-0 space-y-1 text-sm', (f.kind === 'textarea' || f.kind === 'checkbox') && 'sm:col-span-full')}>
             {f.kind === 'checkbox' ? (
-              <span className="flex items-start gap-2"><input type="checkbox" name={f.name} defaultChecked={f.defaultValue} className="mt-0.5" /><span>{f.label}</span></span>
+              <span className="flex items-start gap-2"><input type="checkbox" name={f.name} defaultChecked={f.defaultValue} className="mt-0.5 size-5" /><span>{f.label}</span></span>
             ) : (
               <>
                 <span className="block font-medium">{f.label}{'required' in f && f.required ? <span className="text-red-600"> *</span> : null}</span>

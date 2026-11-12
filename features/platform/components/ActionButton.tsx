@@ -5,11 +5,15 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { runCommand } from '../actions/commands';
 
+/** A disclosure's summary line, tall enough to tap. */
+export const summaryClass = 'flex min-h-11 cursor-pointer items-center text-sm font-medium';
+
 export function PillTrack({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn('inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-muted p-1', className)}>{children}</div>;
 }
 
-export const pillClass = 'inline-flex h-8 items-center justify-center whitespace-nowrap rounded-md bg-background px-3 text-sm font-medium shadow-sm transition disabled:opacity-50';
+/** At least 44px tall: the touch-target floor. */
+export const pillClass = 'inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-md bg-background px-3 text-sm font-medium shadow-sm transition disabled:opacity-50';
 
 const newKey = (op: string) => `${op}:${crypto.randomUUID()}`;
 

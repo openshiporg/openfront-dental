@@ -26,6 +26,8 @@ type Tx = any
 export const IMPORT_CHUNK = 100
 const MAX_FILE_BYTES = 8_000_000
 const OPENING = 'Opening balance (imported)'
+/** The finding type an imported condition gets when its code is not one of the office's own condition codes. */
+const IMPORTED_CONDITION = 'imported'
 
 const run = async <T>(context: Ctx, actor: any, name: string, args: any, work: (uow: any) => Promise<T>) => {
   const { idempotencyKey, ...params } = args
@@ -93,7 +95,7 @@ export async function requestImportApply(_root: unknown, args: { batchId: string
 const emptyRecon = (n: Normalised): Reconciliation => ({
   patients: { source: n.patients.length + n.problems.filter(p => p.entity === 'patient').length, created: 0, matchedExisting: 0, skipped: n.problems.filter(p => p.entity === 'patient').length },
   appointments: { source: n.appointments.length + n.problems.filter(p => p.entity === 'appointment').length, created: 0, skipped: n.problems.filter(p => p.entity === 'appointment').length, skippedReasons: {} },
-  procedures: { source: n.procedures.length + n.problems.filter(p => p.entity === 'procedure').length, chart: 0, historyOnly: 0, skipped: n.problems.filter(p => p.entity === 'procedure').length },
+  procedures: { source: n.procedures.length + n.problems.filter(p => p.entity === 'procedure').length, chart: 0, conditions: 0, historyOnly: 0, deleted: 0, skipped: n.problems.filter(p => p.entity === 'procedure').length },
   balances: { sourceMinor: '0', ledgerMinor: '0', patientsChecked: 0, mismatches: 0, differenceMinor: '0' }, balanced: false,
 })
 
@@ -168,10 +170,22 @@ async function applyChunk(uow: any, actor: any, batch: any, n: Normalised, recon
   }
 
   // Chart. A procedure whose code this office does not have is kept as outside history so nothing is lost and nothing is billed.
+  // A row deleted in the old system is counted and left out; a condition row becomes a finding, never a procedure.
   for (const pr of n.procedures.filter(x => exts.has(x.patientExt))) {
     if (mapOf.has(`procedure|${pr.ext}`)) continue
+    if (pr.status === 'deleted') { recon.procedures.deleted += 1; continue }
     const patientId = patientIdOf.get(pr.patientExt)
     if (!patientId) { recon.procedures.skipped += 1; continue }
+    if (pr.status === 'condition') {
+      const known = pr.codeText ? await tx.conditionType.findFirst({ where: { code: { equals: pr.codeText, mode: 'insensitive' }, isActive: true } }) : null
+      const condition = known ?? (await tx.conditionType.upsert({ where: { code: IMPORTED_CONDITION }, update: {}, create: { code: IMPORTED_CONDITION, label: 'Finding from the previous system', chartSymbol: 'IM', areaRule: 'tooth' } }))
+      let site: Record<string, unknown> = { area: 'mouth' }
+      try { if (pr.tooth) site = normalizeSite('tooth_surface', { tooth: pr.tooth, surfaces: pr.surfaces }, { requiresSurfaces: false }) } catch (error) { if (!(error instanceof DomainError)) throw error }
+      const entry = await tx.chartEntry.create({ data: { patientId, locationId: batch.locationId, kind: 'condition', conditionId: condition.id, status: 'existing_current', conditionStatus: 'active', source: 'import', isSynthetic: !!settings?.isSynthetic, dateOfService: dayOf(pr.date), ...site } })
+      recon.procedures.conditions += 1
+      await remember('procedure', pr.ext, entry.id)
+      continue
+    }
     const code = pr.codeText ? await tx.procedureCode.findFirst({ where: { OR: [{ code: pr.codeText }, { code: { equals: `OF-${pr.codeText}`, mode: 'insensitive' } }] } }) : null
     let id: string | null = null
     if (code) {

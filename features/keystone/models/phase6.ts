@@ -1,8 +1,9 @@
 import { list } from '@keystone-6/core'
-import { calendarDay, checkbox, integer, json, relationship, timestamp } from '@keystone-6/core/fields'
+import { calendarDay, checkbox, integer, json, relationship, text, timestamp } from '@keystone-6/core/fields'
+import { hasPermission } from '../access'
 import { fixedChoice, lifecycle, readOnly, systemText, versionField } from './domainFields'
 import { governed } from './listAccess'
-import { locationFilter, patientFilter, scopedGoverned } from './scope'
+import { allOfficesOnly, locationFilter, patientFilter, scopedBy, scopedGoverned, visiblePatient } from './scope'
 import { trackingFields } from './trackingFields'
 
 /*
@@ -27,6 +28,8 @@ const READ_CLINICAL = ['canChart', 'canReadClinical', 'canManageSchedule', 'canM
 const COMPLIANCE = ['canManageCompliance', 'canReviewPrivacy', 'canApproveRetention'] as never
 const IMPORTERS = ['canImportData', 'canExportData', 'canApproveImports'] as never
 const patientScoped = (path: string[] = ['patient']) => scopedGoverned(READ_CLINICAL, patientFilter(path))
+/** Compliance rows about one patient follow that patient's offices (r1 B4). */
+const compliancePatient = () => scopedGoverned(COMPLIANCE, patientFilter(['patient']))
 
 // ── Recall ─────────────────────────────────────────────────────────────────────────────────────
 
@@ -161,7 +164,8 @@ export const ReviewReply = list({
 // ── Prescriptions, imaging ─────────────────────────────────────────────────────────────────────
 
 export const PdmpCheck = list({
-  access: patientScoped(['patient']),
+  // Controlled-substance history: prescribers and clinical staff see that a check was done; only a prescriber reads what it found (r1 B3).
+  access: scopedGoverned(['canPrescribe', 'canReadClinical'] as never, patientFilter(['patient'])),
   ui: { labelField: 'id' },
   fields: {
     prescription: relationship({ ref: 'Prescription', ...readOnly }),
@@ -169,7 +173,10 @@ export const PdmpCheck = list({
     checkedAt: timestamp({ ...readOnly }),
     checkedBy: relationship({ ref: 'User', ...readOnly }),
     result: fixedChoice(['reviewed_no_concern', 'reviewed_concern', 'not_required']),
-    note: systemText(),
+    note: text({
+      access: { read: ({ session }) => hasPermission(session, 'canPrescribe'), create: () => false, update: () => false },
+      ui: { createView: { fieldMode: 'hidden' }, itemView: { fieldMode: 'read' } },
+    }),
     evidenceDocument: relationship({ ref: 'Document', ...readOnly }),
     ...trackingFields,
   },
@@ -178,7 +185,8 @@ export const PdmpCheck = list({
 // ── Compliance ─────────────────────────────────────────────────────────────────────────────────
 
 export const ComplianceTask = list({
-  access: governed(COMPLIANCE),
+  // Practice-wide, with free-text notes that may name a patient: only a reader with every office (r1 B4).
+  access: scopedGoverned(COMPLIANCE, allOfficesOnly()),
   ui: { labelField: 'title', listView: { initialColumns: ['title', 'category', 'dueOn', 'status'], initialSort: { field: 'dueOn', direction: 'ASC' } } },
   fields: {
     title: systemText({ required: true }),
@@ -196,7 +204,8 @@ export const ComplianceTask = list({
 })
 
 export const IncidentReport = list({
-  access: governed(COMPLIANCE),
+  // An incident can describe any office's patients and names no office of its own: only a reader with every office.
+  access: scopedGoverned(COMPLIANCE, allOfficesOnly()),
   ui: { labelField: 'title', listView: { initialColumns: ['title', 'discoveredAt', 'affectedCount', 'status'] } },
   fields: {
     title: systemText({ required: true }),
@@ -213,7 +222,7 @@ export const IncidentReport = list({
 })
 
 export const PatientRightsRequest = list({
-  access: governed(COMPLIANCE),
+  access: compliancePatient(),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'patient', 'kind', 'receivedOn', 'dueOn', 'status'] } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),
@@ -231,7 +240,7 @@ export const PatientRightsRequest = list({
 })
 
 export const AccountingOfDisclosure = list({
-  access: governed(COMPLIANCE),
+  access: compliancePatient(),
   ui: { labelField: 'recipient', listView: { initialColumns: ['patient', 'disclosedOn', 'recipient', 'purpose'] } },
   fields: {
     patient: relationship({ ref: 'Patient', ...readOnly }),
@@ -257,7 +266,7 @@ export const RetentionPolicy = list({
 })
 
 export const RecordHold = list({
-  access: governed(COMPLIANCE),
+  access: compliancePatient(),
   ui: { labelField: 'reason', listView: { initialColumns: ['patient', 'reason', 'status', 'createdAt'] } },
   fields: {
     patient: relationship({ ref: 'Patient', ...readOnly }),
@@ -272,7 +281,7 @@ export const RecordHold = list({
 })
 
 export const RetentionDisposition = list({
-  access: governed(COMPLIANCE),
+  access: compliancePatient(),
   ui: { labelField: 'status', listView: { initialColumns: ['patient', 'eligibleOn', 'status', 'createdAt'] } },
   fields: {
     patient: relationship({ ref: 'Patient', ...readOnly }),
@@ -289,7 +298,7 @@ export const RetentionDisposition = list({
 // ── Import and export ──────────────────────────────────────────────────────────────────────────
 
 export const ImportBatch = list({
-  access: governed(IMPORTERS),
+  access: scopedGoverned(IMPORTERS, locationFilter()),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'source', 'fileName', 'status', 'createdAt'], initialSort: { field: 'createdAt', direction: 'DESC' } } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),
@@ -311,7 +320,7 @@ export const ImportBatch = list({
 })
 
 export const ImportRecordMap = list({
-  access: governed(IMPORTERS),
+  access: scopedGoverned(IMPORTERS, locationFilter(['batch', 'location'])),
   ui: { labelField: 'externalId' },
   fields: {
     batch: relationship({ ref: 'ImportBatch', ...readOnly }),
@@ -324,7 +333,8 @@ export const ImportRecordMap = list({
 })
 
 export const ExportJob = list({
-  access: governed(IMPORTERS),
+  // A patient's export follows the patient; a practice-wide export (journal, recall list) only a reader with every office.
+  access: scopedGoverned(IMPORTERS, scopedBy(ids => ({ patient: visiblePatient(ids) }))),
   ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'kind', 'status', 'sha256', 'createdAt'], initialSort: { field: 'createdAt', direction: 'DESC' } } },
   fields: {
     ref: systemText({ indexed: 'unique', required: true }),

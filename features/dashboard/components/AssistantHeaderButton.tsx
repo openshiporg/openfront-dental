@@ -17,7 +17,7 @@ export function AssistantHeaderButton({ className }: { className?: string }) {
       data-assistant-header=""
       onClick={toggleSidebar}
       aria-label="Open assistant"
-      className={cn('inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-foreground text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden', className)}
+      className={cn('inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-foreground text-background shadow-sm transition-colors hover:bg-foreground/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden', className)}
     >
       <Sparkles className="size-4" aria-hidden="true" />
     </button>

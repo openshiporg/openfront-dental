@@ -43,6 +43,12 @@ describe('import parsing', () => {
     expect(n.patients.map(p => p.ext)).toEqual(['1'])
     expect(n.problems.map(p => `${p.entity}:${p.ext}`).sort()).toEqual(['appointment:a1', 'patient:1', 'patient:2', 'patient:3'])
   })
+  it('maps every Open Dental ProcStatus: EC and EO are existing work, D is left out, Cn is a condition', () => {
+    const procedurelog = ['1', '2', '3', '4', '5', '6', '7', '8'].map(s => ({ ProcNum: `p${s}`, PatNum: '1', ProcDate: '2024-01-01', ProcStatus: s, ProcFee: '0' }))
+    const n = parseOpenDental({ patient: [{ PatNum: '1', LName: 'Rivera', FName: 'Ana', Birthdate: '1985-04-12' }], procedurelog })
+    expect(Object.fromEntries(n.procedures.map(p => [p.ext, p.status]))).toEqual({ p1: 'planned', p2: 'existing_other', p3: 'existing_current', p4: 'existing_other', p5: 'referred_out', p6: 'deleted', p7: 'condition' })
+    expect(n.problems.map(p => p.ext)).toEqual(['p8'])
+  })
   it('reads a generic csv with quoted commas', () => {
     const n = parseGenericCsv('id,first_name,last_name,date_of_birth,sex,phone,balance\r\n7,Ana,"Rivera, Jr",1985-04-12,female,407-555-0101,10.50\r\n')
     expect(n.patients[0]).toMatchObject({ ext: '7', lastName: 'Rivera, Jr', balanceMinor: 1050n })

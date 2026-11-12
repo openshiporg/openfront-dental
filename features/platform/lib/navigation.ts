@@ -52,7 +52,7 @@ export const platformNavItems: PlatformNavItem[] = [
   { title: 'Import and export', href: '/platform/data', color: 'slate', description: 'Bring in a patient list, or take records and the ledger out.', icon: Inbox, group: 'practice' },
   { title: 'Locations & operatories', href: '/platform/settings/locations', color: 'slate', description: 'Offices, chairs, appointment types and schedule templates.', icon: MapPin, group: 'practice' },
   { title: 'Audit log', href: '/platform/audit', color: 'slate', description: 'Hash-chained audit events and chain verification.', icon: BookOpenCheck, group: 'practice' },
-  { title: 'Privacy', href: '/platform/privacy', color: 'rose', description: 'PHI access log and break-glass reviews.', icon: ShieldCheck, group: 'practice' },
+  { title: 'Privacy', href: '/platform/privacy', color: 'rose', description: 'Patient privacy requests, disclosures, records exports, emergency access and who read records.', icon: ShieldCheck, group: 'practice' },
   { title: 'Sign-in security', href: '/platform/settings/security', color: 'slate', description: 'Two-step verification and recovery codes.', icon: KeyRound, group: 'practice' },
   { title: 'Practice settings', href: '/platform/settings', color: 'slate', description: 'Practice profile, jurisdiction packs and approval policies.', icon: Settings, group: 'practice' },
 ]
@@ -70,7 +70,7 @@ export const SHIPPED_ROUTES = new Set<string>([
   // Phase 5
   '/platform/assistant',
   // Phase 6
-  '/platform/recall', '/platform/labs', '/platform/prescriptions', '/platform/reviews', '/platform/compliance', '/platform/data',
+  '/platform/recall', '/platform/labs', '/platform/prescriptions', '/platform/reviews', '/platform/compliance', '/platform/data', '/platform/privacy',
   '/platform/claims', '/platform/remittances', '/platform/payments', '/platform/memberships', '/platform/close',
 ])
 

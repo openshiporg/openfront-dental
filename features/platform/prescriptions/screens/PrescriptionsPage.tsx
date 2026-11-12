@@ -1,13 +1,14 @@
-import { q } from '../../lib/server';
+import { q, requirePage } from '../../lib/server';
 import { when, title } from '../../lib/format';
 import { practiceTimeZone } from '../../lib/server';
 import { Page, Section, Row, Empty, Meta, TitleLine } from '../../components/ui';
-import { ActionButton } from '../../components/ActionButton';
+import { ActionButton, summaryClass } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 import { ERX_STATUS_TEXT } from '../../lib/adapterText';
 
 /** Prescriptions are written and signed here and printed for the patient. A controlled drug cannot be signed until the state prescription-monitoring check is recorded. */
 export default async function PrescriptionsPage() {
+  await requirePage('prescriptions');
   const [tz, d] = await Promise.all([practiceTimeZone(), q<any>(`{
     prescriptions(orderBy: { createdAt: desc }, take: 60) { id drug strength form sig quantity refills isControlled schedule status version signedAt createdAt patient { firstName lastName } }
     pdmpChecks(orderBy: { checkedAt: desc }, take: 200) { id result note checkedAt prescription { id } }
@@ -27,7 +28,7 @@ export default async function PrescriptionsPage() {
                 <Meta>{r.sig} · {Number(r.quantity)} to dispense · {r.refills} refill{r.refills === 1 ? '' : 's'} · {title(r.status)}{r.isControlled ? ` · controlled (schedule ${r.schedule})` : ''}{r.signedAt ? ` · signed ${when(r.signedAt, tz, 'dayTime')}` : ''}</Meta>
                 {checks.map((c) => <Meta key={c.id}>State check {when(c.checkedAt, tz, 'dayTime')}: {title(c.result)} — {c.note}</Meta>)}
                 <span className="mt-1 flex flex-wrap items-start gap-2">
-                  {r.isControlled && !checks.length && r.status === 'draft' ? <details><summary className="cursor-pointer text-sm font-medium">Record the state check</summary><div className="pt-2"><CommandForm op="recordPdmpCheck" submitLabel="Record" paths={paths} columns={1} fixed={{ prescriptionId: r.id }} fields={[
+                  {r.isControlled && !checks.length && r.status === 'draft' ? <details><summary className={summaryClass}>Record the state check</summary><div className="pt-2"><CommandForm op="recordPdmpCheck" submitLabel="Record" paths={paths} columns={1} fixed={{ prescriptionId: r.id }} fields={[
                     { name: 'result', label: 'What it showed', kind: 'select', required: true, options: [{ value: 'reviewed_no_concern', label: 'Reviewed, no concern' }, { value: 'reviewed_concern', label: 'Reviewed, a concern' }] },
                     { name: 'note', label: 'Where you looked and what you saw', kind: 'textarea', required: true },
                   ]} /></div></details> : null}
@@ -38,7 +39,7 @@ export default async function PrescriptionsPage() {
             </Row>
           );
         }) : <Empty>No prescriptions yet.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Write a prescription</summary>
+        <details><summary className={summaryClass}>Write a prescription</summary>
           <div className="pt-2"><CommandForm op="writePrescription" submitLabel="Save draft" paths={paths} columns={2} fields={[
             { name: 'patientId', label: 'Patient', kind: 'select', required: true, options: (d.patients as any[]).map((p) => ({ value: p.id, label: `${p.lastName}, ${p.firstName} · #${p.chartNumber}` })) },
             { name: 'drug', label: 'Medicine', kind: 'text', required: true },

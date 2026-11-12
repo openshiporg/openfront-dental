@@ -1,7 +1,7 @@
-import { q } from '../../lib/server';
+import { q, requirePage } from '../../lib/server';
 import { calendarDate, money, title } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, TitleLine } from '../../components/ui';
-import { ActionButton } from '../../components/ActionButton';
+import { ActionButton, summaryClass } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 import { DownloadButton, ImportPreviewForm, ApplyImportButton } from '../../components/Phase6Actions';
 import { practiceToday } from '../../lib/today';
@@ -10,6 +10,7 @@ const n = (v: unknown) => Number(v ?? 0);
 
 /** Bring a patient list in from another system, check it, and have a second person approve it. Or take a copy of a patient's records out. */
 export default async function DataPage() {
+  await requirePage('data');
   const [today, d] = await Promise.all([practiceToday(), q<any>(`{
     importBatches(orderBy: { createdAt: desc }, take: 12) { id ref source fileName status version cursor preview reconciliation approval { id status } createdAt }
     exportJobs(orderBy: { createdAt: desc }, take: 15) { id ref kind byteCount counts createdAt patient { firstName lastName } }
@@ -38,7 +39,7 @@ export default async function DataPage() {
                     <span className="block font-medium">Reconciliation: {r.balanced ? 'balances match' : b.status === 'applied' ? 'balances do not match' : 'in progress'}</span>
                     <Meta>Patients: {n(r.patients.source)} in file, {n(r.patients.created)} added, {n(r.patients.matchedExisting)} matched to existing, {n(r.patients.skipped)} skipped</Meta>
                     <Meta>Appointments: {n(r.appointments.source)} in file, {n(r.appointments.created)} added, {n(r.appointments.skipped)} skipped{Object.entries(r.appointments.skippedReasons ?? {}).map(([k, v]) => ` (${v} ${k})`).join('')}</Meta>
-                    <Meta>Procedures: {n(r.procedures.source)} in file, {n(r.procedures.chart)} on the chart, {n(r.procedures.historyOnly)} kept as history only, {n(r.procedures.skipped)} skipped</Meta>
+                    <Meta>Procedures: {n(r.procedures.source)} in file, {n(r.procedures.chart)} on the chart, {n(r.procedures.conditions)} as findings, {n(r.procedures.historyOnly)} kept as history only, {n(r.procedures.deleted)} deleted in the old system and left out, {n(r.procedures.skipped)} skipped</Meta>
                     <Meta>Balances: file {money(r.balances.sourceMinor)}, ledger {money(r.balances.ledgerMinor)}, {n(r.balances.mismatches)} patients differ</Meta>
                   </span>
                 ) : null}
@@ -71,7 +72,7 @@ export default async function DataPage() {
 
 function ExportPatient({ patients, paths }: { patients: any[]; paths: string[] }) {
   return (
-    <details open><summary className="cursor-pointer text-sm font-medium">Choose a patient</summary>
+    <details open><summary className={summaryClass}>Choose a patient</summary>
       <div className="space-y-2 pt-2">
         {patients.slice(0, 8).map((p) => <div key={p.id} className="flex flex-wrap items-center justify-between gap-2"><span className="text-sm">{p.lastName}, {p.firstName} · #{p.chartNumber}</span><DownloadButton op="exportEhiBundle" vars={{ patientId: p.id }} paths={paths}>Download records</DownloadButton></div>)}
         {patients.length > 8 ? <Meta>Open a patient from the Patients page to find the rest.</Meta> : null}

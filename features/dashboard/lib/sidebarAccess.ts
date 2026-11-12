@@ -3,14 +3,10 @@
  * canAccessDashboard flag and Keystone's per-session list `isHidden` from admin meta.
  * Plain module: no 'use server' / 'use client', no @/ imports.
  */
+import { PLATFORM_PAGE_PERMISSIONS } from '../../platform/lib/pageAccess'
 
 type SidebarList = { path: string; isHidden?: boolean | null }
-type SidebarUser = { role?: { canAccessDashboard?: boolean | null; canReadAudit?: boolean | null } | null } | null | undefined
-
-/** Pages that need a permission the role may lack: the link is shown only when the role holds one of them (R3-5). */
-const PLATFORM_PAGE_PERMISSIONS: Record<string, 'canReadAudit'[]> = {
-  audit: ['canReadAudit'],
-}
+type SidebarUser = { role?: ({ canAccessDashboard?: boolean | null } & Record<string, boolean | null | undefined>) | null } | null | undefined
 
 /** Only an explicit false hides navigation; an unknown user is left to the middleware. */
 export function canUseDashboardNav(user: SidebarUser) {
@@ -36,7 +32,7 @@ export function visiblePlatformItems<T extends { href: string }>(
   return items.filter((item) => {
     const slug = item.href.split('/platform/')[1]?.split(/[/?#]/)[0]
     if (slug && hiddenPaths.has(slug)) return false
-    const needs = slug ? PLATFORM_PAGE_PERMISSIONS[slug] : undefined
+    const needs = slug ? (PLATFORM_PAGE_PERMISSIONS as Record<string, readonly string[]>)[slug] : undefined
     return !needs || needs.some((name) => user?.role?.[name] === true)
   })
 }

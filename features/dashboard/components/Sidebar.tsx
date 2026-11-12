@@ -59,8 +59,7 @@ interface User {
   role?: {
     canAccessDashboard?: boolean;
     canManageOnboarding?: boolean;
-    canReadAudit?: boolean;
-  };
+  } & Record<string, boolean | undefined>;
 }
 
 interface SidebarProps {

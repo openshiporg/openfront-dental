@@ -1,8 +1,8 @@
-import { q, practiceTimeZone } from '../../lib/server';
+import { q, practiceTimeZone, requirePage } from '../../lib/server';
 import { calendarDate, title, when } from '../../lib/format';
 import { practiceToday, daysBetween } from '../../lib/today';
 import { Page, Section, Row, Empty, Meta, TitleLine, Stat } from '../../components/ui';
-import { ActionButton } from '../../components/ActionButton';
+import { ActionButton, summaryClass } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 
 /** Every deadline here is worked out from today's date each time the page opens. Nothing runs in the background. */
@@ -13,6 +13,7 @@ const left = (due: string, today: string) => {
 const addDays = (day: string, n: number) => new Date(Date.parse(day.slice(0, 10)) + n * 86_400_000).toISOString().slice(0, 10);
 
 export default async function CompliancePage() {
+  await requirePage('compliance');
   const [today, tz, d] = await Promise.all([practiceToday(), practiceTimeZone(), q<any>(`{
     complianceTasks(where: { status: { equals: "open" } }, orderBy: { dueOn: asc }, take: 100) { id title category dueOn repeatMonths version owner { name } }
     incidentReports(where: { status: { not: { equals: "closed" } } }, orderBy: { discoveredAt: desc }, take: 30) { id title description discoveredAt affectedCount status version }
@@ -46,7 +47,7 @@ export default async function CompliancePage() {
               </span></span>
           </Row>
         )) : <Empty>No open tasks.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Add a task</summary>
+        <details><summary className={summaryClass}>Add a task</summary>
           <div className="pt-2"><CommandForm op="addComplianceTask" submitLabel="Add task" paths={paths} columns={2} fields={[
             { name: 'title', label: 'Task', kind: 'text', required: true, placeholder: 'Yearly privacy training' },
             { name: 'category', label: 'Kind', kind: 'select', required: true, options: ['training', 'risk_analysis', 'policy_review', 'credential', 'equipment', 'baa', 'other'].map((v) => ({ value: v, label: title(v) })) },
@@ -65,14 +66,14 @@ export default async function CompliancePage() {
               <Meta>{r.ref} · received {calendarDate(r.receivedOn, 'date')} · answer by {calendarDate(r.dueOn, 'date')} ({left(r.dueOn, today)}){r.extendedOnce ? ' · extended once' : ''}</Meta>
               <span className="mt-1 flex flex-wrap items-start gap-2">
                 {!r.extendedOnce ? <ActionButton op="extendRightsRequest" vars={{ requestId: r.id, expectedVersion: r.version }} ask="Why do you need more time? The patient must be told." paths={paths}>Take 30 more days</ActionButton> : null}
-                <details><summary className="cursor-pointer text-sm font-medium">Answer the request</summary><div className="pt-2"><CommandForm op="resolveRightsRequest" submitLabel="Save answer" paths={paths} columns={1} fixed={{ requestId: r.id, expectedVersion: r.version }} fields={[
+                <details><summary className={summaryClass}>Answer the request</summary><div className="pt-2"><CommandForm op="resolveRightsRequest" submitLabel="Save answer" paths={paths} columns={1} fixed={{ requestId: r.id, expectedVersion: r.version }} fields={[
                   { name: 'outcome', label: 'Outcome', kind: 'select', required: true, options: [{ value: 'fulfilled', label: 'Fulfilled' }, { value: 'denied', label: 'Denied' }] },
                   { name: 'resolution', label: 'What was done or why not', kind: 'textarea', required: true },
                 ]} /></div></details>
               </span></span>
           </Row>
         )) : <Empty>No open requests.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Log a patient request</summary>
+        <details><summary className={summaryClass}>Log a patient request</summary>
           <div className="pt-2"><CommandForm op="openRightsRequest" submitLabel="Log request" paths={paths} columns={2} fixed={{ receivedOn: today }} fields={[
             { name: 'patientId', label: 'Patient', kind: 'select', required: true, options: patients },
             { name: 'kind', label: 'They asked to', kind: 'select', required: true, options: [{ value: 'access', label: 'See or get their records' }, { value: 'amendment', label: 'Correct their records' }, { value: 'accounting', label: 'Know who records were shared with' }, { value: 'restriction', label: 'Limit how records are used' }, { value: 'confidential_communication', label: 'Be contacted another way' }] },
@@ -94,7 +95,7 @@ export default async function CompliancePage() {
             </Row>
           );
         }) : <Empty>No open incidents.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Report an incident</summary>
+        <details><summary className={summaryClass}>Report an incident</summary>
           <div className="pt-2"><CommandForm op="reportIncident" submitLabel="Report" paths={paths} columns={2} fixed={{ discoveredOn: today }} fields={[
             { name: 'title', label: 'What happened, briefly', kind: 'text', required: true },
             { name: 'affectedCount', label: 'Patients affected, if known', kind: 'number' },
@@ -108,7 +109,7 @@ export default async function CompliancePage() {
           <Row key={h.id} className="items-start"><span className="min-w-0 flex-1"><TitleLine status="active">{h.patient?.firstName} {h.patient?.lastName} · on hold</TitleLine><Meta>{h.reason}</Meta>
             <span className="mt-1 block"><ActionButton op="releaseRecordHold" vars={{ holdId: h.id, expectedVersion: h.version }} ask="Why is the hold ending?" paths={paths}>Release hold</ActionButton></span></span></Row>
         )) : <Empty>No records are on hold.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Place a legal hold</summary>
+        <details><summary className={summaryClass}>Place a legal hold</summary>
           <div className="pt-2"><CommandForm op="placeRecordHold" submitLabel="Place hold" paths={paths} columns={1} fields={[
             { name: 'patientId', label: 'Patient', kind: 'select', required: true, options: patients },
             { name: 'reason', label: 'Why', kind: 'textarea', required: true },
@@ -122,7 +123,7 @@ export default async function CompliancePage() {
       </Section>
       <Section title="Who records were shared with">
         {(d.accountingOfDisclosures as any[]).length ? (d.accountingOfDisclosures as any[]).map((a) => <Row key={a.id}><span className="min-w-0"><TitleLine>{a.patient?.firstName} {a.patient?.lastName} → {a.recipient}</TitleLine><Meta>{calendarDate(a.disclosedOn, 'date')} · {a.purpose}</Meta></span></Row>) : <Empty>Nothing recorded.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Record a disclosure</summary>
+        <details><summary className={summaryClass}>Record a disclosure</summary>
           <div className="pt-2"><CommandForm op="recordDisclosure" submitLabel="Record" paths={paths} columns={2} fixed={{ disclosedOn: today }} fields={[
             { name: 'patientId', label: 'Patient', kind: 'select', required: true, options: patients },
             { name: 'recipient', label: 'Shared with', kind: 'text', required: true },

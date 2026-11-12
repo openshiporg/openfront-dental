@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 import { q, practiceTimeZone } from '../../lib/server';
 import { when, title, chartLabel } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, TitleLine } from '../../components/ui';
-import { ActionButton } from '../../components/ActionButton';
+import { ActionButton, summaryClass } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 import { IMAGING_STATUS_TEXT } from '../../lib/adapterText';
 
@@ -31,7 +31,7 @@ export default async function PatientImagingPage({ params }: { params: Promise<{
             </span>
           </Row>
         )) : <Empty>No images recorded for this patient.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Record an image taken today</summary>
+        <details><summary className={summaryClass}>Record an image taken today</summary>
           <div className="pt-2"><CommandForm op="recordManualStudy" submitLabel="Record image" paths={paths} columns={2} fixed={{ patientId: id }} fields={[
             { name: 'modality', label: 'Kind of image', kind: 'select', required: true, options: Object.entries(KINDS).map(([value, label]) => ({ value, label })) },
             { name: 'teeth', label: 'Teeth', kind: 'text', hint: 'Numbers separated by commas, such as 3, 4.' },
@@ -48,14 +48,14 @@ export default async function PatientImagingPage({ params }: { params: Promise<{
               {f.status === 'received' || f.status === 'shown' ? (
                 <span className="mt-1 flex flex-wrap items-start gap-2">
                   <ActionButton op="decideExternalFinding" vars={{ findingId: f.id, expectedVersion: f.version, decision: 'accepted' }} paths={paths}>Accept</ActionButton>
-                  <details><summary className="cursor-pointer text-sm font-medium">Dismiss</summary><div className="pt-2"><CommandForm op="decideExternalFinding" submitLabel="Dismiss" paths={paths} columns={1} fixed={{ findingId: f.id, expectedVersion: f.version, decision: 'dismissed' }} fields={[{ name: 'reason', label: 'Why', kind: 'textarea', required: true }]} /></div></details>
+                  <details><summary className={summaryClass}>Dismiss</summary><div className="pt-2"><CommandForm op="decideExternalFinding" submitLabel="Dismiss" paths={paths} columns={1} fixed={{ findingId: f.id, expectedVersion: f.version, decision: 'dismissed' }} fields={[{ name: 'reason', label: 'Why', kind: 'textarea', required: true }]} /></div></details>
                 </span>
               ) : null}
             </span>
           </Row>
         )) : <Empty>No findings from outside readers. Accepting a finding does not change the chart.</Empty>}
         {studyOptions.length ? (
-          <details><summary className="cursor-pointer text-sm font-medium">Enter a finding by hand</summary>
+          <details><summary className={summaryClass}>Enter a finding by hand</summary>
             <div className="pt-2"><CommandForm op="receiveExternalFinding" submitLabel="Save finding" paths={paths} columns={2} fields={[
               { name: 'studyId', label: 'Image', kind: 'select', required: true, options: studyOptions },
               { name: 'findingType', label: 'What was found', kind: 'text', required: true },

@@ -39,6 +39,8 @@ const NOT_PATIENT_DATA = new Set([
   'CodeImportBatch', 'CodeSystem', 'ExplosionCode', 'Fee', 'FeeSchedule', 'FeeScheduleVersion', 'ProcedureCode', 'ProcedureCodeCrosswalk', 'ConditionType',
   'MedicalHistoryForm', 'NoteTemplate', 'NoteTemplateVersion', 'FormTemplate', 'FormTemplateVersion', 'BenefitRule', 'Employer', 'InsurancePlan', 'Payer',
   'AdjustmentType', 'DenialReasonMap', 'PayerEnrollment', 'ScrubRule', 'MembershipPlan', 'RegulatoryLicence',
+  // Phase 5 catalogues and settings, Phase 6 reference data (P6 r1 B4): no patient, no office of their own.
+  'SignalType', 'ProposalKind', 'AutonomyPolicy', 'RecallType', 'RecallRule', 'Lab', 'RetentionPolicy',
 ])
 
 const TEST_DATABASE_URL = process.env.DENTAL_TEST_DATABASE_URL ?? ''
@@ -76,6 +78,8 @@ describe('patient-data lists, both ways, as Tampa-only and St. Petersburg-only s
     process.env.SESSION_SECRET ||= 'dental-node-test-session-secret-0123456789abcdef'
     process.env.DENTAL_SECRET_KEY ||= Buffer.alloc(32, 7).toString('base64')
     config = (await import('../index')).default
+    // Practice setup is one long transaction; the shared scratch database is remote (as in the exit-gate test).
+    Object.assign((await import('../lib/db')).TRANSACTION_OPTIONS as object, { timeout: 180_000, maxWait: 60_000 })
     context = getContext(config, PrismaModule)
     prisma = context.prisma
     const { resetDatabase } = await import('../../../tests/helpers/db')
@@ -198,6 +202,67 @@ describe('patient-data lists, both ways, as Tampa-only and St. Petersburg-only s
     assert.deepEqual(problems, [])
     for (const path of ['contactPoints.patient', 'brokenAppointmentEvents.patient', 'familyGroups.members', 'approvalRequests.patient', 'portalScopes.patient', 'conversations.patient', 'ledgerEntries.patient', 'claims.patient']) assert.ok(checked.has(path), `the sweep reached ${path}`)
     assert.ok(checked.size > 40, `the sweep checked ${checked.size} patient paths`)
+  })
+
+  it('P6 r1 B3/B4: compliance and import rows follow the office, PDMP notes are for prescribers, lab instructions for clinical staff', async () => {
+    const stamp = Date.now()
+    const lab = await prisma.lab.create({ data: { name: `Scope lab ${stamp}` } })
+    const provider = await prisma.providerProfile.findFirstOrThrow()
+    for (const [name, office] of [['Tampa', TPA], ['Pete', STP]] as const) {
+      const patientId = ids[`${name}Patient`]
+      ids[`${name}Aod`] = (await prisma.accountingOfDisclosure.create({ data: { patientId, disclosedOn: new Date('2026-01-05'), recipient: `${name} attorney`, purpose: 'subpoena' } })).id
+      ids[`${name}Hold`] = (await prisma.recordHold.create({ data: { patientId, reason: `${name} litigation`, status: 'active' } })).id
+      ids[`${name}Rights`] = (await prisma.patientRightsRequest.create({ data: { ref: `PRR-${name}-${stamp}`, patientId, kind: 'access', receivedOn: new Date('2026-01-05'), dueOn: new Date('2026-02-04'), status: 'open' } })).id
+      ids[`${name}Disposition`] = (await prisma.retentionDisposition.create({ data: { patientId, eligibleOn: new Date('2020-01-01'), status: 'eligible' } })).id
+      ids[`${name}Export`] = (await prisma.exportJob.create({ data: { ref: `EXP-${name}-${stamp}`, kind: 'ehi_bundle', patientId, status: 'completed' } })).id
+      const batch = await prisma.importBatch.create({ data: { ref: `IMP-${name}-${stamp}`, source: 'open_dental', fileSha256: `${name}-${stamp}`, locationId: office, rows: { patients: [{ firstName: name }] }, status: 'previewed' } })
+      ids[`${name}Batch`] = batch.id
+      ids[`${name}Map`] = (await prisma.importRecordMap.create({ data: { batchId: batch.id, source: 'open_dental', entity: 'patient', externalId: `${name}-1`, internalId: patientId } })).id
+      const rx = await prisma.prescription.create({ data: { patientId, prescriberId: provider.id, drug: 'Hydrocodone', sig: 'as directed', quantity: '6', isControlled: true, schedule: 'II', mode: 'print', status: 'draft' } })
+      ids[`${name}Pdmp`] = (await prisma.pdmpCheck.create({ data: { prescriptionId: rx.id, patientId, checkedAt: new Date(), result: 'reviewed_concern', note: `${name} state record shows 3 opioid fills` } })).id
+      ids[`${name}Lab`] = (await prisma.labCase.create({ data: { ref: `LAB-${name}-${stamp}`, patientId, locationId: office, labId: lab.id, workType: 'crown', instructions: `${name} bruxism, zirconia`, status: 'draft' } })).id
+    }
+    ids.practiceIncident = (await prisma.incidentReport.create({ data: { title: 'Lost laptop', description: 'Tampa and St. Pete schedules', status: 'reported' } })).id
+    ids.practiceExport = (await prisma.exportJob.create({ data: { ref: `EXP-journal-${stamp}`, kind: 'csv_journal', status: 'completed' } })).id
+    const LISTS = [['accountingOfDisclosure', 'Aod'], ['recordHold', 'Hold'], ['patientRightsRequest', 'Rights'], ['retentionDisposition', 'Disposition'], ['exportJob', 'Export'], ['importBatch', 'Batch'], ['importRecordMap', 'Map'], ['pdmpCheck', 'Pdmp'], ['labCase', 'Lab']] as const
+    for (const [role, session] of [['tampaAll', ROLES.tampaAll], ['peteAll', ROLES.peteAll]] as const) {
+      const mine = homeOf(role); const theirs = other(mine)
+      const d = await run(session, `{ ${LISTS.map(([l, k]) => `${k}Mine: ${l}(where: { id: "${ids[`${mine}${k}`]}" }) { id } ${k}Theirs: ${l}(where: { id: "${ids[`${theirs}${k}`]}" }) { id }`).join(' ')} incident: incidentReport(where: { id: "${ids.practiceIncident}" }) { id } journal: exportJob(where: { id: "${ids.practiceExport}" }) { id } }`)
+      for (const [, k] of LISTS) {
+        assert.equal(d[`${k}Theirs`], null, `${role}: ${k} of the other office`)
+        assert.equal(d[`${k}Mine`]?.id, ids[`${mine}${k}`], `${role}: own ${k}`)
+      }
+      assert.equal(d.incident, null, `${role}: practice-wide incident`)
+      assert.equal(d.journal, null, `${role}: practice-wide export`)
+    }
+    const owner = await run(sessionOf('owner', EVERYTHING, 'all'), `{ i: incidentReport(where: { id: "${ids.practiceIncident}" }) { id } a: accountingOfDisclosuresCount h: recordHoldsCount }`)
+    assert.equal(owner.i?.id, ids.practiceIncident)
+    assert.ok(owner.a >= 2 && owner.h >= 2)
+
+    // B3: the live Front Office and Hygienist sets (Tampa only), and a prescriber.
+    const KERRY_LIVE: Permission[] = ['canAccessDashboard', 'canReadSchedule', 'canManageSchedule', 'canMessagePatients', 'canReadDemographics']
+    const JENNA_LIVE: Permission[] = [...KERRY_LIVE, 'canChart', 'canReadClinical']
+    const DENTIST: Permission[] = [...JENNA_LIVE, 'canPrescribe', 'canManageLabCases', 'canReadSensitive']
+    const source = `query($p: ID!, $l: ID!) { pdmpCheck(where: { id: $p }) { id result note } labCase(where: { id: $l }) { id workType instructions } }`
+    const read = async (granted: Permission[]) => {
+      const ctx = context.withSession(sessionOf(`b3-${granted.length}`, granted, [TPA]))
+      const r = await graphql({ schema: ctx.graphql.schema, source, contextValue: ctx, variableValues: { p: ids.TampaPdmp, l: ids.TampaLab } })
+      return JSON.parse(JSON.stringify(r.data ?? {})) as any
+    }
+    const kerry = await read(KERRY_LIVE)
+    assert.equal(kerry.pdmpCheck?.note ?? null, null, 'front desk: PDMP note')
+    assert.equal(kerry.labCase?.instructions ?? null, null, 'front desk: lab instructions')
+    const jenna = await read(JENNA_LIVE)
+    assert.equal(jenna.pdmpCheck?.note ?? null, null, 'hygienist: PDMP note')
+    assert.equal(jenna.labCase?.instructions, 'Tampa bruxism, zirconia', 'hygienist: lab instructions')
+    const dentist = await read(DENTIST)
+    assert.equal(dentist.pdmpCheck?.note, 'Tampa state record shows 3 opioid fills', 'prescriber: PDMP note')
+    // a field the reader cannot see cannot be filtered or sorted on either
+    for (const [granted, q] of [[JENNA_LIVE, `{ pdmpChecksCount(where: { note: { contains: "opioid" } }) }`], [KERRY_LIVE, `{ labCasesCount(where: { instructions: { contains: "bruxism" } }) }`], [KERRY_LIVE, `{ labCases(orderBy: { instructions: asc }) { id } }`]] as const) {
+      const ctx = context.withSession(sessionOf('b3-filter', granted as Permission[], [TPA]))
+      const r = await graphql({ schema: ctx.graphql.schema, source: q, contextValue: ctx })
+      assert.ok(r.errors?.length, `refused: ${q}`)
+    }
   })
 
   it('R3-2: relation filters through Restatement.entries and ChartEntry.ledgerEntry cannot reach the other office, both ways', async () => {

@@ -131,6 +131,22 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   PaymentPlan: { principalMinor: 'fin', downPaymentMinor: 'fin', schedule: 'fin', agreementText: 'fin' },
   PaymentPlanInstallment: { amountMinor: 'fin' },
   LedgerNote: { text: 'fin' },
+  // Phase 6 (r1 B2/B3): every read of these writes a PhiReadAudit row. PdmpCheck.note is also prescribers-only (its field access).
+  PatientRecall: { dueOn: 'dem', lastCompletedOn: 'dem', disabledReason: 'dem' },
+  LabCase: { workType: 'clin', tooth: 'clin', shade: 'clin', instructions: 'clin', files: 'clin', qcNote: 'clin', cancelReason: 'clin' },
+  ReviewRequest: { channel: 'dem', consentCheckedAt: 'dem' },
+  ReviewReply: { reviewerName: 'dem', reviewText: 'dem', draft: 'dem' },
+  PdmpCheck: { result: 'clin', note: 'clin' },
+  IncidentReport: { title: 'dem', description: 'dem', riskAssessment: 'dem', affectedCount: 'dem' },
+  PatientRightsRequest: { kind: 'dem', receivedOn: 'dem', resolution: 'dem' },
+  AccountingOfDisclosure: { disclosedOn: 'dem', recipient: 'dem', purpose: 'dem', description: 'dem' },
+  RecordHold: { reason: 'dem', releaseReason: 'dem' },
+  RetentionDisposition: { eligibleOn: 'dem', blockedReason: 'dem' },
+  // ImportBatch.rows is the whole file (names, birth dates, phones, balances).
+  ImportBatch: { fileName: 'dem', rows: 'dem', preview: 'dem', reconciliation: 'dem' },
+  ImportRecordMap: { externalId: 'dem', internalId: 'dem' },
+  ExportJob: { counts: 'dem', sha256: 'dem' },
+  CallRecord: { startedAt: 'dem', durationSeconds: 'dem', summary: 'dem' },
 }
 
 /** Every PHI field name, for log redaction (field names only, never values). */

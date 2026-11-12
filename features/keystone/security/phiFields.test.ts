@@ -35,10 +35,11 @@ describe('PHI tier map', () => {
   })
 
   it('the log filter masks PHI field names at any depth and keeps error codes', () => {
-    const out = redact({ code: 'NOT_AUTHORIZED', patient: { firstName: 'Ada', lastName: 'Lovelace', id: 'p1' }, rows: [{ payload: { x: 1 } }], url: 'postgresql://u:p@h/db' }) as any
+    const out = redact({ code: 'NOT_AUTHORIZED', patient: { firstName: 'Ada', lastName: 'Lovelace', id: 'p1' }, items: [{ payload: { x: 1 } }], rows: [{ PatNum: '1', LName: 'Ada' }], url: 'postgresql://u:p@h/db' }) as any
     expect(out.code).toBe('NOT_AUTHORIZED')
     expect(out.patient).toEqual({ firstName: '[redacted]', lastName: '[redacted]', id: 'p1' })
-    expect(out.rows[0].payload).toBe('[redacted]')
+    expect(out.items[0].payload).toBe('[redacted]')
+    expect(out.rows).toBe('[redacted]') // an import batch's rows are a whole patient file
     expect(out.url).toBe('<db-url>')
   })
 })

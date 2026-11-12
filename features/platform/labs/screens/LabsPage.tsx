@@ -1,7 +1,7 @@
-import { q } from '../../lib/server';
+import { q, requirePage } from '../../lib/server';
 import { calendarDate, title } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, TitleLine } from '../../components/ui';
-import { ActionButton } from '../../components/ActionButton';
+import { ActionButton, summaryClass } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 
 const NEXT: Record<string, { to: string; label: string }[]> = {
@@ -13,6 +13,7 @@ const NEXT: Record<string, { to: string; label: string }[]> = {
 
 /** Crowns, dentures and other work sent to a lab. A case that has not come back holds up check-in for the visit it is meant for. */
 export default async function LabsPage() {
+  await requirePage('labs');
   const d = await q<any>(`{
     labCases(where: { status: { notIn: ["seated", "cancelled"] } }, orderBy: [{ dueDate: asc }], take: 100) { id ref status version workType tooth shade dueDate lastChasedAt patient { firstName lastName } lab { name } seatAppointment { startsAt } files }
     labs(where: { isActive: { equals: true } }, orderBy: { name: asc }, take: 50) { id name contactName phone turnaroundDays bufferDays }
@@ -37,7 +38,7 @@ export default async function LabsPage() {
             </span>
           </Row>
         )) : <Empty>No lab work is out.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Start a lab case</summary>
+        <details><summary className={summaryClass}>Start a lab case</summary>
           <div className="pt-2"><CommandForm op="openLabCase" submitLabel="Start case" paths={paths} columns={2} fields={[
             { name: 'patientId', label: 'Patient', kind: 'select', required: true, options: (d.patients as any[]).map((p) => ({ value: p.id, label: `${p.lastName}, ${p.firstName} · #${p.chartNumber}` })) },
             { name: 'labId', label: 'Lab', kind: 'select', required: true, options: (d.labs as any[]).map((l) => ({ value: l.id, label: l.name })) },
@@ -54,7 +55,7 @@ export default async function LabsPage() {
         {(d.labs as any[]).length ? (d.labs as any[]).map((l) => (
           <Row key={l.id}><span className="min-w-0"><TitleLine>{l.name}</TitleLine><Meta>{l.contactName || 'No contact'}{l.phone ? ` · ${l.phone}` : ''} · usually {l.turnaroundDays} days, plus {l.bufferDays} spare</Meta></span></Row>
         )) : <Empty>No labs yet.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Add a lab</summary>
+        <details><summary className={summaryClass}>Add a lab</summary>
           <div className="pt-2"><CommandForm op="saveLab" submitLabel="Add lab" paths={paths} columns={2} fields={[
             { name: 'name', label: 'Lab name', kind: 'text', required: true },
             { name: 'contactName', label: 'Contact', kind: 'text' },
