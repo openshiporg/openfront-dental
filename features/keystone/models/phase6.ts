@@ -349,16 +349,66 @@ export const ExportJob = list({
   },
 })
 
+// ── Phase 7: the voice receptionist (behind telephony adapters) ─────────────────────────────────
+
+export const CALL_ADAPTERS = ['manual', 'simulated'] as const
+export const CALL_OUTCOMES = [
+  'logged', 'answered', 'appointment_requested', 'confirmation_requested', 'message_taken', 'handed_off', 'no_answer', 'voicemail', 'wrong_number', 'declined', 'refused', 'other',
+] as const
+
+/** A call is office-scoped twice: its office must be mine, and a caller who is a known patient must be visible to me. A caller nobody identified shows at the office that took the call. */
+const callScope = () => scopedBy(ids => ({ location: { id: { in: ids } }, OR: [{ patient: null }, { patient: visiblePatient(ids) }] }))
+
+/**
+ * Calls are PHI: the transcript, notes, caller number and recording reference are tiered in security/phiFields.ts and
+ * office-scoped here. Every row is written by a command (a staff log or a simulation); the generated create/update/delete are closed.
+ */
+/** Who reads calls: the people who run the front desk. A call's words are not a clinical record, so a role that only charts does not read them. */
+export const CALL_READERS = ['canManageSchedule', 'canMessagePatients'] as const
+
 export const CallRecord = list({
-  access: patientScoped(),
-  ui: { labelField: 'id' },
+  access: scopedGoverned([...CALL_READERS] as never, callScope()),
+  ui: { labelField: 'ref', listView: { initialColumns: ['ref', 'direction', 'adapter', 'outcome', 'startedAt'], initialSort: { field: 'startedAt', direction: 'DESC' } } },
   fields: {
+    ref: systemText({ indexed: true }),
     patient: relationship({ ref: 'Patient', ...readOnly }),
     location: relationship({ ref: 'Location', ...readOnly }),
     direction: fixedChoice(['inbound', 'outbound']),
+    adapter: fixedChoice(CALL_ADAPTERS, 'manual'),
+    outcome: fixedChoice(CALL_OUTCOMES, 'logged'),
+    scenario: systemText(),
     startedAt: timestamp({ ...readOnly }),
     durationSeconds: integer({ ...readOnly }),
     summary: systemText(),
+    notes: systemText(),
+    callerNumber: systemText(),
+    transcript: json({ defaultValue: [], ...readOnly }),
+    toolCalls: json({ defaultValue: [], ...readOnly }),
+    disclosedAt: timestamp({ ...readOnly }),
+    recordingConsent: checkbox({ defaultValue: false, ...readOnly }),
+    recordingRef: systemText(),
+    recordingBasis: systemText(),
+    agentRun: relationship({ ref: 'AgentRun', ...readOnly }),
+    handoffReason: systemText(),
+    followedUpAt: timestamp({ ...readOnly }),
+    followedUpBy: relationship({ ref: 'User', ...readOnly }),
+    loggedBy: relationship({ ref: 'User', ...readOnly }),
+    version: versionField(),
+    ...trackingFields,
+  },
+})
+
+/** One row per location, written only by the owner's command. No row means voice is off. */
+export const VoicePolicy = list({
+  access: scopedGoverned([...CALL_READERS, 'canApproveAutonomy'] as never, locationFilter(['location'])),
+  ui: { labelField: 'id', listView: { initialColumns: ['location', 'enabled', 'recordCalls', 'changedAt'] } },
+  fields: {
+    location: relationship({ ref: 'Location', ...readOnly }),
+    enabled: checkbox({ defaultValue: false, ...readOnly }),
+    recordCalls: checkbox({ defaultValue: false, ...readOnly }),
+    changedBy: relationship({ ref: 'User', ...readOnly }),
+    changedAt: timestamp({ ...readOnly }),
+    version: versionField(),
     ...trackingFields,
   },
 })

@@ -15,7 +15,7 @@ import { trackingFields } from './trackingFields'
 /** Proposal kinds (DOMAIN §8.2). The catalogue rows (ProposalKind) arrive in Phase 5. */
 export const PROPOSAL_KINDS = [
   'fill_slot', 'outreach_message', 'verify_eligibility', 'verification_task', 'fix_claim', 'corrected_claim', 'appeal', 'claim_status_inquiry',
-  'payment_reminder', 'payment_plan_offer', 'refund_request', 'write_off_request', 'note_draft', 'perio_entry_draft', 'review_reply', 'booking',
+  'payment_reminder', 'payment_plan_offer', 'refund_request', 'write_off_request', 'note_draft', 'perio_entry_draft', 'review_reply', 'booking', 'confirm_appointment',
 ] as const
 export type ProposalKind = (typeof PROPOSAL_KINDS)[number]
 

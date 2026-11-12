@@ -11,6 +11,7 @@ export const PLATFORM_PAGE_PERMISSIONS = {
   labs: ['canManageLabCases'],
   prescriptions: ['canPrescribe'],
   reviews: ['canReplyReviews'],
+  calls: ['canManageSchedule', 'canMessagePatients'],
   compliance: ['canManageCompliance', 'canReviewPrivacy', 'canApproveRetention'],
   data: ['canImportData', 'canExportData', 'canApproveImports'],
   privacy: ['canReviewPrivacy', 'canReadPhiAudit'],

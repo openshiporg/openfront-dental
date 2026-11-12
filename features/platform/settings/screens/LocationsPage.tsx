@@ -99,6 +99,10 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
         )) : <Empty>Online booking is off for this location.</Empty>}
         <p className="text-xs text-muted-foreground">The public booking API serves these times to the practice&apos;s own booking pages. See <Link className="underline" href="/dashboard/platform/schedule/booking-requests">booking requests</Link>.</p>
       </Section>
+      <Section title="Phone and voice">
+        <p className="text-sm">No telephony provider connected</p>
+        <p className="text-xs text-muted-foreground">Calls can be logged by hand or tried out with a scripted simulation. The voice receptionist is off until the owner turns it on, office by office. See <Link className="underline" href="/dashboard/platform/calls">calls</Link>.</p>
+      </Section>
     </Page>
   );
 }

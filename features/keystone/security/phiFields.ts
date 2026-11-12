@@ -146,7 +146,10 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   ImportBatch: { fileName: 'dem', rows: 'dem', preview: 'dem', reconciliation: 'dem' },
   ImportRecordMap: { externalId: 'dem', internalId: 'dem' },
   ExportJob: { counts: 'dem', sha256: 'dem' },
-  CallRecord: { startedAt: 'dem', durationSeconds: 'dem', summary: 'dem' },
+  // Phase 7: a call's words, numbers and recording are demographic-tier PHI (the front desk reads its own office's calls; clinicians need no more).
+  CallRecord: {
+    startedAt: 'dem', durationSeconds: 'dem', summary: 'dem', notes: 'dem', callerNumber: 'dem', transcript: 'dem', toolCalls: 'dem', recordingRef: 'dem', handoffReason: 'dem', scenario: 'dem',
+  },
 }
 
 /** Every PHI field name, for log redaction (field names only, never values). */

@@ -233,10 +233,38 @@ async function stillCurrent(tx: Tx, kind: string, payload: Record<string, string
     const c = await tx.claim.findUnique({ where: { id: String(payload.claimId) }, select: { status: true } })
     return c && ['acknowledged', 'pending_payer'].includes(c.status) ? null : 'The claim has moved on.'
   }
+  if (kind === 'booking') {
+    const p = await tx.patient.findUnique({ where: { id: String(payload.patientId) }, select: { status: true } })
+    if (!p || ['merged_into', 'deceased', 'archived'].includes(p.status)) return 'The patient record changed.'
+    const op = await tx.operatory.findUnique({ where: { id: String(payload.operatoryId) }, select: { locationId: true } })
+    if (!op || op.locationId !== String(payload.locationId)) return 'The chair is no longer at that office.'
+    const startsAt = new Date(String(payload.startsAt))
+    return startsAt.getTime() > now.getTime() ? null : 'That time has passed.'
+  }
+  if (kind === 'confirm_appointment') {
+    const a = await tx.appointment.findUnique({ where: { id: String(payload.appointmentId) }, select: { status: true, startsAt: true } })
+    return a?.status === 'scheduled' && a.startsAt.getTime() > now.getTime() ? null : 'The visit is no longer waiting to be confirmed.'
+  }
   return 'This kind of suggestion cannot be carried out.'
 }
 
 async function execute(uow: UnitOfWork, actor: Actor, kind: ExecutableKind, payload: Record<string, string | null>) {
+  // Phase 7: asked for by the voice receptionist. A person approved this, and it is carried out by the same code the schedule screens use.
+  if (kind === 'booking') {
+    const { createAppointment } = await import('../mutations/scheduling')
+    // The time the receptionist held for this caller is used up by the booking. If the hold has run out, the booking checks the chair afresh.
+    const hold = await uow.tx.bookingHold.findFirst({ where: { patientId: String(payload.patientId), operatoryId: String(payload.operatoryId), startsAt: new Date(String(payload.startsAt)), holderKind: 'agent_offer', status: 'held', expiresAt: { gt: uow.now } } })
+    const appointment = await createAppointment(uow, actor, {
+      patientId: String(payload.patientId), locationId: String(payload.locationId), operatoryId: String(payload.operatoryId), typeId: String(payload.typeId), providerId: payload.providerId ?? null,
+      startsAt: String(payload.startsAt), source: 'agent_proposal', note: 'Asked for by phone.', holdId: hold?.id ?? null, holderRef: hold?.holderRef ?? null,
+    })
+    return { command: 'schedule.book', effects: [{ list: 'Appointment', id: appointment.id }] }
+  }
+  if (kind === 'confirm_appointment') {
+    const { confirmIn } = await import('../mutations/scheduling')
+    const updated = await confirmIn(uow, actor, String(payload.appointmentId), 'phone')
+    return { command: 'schedule.confirm', effects: [{ list: 'Appointment', id: updated.id }] }
+  }
   if (kind === 'verify_eligibility') {
     const { openVerification } = await import('../mutations/insurance')
     const r = await openVerification(uow, actor, String(payload.coverageId), { trigger: 'proposal', viaClearinghouse: true })

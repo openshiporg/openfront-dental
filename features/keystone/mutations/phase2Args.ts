@@ -111,6 +111,11 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   receiveExternalFinding: { studyId: 'ID!', vendor: 'String', device: 'String!', modelVersion: 'String!', clearanceRef: 'String', findingType: 'String!', tooth: 'String', surfaces: 'String', confidence: 'String' },
   decideExternalFinding: { findingId: 'ID!', expectedVersion: 'Int!', decision: 'String!', reason: 'String' },
   // Phase 6: recall, lab, reviews, prescriptions, compliance, import and export
+  // Phase 7: voice receptionist
+  setVoicePolicy: { locationId: 'ID!', enabled: 'Boolean!', recordCalls: 'Boolean', reason: 'String' },
+  logManualCall: { locationId: 'ID!', patientId: 'ID', direction: 'String!', outcome: 'String!', notes: 'String!', durationSeconds: 'Int', callerNumber: 'String' },
+  markCallFollowedUp: { callId: 'ID!' },
+  runCallSimulation: { locationId: 'ID!', scenario: 'String!', patientId: 'ID', recordingAnswer: 'String' },
   refreshRecall: { locationId: 'ID' },
   setRecallDisabled: { recallId: 'ID!', expectedVersion: 'Int!', disable: 'Boolean!', reason: 'String' },
   exportRecallCsv: {},

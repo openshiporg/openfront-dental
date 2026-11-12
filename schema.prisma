@@ -101,6 +101,8 @@ model User {
   from_Refund_requestedBy                 Refund[]                 @relation("Refund_requestedBy")
   from_Refund_approvedBy                  Refund[]                 @relation("Refund_approvedBy")
   from_AccountingOfDisclosure_recordedBy  AccountingOfDisclosure[] @relation("AccountingOfDisclosure_recordedBy")
+  from_CallRecord_followedUpBy            CallRecord[]             @relation("CallRecord_followedUpBy")
+  from_CallRecord_loggedBy                CallRecord[]             @relation("CallRecord_loggedBy")
   from_ComplianceTask_owner               ComplianceTask[]         @relation("ComplianceTask_owner")
   from_ComplianceTask_completedBy         ComplianceTask[]         @relation("ComplianceTask_completedBy")
   from_ExportJob_requestedBy              ExportJob[]              @relation("ExportJob_requestedBy")
@@ -110,6 +112,7 @@ model User {
   from_RecordHold_placedBy                RecordHold[]             @relation("RecordHold_placedBy")
   from_ReviewReply_approvedBy             ReviewReply[]            @relation("ReviewReply_approvedBy")
   from_ReviewRequest_copiedBy             ReviewRequest[]          @relation("ReviewRequest_copiedBy")
+  from_VoicePolicy_changedBy              VoicePolicy[]            @relation("VoicePolicy_changedBy")
 
   @@index([roleId])
 }
@@ -652,6 +655,7 @@ model Location {
   from_PatientRecall_location        PatientRecall[]        @relation("PatientRecall_location")
   from_ReviewReply_location          ReviewReply[]          @relation("ReviewReply_location")
   from_ReviewRequest_location        ReviewRequest[]        @relation("ReviewRequest_location")
+  from_VoicePolicy_location          VoicePolicy[]          @relation("VoicePolicy_location")
 
   @@index([jurisdictionId])
   @@index([billingEntityId])
@@ -882,23 +886,24 @@ model AgentToolGrant {
 }
 
 model AgentRun {
-  id                  String             @id @default(cuid())
-  agent               AgentIdentity?     @relation("AgentRun_agent", fields: [agentId], references: [id])
-  agentId             String?            @map("agent")
-  inferenceProvider   InferenceProvider? @relation("AgentRun_inferenceProvider", fields: [inferenceProviderId], references: [id])
-  inferenceProviderId String?            @map("inferenceProvider")
-  model               String             @default("")
-  startedAt           DateTime?          @default(now())
-  endedAt             DateTime?
-  status              String             @default("started")
-  promptHash          String             @default("")
-  toolCalls           Json?
-  tokens              Json?
-  costMinor           BigInt?
-  proposals           Proposal[]         @relation("Proposal_agentRun")
-  version             Int                @default(0)
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @default(now()) @updatedAt
+  id                       String             @id @default(cuid())
+  agent                    AgentIdentity?     @relation("AgentRun_agent", fields: [agentId], references: [id])
+  agentId                  String?            @map("agent")
+  inferenceProvider        InferenceProvider? @relation("AgentRun_inferenceProvider", fields: [inferenceProviderId], references: [id])
+  inferenceProviderId      String?            @map("inferenceProvider")
+  model                    String             @default("")
+  startedAt                DateTime?          @default(now())
+  endedAt                  DateTime?
+  status                   String             @default("started")
+  promptHash               String             @default("")
+  toolCalls                Json?
+  tokens                   Json?
+  costMinor                BigInt?
+  proposals                Proposal[]         @relation("Proposal_agentRun")
+  version                  Int                @default(0)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @default(now()) @updatedAt
+  from_CallRecord_agentRun CallRecord[]       @relation("CallRecord_agentRun")
 
   @@index([agentId])
   @@index([inferenceProviderId])
@@ -4037,20 +4042,45 @@ model AccountingOfDisclosure {
 }
 
 model CallRecord {
-  id              String    @id @default(cuid())
-  patient         Patient?  @relation("CallRecord_patient", fields: [patientId], references: [id])
-  patientId       String?   @map("patient")
-  location        Location? @relation("CallRecord_location", fields: [locationId], references: [id])
-  locationId      String?   @map("location")
-  direction       String
-  startedAt       DateTime?
-  durationSeconds Int?
-  summary         String    @default("")
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @default(now()) @updatedAt
+  id               String    @id @default(cuid())
+  ref              String    @default("")
+  patient          Patient?  @relation("CallRecord_patient", fields: [patientId], references: [id])
+  patientId        String?   @map("patient")
+  location         Location? @relation("CallRecord_location", fields: [locationId], references: [id])
+  locationId       String?   @map("location")
+  direction        String
+  adapter          String    @default("manual")
+  outcome          String    @default("logged")
+  scenario         String    @default("")
+  startedAt        DateTime?
+  durationSeconds  Int?
+  summary          String    @default("")
+  notes            String    @default("")
+  callerNumber     String    @default("")
+  transcript       Json?     @default("[]")
+  toolCalls        Json?     @default("[]")
+  disclosedAt      DateTime?
+  recordingConsent Boolean   @default(false)
+  recordingRef     String    @default("")
+  recordingBasis   String    @default("")
+  agentRun         AgentRun? @relation("CallRecord_agentRun", fields: [agentRunId], references: [id])
+  agentRunId       String?   @map("agentRun")
+  handoffReason    String    @default("")
+  followedUpAt     DateTime?
+  followedUpBy     User?     @relation("CallRecord_followedUpBy", fields: [followedUpById], references: [id])
+  followedUpById   String?   @map("followedUpBy")
+  loggedBy         User?     @relation("CallRecord_loggedBy", fields: [loggedById], references: [id])
+  loggedById       String?   @map("loggedBy")
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
 
+  @@index([ref])
   @@index([patientId])
   @@index([locationId])
+  @@index([agentRunId])
+  @@index([followedUpById])
+  @@index([loggedById])
 }
 
 model ComplianceTask {
@@ -4396,6 +4426,23 @@ model ReviewRequest {
   @@index([appointmentId])
   @@index([consentGrantId])
   @@index([copiedById])
+}
+
+model VoicePolicy {
+  id          String    @id @default(cuid())
+  location    Location? @relation("VoicePolicy_location", fields: [locationId], references: [id])
+  locationId  String?   @map("location")
+  enabled     Boolean   @default(false)
+  recordCalls Boolean   @default(false)
+  changedBy   User?     @relation("VoicePolicy_changedBy", fields: [changedById], references: [id])
+  changedById String?   @map("changedBy")
+  changedAt   DateTime?
+  version     Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@index([locationId])
+  @@index([changedById])
 }
 
 enum UserKindType {

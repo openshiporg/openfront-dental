@@ -11,6 +11,7 @@ import * as memberships from './memberships'
 import * as close from './close'
 import * as pendingWork from './pendingWork'
 import * as phase6 from './phase6'
+import * as voice from './voice'
 import * as phase6Data from './phase6Data'
 import { PHASE2_ARGS } from './phase2Args'
 
@@ -117,6 +118,10 @@ const RESOLVERS: Record<string, Resolver> = {
   recordManualStudy: phase6.recordManualStudy,
   receiveExternalFinding: phase6.receiveExternalFinding,
   decideExternalFinding: phase6.decideExternalFinding,
+  setVoicePolicy: voice.setVoicePolicy,
+  logManualCall: voice.logManualCall,
+  markCallFollowedUp: voice.markCallFollowedUp,
+  runCallSimulation: voice.runCallSimulation,
   refreshRecall: phase6.refreshRecall,
   setRecallDisabled: phase6.setRecallDisabled,
   exportRecallCsv: phase6.exportRecallCsv,

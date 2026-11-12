@@ -15,6 +15,9 @@ export const PAYLOADS = {
   claim_status_inquiry: z.object({ claimId: id }).strict(),
   fix_claim: z.object({ claimId: id }).strict(),
   recall_outreach: z.object({ recallId: id }).strict(),
+  // Phase 7: what the voice receptionist can ask for. Both are carried out by a person, through the same code the front desk's buttons use.
+  booking: z.object({ patientId: id, locationId: id, operatoryId: id, typeId: id, providerId: id.nullable(), startsAt: z.string().datetime() }).strict(),
+  confirm_appointment: z.object({ appointmentId: id, method: z.literal('phone') }).strict(),
 } as const
 export type ExecutableKind = keyof typeof PAYLOADS
 export const EXECUTABLE_KINDS = Object.keys(PAYLOADS) as ExecutableKind[]
@@ -26,6 +29,9 @@ export const KIND_ROWS: KindRow[] = [
   { key: 'verify_eligibility', title: 'Check benefits', riskClass: 'low', requiredPermission: 'canDecideProposals', operatePermissions: ['canManageInsurance', 'canVerifyBenefits'], defaultExpiryMinutes: 4320, validatorVersion: 'v1' },
   { key: 'claim_status_inquiry', title: 'Ask the payer about a claim', riskClass: 'low', requiredPermission: 'canDecideClaimProposals', operatePermissions: ['canManageClaims', 'canSubmitClaims'], defaultExpiryMinutes: 4320, validatorVersion: 'v1' },
   { key: 'fix_claim', title: 'Reopen a rejected claim to fix it', riskClass: 'medium', requiredPermission: 'canDecideClaimProposals', operatePermissions: ['canManageClaims'], defaultExpiryMinutes: 4320, validatorVersion: 'v1' },
+  // Phase 7. Medium risk on purpose: a kind that books or confirms a visit can never be given an autonomy policy ("only low-risk kinds").
+  { key: 'booking', title: 'Book a visit asked for by phone', riskClass: 'medium', requiredPermission: 'canDecideProposals', operatePermissions: ['canManageSchedule'], defaultExpiryMinutes: 1440, validatorVersion: 'v1' },
+  { key: 'confirm_appointment', title: 'Confirm a visit the patient confirmed by phone', riskClass: 'medium', requiredPermission: 'canDecideProposals', operatePermissions: ['canManageSchedule'], defaultExpiryMinutes: 1440, validatorVersion: 'v1' },
 ]
 
 /** Kinds that can be suggested but never carried out without a person, and never given an autonomy policy. */

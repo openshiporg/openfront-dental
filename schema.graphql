@@ -16530,12 +16530,30 @@ input AccountingOfDisclosureCreateInput {
 
 type CallRecord {
   id: ID!
+  ref: String
   patient: Patient
   location: Location
   direction: String
+  adapter: String
+  outcome: String
+  scenario: String
   startedAt: DateTime
   durationSeconds: Int
   summary: String
+  notes: String
+  callerNumber: String
+  transcript: JSON
+  toolCalls: JSON
+  disclosedAt: DateTime
+  recordingConsent: Boolean
+  recordingRef: String
+  recordingBasis: String
+  agentRun: AgentRun
+  handoffReason: String
+  followedUpAt: DateTime
+  followedUpBy: User
+  loggedBy: User
+  version: Int
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -16549,33 +16567,80 @@ input CallRecordWhereInput {
   OR: [CallRecordWhereInput!]
   NOT: [CallRecordWhereInput!]
   id: IDFilter
+  ref: StringFilter
   patient: PatientWhereInput
   location: LocationWhereInput
   direction: StringFilter
+  adapter: StringFilter
+  outcome: StringFilter
+  scenario: StringFilter
   startedAt: DateTimeNullableFilter
   durationSeconds: IntNullableFilter
   summary: StringFilter
+  notes: StringFilter
+  callerNumber: StringFilter
+  disclosedAt: DateTimeNullableFilter
+  recordingConsent: BooleanFilter
+  recordingRef: StringFilter
+  recordingBasis: StringFilter
+  agentRun: AgentRunWhereInput
+  handoffReason: StringFilter
+  followedUpAt: DateTimeNullableFilter
+  followedUpBy: UserWhereInput
+  loggedBy: UserWhereInput
+  version: IntFilter
   createdAt: DateTimeFilter
   updatedAt: DateTimeFilter
 }
 
 input CallRecordOrderByInput {
   id: OrderDirection
+  ref: OrderDirection
   direction: OrderDirection
+  adapter: OrderDirection
+  outcome: OrderDirection
+  scenario: OrderDirection
   startedAt: OrderDirection
   durationSeconds: OrderDirection
   summary: OrderDirection
+  notes: OrderDirection
+  callerNumber: OrderDirection
+  disclosedAt: OrderDirection
+  recordingConsent: OrderDirection
+  recordingRef: OrderDirection
+  recordingBasis: OrderDirection
+  handoffReason: OrderDirection
+  followedUpAt: OrderDirection
+  version: OrderDirection
   createdAt: OrderDirection
   updatedAt: OrderDirection
 }
 
 input CallRecordUpdateInput {
+  ref: String
   patient: PatientRelateToOneForUpdateInput
   location: LocationRelateToOneForUpdateInput
   direction: String
+  adapter: String
+  outcome: String
+  scenario: String
   startedAt: DateTime
   durationSeconds: Int
   summary: String
+  notes: String
+  callerNumber: String
+  transcript: JSON
+  toolCalls: JSON
+  disclosedAt: DateTime
+  recordingConsent: Boolean
+  recordingRef: String
+  recordingBasis: String
+  agentRun: AgentRunRelateToOneForUpdateInput
+  handoffReason: String
+  followedUpAt: DateTime
+  followedUpBy: UserRelateToOneForUpdateInput
+  loggedBy: UserRelateToOneForUpdateInput
+  version: Int
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -16586,12 +16651,30 @@ input CallRecordUpdateArgs {
 }
 
 input CallRecordCreateInput {
+  ref: String
   patient: PatientRelateToOneForCreateInput
   location: LocationRelateToOneForCreateInput
   direction: String
+  adapter: String
+  outcome: String
+  scenario: String
   startedAt: DateTime
   durationSeconds: Int
   summary: String
+  notes: String
+  callerNumber: String
+  transcript: JSON
+  toolCalls: JSON
+  disclosedAt: DateTime
+  recordingConsent: Boolean
+  recordingRef: String
+  recordingBasis: String
+  agentRun: AgentRunRelateToOneForCreateInput
+  handoffReason: String
+  followedUpAt: DateTime
+  followedUpBy: UserRelateToOneForCreateInput
+  loggedBy: UserRelateToOneForCreateInput
+  version: Int
   createdAt: DateTime
   updatedAt: DateTime
 }
@@ -18047,6 +18130,74 @@ input ConsentGrantRelateToOneForCreateInput {
   connect: ConsentGrantWhereUniqueInput
 }
 
+type VoicePolicy {
+  id: ID!
+  location: Location
+  enabled: Boolean
+  recordCalls: Boolean
+  changedBy: User
+  changedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input VoicePolicyWhereUniqueInput {
+  id: ID
+}
+
+input VoicePolicyWhereInput {
+  AND: [VoicePolicyWhereInput!]
+  OR: [VoicePolicyWhereInput!]
+  NOT: [VoicePolicyWhereInput!]
+  id: IDFilter
+  location: LocationWhereInput
+  enabled: BooleanFilter
+  recordCalls: BooleanFilter
+  changedBy: UserWhereInput
+  changedAt: DateTimeNullableFilter
+  version: IntFilter
+  createdAt: DateTimeFilter
+  updatedAt: DateTimeFilter
+}
+
+input VoicePolicyOrderByInput {
+  id: OrderDirection
+  enabled: OrderDirection
+  recordCalls: OrderDirection
+  changedAt: OrderDirection
+  version: OrderDirection
+  createdAt: OrderDirection
+  updatedAt: OrderDirection
+}
+
+input VoicePolicyUpdateInput {
+  location: LocationRelateToOneForUpdateInput
+  enabled: Boolean
+  recordCalls: Boolean
+  changedBy: UserRelateToOneForUpdateInput
+  changedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
+input VoicePolicyUpdateArgs {
+  where: VoicePolicyWhereUniqueInput!
+  data: VoicePolicyUpdateInput!
+}
+
+input VoicePolicyCreateInput {
+  location: LocationRelateToOneForCreateInput
+  enabled: Boolean
+  recordCalls: Boolean
+  changedBy: UserRelateToOneForCreateInput
+  changedAt: DateTime
+  version: Int
+  createdAt: DateTime
+  updatedAt: DateTime
+}
+
 """
 The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
 """
@@ -19115,6 +19266,12 @@ type Mutation {
   updateReviewRequests(data: [ReviewRequestUpdateArgs!]!): [ReviewRequest]
   deleteReviewRequest(where: ReviewRequestWhereUniqueInput!): ReviewRequest
   deleteReviewRequests(where: [ReviewRequestWhereUniqueInput!]!): [ReviewRequest]
+  createVoicePolicy(data: VoicePolicyCreateInput!): VoicePolicy
+  createVoicePolicies(data: [VoicePolicyCreateInput!]!): [VoicePolicy]
+  updateVoicePolicy(where: VoicePolicyWhereUniqueInput!, data: VoicePolicyUpdateInput!): VoicePolicy
+  updateVoicePolicies(data: [VoicePolicyUpdateArgs!]!): [VoicePolicy]
+  deleteVoicePolicy(where: VoicePolicyWhereUniqueInput!): VoicePolicy
+  deleteVoicePolicies(where: [VoicePolicyWhereUniqueInput!]!): [VoicePolicy]
   endSession: Boolean!
   authenticateUserWithPassword(email: String!, password: String!): UserAuthenticationWithPasswordResult
   createInitialUser(data: CreateInitialUserInput!): UserAuthenticationWithPasswordSuccess!
@@ -19232,6 +19389,10 @@ type Mutation {
   recordManualStudy(patientId: ID!, modality: String!, teeth: [String!], acquiredAt: String, idempotencyKey: String!): JSON
   receiveExternalFinding(studyId: ID!, vendor: String, device: String!, modelVersion: String!, clearanceRef: String, findingType: String!, tooth: String, surfaces: String, confidence: String, idempotencyKey: String!): JSON
   decideExternalFinding(findingId: ID!, expectedVersion: Int!, decision: String!, reason: String, idempotencyKey: String!): JSON
+  setVoicePolicy(locationId: ID!, enabled: Boolean!, recordCalls: Boolean, reason: String, idempotencyKey: String!): JSON
+  logManualCall(locationId: ID!, patientId: ID, direction: String!, outcome: String!, notes: String!, durationSeconds: Int, callerNumber: String, idempotencyKey: String!): JSON
+  markCallFollowedUp(callId: ID!, idempotencyKey: String!): JSON
+  runCallSimulation(locationId: ID!, scenario: String!, patientId: ID, recordingAnswer: String, idempotencyKey: String!): JSON
   refreshRecall(locationId: ID, idempotencyKey: String!): JSON
   setRecallDisabled(recallId: ID!, expectedVersion: Int!, disable: Boolean!, reason: String, idempotencyKey: String!): JSON
   exportRecallCsv(idempotencyKey: String!): JSON
@@ -19863,6 +20024,9 @@ type Query {
   reviewRequest(where: ReviewRequestWhereUniqueInput!): ReviewRequest
   reviewRequests(where: ReviewRequestWhereInput! = {}, orderBy: [ReviewRequestOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: ReviewRequestWhereUniqueInput): [ReviewRequest!]
   reviewRequestsCount(where: ReviewRequestWhereInput! = {}): Int
+  voicePolicy(where: VoicePolicyWhereUniqueInput!): VoicePolicy
+  voicePolicies(where: VoicePolicyWhereInput! = {}, orderBy: [VoicePolicyOrderByInput!]! = [], take: Int! = 1000, skip: Int! = 0, cursor: VoicePolicyWhereUniqueInput): [VoicePolicy!]
+  voicePoliciesCount(where: VoicePolicyWhereInput! = {}): Int
   keystone: KeystoneMeta!
   authenticatedItem: AuthenticatedItem
   validateUserPasswordResetToken(email: String!, token: String!): ValidateUserPasswordResetTokenResult
