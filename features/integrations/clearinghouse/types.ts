@@ -4,7 +4,7 @@
  * ERA, attachments and enrolment arrive with Phase 4 and are declared here as capabilities only.
  */
 
-export type AdapterMode = 'manual_export' | 'sandbox' | 'live'
+export type AdapterMode = 'manual_export' | 'live'
 
 export type Capabilities = {
   eligibility: boolean; claims: boolean; predeterminations: boolean; claimStatus: boolean

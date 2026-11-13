@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { hasTestDatabase, resetDatabase, testPrisma, uniqueKey } from '../../../tests/helpers/db'
+import { connectClearinghouse, hasTestDatabase, resetDatabase, testPrisma, uniqueKey } from '../../../tests/helpers/db'
 import { NEVER_DEFAULT, permissionNames, type Permission } from '../access'
 import { parseStediEra, lineConserves } from '../lib/era'
 import { runClaimSubmit, pollRemittances, importEraBody } from '../messaging/claimWorker'
@@ -94,6 +94,7 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
     process.env.DENTAL_SECRET_KEY ||= Buffer.alloc(32, 7).toString('base64')
     prisma = testPrisma(4)
     await resetDatabase(prisma)
+    await connectClearinghouse(prisma)
     const make = (name: string) => prisma.user.create({ data: { name, email: `${uniqueKey(name)}@test.local`, password: 'x'.repeat(60) } })
     const [o, b, f] = await Promise.all([make('owner'), make('biller'), make('front')])
     owner = { session: sessionFor(o.id, permissionNames.filter(p => !NEVER_DEFAULT.includes(p))), prisma }
@@ -492,5 +493,30 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
     await expect(run('enterManualEob', eob, coordinator)).rejects.toMatchObject({ code: 'OUTSIDE_LOCATION_SCOPE' })
     expect(await prisma.paymentPosting.count({ where: { claimId: sent.id } })).toBe(0)
     expect(await prisma.remittance.count({ where: { traceNumber: eob.traceNumber } })).toBe(0)
+  })
+
+  it('with no clearinghouse key a released claim stays a manual export: never marked sent, and its data downloads as a CSV', async () => {
+    const entry = await makeEntry(3, { dateOfService: new Date('2026-11-06T00:00:00Z') })
+    const claim = await build([entry.id])
+    await run('scrubClaim', { claimId: claim.id, expectedVersion: claim.version }, biller)
+    const ready = await prisma.claim.findUniqueOrThrow({ where: { id: claim.id } })
+    await prisma.adapterInstallation.updateMany({ where: { area: 'clearinghouse' }, data: { status: 'suspended', mode: 'manual_export' } })
+    try {
+      await run('releaseClaim', { claimId: ready.id, expectedVersion: ready.version }, biller)
+      const calls: string[] = []
+      const spy = (async (url: string) => { calls.push(String(url)); return new Response('{}') }) as unknown as typeof fetch
+      expect(await runClaimSubmit(prisma as never, ready.id, { fetch: spy })).toEqual({ skipped: true, manualExport: true })
+      expect(calls).toHaveLength(0)
+      const after = await prisma.claim.findUniqueOrThrow({ where: { id: ready.id } })
+      expect(after.status).toBe('released')
+      expect(await prisma.claimAcknowledgement.count({ where: { claimId: ready.id } })).toBe(0)
+      const file = await run('exportClaimCsv', { claimId: ready.id }, biller)
+      expect(file.mimeType).toBe('text/csv')
+      expect(file.rows).toBeGreaterThan(0)
+      expect(file.text).toContain(after.ref)
+      expect(file.text).not.toMatch(/SUM-4401-A/)
+    } finally {
+      await prisma.adapterInstallation.updateMany({ where: { area: 'clearinghouse' }, data: { status: 'live', mode: 'live' } })
+    }
   })
 })

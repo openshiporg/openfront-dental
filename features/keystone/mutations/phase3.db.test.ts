@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import type { PrismaClient } from '@prisma/client'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { fakeStedi } from '../../../tests/fakes/stedi'
-import { hasTestDatabase, resetDatabase, testPrisma, uniqueKey } from '../../../tests/helpers/db'
+import { connectClearinghouse, hasTestDatabase, resetDatabase, testPrisma, uniqueKey } from '../../../tests/helpers/db'
 import { NEVER_DEFAULT, permissionNames, type Permission } from '../access'
 import { verifyAuditChain } from '../lib/audit'
 import { runEligibilityCheck } from '../messaging/eligibilityWorker'
@@ -11,7 +11,7 @@ import { loadPracticeSetup } from './setup'
 
 /*
  * Phase 3 exit gate against the seeded practice (fictional data only):
- *   - the clearinghouse path: request → outbox → Stedi sandbox (recorded) → 271 → facts + checklist tasks;
+ *   - the clearinghouse path: request → Stedi (recorded responses) → 271 → facts + checklist tasks;
  *   - a timeout leaves the check `unknown` and a re-check never makes a second check or a second call;
  *   - unknown benefits never render as covered (estimate rows);
  *   - the database refuses what the commands would also refuse.
@@ -49,6 +49,7 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
     expect(await prisma.coverage.count({ where: { verificationLevel: 'unverified' } })).toBeGreaterThan(0)
     expect(await prisma.coverage.count({ where: { verificationLevel: 'verified_full' } })).toBeGreaterThan(0)
     expect(await prisma.adapterInstallation.count({ where: { area: 'clearinghouse' } })).toBe(0)
+    await connectClearinghouse(prisma) // staff connect a clearinghouse key; every check below goes through it
   })
 
   it('reads a 271 into sourced facts and opens checklist tasks only for what a 271 cannot say', async () => {

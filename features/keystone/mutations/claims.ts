@@ -1,6 +1,8 @@
 import { requirePermission } from '../lib/actor'
 import { auditCreate, lockRow, transition } from '../lib/cas'
 import { payloadHash } from '../lib/canonical'
+import { toCsv } from '../lib/recall'
+import type { ClaimPayload } from '../../integrations/clearinghouse'
 import { buildPayload, filingDeadline, hasBlocking, scrubClaim as runScrubRules } from '../lib/claims'
 import { command } from '../lib/command'
 import { DomainError, Codes } from '../lib/errors'
@@ -154,6 +156,26 @@ export async function releaseClaim(_root: unknown, args: { claimId: string; expe
     await transition<any>(uow, { model: 'Claim', id: claim.id, from: ['ready'], to: 'released', expectedVersion: args.expectedVersion, actor, eventType: 'claim.released', metadata: { version: number }, data: { currentVersionId: version.id } })
     uow.after(async () => (await import('../messaging/claimWorker')).runClaimSubmit(uow.db, claim.id))
     return { id: claim.id, versionId: version.id, versionNumber: number }
+  })
+  return { replay: result.replay, ...result.value }
+}
+
+/** A released claim with no clearinghouse answer is a manual export: the claim data as a CSV the office submits through the payer's portal. Nothing is marked sent. */
+export async function exportClaimCsv(_root: unknown, args: { claimId: string; idempotencyKey: string }, context: Ctx) {
+  const { actor, locationIds } = staff(context)
+  requirePermission(actor, 'canSubmitClaims')
+  const { idempotencyKey, ...params } = args
+  const result = await command(context.prisma, { name: 'claim.export_csv', actor, idempotencyKey, params }, async uow => {
+    const claim = await scopedClaim(uow.tx, locationIds, args.claimId)
+    if (claim.status !== 'released' || !claim.currentVersionId) throw new DomainError(Codes.INVALID_TRANSITION, 'Only a released claim that has not been sent can be exported.')
+    const version = await uow.tx.claimVersion.findUniqueOrThrow({ where: { id: claim.currentVersionId } })
+    const p = version.payload as unknown as ClaimPayload
+    const dollars = (minor: string) => { const n = BigInt(minor); return `${n / 100n}.${String(n % 100n).padStart(2, '0')}` }
+    const header = ['Claim', 'Version', 'Payer', 'Billing provider', 'Billing NPI', 'Rendering provider', 'Rendering NPI', 'Patient', 'Patient DOB', 'Subscriber', 'Subscriber DOB', 'Member ID ends', 'Date of service', 'Procedure', 'Tooth', 'Surfaces', 'Units', 'Charge']
+    const rows = p.lines.map(l => [claim.ref, String(version.number), p.payer.name, p.billing.legalName, p.billing.npi, `${p.rendering.name.first} ${p.rendering.name.last}`, p.rendering.npi, `${p.patient.first} ${p.patient.last}`, p.patient.dateOfBirth, `${p.subscriber.first} ${p.subscriber.last}`, p.subscriber.dateOfBirth, p.subscriber.memberIdLast4, l.dateOfService, l.code, l.tooth, l.surfaces, String(l.units), dollars(l.chargeMinor)])
+    const csv = toCsv(header, rows)
+    auditCreate(uow, actor, 'Claim', claim.id, 'claim.manual_export_prepared', { version: version.number, lines: rows.length })
+    return { fileName: `${claim.ref}-v${version.number}.csv`, mimeType: 'text/csv', text: csv, rows: rows.length }
   })
   return { replay: result.replay, ...result.value }
 }

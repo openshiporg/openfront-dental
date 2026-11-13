@@ -94,6 +94,7 @@ const RESOLVERS: Record<string, Resolver> = {
   scrubClaim: claims.scrubClaimCommand,
   overrideScrub: claims.overrideScrub,
   releaseClaim: claims.releaseClaim,
+  exportClaimCsv: claims.exportClaimCsv,
   correctClaim: claims.correctClaim,
   voidClaim: claims.voidClaim,
   addClaimAttachment: claims.addClaimAttachment,

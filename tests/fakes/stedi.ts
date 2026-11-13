@@ -1,6 +1,6 @@
 import { recordedFetch } from './stedi-recorded'
 
-/** A fake Stedi sandbox over the recorded fixtures; counts calls so tests can prove no duplicate. */
+/** A fake Stedi transport over the recorded fixtures; counts calls so tests can prove no duplicate. */
 export function fakeStedi() {
   const calls: { url: string; headers: Record<string, string>; body: any }[] = []
   const fetchImpl = (async (url: string, init: RequestInit) => {

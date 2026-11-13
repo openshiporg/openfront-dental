@@ -34,3 +34,13 @@ export async function resetDatabase(prisma: PrismaClient) {
 
 let counter = 0
 export const uniqueKey = (prefix = 'test') => `${prefix}-${Date.now().toString(36)}-${(counter += 1).toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+
+/** A clearinghouse connection the way staff would add one: a live Stedi installation holding a sealed key and a signed BAA. The calls themselves go through the injected transport. */
+export async function connectClearinghouse(prisma: PrismaClient) {
+  const { storeSecret } = await import('../../features/keystone/lib/secretBox')
+  return prisma.$transaction(async tx => {
+    const secret = await storeSecret(tx as never, 'adapter.stedi', 'test-clearinghouse-key')
+    const baa = await tx.businessAssociate.create({ data: { name: 'Stedi', service: 'clearinghouse', baaSignedOn: new Date('2026-01-01T00:00:00Z'), status: 'active' } })
+    return tx.adapterInstallation.create({ data: { area: 'clearinghouse', adapterKey: 'stedi', displayName: 'Stedi clearinghouse', mode: 'live', status: 'live', secretId: secret.id, baaId: baa.id, handlesPhi: true, lastVerifiedAt: new Date() } })
+  })
+}

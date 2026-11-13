@@ -70,6 +70,7 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   scrubClaim: { claimId: 'ID!', expectedVersion: 'Int!' },
   overrideScrub: { claimId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
   releaseClaim: { claimId: 'ID!', expectedVersion: 'Int!' },
+  exportClaimCsv: { claimId: 'ID!' },
   correctClaim: { claimId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
   voidClaim: { claimId: 'ID!', expectedVersion: 'Int!', reason: 'String!' },
   addClaimAttachment: { claimId: 'ID!', kind: 'String!', route: 'String!', description: 'String!' },

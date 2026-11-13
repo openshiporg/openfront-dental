@@ -22,7 +22,7 @@ Payer, Employer, InsurancePlan, BenefitRule, Subscriber, Coverage, BenefitVerifi
 | timeout / 502–504 | `unknown` | no facts; **re-check reuses the same row and request hash**, never a second check |
 | transient error | `error_retryable` | no facts |
 
-Only the sandbox is built. Live is refused. The sample practice uses a recorded transport (`recorded.ts`, fixtures in `fixtures/`); no key, no network.
+A clearinghouse is either a live Stedi connection with its key, or nothing: with no key the mode is `manual_export`, nothing is sent, and a released claim stays unsent until the office downloads its data (CSV) and submits it through the payer's portal. A claim is marked sent or accepted only on a real clearinghouse answer. Tests use recorded Stedi responses through an injected transport.
 
 ## Estimator (`lib/estimator.ts`, `lib/estimateInputs.ts`)
 Pure and deterministic (`est-1.0.0`): fee → allowed → eligibility checks (frequency, age, waiting period, missing tooth, non-covered) → downgrade → deductible → coverage % → annual maximum → secondary by COB → patient. Half-even rounding once per line. Benefits the payer did not give are `unknown`: insurance pays 0 and the line is `assumed`, never shown as covered. Each snapshot stores the fact ids, fee schedule version, usage and estimator version. The golden workbook is `lib/estimator.golden.csv` (40 cases).

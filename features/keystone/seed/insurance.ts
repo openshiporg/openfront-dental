@@ -85,7 +85,7 @@ export async function seedPhase3(uow: UnitOfWork, actor: Actor) {
   await tx.workTask.createMany({ data: rows.tasks })
   for (const [cid, vid, level] of rows.levels) await tx.$executeRaw`UPDATE "Coverage" SET "verificationLevel" = ${level}, "lastVerification" = ${vid} WHERE id = ${cid}`
 
-  // A second plan for the first patient, on Evergreen's own sandbox member (its own recorded answer, not Harbor's).
+  // A second plan for the first patient, on its own member id (Evergreen's own benefits, not Harbor's).
   if (patients[0]) {
     const evgMember = 'EVG-5501-K'
     const secret = await storeSecret(tx, 'subscriber.memberId', evgMember)

@@ -94,7 +94,7 @@ The same map drives three things:
 
 - `BusinessAssociate` records each vendor's BAA status.
 - `AdapterInstallation` records each partner connection.
-  - Its mode is `manual_export`, `sandbox` or `live`.
+  - Its mode is `manual_export` or `live`.
   - A CHECK refuses a `live` adapter that handles patient data unless a BAA is
     on file.
 - `InferenceProvider` is `self_hosted`, `baa_hosted` or `no_phi`.

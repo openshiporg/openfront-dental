@@ -15,7 +15,7 @@ export const RECORDED_MEMBERS: Record<string, unknown> = {
   'SUM-4401-A': active, 'SUM-4402-B': inactive, 'SUM-4403-C': aaa75, 'SUM-4404-D': aaa42, 'EVG-5501-K': activeEvergreen,
 }
 
-/** Claim submission, status and report calls in the recorded sandbox. Member SUM-4402-B is refused as inactive; SUM-4405-E never answers; SUM-4406-F fails upstream. */
+/** Claim submission, status and report calls in the recorded responses. Member SUM-4402-B is refused as inactive; SUM-4405-E never answers; SUM-4406-F fails upstream. */
 function recordedClaimCall(url: string, init: RequestInit) {
   const method = String(init.method ?? 'GET')
   if (url.includes('/dental-claims/submission')) {

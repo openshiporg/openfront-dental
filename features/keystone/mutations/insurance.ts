@@ -255,7 +255,7 @@ export async function openVerification(uow: Pick<UnitOfWork, 'tx' | 'now' | 'aud
     auditCreate(uow as never, actor, 'BenefitVerification', verification.id, 'verification.requested', { coverageId, trigger: options.trigger, mode: inFlight.mode, reusedCheck: inFlight.id })
     return { verificationId: verification.id, existing: false, checkId: inFlight.id, mode: inFlight.mode as string }
   }
-  if (installation && payerId && installation.mode && installation.mode !== 'live') {
+  if (installation && payerId && installation.mode === 'live' && installation.secretId) {
     mode = installation.mode
     const requestHash = sha256(canonicalJson({ coverage: coverage.id, subscriber: coverage.subscriber.memberIdHash, payer: payerId, serviceType: '35' }))
     const check = await tx.eligibilityCheck.create({ data: { verificationId: verification.id, coverageId, adapterKey: 'stedi', mode: installation.mode, requestHash, status: 'queued', isSynthetic: coverage.isSynthetic } })

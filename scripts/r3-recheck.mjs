@@ -64,7 +64,7 @@ async function r31Full() {
     if (planned.length < 2) continue
     for (const e of planned) await gql('owner', 'mutation($c: ID!, $v: Int!, $pr: ID!, $k: String!) { completeProcedure(chartEntryId: $c, expectedVersion: $v, providerId: $pr, idempotencyKey: $k) }', { c: e.id, v: e.version, pr: provider, k: key() })
   }
-  // try candidates until one claim is accepted by the (sandbox) clearinghouse
+  // try candidates until one claim is accepted by the clearinghouse
   const claimQ = 'query($c: ID!) { claim(where: { id: $c }) { id ref status version patientControlNumber lines(orderBy: { lineControlNumber: asc }) { lineControlNumber feeMinor } } }'
   let claim = null, patientId = null
   for (const c of cov) {

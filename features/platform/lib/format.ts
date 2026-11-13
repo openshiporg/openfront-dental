@@ -125,8 +125,8 @@ const WORDS: Record<string, string> = {
   'claim.void_paid': 'void a paid claim', 'clinical.correct': 'correct a signed clinical record', 'code_import.activate': 'activate a code set', 'fee_schedule.publish': 'publish a fee schedule',
   'import.apply': 'apply an import', 'patient.merge': 'merge two patient charts', 'period.reopen': 'reopen a closed period', 'practice.controls': 'change practice controls',
   'refund.execute': 'issue a refund', 'retention.dispose': 'dispose of records past retention', 'role.assign_approval': 'give someone approval rights',
-  in_person: 'in person', email_link: 'email link', phone: 'phone', email: 'email', voice: 'voice', manual: 'manual', manual_export: 'manual export', sandbox: 'sandbox', live: 'live',
-  sandbox_verified: 'sandbox verified', in_app: 'in app',
+  in_person: 'in person', email_link: 'email link', phone: 'phone', email: 'email', voice: 'voice', manual: 'manual', manual_export: 'manual export', live: 'live',
+  in_app: 'in app',
   // messaging and consent
   appointment_reminders: 'appointment reminders', payment_reminders: 'payment reminders', billing_statements: 'billing statements', marketing: 'marketing', recall: 'recall',
   replied_confirm: 'replied to confirm', replied_cancel: 'replied to cancel', replied_other: 'replied', queued: 'queued', sent: 'sent', delivered: 'delivered', failed: 'failed', suppressed: 'suppressed',

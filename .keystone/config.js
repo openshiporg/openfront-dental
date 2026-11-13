@@ -921,7 +921,7 @@ var init_insurance = __esm({
         verification: (0, import_fields16.relationship)({ ref: "BenefitVerification.eligibilityChecks", ...readOnly }),
         coverage: (0, import_fields16.relationship)({ ref: "Coverage", ...readOnly }),
         adapterKey: systemText({ required: true }),
-        mode: fixedChoice(["manual_export", "sandbox", "live"]),
+        mode: fixedChoice(["manual_export", "live"]),
         requestHash: systemText({ indexed: true, required: true }),
         status: lifecycle(CHECK_STATUSES),
         rejectionCodes: (0, import_fields16.json)({ defaultValue: [], ...readOnly }),
@@ -5245,8 +5245,7 @@ function buildStediClaimBody(req) {
   };
 }
 async function stediSubmitClaim(req, ctx) {
-  if (ctx.mode === "live") return { kind: "error_retryable", message: "Live Stedi is not enabled in this build." };
-  if (!ctx.apiKey) return { kind: "error_retryable", message: "The Stedi sandbox key is not configured." };
+  if (!ctx.apiKey) return { kind: "error_retryable", message: "No Stedi clearinghouse key is connected. Verify by phone or the payer portal." };
   const doFetch = ctx.fetch ?? fetch;
   let response;
   try {
@@ -5352,13 +5351,12 @@ var init_stedi = __esm({
     }).passthrough();
     stediAdapter = {
       key: "stedi",
-      displayName: "Stedi (sandbox)",
+      displayName: "Stedi clearinghouse",
       capabilities: { eligibility: true, claims: true, predeterminations: false, claimStatus: true, era: true, attachments: false, enrollment: false, payerDirectory: false },
       async checkEligibility(req, ctx) {
         const requestHash = eligibilityRequestHash(req, "stedi");
         const done = (outcome) => ({ outcome, requestHash, adapterKey: "stedi", mode: ctx.mode });
-        if (ctx.mode === "live") return done({ kind: "error_retryable", message: "Live Stedi is not enabled in this build." });
-        if (!ctx.apiKey) return done({ kind: "error_retryable", message: "The Stedi sandbox key is not configured." });
+        if (!ctx.apiKey) return done({ kind: "error_retryable", message: "No Stedi clearinghouse key is connected. Verify by phone or the payer portal." });
         const doFetch = ctx.fetch ?? fetch;
         const signal = ctx.signal ?? AbortSignal.timeout(ctx.timeoutMs ?? 15e3);
         let response;
@@ -5388,7 +5386,7 @@ var init_stedi = __esm({
       },
       submitClaim: stediSubmitClaim,
       async checkClaimStatus(patientControlNumber, payerId, ctx) {
-        if (!ctx.apiKey) return { kind: "unknown", message: "The Stedi sandbox key is not configured." };
+        if (!ctx.apiKey) return { kind: "unknown", message: "No Stedi clearinghouse key is connected. Verify by phone or the payer portal." };
         try {
           const response = await (ctx.fetch ?? fetch)(`${ctx.baseUrl ?? STEDI_BASE}${STEDI_CLAIM_STATUS_PATH}`, {
             method: "POST",
@@ -5405,7 +5403,7 @@ var init_stedi = __esm({
         }
       },
       async listTransactions(since, ctx) {
-        if (!ctx.apiKey) return { ok: false, message: "The Stedi sandbox key is not configured." };
+        if (!ctx.apiKey) return { ok: false, message: "No Stedi clearinghouse key is connected. Verify by phone or the payer portal." };
         try {
           const items = [];
           let token = "";
@@ -5430,7 +5428,7 @@ var init_stedi = __esm({
         }
       },
       async fetchTransaction(transactionId, type, ctx) {
-        if (!ctx.apiKey) return { ok: false, message: "The Stedi sandbox key is not configured." };
+        if (!ctx.apiKey) return { ok: false, message: "No Stedi clearinghouse key is connected. Verify by phone or the payer portal." };
         try {
           const response = await (ctx.fetch ?? fetch)(`${ctx.baseUrl ?? STEDI_BASE}${stediReportPath(transactionId, type)}`, { method: "GET", signal: ctx.signal ?? AbortSignal.timeout(ctx.timeoutMs ?? 2e4), headers: { authorization: ctx.apiKey } });
           if (!response.ok) return { ok: false, message: "The report could not be fetched." };
@@ -5465,223 +5463,6 @@ var init_clearinghouse = __esm({
   }
 });
 
-// features/integrations/clearinghouse/fixtures/eligibility-active.json
-var eligibility_active_default;
-var init_eligibility_active = __esm({
-  "features/integrations/clearinghouse/fixtures/eligibility-active.json"() {
-    eligibility_active_default = {
-      controlNumber: "000000001",
-      planStatus: [{ statusCode: "1", status: "Active Coverage", planDetails: "Summit Dental PPO Plus" }],
-      benefitsInformation: [
-        { code: "1", name: "Active Coverage", serviceTypeCodes: ["35"], inPlanNetworkIndicatorCode: "Y" },
-        { code: "C", name: "Deductible", serviceTypeCodes: ["35"], coverageLevelCode: "IND", timeQualifierCode: "23", benefitAmount: "50", inPlanNetworkIndicatorCode: "Y" },
-        { code: "C", name: "Deductible", serviceTypeCodes: ["35"], coverageLevelCode: "IND", timeQualifierCode: "29", benefitAmount: "20", inPlanNetworkIndicatorCode: "Y" },
-        { code: "F", name: "Limitations", serviceTypeCodes: ["35"], coverageLevelCode: "IND", timeQualifierCode: "23", benefitAmount: "1500", inPlanNetworkIndicatorCode: "Y" },
-        { code: "F", name: "Limitations", serviceTypeCodes: ["35"], coverageLevelCode: "IND", timeQualifierCode: "29", benefitAmount: "1100", inPlanNetworkIndicatorCode: "Y" },
-        { code: "A", name: "Co-Insurance", serviceTypeCodes: ["41"], benefitPercent: "0", inPlanNetworkIndicatorCode: "Y" },
-        { code: "A", name: "Co-Insurance", serviceTypeCodes: ["24"], benefitPercent: "0.2", inPlanNetworkIndicatorCode: "Y" },
-        { code: "A", name: "Co-Insurance", serviceTypeCodes: ["36"], benefitPercent: "0.5", inPlanNetworkIndicatorCode: "Y" },
-        { code: "A", name: "Co-Insurance", serviceTypeCodes: ["24"], benefitPercent: "0.4", inPlanNetworkIndicatorCode: "N" },
-        { code: "D", name: "Dental frequency", serviceTypeCodes: ["41"], benefitQuantity: "2", quantityQualifier: "VS", additionalInformation: [{ description: "Two cleanings per calendar year" }] }
-      ]
-    };
-  }
-});
-
-// features/integrations/clearinghouse/fixtures/eligibility-active-evergreen.json
-var eligibility_active_evergreen_default;
-var init_eligibility_active_evergreen = __esm({
-  "features/integrations/clearinghouse/fixtures/eligibility-active-evergreen.json"() {
-    eligibility_active_evergreen_default = {
-      controlNumber: "000000005",
-      planStatus: [
-        {
-          statusCode: "1",
-          status: "Active Coverage",
-          planDetails: "Evergreen Dental PPO Core"
-        }
-      ],
-      benefitsInformation: [
-        {
-          code: "1",
-          name: "Active Coverage",
-          serviceTypeCodes: [
-            "35"
-          ],
-          inPlanNetworkIndicatorCode: "Y"
-        },
-        {
-          code: "C",
-          name: "Deductible",
-          serviceTypeCodes: [
-            "35"
-          ],
-          coverageLevelCode: "IND",
-          timeQualifierCode: "23",
-          benefitAmount: "25",
-          inPlanNetworkIndicatorCode: "Y"
-        },
-        {
-          code: "C",
-          name: "Deductible",
-          serviceTypeCodes: [
-            "35"
-          ],
-          coverageLevelCode: "IND",
-          timeQualifierCode: "29",
-          benefitAmount: "25",
-          inPlanNetworkIndicatorCode: "Y"
-        },
-        {
-          code: "F",
-          name: "Limitations",
-          serviceTypeCodes: [
-            "35"
-          ],
-          coverageLevelCode: "IND",
-          timeQualifierCode: "23",
-          benefitAmount: "1000",
-          inPlanNetworkIndicatorCode: "Y"
-        },
-        {
-          code: "F",
-          name: "Limitations",
-          serviceTypeCodes: [
-            "35"
-          ],
-          coverageLevelCode: "IND",
-          timeQualifierCode: "29",
-          benefitAmount: "1000",
-          inPlanNetworkIndicatorCode: "Y"
-        },
-        {
-          code: "A",
-          name: "Co-Insurance",
-          serviceTypeCodes: [
-            "41"
-          ],
-          benefitPercent: "0",
-          inPlanNetworkIndicatorCode: "Y"
-        },
-        {
-          code: "A",
-          name: "Co-Insurance",
-          serviceTypeCodes: [
-            "24"
-          ],
-          benefitPercent: "0.3",
-          inPlanNetworkIndicatorCode: "Y"
-        },
-        {
-          code: "A",
-          name: "Co-Insurance",
-          serviceTypeCodes: [
-            "36"
-          ],
-          benefitPercent: "0.6",
-          inPlanNetworkIndicatorCode: "Y"
-        },
-        {
-          code: "A",
-          name: "Co-Insurance",
-          serviceTypeCodes: [
-            "24"
-          ],
-          benefitPercent: "0.5",
-          inPlanNetworkIndicatorCode: "N"
-        },
-        {
-          code: "D",
-          name: "Dental frequency",
-          serviceTypeCodes: [
-            "41"
-          ],
-          benefitQuantity: "2",
-          quantityQualifier: "VS",
-          additionalInformation: [
-            {
-              description: "Two cleanings per calendar year"
-            }
-          ]
-        }
-      ]
-    };
-  }
-});
-
-// features/integrations/clearinghouse/fixtures/eligibility-inactive.json
-var eligibility_inactive_default;
-var init_eligibility_inactive = __esm({
-  "features/integrations/clearinghouse/fixtures/eligibility-inactive.json"() {
-    eligibility_inactive_default = {
-      controlNumber: "000000002",
-      planStatus: [{ statusCode: "6", status: "Inactive" }],
-      benefitsInformation: [{ code: "6", name: "Inactive", serviceTypeCodes: ["35"] }]
-    };
-  }
-});
-
-// features/integrations/clearinghouse/fixtures/eligibility-aaa-75.json
-var eligibility_aaa_75_default;
-var init_eligibility_aaa_75 = __esm({
-  "features/integrations/clearinghouse/fixtures/eligibility-aaa-75.json"() {
-    eligibility_aaa_75_default = { controlNumber: "000000003", errors: [{ code: "75", description: "Subscriber/Insured Not Found", field: "memberId", followupAction: "Please Correct and Resubmit" }] };
-  }
-});
-
-// features/integrations/clearinghouse/fixtures/eligibility-aaa-42.json
-var eligibility_aaa_42_default;
-var init_eligibility_aaa_42 = __esm({
-  "features/integrations/clearinghouse/fixtures/eligibility-aaa-42.json"() {
-    eligibility_aaa_42_default = { controlNumber: "000000004", errors: [{ code: "42", description: "Unable to Respond at Current Time", followupAction: "Resubmission Allowed" }] };
-  }
-});
-
-// features/integrations/clearinghouse/recorded.ts
-function recordedClaimCall(url, init) {
-  const method = String(init.method ?? "GET");
-  if (url.includes("/dental-claims/submission")) {
-    const body = JSON.parse(String(init.body));
-    const member = String(body.subscriber?.memberId ?? "");
-    if (member === "SUM-4405-E") throw Object.assign(new Error("timeout"), { name: "TimeoutError" });
-    if (member === "SUM-4406-F") return new Response("{}", { status: 504 });
-    if (member === "SUM-4402-B") return new Response(JSON.stringify({ status: "ERROR", errors: [{ code: "33", description: "Subscriber coverage is not active on the date of service.", location: "subscriber.memberId" }] }), { status: 400 });
-    const lines = (body.claimInformation?.serviceLines ?? []).map((l) => ({ lineItemControlNumber: l.providerControlNumber }));
-    return new Response(JSON.stringify({ status: "SUCCESS", claimReference: { correlationId: `rec-${String(body.claimInformation?.patientControlNumber ?? "").toLowerCase()}`, patientControlNumber: body.claimInformation?.patientControlNumber, serviceLines: lines } }), { status: 200 });
-  }
-  if (url.includes("/claimstatus/")) return new Response(JSON.stringify({ claims: [{ claimStatus: { statusCategoryCode: "F1" } }] }), { status: 200 });
-  if (url.includes("/polling/transactions")) return new Response(JSON.stringify({ items: [] }), { status: 200 });
-  if (url.includes("/reports/v2/")) return new Response("{}", { status: 404 });
-  return null;
-}
-var RECORDED_MEMBERS, recordedFetch;
-var init_recorded = __esm({
-  "features/integrations/clearinghouse/recorded.ts"() {
-    "use strict";
-    init_eligibility_active();
-    init_eligibility_active_evergreen();
-    init_eligibility_inactive();
-    init_eligibility_aaa_75();
-    init_eligibility_aaa_42();
-    RECORDED_MEMBERS = {
-      "SUM-4401-A": eligibility_active_default,
-      "SUM-4402-B": eligibility_inactive_default,
-      "SUM-4403-C": eligibility_aaa_75_default,
-      "SUM-4404-D": eligibility_aaa_42_default,
-      "EVG-5501-K": eligibility_active_evergreen_default
-    };
-    recordedFetch = async (url, init) => {
-      const claimCall = recordedClaimCall(String(url), init);
-      if (claimCall) return claimCall;
-      const body = JSON.parse(String(init.body));
-      const member = String(body.subscriber?.memberId ?? "");
-      if (member === "SUM-4405-E") throw Object.assign(new Error("timeout"), { name: "TimeoutError" });
-      if (member === "SUM-4406-F") return new Response("{}", { status: 504 });
-      return new Response(JSON.stringify(RECORDED_MEMBERS[member] ?? eligibility_aaa_75_default), { status: 200 });
-    };
-  }
-});
-
 // features/keystone/messaging/eligibilityWorker.ts
 var eligibilityWorker_exports = {};
 __export(eligibilityWorker_exports, {
@@ -5689,15 +5470,13 @@ __export(eligibilityWorker_exports, {
   runEligibilityCheck: () => runEligibilityCheck,
   settleStaleChecks: () => settleStaleChecks
 });
-async function adapterContext(db, installationId, mode, deps) {
-  const installation = await db.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi" }, orderBy: { createdAt: "asc" } });
+async function adapterContext(db, deps) {
+  const installation = await db.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi", status: "live", mode: "live" }, orderBy: { createdAt: "asc" } });
   const config2 = installation?.config ?? {};
-  const ctx = { mode, baseUrl: config2.baseUrl, timeoutMs: config2.timeoutMs ?? 15e3 };
+  const apiKey = installation?.secretId ? await readSecret(db, installation.secretId) : process.env.STEDI_API_KEY;
+  if (!apiKey) return { mode: "manual_export" };
+  const ctx = { mode: "live", apiKey, baseUrl: config2.baseUrl, timeoutMs: config2.timeoutMs ?? 15e3 };
   if (deps.fetch) ctx.fetch = deps.fetch;
-  else if (config2.transport === "recorded") ctx.fetch = recordedFetch;
-  if (installation?.secretId) ctx.apiKey = await readSecret(db, installation.secretId);
-  else if (config2.transport === "recorded" || deps.fetch) ctx.apiKey = "recorded-sandbox-key";
-  else if (process.env.STEDI_SANDBOX_KEY) ctx.apiKey = process.env.STEDI_SANDBOX_KEY;
   return ctx;
 }
 async function runEligibilityCheck(db, checkId, deps = {}) {
@@ -5729,7 +5508,7 @@ async function runEligibilityCheck(db, checkId, deps = {}) {
   };
   let outcome;
   try {
-    const ctx = await adapterContext(db, null, check.mode, deps);
+    const ctx = await adapterContext(db, deps);
     outcome = (await clearinghouseFor(check.adapterKey).checkEligibility(request, ctx)).outcome;
   } catch (error) {
     log.error("eligibility call failed", { checkId, error });
@@ -5795,7 +5574,6 @@ var init_eligibilityWorker = __esm({
     init_unitOfWork();
     init_clearinghouse();
     init_canonical2();
-    init_recorded();
     init_insurance2();
   }
 });
@@ -6012,7 +5790,7 @@ async function openVerification(uow, actor6, coverageId, options) {
     auditCreate(uow, actor6, "BenefitVerification", verification.id, "verification.requested", { coverageId, trigger: options.trigger, mode: inFlight.mode, reusedCheck: inFlight.id });
     return { verificationId: verification.id, existing: false, checkId: inFlight.id, mode: inFlight.mode };
   }
-  if (installation && payerId && installation.mode && installation.mode !== "live") {
+  if (installation && payerId && installation.mode === "live" && installation.secretId) {
     mode = installation.mode;
     const requestHash = sha256(canonicalJson({ coverage: coverage.id, subscriber: coverage.subscriber.memberIdHash, payer: payerId, serviceType: "35" }));
     const check = await tx.eligibilityCheck.create({ data: { verificationId: verification.id, coverageId, adapterKey: "stedi", mode: installation.mode, requestHash, status: "queued", isSynthetic: coverage.isSynthetic } });
@@ -6730,6 +6508,8 @@ __export(claimWorker_exports, {
 });
 async function runClaimSubmit(db, claimId, deps = {}) {
   const now = deps.now ?? (() => /* @__PURE__ */ new Date());
+  const ctx = await adapterContext(db, deps);
+  if (ctx.mode !== "live") return { skipped: true, manualExport: true };
   const claimed = await runInTransaction(db, async (uow) => {
     const rows = await uow.tx.$queryRaw`SELECT status FROM "Claim" WHERE id = ${claimId} FOR UPDATE`;
     const status = rows[0]?.status;
@@ -6743,10 +6523,9 @@ async function runClaimSubmit(db, claimId, deps = {}) {
   const payload = version.payload;
   const subscriber = claim.coverage.subscriber;
   const memberId = subscriber.memberIdSecretId ? await readSecret(db, subscriber.memberIdSecretId) : "";
-  const adapterKey = (await db.adapterInstallation.findFirst({ where: { area: "clearinghouse" }, orderBy: { createdAt: "asc" } }))?.adapterKey ?? "manual";
+  const adapterKey = "stedi";
   let outcome;
   try {
-    const ctx = await adapterContext(db, null, "sandbox", deps);
     outcome = await clearinghouseFor(adapterKey).submitClaim({ payload, memberId, idempotencyKey: version.idempotencyKey }, ctx);
   } catch (error) {
     log.error("claim send failed", { claimId, error });
@@ -6793,8 +6572,8 @@ async function runClaimStatus(db, inquiryId, deps = {}) {
   if (!inquiry || inquiry.status !== "queued") return { skipped: true };
   const claim = inquiry.claim;
   const payerId = String((claim.coverage?.subscriber?.plan?.payer?.adapterPayerIds ?? {}).stedi ?? "");
-  const adapterKey = (await db.adapterInstallation.findFirst({ where: { area: "clearinghouse" }, orderBy: { createdAt: "asc" } }))?.adapterKey ?? "manual";
-  const ctx = await adapterContext(db, null, "sandbox", deps);
+  const ctx = await adapterContext(db, deps);
+  const adapterKey = ctx.mode === "live" ? "stedi" : "manual";
   const found = await clearinghouseFor(adapterKey).checkClaimStatus(claim.patientControlNumber, payerId, ctx);
   await runInTransaction(db, async (uow) => {
     await uow.tx.claimStatusInquiry.update({ where: { id: inquiryId }, data: { status: found.kind === "unknown" ? "unknown" : "responded", responseSummary: found, version: { increment: 1 } } });
@@ -6804,13 +6583,13 @@ async function runClaimStatus(db, inquiryId, deps = {}) {
   return { status: found.kind };
 }
 async function pollRemittances(db, now, deps = {}, options = {}) {
-  const installation = await db.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi" }, orderBy: { createdAt: "asc" } });
+  const installation = await db.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi", status: "live", mode: "live" }, orderBy: { createdAt: "asc" } });
   if (!installation) return { polled: 0 };
   const config2 = installation.config ?? {};
   const minInterval = options.minIntervalMs ?? 15 * 6e4;
   if (config2.lastEraPollAt && now.getTime() - Date.parse(config2.lastEraPollAt) < minInterval) return { polled: 0, skipped: "not_due" };
   const since = new Date((config2.lastEraPollAt ? Date.parse(config2.lastEraPollAt) : now.getTime() - 7 * 864e5) - 864e5);
-  const ctx = await adapterContext(db, installation.id, "sandbox", deps);
+  const ctx = await adapterContext(db, deps);
   const adapter = clearinghouseFor("stedi");
   const listed = await adapter.listTransactions(since, ctx);
   if (!listed.ok) return { polled: 0, error: listed.message };
@@ -9163,8 +8942,8 @@ var AdapterInstallation = (0, import_core7.list)({
     area: fixedChoice(ADAPTER_AREAS),
     adapterKey: systemText({ required: true }),
     displayName: systemText(),
-    mode: (0, import_fields7.select)({ type: "string", options: ["manual_export", "sandbox", "live"].map((value) => ({ label: value.replace("_", " "), value })), defaultValue: "manual_export", ...readOnly }),
-    status: lifecycle(["configured", "sandbox_verified", "live", "suspended"]),
+    mode: (0, import_fields7.select)({ type: "string", options: ["manual_export", "live"].map((value) => ({ label: value.replace("_", " "), value })), defaultValue: "manual_export", ...readOnly }),
+    status: lifecycle(["configured", "live", "suspended"]),
     secret: (0, import_fields7.relationship)({ ref: "SecretBox", access: { read: import_access9.denyAll, create: sys, update: sys }, ui: { itemView: { fieldMode: "hidden" } } }),
     config: (0, import_fields7.json)({ ...readOnly }),
     handlesPhi: (0, import_fields7.checkbox)({ defaultValue: true, ...readOnly }),
@@ -12703,9 +12482,6 @@ async function seedPhase3(uow, actor6) {
   await tx.insurancePlan.createMany({ data: PLANS.map((p) => ({ id: p.id, payerId: p.payer, groupName: p.group, groupNumber: p.number, planType: p.type, networkStatus: p.net, feeScheduleId: p.fee && feeIds.has(p.fee) ? p.fee : null, cobMethod: p.cob, annualMaxMinor: p.max, deductibleIndividualMinor: p.ded, benefitYearStartMonth: 1, isSynthetic: true })) });
   created.insurancePlans = PLANS.length;
   auditCreate(uow, actor6, "InsurancePlan", PLANS[0].id, "insurance_plan.created", { seeded: PLANS.length }, meta2);
-  if (!await tx.adapterInstallation.findFirst({ where: { area: "clearinghouse", adapterKey: "stedi" } })) {
-    await tx.adapterInstallation.create({ data: { area: "clearinghouse", adapterKey: "stedi", displayName: "Stedi eligibility (recorded sandbox)", mode: "sandbox", status: "configured", config: { transport: "recorded" }, handlesPhi: false } });
-  }
   const patients = await tx.patient.findMany({ where: { id: { startsWith: "seed_pt_" } }, orderBy: { id: "asc" }, take: 8 });
   const members = ["SUM-4401-A", "SUM-4402-B", "SUM-4403-C", "SUM-4404-D", "SUM-4405-E", "SUM-4406-F", "SUM-4407-G", "SUM-4408-H"];
   const layout = [["seed_plan_harbor_ppo", "full"], ["seed_plan_evergreen_ppo", "partial"], ["seed_plan_harbor_ppo", "none"], ["seed_plan_evergreen_ppo", "full"], ["seed_plan_evergreen_ppo", "none"], ["seed_plan_harbor_ppo", "partial"], ["seed_plan_harbor_ppo", "full"], ["seed_plan_coastal_mcd", "none"]];
@@ -16468,6 +16244,7 @@ init_insurance2();
 init_actor();
 init_cas();
 init_canonical();
+init_recall();
 
 // features/keystone/lib/claims.ts
 init_time();
@@ -16728,6 +16505,27 @@ async function releaseClaim(_root, args, context) {
     await transition(uow, { model: "Claim", id: claim.id, from: ["ready"], to: "released", expectedVersion: args.expectedVersion, actor: actor6, eventType: "claim.released", metadata: { version: number }, data: { currentVersionId: version.id } });
     uow.after(async () => (await Promise.resolve().then(() => (init_claimWorker(), claimWorker_exports))).runClaimSubmit(uow.db, claim.id));
     return { id: claim.id, versionId: version.id, versionNumber: number };
+  });
+  return { replay: result.replay, ...result.value };
+}
+async function exportClaimCsv(_root, args, context) {
+  const { actor: actor6, locationIds } = staff(context);
+  requirePermission(actor6, "canSubmitClaims");
+  const { idempotencyKey, ...params } = args;
+  const result = await command(context.prisma, { name: "claim.export_csv", actor: actor6, idempotencyKey, params }, async (uow) => {
+    const claim = await scopedClaim(uow.tx, locationIds, args.claimId);
+    if (claim.status !== "released" || !claim.currentVersionId) throw new DomainError(Codes.INVALID_TRANSITION, "Only a released claim that has not been sent can be exported.");
+    const version = await uow.tx.claimVersion.findUniqueOrThrow({ where: { id: claim.currentVersionId } });
+    const p = version.payload;
+    const dollars = (minor2) => {
+      const n = BigInt(minor2);
+      return `${n / 100n}.${String(n % 100n).padStart(2, "0")}`;
+    };
+    const header = ["Claim", "Version", "Payer", "Billing provider", "Billing NPI", "Rendering provider", "Rendering NPI", "Patient", "Patient DOB", "Subscriber", "Subscriber DOB", "Member ID ends", "Date of service", "Procedure", "Tooth", "Surfaces", "Units", "Charge"];
+    const rows = p.lines.map((l) => [claim.ref, String(version.number), p.payer.name, p.billing.legalName, p.billing.npi, `${p.rendering.name.first} ${p.rendering.name.last}`, p.rendering.npi, `${p.patient.first} ${p.patient.last}`, p.patient.dateOfBirth, `${p.subscriber.first} ${p.subscriber.last}`, p.subscriber.dateOfBirth, p.subscriber.memberIdLast4, l.dateOfService, l.code, l.tooth, l.surfaces, String(l.units), dollars(l.chargeMinor)]);
+    const csv = toCsv(header, rows);
+    auditCreate(uow, actor6, "Claim", claim.id, "claim.manual_export_prepared", { version: version.number, lines: rows.length });
+    return { fileName: `${claim.ref}-v${version.number}.csv`, mimeType: "text/csv", text: csv, rows: rows.length };
   });
   return { replay: result.replay, ...result.value };
 }
@@ -17779,6 +17577,7 @@ var PHASE2_ARGS = {
   scrubClaim: { claimId: "ID!", expectedVersion: "Int!" },
   overrideScrub: { claimId: "ID!", expectedVersion: "Int!", reason: "String!" },
   releaseClaim: { claimId: "ID!", expectedVersion: "Int!" },
+  exportClaimCsv: { claimId: "ID!" },
   correctClaim: { claimId: "ID!", expectedVersion: "Int!", reason: "String!" },
   voidClaim: { claimId: "ID!", expectedVersion: "Int!", reason: "String!" },
   addClaimAttachment: { claimId: "ID!", kind: "String!", route: "String!", description: "String!" },
@@ -17941,6 +17740,7 @@ var RESOLVERS = {
   scrubClaim: scrubClaimCommand,
   overrideScrub,
   releaseClaim,
+  exportClaimCsv,
   correctClaim,
   voidClaim,
   addClaimAttachment,

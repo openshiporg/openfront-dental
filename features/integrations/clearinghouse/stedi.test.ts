@@ -9,14 +9,14 @@ const req = (memberId: string): EligibilityRequest => ({
   payerId: 'SUMMIT', providerNpi: '1234567893', providerName: 'Bayview Family Dental',
   subscriber: { memberId, firstName: 'Marisol', lastName: 'Okafor', dateOfBirth: '1988-04-12' }, serviceTypeCode: '35', controlNumber: '000000001',
 })
-const ctx = (fetch: typeof globalThis.fetch) => ({ mode: 'sandbox' as const, apiKey: 'sandbox-test-key', baseUrl: 'https://stedi.invalid', fetch })
+const ctx = (fetch: typeof globalThis.fetch) => ({ mode: 'live' as const, apiKey: 'test-key', baseUrl: 'https://stedi.invalid', fetch })
 
 describe('Stedi eligibility contract (recorded fixtures)', () => {
   it('sends the documented request shape to the eligibility-check path', async () => {
     const fake = fakeStedi()
     await clearinghouseFor('stedi').checkEligibility(req('SUM-4401-A'), ctx(fake.fetch))
     expect(fake.calls[0].url).toBe(`https://stedi.invalid${STEDI_ELIGIBILITY_PATH}`)
-    expect(fake.calls[0].headers.authorization).toBe('sandbox-test-key')
+    expect(fake.calls[0].headers.authorization).toBe('test-key')
     expect(fake.calls[0].body).toEqual(buildStediBody(req('SUM-4401-A')))
     expect(Object.keys(fake.calls[0].body).sort()).toEqual(['controlNumber', 'encounter', 'provider', 'subscriber', 'tradingPartnerServiceId'])
     expect(fake.calls[0].body.subscriber.dateOfBirth).toBe('19880412')
@@ -38,7 +38,7 @@ describe('Stedi eligibility contract (recorded fixtures)', () => {
     const out = mapBenefits(outcome.benefits, false)
     expect(out.find(f => f.field === 'coverage_pct' && f.appliesTo.category === 'basic')?.value).toEqual({ pct: '60.0000' })
   })
-  it('the Evergreen sandbox member answers with its own benefits, not Harbor\'s', async () => {
+  it('the Evergreen member answers with its own benefits, not Harbor\'s', async () => {
     const { outcome } = await clearinghouseFor('stedi').checkEligibility(req('EVG-5501-K'), ctx(fakeStedi().fetch))
     expect(outcome.kind).toBe('responded')
     if (outcome.kind !== 'responded') return
@@ -66,9 +66,8 @@ describe('Stedi eligibility contract (recorded fixtures)', () => {
   it('treats a gateway timeout as unknown', async () => {
     expect((await clearinghouseFor('stedi').checkEligibility(req('SUM-4406-F'), ctx(fakeStedi().fetch))).outcome.kind).toBe('unknown')
   })
-  it('refuses live mode and a missing key without calling out', async () => {
+  it('refuses a missing key without calling out', async () => {
     const fake = fakeStedi()
-    expect((await clearinghouseFor('stedi').checkEligibility(req('SUM-4401-A'), { ...ctx(fake.fetch), mode: 'live' })).outcome.kind).toBe('error_retryable')
     expect((await clearinghouseFor('stedi').checkEligibility(req('SUM-4401-A'), { ...ctx(fake.fetch), apiKey: undefined })).outcome.kind).toBe('error_retryable')
     expect(fake.calls).toHaveLength(0)
   })

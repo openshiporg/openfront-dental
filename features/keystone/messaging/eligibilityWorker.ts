@@ -18,15 +18,17 @@ import { openChecklist, CHECKLIST_BY_PLAN } from '../mutations/insurance'
 
 export type EligibilityDeps = { fetch?: typeof fetch; now?: () => Date }
 
-export async function adapterContext(db: Db, installationId: string | null, mode: string, deps: EligibilityDeps): Promise<AdapterCtx> {
-  const installation = await db.adapterInstallation.findFirst({ where: { area: 'clearinghouse', adapterKey: 'stedi' }, orderBy: { createdAt: 'asc' } })
+/**
+ * The clearinghouse connection as it really is: a live Stedi installation with its key (or the STEDI_API_KEY the host holds) is `live`;
+ * with no key there is nothing to call, the mode is `manual_export` and the office submits by hand. Never a pretend mode in between.
+ */
+export async function adapterContext(db: Db, deps: EligibilityDeps): Promise<AdapterCtx> {
+  const installation = await db.adapterInstallation.findFirst({ where: { area: 'clearinghouse', adapterKey: 'stedi', status: 'live', mode: 'live' }, orderBy: { createdAt: 'asc' } })
   const config = (installation?.config ?? {}) as { baseUrl?: string; timeoutMs?: number }
-  const ctx: AdapterCtx = { mode: mode as AdapterCtx['mode'], baseUrl: config.baseUrl, timeoutMs: config.timeoutMs ?? 15_000 }
+  const apiKey = installation?.secretId ? await readSecret(db as never, installation.secretId) : process.env.STEDI_API_KEY
+  if (!apiKey) return { mode: 'manual_export' }
+  const ctx: AdapterCtx = { mode: 'live', apiKey, baseUrl: config.baseUrl, timeoutMs: config.timeoutMs ?? 15_000 }
   if (deps.fetch) ctx.fetch = deps.fetch
-  if (installation?.secretId) ctx.apiKey = await readSecret(db as never, installation.secretId)
-  else if (deps.fetch) ctx.apiKey = 'injected-transport-key'
-  else if (process.env.STEDI_API_KEY) ctx.apiKey = process.env.STEDI_API_KEY
-  void installationId
   return ctx
 }
 
@@ -61,7 +63,7 @@ export async function runEligibilityCheck(db: Db, checkId: string, deps: Eligibi
   // 2. the call: no transaction open
   let outcome: EligibilityOutcome
   try {
-    const ctx = await adapterContext(db, null, check.mode, deps)
+    const ctx = await adapterContext(db, deps)
     outcome = (await clearinghouseFor(check.adapterKey).checkEligibility(request, ctx)).outcome
   } catch (error) {
     log.error('eligibility call failed', { checkId, error })

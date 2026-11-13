@@ -19346,6 +19346,7 @@ type Mutation {
   scrubClaim(claimId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
   overrideScrub(claimId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
   releaseClaim(claimId: ID!, expectedVersion: Int!, idempotencyKey: String!): JSON
+  exportClaimCsv(claimId: ID!, idempotencyKey: String!): JSON
   correctClaim(claimId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
   voidClaim(claimId: ID!, expectedVersion: Int!, reason: String!, idempotencyKey: String!): JSON
   addClaimAttachment(claimId: ID!, kind: String!, route: String!, description: String!, idempotencyKey: String!): JSON

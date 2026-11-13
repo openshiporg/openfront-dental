@@ -5,7 +5,7 @@ import { title as words } from '../lib/format';
 
 const GREEN = ['active', 'approved', 'completed', 'delivered', 'confirmed', 'checked_in', 'seated', 'arrived', 'in_progress', 'ready_for_checkout', 'live', 'paid', 'ok', 'applied', 'acknowledged', 'verified', 'enrolled', 'granted', 'converted', 'executed', 'replied_confirm', 'sent', 'booked', 'published']
 const AMBER = ['pending', 'requested', 'draft', 'running', 'executing', 'proposed', 'validated', 'leased', 'submitted', 'unconfirmed', 'unknown', 'paused', 'started', 'held', 'scheduled', 'queued', 'offered', 'possible', 'no_reply', 'prospect', 'invited']
-const BLUE = ['sandbox', 'manual_export', 'expired', 'superseded', 'rescheduled', 'inactive', 'merged_into', 'scheduled_elsewhere', 'suppressed', 'replied_other', 'reverted', 'released', 'new']
+const BLUE = ['manual_export', 'expired', 'superseded', 'rescheduled', 'inactive', 'merged_into', 'scheduled_elsewhere', 'suppressed', 'replied_other', 'reverted', 'released', 'new']
 const RED = ['rejected', 'rejected_spam', 'cancelled', 'failed', 'dead', 'revoked', 'broken', 'no_show', 'breached', 'archived', 'deceased', 'replied_cancel', 'disabled', 'suspended', 'blocked']
 const DOT: Record<string, string> = Object.fromEntries([
   ...GREEN.map(v => [v, 'bg-emerald-500']), ...AMBER.map(v => [v, 'bg-amber-500']), ...BLUE.map(v => [v, 'bg-blue-500']), ...RED.map(v => [v, 'bg-red-500']),

@@ -4,6 +4,7 @@ import { money, when, calendarDate, title } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Stat, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
+import { DownloadButton } from '../../components/Phase6Actions';
 
 const RULE_WORDS: Record<string, string> = { crosswalk_required: 'Insurance code missing', tooth_required: 'Tooth number needed', surface_required: 'Surfaces needed', attachment_required: 'X-ray or chart needed', narrative_required: 'Explanation needed', enrollment_required: 'Not enrolled with this payer', timely_filing: 'Filing deadline', duplicate: 'Possible duplicate', coverage_active: 'Coverage not active', primary_first: 'Primary insurance first', override: 'Sent anyway' };
 const SENT = ['submitted', 'submission_unknown', 'acknowledged', 'pending_payer', 'adjudicated', 'appealed', 'appeal_decided'];
@@ -45,13 +46,15 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
         <div className="flex flex-wrap gap-2">
           {editable && c.status !== 'ready' ? <ActionButton op="scrubClaim" vars={vars} paths={paths}>Check the claim</ActionButton> : null}
           {c.status === 'scrubbed' ? <ActionButton op="overrideScrub" vars={vars} ask="Why is it fine to send this as it is?" confirm="Send despite the findings?" paths={paths}>Send anyway</ActionButton> : null}
-          {c.status === 'ready' ? <ActionButton op="releaseClaim" vars={vars} confirm="Send this claim to the payer now? It cannot be edited after this." paths={paths}>Send to payer</ActionButton> : null}
+          {c.status === 'ready' ? <ActionButton op="releaseClaim" vars={vars} confirm="Release this claim? With a clearinghouse connected it is sent now; without one it stays a manual export that you submit yourself. It cannot be edited after this." paths={paths}>Release claim</ActionButton> : null}
+          {c.status === 'released' ? <DownloadButton op="exportClaimCsv" vars={{ claimId: c.id }} paths={paths}>Download claim data (CSV)</DownloadButton> : null}
           {c.status === 'submission_unknown' ? <ActionButton op="requestClaimStatus" vars={{ claimId: c.id }} paths={paths}>Ask the payer if they have it</ActionButton> : null}
           {['acknowledged', 'pending_payer', 'adjudicated', 'rejected', 'submission_unknown', 'appeal_decided'].includes(c.status) ? <ActionButton op="correctClaim" vars={vars} ask="What needs to change?" paths={paths}>Correct and resend</ActionButton> : null}
           {c.status !== 'voided' && c.status !== 'closed' ? <ActionButton op="voidClaim" vars={vars} ask="Why is this claim being cancelled?" confirm={SENT.includes(c.status) ? 'Ask the payer to cancel this claim?' : 'Cancel this claim?'} paths={paths}>{SENT.includes(c.status) ? 'Cancel with payer' : 'Cancel claim'}</ActionButton> : null}
         </div>
         {c.recouped ? <Meta>The payer took this payment back.</Meta> : null}
       </Section>
+      {c.status === 'released' ? <Section title="Manual export"><Meta>No clearinghouse has accepted this claim, so it has not been sent. Download the claim data and submit it through the payer's portal, or connect a clearinghouse key. It stays here, unsent, until a clearinghouse answers.</Meta></Section> : null}
       {findings.length ? (
         <Section title="Found when checking">
           {findings.map((f, i) => <Row key={i}><span className="min-w-0"><span className="font-medium">{RULE_WORDS[f.kind] ?? title(f.kind)}</span><br /><Meta>{f.message}</Meta></span><Meta>{f.severity === 'block' ? 'Must fix' : 'Warning'}</Meta></Row>)}

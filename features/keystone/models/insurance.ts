@@ -214,7 +214,7 @@ export const EligibilityCheck = list({
     verification: relationship({ ref: 'BenefitVerification.eligibilityChecks', ...readOnly }),
     coverage: relationship({ ref: 'Coverage', ...readOnly }),
     adapterKey: systemText({ required: true }),
-    mode: fixedChoice(['manual_export', 'sandbox', 'live']),
+    mode: fixedChoice(['manual_export', 'live']),
     requestHash: systemText({ indexed: true, required: true }),
     status: lifecycle(CHECK_STATUSES),
     rejectionCodes: json({ defaultValue: [], ...readOnly }),

@@ -24,6 +24,9 @@ const RETRY_WINDOW_MS = 24 * 3_600_000
 
 export async function runClaimSubmit(db: Db, claimId: string, deps: EligibilityDeps = {}) {
   const now = deps.now ?? (() => new Date())
+  // No clearinghouse key: nothing can be sent. The claim stays released, a manual export the office submits itself; it is never marked sent.
+  const ctx = await adapterContext(db, deps)
+  if (ctx.mode !== 'live') return { skipped: true as const, manualExport: true as const }
   const claimed = await runInTransaction(db, async uow => {
     const rows = await uow.tx.$queryRaw<{ status: string }[]>`SELECT status FROM "Claim" WHERE id = ${claimId} FOR UPDATE`
     const status = rows[0]?.status
@@ -38,11 +41,10 @@ export async function runClaimSubmit(db: Db, claimId: string, deps: EligibilityD
   const payload = version.payload as unknown as ClaimPayload
   const subscriber = claim.coverage!.subscriber!
   const memberId = subscriber.memberIdSecretId ? await readSecret(db as never, subscriber.memberIdSecretId) : ''
-  const adapterKey = ((await db.adapterInstallation.findFirst({ where: { area: 'clearinghouse' }, orderBy: { createdAt: 'asc' } }))?.adapterKey) ?? 'manual'
+  const adapterKey = 'stedi'
 
   let outcome: ClaimSubmitOutcome
   try {
-    const ctx = await adapterContext(db, null, 'sandbox', deps)
     outcome = await clearinghouseFor(adapterKey).submitClaim({ payload, memberId, idempotencyKey: version.idempotencyKey }, ctx)
   } catch (error) {
     log.error('claim send failed', { claimId, error })
@@ -97,8 +99,8 @@ export async function runClaimStatus(db: Db, inquiryId: string, deps: Eligibilit
   if (!inquiry || inquiry.status !== 'queued') return { skipped: true as const }
   const claim = inquiry.claim!
   const payerId = String(((claim.coverage?.subscriber?.plan?.payer?.adapterPayerIds ?? {}) as Record<string, string>).stedi ?? '')
-  const adapterKey = ((await db.adapterInstallation.findFirst({ where: { area: 'clearinghouse' }, orderBy: { createdAt: 'asc' } }))?.adapterKey) ?? 'manual'
-  const ctx = await adapterContext(db, null, 'sandbox', deps)
+  const ctx = await adapterContext(db, deps)
+  const adapterKey = ctx.mode === 'live' ? 'stedi' : 'manual'
   const found = await clearinghouseFor(adapterKey).checkClaimStatus(claim.patientControlNumber, payerId, ctx)
   await runInTransaction(db, async uow => {
     await uow.tx.claimStatusInquiry.update({ where: { id: inquiryId }, data: { status: found.kind === 'unknown' ? 'unknown' : 'responded', responseSummary: found as never, version: { increment: 1 } } })
@@ -110,13 +112,13 @@ export async function runClaimStatus(db: Db, inquiryId: string, deps: Eligibilit
 
 /** The leased remittance poll: list 835s since the last poll (overlapping a day), skip any already seen, apply the rest. */
 export async function pollRemittances(db: Db, now: Date, deps: EligibilityDeps = {}, options: { minIntervalMs?: number } = {}) {
-  const installation = await db.adapterInstallation.findFirst({ where: { area: 'clearinghouse', adapterKey: 'stedi' }, orderBy: { createdAt: 'asc' } })
+  const installation = await db.adapterInstallation.findFirst({ where: { area: 'clearinghouse', adapterKey: 'stedi', status: 'live', mode: 'live' }, orderBy: { createdAt: 'asc' } })
   if (!installation) return { polled: 0 }
   const config = (installation.config ?? {}) as { lastEraPollAt?: string; transport?: string }
   const minInterval = options.minIntervalMs ?? 15 * 60_000
   if (config.lastEraPollAt && now.getTime() - Date.parse(config.lastEraPollAt) < minInterval) return { polled: 0, skipped: 'not_due' }
   const since = new Date((config.lastEraPollAt ? Date.parse(config.lastEraPollAt) : now.getTime() - 7 * 86_400_000) - 86_400_000)
-  const ctx = await adapterContext(db, installation.id, 'sandbox', deps)
+  const ctx = await adapterContext(db, deps)
   const adapter = clearinghouseFor('stedi')
   const listed = await adapter.listTransactions(since, ctx)
   if (!listed.ok) return { polled: 0, error: listed.message }

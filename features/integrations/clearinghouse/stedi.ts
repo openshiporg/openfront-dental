@@ -48,7 +48,6 @@ export function buildStediClaimBody(req: ClaimRequest) {
 }
 
 export async function stediSubmitClaim(req: ClaimRequest, ctx: AdapterCtx): Promise<ClaimSubmitOutcome> {
-  if (ctx.mode === 'live') return { kind: 'error_retryable', message: 'Live Stedi is not enabled in this build.' }
   if (!ctx.apiKey) return { kind: 'error_retryable', message: 'No Stedi clearinghouse key is connected. Verify by phone or the payer portal.' }
   const doFetch = ctx.fetch ?? fetch
   let response: Response
@@ -131,7 +130,6 @@ export const stediAdapter: ClearinghouseAdapter = {
   async checkEligibility(req, ctx) {
     const requestHash = eligibilityRequestHash(req, 'stedi')
     const done = (outcome: EligibilityOutcome) => ({ outcome, requestHash, adapterKey: 'stedi', mode: ctx.mode })
-    if (ctx.mode === 'live') return done({ kind: 'error_retryable', message: 'Live Stedi is not enabled in this build.' })
     if (!ctx.apiKey) return done({ kind: 'error_retryable', message: 'No Stedi clearinghouse key is connected. Verify by phone or the payer portal.' })
     const doFetch = ctx.fetch ?? fetch
     const signal = ctx.signal ?? AbortSignal.timeout(ctx.timeoutMs ?? 15_000)

@@ -9,7 +9,7 @@ const TABS = [
   ['done', 'Paid or denied', ['adjudicated', 'appeal_decided', 'responded', 'closed', 'voided']],
 ] as const;
 
-const STATUS_WORDS: Record<string, string> = { scrubbed: 'needs fixing', ready: 'ready to send', released: 'queued to send', submitted: 'sending', acknowledged: 'received by the payer', pending_payer: 'payer is reviewing', adjudicated: 'payer has answered', correction_required: 'being corrected', submission_unknown: 'not sure it was sent', void_requested: 'cancelling', appeal_decided: 'appeal answered' };
+const STATUS_WORDS: Record<string, string> = { scrubbed: 'needs fixing', ready: 'ready to send', released: 'manual export, not sent', submitted: 'sending', acknowledged: 'received by the payer', pending_payer: 'payer is reviewing', adjudicated: 'payer has answered', correction_required: 'being corrected', submission_unknown: 'not sure it was sent', void_requested: 'cancelling', appeal_decided: 'appeal answered' };
 
 /** Claims worklist in three tabs; each claim is one line with the patient, payer, total and the thing a person has to do next. */
 export default async function ClaimsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
