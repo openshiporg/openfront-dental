@@ -1,6 +1,6 @@
 import { q, requirePage, holdsAny, practiceTimeZone } from '../../lib/server';
 import { when, title } from '../../lib/format';
-import { Page, Section, Row, Empty, Meta, Status, TitleLine } from '../../components/ui';
+import { Page, Section, Row, Empty, Meta, TitleLine } from '../../components/ui';
 import { ActionButton, summaryClass } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
 import { CALL_OUTCOMES } from '../../../keystone/models/phase6';
@@ -34,7 +34,7 @@ export default async function CallsPage() {
           locations.filter((l) => lines.has(l.id)).map((l) => <Row key={l.id}><span>{l.name}</span><Meta>{lines.get(l.id)} · answered by the voice receptionist when voice is on</Meta></Row>)
         ) : (
           <>
-            <Row><span>Phone number</span><Status value="paused" /></Row>
+            <Row><span>Phone number</span><Meta>Not connected</Meta></Row>
             <p className="text-sm">Voice needs a connected phone number, and none is connected. Calls can be logged by hand below.</p>
             <Meta>The owner connects a Twilio number for each office in Settings &gt; Locations.</Meta>
           </>
@@ -42,13 +42,13 @@ export default async function CallsPage() {
       </Section>
 
       <Section title="Voice receptionist by office">
-        <Meta>Off by default. When on, the assistant opens every call by saying it is an AI, does not record, uses the same tools as the Front Desk Assistant, and can only ask the front desk to book or confirm a visit. A person approves each request.</Meta>
+        <Meta>Off by default. When on, the assistant opens every call by saying it is an AI, does not record, can check open times, and can only ask the front desk to book or confirm a visit. A person approves each request.</Meta>
         {locations.map((l) => {
           const p = policy.get(l.id);
           return (
             <Row key={l.id} className="items-start">
               <span className="min-w-0 flex-1">
-                <TitleLine status={p?.enabled ? 'active' : 'inactive'}>{l.name}: voice is {p?.enabled ? 'on' : 'off'}</TitleLine>
+                <TitleLine status={p?.enabled ? 'active' : null}>{l.name}: voice is {p?.enabled ? 'on' : 'off'}</TitleLine>
                 <Meta>{p?.enabled ? `${lines.has(l.id) ? 'Answering calls' : 'No phone number connected, so no calls arrive'}${p.changedAt ? ` · changed ${when(p.changedAt, tz, 'date')}` : ''}` : 'Calls are refused here until the owner turns this on.'}</Meta>
                 {isOwner ? (
                   <details className="mt-1"><summary className={summaryClass}>{p?.enabled ? 'Change or turn off' : 'Turn on'}</summary>

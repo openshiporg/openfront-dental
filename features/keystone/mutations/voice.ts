@@ -40,8 +40,12 @@ export const VOICE_OFF = 'Voice calls are off for this office. The owner can tur
 
 /** Voice is off unless a policy row says otherwise. */
 export async function voiceEnabled(tx: Tx, locationId: string) {
-  const policy = await tx.voicePolicy.findFirst({ where: { locationId }, select: { enabled: true, recordCalls: true, changedById: true } })
-  return { enabled: !!policy?.enabled, recordCalls: !!policy?.enabled && !!policy?.recordCalls, enabledById: (policy?.enabled && policy?.changedById) || null }
+  const policy = await tx.voicePolicy.findFirst({ where: { locationId }, select: { id: true, enabled: true, recordCalls: true, changedById: true } })
+  // The person who turned voice on: the last switch from off to on, not whoever last saved the policy (for example to change recording).
+  const turnedOn = policy?.enabled
+    ? await tx.auditEvent.findFirst({ where: { eventType: 'voice.enabled', entityId: policy.id, before: { path: ['enabled'], equals: false } }, orderBy: { seq: 'desc' }, select: { actorUserId: true } })
+    : null
+  return { enabled: !!policy?.enabled, recordCalls: !!policy?.enabled && !!policy?.recordCalls, enabledById: (policy?.enabled && (turnedOn?.actorUserId ?? policy.changedById)) || null }
 }
 
 /** Turn voice on or off for one office. Only the owner (canApproveAutonomy) may, and every change is audited with a reason. */
@@ -123,7 +127,7 @@ export async function ensureVoiceAgent(tx: Tx, uow?: { audit: (e: any) => void }
   let agent = await tx.agentIdentity.findUnique({ where: { name: VOICE_AGENT_NAME } })
   if (!agent) {
     agent = await tx.agentIdentity.create({
-      data: { name: VOICE_AGENT_NAME, purpose: 'Answers the phone for the front desk. It uses the same tools as the Front Desk Assistant and can only ask; a person approves anything that changes the schedule.', kind: 'rules_engine', status: 'active', ownerId: owner?.id ?? null },
+      data: { name: VOICE_AGENT_NAME, purpose: 'Answers the phone for the front desk. It can check open times and can only ask; a person approves anything that changes the schedule.', kind: 'rules_engine', status: 'active', ownerId: owner?.id ?? null },
     })
   }
   if (agent.status !== 'active') return agent
