@@ -42,3 +42,6 @@ next-env.d.ts
 
 # review attack scripts live outside the repo (Phase 4 r2 m-c)
 scripts/attack-*
+
+# keystone build output (rebuilt by `keystone build` on every build)
+/.keystone/
