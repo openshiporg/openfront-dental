@@ -3,6 +3,8 @@
 # run straight after a command commits, and scheduled steps run from "Run pending work" on the Day and month close screen.
 # one-time: clears the rolled-back first attempt of the review-fixes migration (a no-op when it is not marked failed)
 npx prisma migrate resolve --rolled-back 20261108220000_dental_phase3_review_fixes >/dev/null 2>&1 || true
+# one-time: clears the failed first attempt of the real-voice migration (it rolled back whole; a no-op when it is not marked failed)
+npx prisma migrate resolve --rolled-back 20261113120000_dental_phase7_real_voice >/dev/null 2>&1 || true
 npm run migrate || exit 1
 # keyed member-ID hashes (idempotent; a failure here must not stop the site)
 ./node_modules/.bin/tsx scripts/rehash-member-ids.ts || true
