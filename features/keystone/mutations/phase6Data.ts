@@ -94,7 +94,7 @@ export async function requestImportApply(_root: unknown, args: { batchId: string
 
 const emptyRecon = (n: Normalised): Reconciliation => ({
   patients: { source: n.patients.length + n.problems.filter(p => p.entity === 'patient').length, created: 0, matchedExisting: 0, skipped: n.problems.filter(p => p.entity === 'patient').length },
-  appointments: { source: n.appointments.length + n.problems.filter(p => p.entity === 'appointment').length, created: 0, skipped: n.problems.filter(p => p.entity === 'appointment').length, skippedReasons: {} },
+  appointments: { source: n.appointments.length + n.problems.filter(p => p.entity === 'appointment').length, created: 0, skipped: n.problems.filter(p => p.entity === 'appointment').length, skippedReasons: n.problems.filter(p => p.entity === 'appointment').reduce<Record<string, number>>((m, p) => ({ ...m, [p.problem]: (m[p.problem] ?? 0) + 1 }), {}) },
   procedures: { source: n.procedures.length + n.problems.filter(p => p.entity === 'procedure').length, chart: 0, conditions: 0, historyOnly: 0, deleted: 0, skipped: n.problems.filter(p => p.entity === 'procedure').length },
   balances: { sourceMinor: '0', ledgerMinor: '0', patientsChecked: 0, mismatches: 0, differenceMinor: '0' }, balanced: false,
 })
