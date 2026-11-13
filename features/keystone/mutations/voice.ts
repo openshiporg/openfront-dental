@@ -217,6 +217,12 @@ export const redactTranscript = (turns: { who: string; text: string }[]) => turn
 const digitsOf = (value: string) => value.replace(/\D/g, '')
 
 /** The patient a caller number belongs to at this office, only when exactly one patient does. */
+/** The office address as one spoken line (it is stored as parts). */
+function addressText(value: unknown) {
+  const a = (value ?? {}) as Record<string, unknown>
+  return [a.line1, a.city, a.state, a.postal].map(x => String(x ?? '').trim()).filter(Boolean).join(', ')
+}
+
 async function matchCaller(tx: Tx, locationIds: string[], callerNumber: string) {
   const digits = digitsOf(callerNumber)
   if (digits.length < 7) return null
@@ -257,7 +263,7 @@ async function runCallIn(uow: any, input: RunInput) {
 
   // Call recording is not offered: nothing records audio, so the receptionist never asks about it.
   const result: CallResult = await runCall({
-    direction: 'inbound', practiceName: practice?.displayName ?? 'our office', locationName: location.name, phone: location.phone ?? '', address: location.address ?? '', hours: hoursText(location.hours),
+    direction: 'inbound', practiceName: practice?.displayName ?? 'our office', locationName: location.name, phone: location.phone ?? '', address: addressText(location.address), hours: hoursText(location.hours),
     patient: matched && dob ? { firstName: matched.preferredName || matched.firstName, dobIso: dob } : null,
     recording: { enabled: false, mode: recordingModeOf(location.jurisdiction?.rules) }, lines: input.utterances, unavailable,
   }, bound.tools, voice)
