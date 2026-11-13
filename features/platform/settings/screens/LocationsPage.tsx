@@ -85,7 +85,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
           return (
             <Row key={t.id}>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2"><span className="size-2.5 rounded-full" style={{ background: t.colour }} /><span className="font-medium">{t.name}</span><span className="font-mono text-xs text-muted-foreground">{t.code}</span></div>
+                <div className="flex items-center gap-2"><span className="size-2.5 rounded-full" style={{ background: t.colour }} /><span className="font-medium">{t.name}</span></div>
                 <Meta>{pattern.map((u) => `${title(u.role)} ${u.units * unit} min`).join(' → ')} · {t.defaultDurationUnits * unit} min · est. {money(t.defaultProductionMinor)}</Meta>
               </div>
               <Meta>{[t.onlineBookable ? `online as “${t.publicName || t.name}”` : '', t.newPatientOnly ? 'new patients' : '', t.requiresDentistOnSite ? 'dentist on site' : ''].filter(Boolean).join(' · ')}</Meta>

@@ -154,6 +154,7 @@ const WORDS: Record<string, string> = {
   responded: 'answered', error_retryable: 'try again', not_covered: 'not covered', covered: 'covered', plan_year: 'new plan year', signal: 'signal', proposal: 'proposal', staff: 'staff',
   verification_checklist: 'verification question', note_sign: 'note to sign', unsigned_plan_follow_up: 'unsigned plan follow-up', lab_follow_up: 'lab follow-up', rejection_fix: 'rejection to fix', credit_review: 'credit review',
   complete: 'complete', partial: 'partial', done: 'done', plan_item: 'treatment plan item', claim_line: 'claim line', appointment: 'appointment',
+  open_dental: 'Open Dental', generic_csv: 'CSV file', pdmp_check: 'PDMP check', break_glass_event: 'emergency access',
   incumbent_dentrix: 'Dentrix', incumbent_eaglesoft: 'Eaglesoft', incumbent_opendental: 'Open Dental', incumbent_other: 'another system', state_medicaid: 'state Medicaid',
 }
 
