@@ -7,6 +7,7 @@ import { DomainError, Codes } from '../lib/errors'
 import { checkReviewReply, draftReviewReply as draftText, eligibleOn, rightsDueOn, rightsExtendedDueOn } from '../lib/compliancePure'
 import { addMonths } from '../lib/estimator'
 import { DEFAULT_RECALL_NAMES, DEFAULT_RECALL_RULES, DEFAULT_RECALL_TYPES, ageOn, convertedType, recallMessage, recallStatus, toCsv, typeFitsAge } from '../lib/recall'
+import { nextReference } from '../lib/sequence'
 import { localDate } from '../lib/time'
 import { dayOf, isoDay, requireReason } from './clinicalShared'
 import { assertBookablePatient, assertLocation, assertPatientInScope, optionalText, requireText, staff, type Ctx } from './shared'
@@ -53,6 +54,8 @@ export async function ensureRecallCatalogue(tx: Tx) {
   return types
 }
 
+const RECALL_PAGE = 3000
+
 /** Work out each patient's recall from the visits on the chart. Pressing it twice changes nothing the second time. */
 export async function refreshRecall(_root: unknown, args: { locationId?: string | null; idempotencyKey: string }, context: Ctx) {
   const { actor, locationIds } = staff(context)
@@ -66,56 +69,64 @@ export async function refreshRecall(_root: unknown, args: { locationId?: string 
     const byKey = new Map<string, any>(typeRows.map((t: any) => [t.key, t]))
     const rules = (await tx.recallRule.findMany({ where: { isActive: true }, include: { fromType: true, toType: true } })).map((r: any) => ({ trigger: r.trigger, from: r.fromType?.key, to: r.toType?.key }))
     const scope = args.locationId ? [args.locationId] : locationIds
-    const patients = await tx.patient.findMany({
-      where: { status: { in: ['active', 'inactive'] }, homeLocationId: scope ? { in: scope } : { not: null } },
-      select: { id: true, dateOfBirth: true, homeLocationId: true }, orderBy: { id: 'asc' }, take: 3000,
-    })
-    const ids = patients.map((p: any) => p.id)
-    const entries = await tx.chartEntry.findMany({
-      where: { patientId: { in: ids }, kind: 'procedure', status: { in: ['completed', 'posted', 'existing_current', 'existing_other'] }, dateOfService: { not: null }, code: { OR: [{ isPreventiveRecallTrigger: true }, { category: 'periodontics' }] } },
-      select: { patientId: true, dateOfService: true, code: { select: { isPreventiveRecallTrigger: true, category: true } } },
-    })
-    const future = await tx.appointment.findMany({ where: { patientId: { in: ids }, startsAt: { gt: uow.now }, status: { in: ['scheduled', 'confirmed'] } }, select: { patientId: true }, distinct: ['patientId'] })
-    const hasFuture = new Set(future.map((f: any) => f.patientId))
-    const last = new Map<string, { prev?: string; perio?: string }>()
-    for (const e of entries) {
-      const slot = last.get(e.patientId) ?? {}
-      const d = isoDay(e.dateOfService)!
-      if (e.code.isPreventiveRecallTrigger) { if (!slot.prev || d > slot.prev) slot.prev = d }
-      else if (!slot.perio || d > slot.perio) slot.perio = d
-      last.set(e.patientId, slot)
-    }
-    const existing = await tx.patientRecall.findMany({ where: { patientId: { in: ids } } })
-    const have = new Map<string, any>(existing.map((r: any) => [`${r.patientId}|${r.typeId}`, r]))
-    let created = 0, changed = 0, closed = 0
-    for (const p of patients) {
-      const slot = last.get(p.id)
-      const lastService = slot?.prev ?? slot?.perio
-      if (!lastService) continue
-      const age = ageOn(isoDay(p.dateOfBirth)!, today)
-      const base = typeRows.filter((t: any) => t.key.startsWith('prophy_') && typeFitsAge(t, age))[0]
-      if (!base) continue
-      const key = slot?.perio ? convertedType(base.key, 'perio_therapy_completed', rules) : base.key
-      const type = byKey.get(key) && typeFitsAge(byKey.get(key), age) ? byKey.get(key) : base
-      const dueOn = addMonths(lastService, type.intervalMonths)
-      const row = have.get(`${p.id}|${type.id}`)
-      const disabled = row?.status === 'disabled'
-      const status = recallStatus({ dueOn, today, leadDays: lead, graceDays: RECALL_GRACE_DAYS, hasFutureAppointment: hasFuture.has(p.id), disabled })
-      if (!row) {
-        await tx.patientRecall.create({ data: { patientId: p.id, typeId: type.id, locationId: p.homeLocationId, status, dueOn: dayOf(dueOn), lastCompletedOn: dayOf(lastService) } })
-        created += 1
-      } else if (!disabled && (row.status !== status || isoDay(row.dueOn) !== dueOn || isoDay(row.lastCompletedOn) !== lastService)) {
-        await tx.patientRecall.update({ where: { id: row.id }, data: { status, dueOn: dayOf(dueOn), lastCompletedOn: dayOf(lastService), version: { increment: 1 } } })
-        changed += 1
+    let created = 0, changed = 0, closed = 0, checked = 0
+    // Every patient in scope is worked out, a page at a time, so a large practice is not cut off.
+    for (let after: string | null = null; ;) {
+      const patients: { id: string; dateOfBirth: Date | null; homeLocationId: string | null }[] = await tx.patient.findMany({
+        where: { status: { in: ['active', 'inactive'] }, homeLocationId: scope ? { in: scope } : { not: null } },
+        select: { id: true, dateOfBirth: true, homeLocationId: true }, orderBy: { id: 'asc' }, take: RECALL_PAGE,
+        ...(after ? { cursor: { id: after }, skip: 1 } : {}),
+      })
+      if (!patients.length) break
+      const ids = patients.map((p: any) => p.id)
+      const entries = await tx.chartEntry.findMany({
+        where: { patientId: { in: ids }, kind: 'procedure', status: { in: ['completed', 'posted', 'existing_current', 'existing_other'] }, dateOfService: { not: null }, code: { OR: [{ isPreventiveRecallTrigger: true }, { category: 'periodontics' }] } },
+        select: { patientId: true, dateOfService: true, code: { select: { isPreventiveRecallTrigger: true, category: true } } },
+      })
+      const future = await tx.appointment.findMany({ where: { patientId: { in: ids }, startsAt: { gt: uow.now }, status: { in: ['scheduled', 'confirmed'] } }, select: { patientId: true }, distinct: ['patientId'] })
+      const hasFuture = new Set(future.map((f: any) => f.patientId))
+      const last = new Map<string, { prev?: string; perio?: string }>()
+      for (const e of entries) {
+        const slot = last.get(e.patientId) ?? {}
+        const d = isoDay(e.dateOfService)!
+        if (e.code.isPreventiveRecallTrigger) { if (!slot.prev || d > slot.prev) slot.prev = d }
+        else if (!slot.perio || d > slot.perio) slot.perio = d
+        last.set(e.patientId, slot)
       }
-      // A patient who moved to another recall type no longer waits on the old one.
-      for (const other of existing.filter((r: any) => r.patientId === p.id && r.typeId !== type.id && r.status !== 'disabled')) {
-        await tx.patientRecall.update({ where: { id: other.id }, data: { status: 'disabled', disabledReason: 'Moved to a different recall', version: { increment: 1 } } })
-        closed += 1
+      const existing = await tx.patientRecall.findMany({ where: { patientId: { in: ids } } })
+      const have = new Map<string, any>(existing.map((r: any) => [`${r.patientId}|${r.typeId}`, r]))
+      for (const p of patients) {
+        const slot = last.get(p.id)
+        const lastService = slot?.prev ?? slot?.perio
+        if (!lastService) continue
+        const age = ageOn(isoDay(p.dateOfBirth)!, today)
+        const base = typeRows.filter((t: any) => t.key.startsWith('prophy_') && typeFitsAge(t, age))[0]
+        if (!base) continue
+        const key = slot?.perio ? convertedType(base.key, 'perio_therapy_completed', rules) : base.key
+        const type = byKey.get(key) && typeFitsAge(byKey.get(key), age) ? byKey.get(key) : base
+        const dueOn = addMonths(lastService, type.intervalMonths)
+        const row = have.get(`${p.id}|${type.id}`)
+        const disabled = row?.status === 'disabled'
+        const status = recallStatus({ dueOn, today, leadDays: lead, graceDays: RECALL_GRACE_DAYS, hasFutureAppointment: hasFuture.has(p.id), disabled })
+        if (!row) {
+          await tx.patientRecall.create({ data: { patientId: p.id, typeId: type.id, locationId: p.homeLocationId, status, dueOn: dayOf(dueOn), lastCompletedOn: dayOf(lastService) } })
+          created += 1
+        } else if (!disabled && (row.status !== status || isoDay(row.dueOn) !== dueOn || isoDay(row.lastCompletedOn) !== lastService)) {
+          await tx.patientRecall.update({ where: { id: row.id }, data: { status, dueOn: dayOf(dueOn), lastCompletedOn: dayOf(lastService), version: { increment: 1 } } })
+          changed += 1
+        }
+        // A patient who moved to another recall type no longer waits on the old one.
+        for (const other of existing.filter((r: any) => r.patientId === p.id && r.typeId !== type.id && r.status !== 'disabled')) {
+          await tx.patientRecall.update({ where: { id: other.id }, data: { status: 'disabled', disabledReason: 'Moved to a different recall', version: { increment: 1 } } })
+          closed += 1
+        }
       }
+      checked += patients.length
+      after = patients[patients.length - 1].id
+      if (patients.length < RECALL_PAGE) break
     }
     if (created || changed || closed) uow.audit({ eventType: 'recall.refreshed', entityType: 'PatientRecall', entityId: 'batch', actorUserId: actor.kind === 'user' ? actor.userId : null, after: { created, changed, closed } })
-    return { created, changed, closed, checked: patients.length }
+    return { created, changed, closed, checked }
   })
 }
 
@@ -155,7 +166,7 @@ export async function exportRecallCsv(_root: unknown, args: { idempotencyKey: st
       const contact = r.patient.contactPoints.find(c => c.isPrimary) ?? r.patient.contactPoints[0]
       return [r.patient.chartNumber, r.patient.firstName, r.patient.lastName, r.type.name, isoDay(r.dueOn), live === 'overdue' ? 'Overdue' : 'Due', contact?.value ?? '', recallMessage({ firstName: r.patient.firstName, practice, phone: '', kind: r.type.name.toLowerCase() })]
     }))
-    const job = await uow.tx.exportJob.create({ data: { kind: 'recall_list', status: 'completed', byteCount: Buffer.byteLength(csv), counts: { rows: shown.length } as never, requestedById: actor.kind === 'user' ? actor.userId : null, ref: `EXP-${uow.now.getTime().toString(36).toUpperCase()}` } })
+    const job = await uow.tx.exportJob.create({ data: { kind: 'recall_list', status: 'completed', byteCount: Buffer.byteLength(csv), counts: { rows: shown.length } as never, requestedById: actor.kind === 'user' ? actor.userId : null, ref: await nextReference(uow.tx, 'EXP', uow.now) } })
     auditCreate(uow, actor, 'ExportJob', job.id, 'export.recall_list', { rows: shown.length })
     return { fileName: 'recall-list.csv', mimeType: 'text/csv', text: csv, rows: shown.length }
   })
