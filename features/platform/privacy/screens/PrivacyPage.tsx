@@ -21,16 +21,18 @@ const PURPOSE: Record<string, string> = { treatment: 'Treatment', payment: 'Paym
  * Privacy (BUILD-PLAN Phase 6): who read patient records, emergency access, patients' privacy requests, who records were shared with,
  * and a patient's records as a download. Each part reads only what the role may see.
  */
-export default async function PrivacyPage({ searchParams }: { searchParams?: Promise<{ user?: string }> }) {
+export default async function PrivacyPage({ searchParams }: { searchParams?: Promise<{ user?: string; all?: string }> }) {
   await requirePage('privacy');
   const params = (await searchParams) ?? {};
   const user = (params.user ?? '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 60);
+  // Page loads that returned no records are hidden unless asked for, so the reads that showed someone's records stay on top.
+  const all = params.all === '1';
   const [today, tz, canAudit, canManage, canExport] = await Promise.all([
     practiceToday(), practiceTimeZone(), holdsAny(['canReadPhiAudit']), holdsAny(['canManageCompliance', 'canReviewPrivacy', 'canApproveRetention']), holdsAny(['canExportData']),
   ]);
   const canBreakGlass = await holdsAny(['canReviewPrivacy']);
   const [reads, glass, d] = await Promise.all([
-    canAudit ? q<any>(`query($where: PhiReadAuditWhereInput!) { phiReadAudits(where: $where, orderBy: { at: desc }, take: 50) { id at purpose operationName listKeys recordCount success actorReference actorUser { id name } actorAgent { name } } }`, { where: user ? { actorUser: { id: { equals: user } } } : {} }) : null,
+    canAudit ? q<any>(`query($where: PhiReadAuditWhereInput!) { phiReadAudits(where: $where, orderBy: { at: desc }, take: 50) { id at purpose operationName listKeys recordCount success actorReference actorUser { id name } actorAgent { name } } }`, { where: { ...(user ? { actorUser: { id: { equals: user } } } : {}), ...(all ? {} : { recordCount: { gt: 0 } }) } }) : null,
     canBreakGlass ? q<any>(`{ breakGlassEvents(orderBy: { openedAt: desc }, take: 30) { id kind subjectType reason status openedAt expiresAt endedAt reviewNote user { name } location { name } } }`) : null,
     canManage ? q<any>(`{
       patientRightsRequests(orderBy: { dueOn: asc }, take: 60) { id ref kind receivedOn dueOn status extendedOnce resolution version patient { id firstName lastName chartNumber } }
@@ -121,7 +123,10 @@ export default async function PrivacyPage({ searchParams }: { searchParams?: Pro
       ) : null}
 
       {reads ? (
-        <Section title={user ? 'Records read by one person' : 'Who read patient records'} aside={user ? <Link href="/dashboard/platform/privacy" className="inline-flex min-h-11 items-center text-sm underline">Show everyone</Link> : null}>
+        <Section title={user ? 'Records read by one person' : 'Who read patient records'} aside={<span className="flex flex-wrap gap-x-3">
+          <Link href={`/dashboard/platform/privacy?${new URLSearchParams({ ...(user ? { user } : {}), ...(all ? {} : { all: '1' }) })}`} className="inline-flex min-h-11 items-center text-sm underline">{all ? 'Only reads that showed records' : 'Include reads with no records'}</Link>
+          {user ? <Link href={`/dashboard/platform/privacy${all ? '?all=1' : ''}`} className="inline-flex min-h-11 items-center text-sm underline">Show everyone</Link> : null}
+        </span>}>
           {(reads.phiReadAudits as any[]).length ? (reads.phiReadAudits as any[]).map((r) => (
             <Row key={r.id} className="items-start"><span className="min-w-0 flex-1">
               <TitleLine status={r.success ? null : 'failed'}>
