@@ -38,8 +38,8 @@ export const VOICE_OFF = 'Voice calls are off for this office. The owner can tur
 
 /** Voice is off unless a policy row says otherwise. */
 export async function voiceEnabled(tx: Tx, locationId: string) {
-  const policy = await tx.voicePolicy.findFirst({ where: { locationId }, select: { enabled: true, recordCalls: true } })
-  return { enabled: !!policy?.enabled, recordCalls: !!policy?.enabled && !!policy?.recordCalls }
+  const policy = await tx.voicePolicy.findFirst({ where: { locationId }, select: { enabled: true, recordCalls: true, changedById: true } })
+  return { enabled: !!policy?.enabled, recordCalls: !!policy?.enabled && !!policy?.recordCalls, enabledById: (policy?.enabled && policy?.changedById) || null }
 }
 
 /** Turn voice on or off for one office. Only the owner (canApproveAutonomy) may, and every change is audited with a reason. */
@@ -107,8 +107,15 @@ export async function markCallFollowedUp(_root: unknown, args: { callId: string;
 
 // ── The voice agent ──────────────────────────────────────────────────────────────────────────────
 
-/** The voice agent: its own identity, owned by the practice owner, with exactly the Front Desk's grants. */
-export async function ensureVoiceAgent(tx: Tx) {
+/** The grants' source, so anyone reading AgentToolGrant sees where they came from and who enabled them. */
+export const VOICE_GRANT_SOURCE = 'voice_receptionist_front_desk_ceiling'
+
+/**
+ * The voice agent: its own identity, owned by the practice owner, with exactly the Front Desk's grants.
+ * A paused or revoked agent is returned as it is and gets no grants. Each grant it is given is an audited event naming the owner who turned voice on
+ * (S1: the Front Desk ceiling stands in for grant approval; the source on each grant says so).
+ */
+export async function ensureVoiceAgent(tx: Tx, uow?: { audit: (e: any) => void }, enabling?: { userId: string | null; trigger: string }) {
   await ensureCatalogue(tx)
   const owner = await tx.user.findFirst({ where: { role: { name: 'Practice Owner' } }, orderBy: { createdAt: 'asc' }, select: { id: true } })
   let agent = await tx.agentIdentity.findUnique({ where: { name: VOICE_AGENT_NAME } })
@@ -117,15 +124,20 @@ export async function ensureVoiceAgent(tx: Tx) {
       data: { name: VOICE_AGENT_NAME, purpose: 'Answers the phone for the front desk. It uses the same tools as the Front Desk Assistant and can only ask; a person approves anything that changes the schedule.', kind: 'rules_engine', status: 'active', ownerId: owner?.id ?? null },
     })
   }
+  if (agent.status !== 'active') return agent
   for (const scope of VOICE_SCOPES) {
     const have = await tx.agentToolGrant.findFirst({ where: { agentId: agent.id, scope } })
-    if (!have) await tx.agentToolGrant.create({ data: { agentId: agent.id, scope, status: 'active', constraints: { source: 'front_desk_ceiling' } as never } })
+    if (have) continue
+    const grant = await tx.agentToolGrant.create({ data: { agentId: agent.id, scope, status: 'active', constraints: { source: VOICE_GRANT_SOURCE, enabledById: enabling?.userId ?? null, note: 'Front Desk Assistant ceiling, given when voice was turned on for an office.' } as never } })
+    uow?.audit({ eventType: 'agent.grant_created', entityType: 'AgentToolGrant', entityId: grant.id, actorUserId: enabling?.userId ?? null, reason: 'Voice Receptionist: Front Desk ceiling', after: { agentId: agent.id, scope, status: 'active', source: VOICE_GRANT_SOURCE }, metadata: { trigger: enabling?.trigger ?? null } })
   }
   return agent
 }
 
 /** The agent as an actor: only grants that are active, and never more than the Front Desk's. */
-export async function voiceActor(tx: Tx, agent: { id: string; ownerId?: string | null }): Promise<Actor> {
+export async function voiceActor(tx: Tx, agent: { id: string; ownerId?: string | null; status?: string | null }): Promise<Actor> {
+  const current = await tx.agentIdentity.findUnique({ where: { id: agent.id }, select: { status: true } })
+  if (current?.status !== 'active') return { kind: 'agent', agentId: agent.id, ownerUserId: agent.ownerId ?? null, name: VOICE_AGENT_NAME, scopes: new Set<string>() }
   const grants = await tx.agentToolGrant.findMany({ where: { agentId: agent.id, status: 'active', revokedAt: null }, select: { scope: true } })
   const allowed = new Set<string>(VOICE_SCOPES)
   return { kind: 'agent', agentId: agent.id, ownerUserId: agent.ownerId ?? null, name: VOICE_AGENT_NAME, scopes: new Set(grants.map((g: any) => g.scope).filter((s: string) => allowed.has(s))) }
@@ -242,8 +254,9 @@ async function runCallIn(uow: any, input: RunInput) {
 
   const practice = await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { displayName: true } })
   const dob = patient?.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().slice(0, 10) : null
-  const agentRow = await ensureVoiceAgent(tx)
+  const agentRow = await ensureVoiceAgent(tx, uow, { userId: policy.enabledById, trigger: input.actorForAudit.kind === 'user' ? `user:${input.actorForAudit.userId}` : input.actorForAudit.kind === 'system' ? `system:${input.actorForAudit.name}` : 'agent' })
   const agent = await voiceActor(tx, agentRow)
+  const unavailable = agentRow.status === 'active' ? undefined : `the Voice Receptionist is ${agentRow.status === 'paused' ? 'paused' : 'turned off'}`
   const state = { locationId: input.locationId, patientId: patient?.id ?? null, timeZone: location.timeZone, agentRunId: null }
   const bound = bindTools(uow, agent, state)
   const voice = new SimulatedVoice(input.lines, input.recordingAnswer)
@@ -251,21 +264,22 @@ async function runCallIn(uow: any, input: RunInput) {
   const result: CallResult = await runCall({
     direction: input.direction, practiceName: practice?.displayName ?? 'our office', locationName: location.name, phone: location.phone ?? '', address: location.address ?? '', hours: hoursText(location.hours),
     patient: patient && dob ? { firstName: patient.preferredName || patient.firstName, dobIso: dob } : null,
-    recording: { enabled: policy.recordCalls, mode: recordingModeOf(location.jurisdiction?.rules) }, lines: input.lines,
+    recording: { enabled: policy.recordCalls, mode: recordingModeOf(location.jurisdiction?.rules) }, lines: input.lines, unavailable,
   }, bound.tools, voice)
 
   // The disclosure must have been the first thing said. If it was not, nothing is kept.
   if (!result.disclosedFirst) throw new DomainError(Codes.GUARD_FAILED, 'The call did not open with the AI disclosure, so it was not saved.')
 
   const ref = await nextReference(tx, 'CAL', uow.now)
-  const run = await tx.agentRun.create({ data: { agentId: agentRow.id, model: 'scripted-simulation', status: 'completed', startedAt: uow.now, endedAt: uow.now, promptHash: payloadHash({ scenario: input.scenario }).slice(0, 16), toolCalls: result.toolCalls as never } })
-  if (bound.proposals.length) await tx.proposal.updateMany({ where: { id: { in: bound.proposals } }, data: { agentRunId: run.id } })
+  // A paused or revoked agent did not run, so no AgentRun is written; the call record holds the hand-off.
+  const run = unavailable ? null : await tx.agentRun.create({ data: { agentId: agentRow.id, model: 'scripted-simulation', status: 'completed', startedAt: uow.now, endedAt: uow.now, promptHash: payloadHash({ scenario: input.scenario }).slice(0, 16), toolCalls: result.toolCalls as never } })
+  if (run && bound.proposals.length) await tx.proposal.updateMany({ where: { id: { in: bound.proposals } }, data: { agentRunId: run.id } })
   const recordingRef = result.recording.record ? simulatedTelephony.startRecording(ref) : null
   const call = await tx.callRecord.create({
     data: {
       ref, locationId: input.locationId, patientId: patient?.id ?? null, direction: input.direction, adapter: input.adapter, outcome: result.outcome, scenario: input.scenario, startedAt: uow.now,
       durationSeconds: result.transcript.length * 6, summary: result.summary, callerNumber: input.callerNumber, transcript: redactTranscript(result.transcript) as never, toolCalls: result.toolCalls as never,
-      disclosedAt: uow.now, recordingConsent: result.recording.record, recordingRef: recordingRef ?? '', recordingBasis: result.recording.basis, agentRunId: run.id, handoffReason: result.handoffReason,
+      disclosedAt: uow.now, recordingConsent: result.recording.record, recordingRef: recordingRef ?? '', recordingBasis: result.recording.basis, agentRunId: run?.id ?? null, handoffReason: result.handoffReason,
       loggedById: input.actorForAudit.kind === 'user' ? input.actorForAudit.userId : null,
     },
   })

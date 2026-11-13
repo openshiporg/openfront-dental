@@ -196,6 +196,40 @@ describe.skipIf(!hasTestDatabase)('Phase 7: the voice receptionist (database)', 
         expect(agent.grants.map(g => g.scope)).not.toContain(banned)
       }
     })
+    it('r1 S1: each voice grant names its source and was an audited event naming the owner who turned voice on', async () => {
+      const agent = await prisma.agentIdentity.findUniqueOrThrow({ where: { name: 'Voice Receptionist' }, include: { grants: true } })
+      for (const g of agent.grants) expect((g.constraints as any).source).toBe('voice_receptionist_front_desk_ceiling')
+      const events = await prisma.auditEvent.findMany({ where: { eventType: 'agent.grant_created', entityType: 'AgentToolGrant' } })
+      expect(events.map(e => e.entityId).sort()).toEqual(agent.grants.map(g => g.id).sort())
+      for (const e of events) expect(e.actorUserId).toBe(owner.session.itemId)
+    })
+    it('r1 B2: a paused or revoked Voice Receptionist hands the call off and writes nothing else; active again, it works', async () => {
+      const agent = await prisma.agentIdentity.findUniqueOrThrow({ where: { name: 'Voice Receptionist' } })
+      const counts = async () => ({
+        proposals: await prisma.proposal.count(), holds: await prisma.bookingHold.count(), runs: await prisma.agentRun.count(),
+        grants: await prisma.agentToolGrant.count(), appts: await prisma.appointment.count(),
+      })
+      for (const status of ['paused', 'revoked'] as const) {
+        await prisma.agentIdentity.update({ where: { id: agent.id }, data: { status } })
+        const before = await counts()
+        const r = await simulate(front, 'inbound_booking')
+        const inbound = await receiveInboundCall(prisma, { eventId: key(), locationId: TPA, callerNumber: '', utterances: ['I would like to book a cleaning please.', 'Yes'] })
+        for (const out of [r, inbound]) {
+          expect(out.outcome).toBe('handed_off')
+          expect(out.handoffReason).toMatch(status === 'paused' ? /Voice Receptionist is paused/ : /Voice Receptionist is turned off/)
+          expect(out.proposalIds).toEqual([])
+          const call = await prisma.callRecord.findUniqueOrThrow({ where: { id: out.callId } })
+          expect(call.toolCalls).toEqual([])
+          expect(call.agentRunId).toBeNull()
+          expect((call.transcript as any[])[0].text).toMatch(/AI assistant, not a person/)
+        }
+        expect(await counts()).toEqual(before)
+      }
+      await prisma.agentIdentity.update({ where: { id: agent.id }, data: { status: 'active' } })
+      const back = await simulate(front, 'inbound_booking')
+      expect(back.outcome).toBe('appointment_requested')
+      expect(back.proposalIds).toHaveLength(1)
+    })
     it('a booking call only writes a hold and a proposal; no appointment exists until a person approves', async () => {
       const appts = await prisma.appointment.count()
       const r = await simulate(front, 'inbound_booking')

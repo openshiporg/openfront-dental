@@ -182,3 +182,68 @@ describe('voice: reading speech', () => {
     expect(fillScenario(s, '1985-03-03')[1]).toContain('March 3, 1985')
   })
 })
+
+describe('voice: a clinical question goes to a person (r1 B1)', () => {
+  const clinical = [
+    'Should I take antibiotics for my tooth?',
+    'Do I need a root canal on my molar?',
+    'Did my x-ray show a cavity?',
+    'toothache, what should I take',
+    'My tooth hurts really badly when I chew.',
+  ]
+  for (const line of clinical) {
+    it(`hands off on the first utterance, runs no tool: ${line}`, async () => {
+      expect(classifyIntent(line)).toBe('clinical')
+      const { r, used } = await play(ctx(), [line, 'March 3, 1985', 'Yes'])
+      expect(r.outcome).toBe('handed_off')
+      expect(r.handoffReason).toBe('clinical question')
+      expect(r.summary).toBe('Handed to the front desk: clinical question.')
+      expect(used).toEqual([])
+      expect(r.toolCalls).toEqual([])
+      expect(r.proposalIds).toEqual([])
+      expect(r.transcript.filter(t => t.who === 'caller')).toHaveLength(1)
+      expect(r.transcript.at(-1)!.text).toBe(SAY.clinical)
+    })
+  }
+  it('a clinical question while the agent waits for a date of birth is still handed off, with no tool', async () => {
+    const { r, used } = await play(ctx(), ['I would like to book a cleaning', 'Should I take antibiotics first?'])
+    expect(r.handoffReason).toBe('clinical question')
+    expect(used).toEqual([])
+  })
+  const plain: [string, string][] = [
+    ['I would like to book a cleaning please.', 'booking'],
+    ['What are your hours?', 'faq'],
+    ['How do I get to your office? I need directions.', 'faq'],
+  ]
+  for (const [line, intent] of plain) {
+    it(`does not hand off a plain request: ${line}`, async () => {
+      expect(classifyIntent(line)).toBe(intent)
+      const { r } = await play(ctx(), [line])
+      expect(r.handoffReason).not.toBe('clinical question')
+    })
+  }
+  it('emergency and asking for a person still behave as before', async () => {
+    expect(classifyIntent('I have a lot of swelling in my face and bad pain.')).toBe('emergency')
+    expect(classifyIntent('Can I speak to a real person please?')).toBe('human')
+    const { r } = await play(ctx(), ['Can I speak to a real person please?'])
+    expect(r.handoffReason).toBe('the caller asked for a person')
+  })
+})
+
+describe('voice: a paused or turned-off agent runs nothing (r1 B2)', () => {
+  it('discloses, hands off with a plain reason, asks nothing and runs no tool', async () => {
+    const lines = ['I would like to book a cleaning please.', 'March 3, 1985', 'Yes, that time works.']
+    const { t } = tools()
+    const used: string[] = []
+    for (const k of Object.keys(t) as (keyof CallTools)[]) { const f = t[k]; (t as any)[k] = async () => { used.push(k); return f() } }
+    const r = await runCall({ ...ctx({ recording: { enabled: true, mode: 'one_party' } }), lines, unavailable: 'the Voice Receptionist is paused' }, t, new SimulatedVoice(lines, 'agree'))
+    expect(r.disclosedFirst).toBe(true)
+    expect(r.outcome).toBe('handed_off')
+    expect(r.handoffReason).toBe('the Voice Receptionist is paused')
+    expect(used).toEqual([])
+    expect(r.toolCalls).toEqual([])
+    expect(r.recording.record).toBe(false)
+    expect(r.transcript.map(x => x.who)).toEqual(['agent', 'agent'])
+    expect(r.transcript[1].text).toBe(SAY.unavailable)
+  })
+})

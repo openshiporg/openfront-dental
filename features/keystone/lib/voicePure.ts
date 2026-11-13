@@ -55,6 +55,8 @@ export const SAY = {
   dobFail: 'I could not confirm who I am speaking with, so I will bring in someone from the front desk.',
   needsPerson: 'I will bring in someone from the front desk who can help with that.',
   emergency: 'If this is a medical emergency, please hang up and call 911 now. I am also passing your call to our team right away.',
+  clinical: 'I cannot answer questions about your teeth, symptoms or treatment. I will bring in someone from our team who can help.',
+  unavailable: 'I am not able to help with calls right now, so I will bring in someone from the front desk.',
   noSlot: 'I do not see an open time that I can offer. I will ask the front desk to call you.',
   noVisit: 'I could not find an upcoming visit to confirm. I will ask the front desk to look into it.',
   held: 'I have held that time for you and asked the front desk to book it. Someone from the office will confirm with you.',
@@ -68,10 +70,12 @@ export const SAY = {
 
 // ── Reading what the caller said ────────────────────────────────────────────────────────────────
 
-export type Intent = 'injection' | 'emergency' | 'human' | 'change' | 'confirm' | 'booking' | 'faq' | 'goodbye' | 'unknown'
+export type Intent = 'injection' | 'emergency' | 'clinical' | 'human' | 'change' | 'confirm' | 'booking' | 'faq' | 'goodbye' | 'unknown'
 
 const INJECTION = /\b(ignore|disregard|forget|override)\b.{0,40}\b(instruction|prompt|rule|previous|above|polic)|system prompt|developer mode|jailbreak|\byou are (now )?(an? )?(admin|administrator|authori[sz]ed|root|the owner)\b|\bact as\b|\b(delete|erase|wipe|drop)\b.{0,20}\b(schedule|appointment|record|patient|data|database|everything)|\bcancel (all|every|everyone)\b/i
 const EMERGENCY = /\b(emergency|swelling|swollen|can'?t breathe|trouble breathing|bleeding|knocked out|severe pain|a lot of pain|bad pain|fever|trauma|accident)\b/i
+/** Questions about symptoms, medicine, diagnosis or treatment. The agent never answers these; a person does. Word-list level, no model. */
+const CLINICAL = /\b(antibiotics?|amoxicillin|penicillin|ibuprofen|advil|motrin|tylenol|acetaminophen|painkillers?|pain killers?|medications?|medicines?|prescriptions?|root canals?|x-?rays?|cavity|cavities|decay|tooth ?aches?|hurts?|hurting|aches?|aching|pain|painful|sore|infections?|infected|abscess(ed)?|diagnos\w*|symptoms?)\b|\bwhat (should|can|do) i take\b|\bshould i (take|use)\b/i
 const HUMAN = /\b(real person|human|a person|someone|somebody|representative|operator|front desk|receptionist|speak to|talk to)\b/i
 const CHANGE = /\b(cancel|reschedule|move my|change my|postpone)\b/i
 const CONFIRM = /\bconfirm/i
@@ -84,6 +88,7 @@ export function classifyIntent(text: string): Intent {
   const t = String(text ?? '')
   if (INJECTION.test(t)) return 'injection'
   if (EMERGENCY.test(t)) return 'emergency'
+  if (CLINICAL.test(t)) return 'clinical'
   if (CHANGE.test(t)) return 'change'
   if (CONFIRM.test(t)) return 'confirm'
   if (HUMAN.test(t)) return 'human'
@@ -165,6 +170,8 @@ export type CallContext = {
   patient: { firstName: string; dobIso: string } | null
   recording: { enabled: boolean; mode: 'one_party' | 'all_party' }
   lines: readonly string[]
+  /** Set when the Voice Receptionist is not active (paused or revoked): it discloses, hands the call to a person and runs nothing. */
+  unavailable?: string
 }
 
 /** What the database side supplies. Each is one Front Desk tool; none takes anything the caller said. */
@@ -213,6 +220,12 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
   // 1. Disclosure: always the first utterance.
   say(disclosure(ctx.practiceName, ctx.direction))
   const disclosedFirst = transcript[0]?.who === 'agent' && transcript.length === 1
+
+  // A paused or revoked agent runs no tool and asks nothing: a person takes the call.
+  if (ctx.unavailable) {
+    say(SAY.unavailable)
+    return { transcript, toolCalls, outcome: 'handed_off', handoffReason: ctx.unavailable, disclosedFirst, recording: recordingDecision({ enabled: false, mode: ctx.recording.mode, answer: null }), proposalIds, summary: `Handed to the front desk: ${ctx.unavailable}.` }
+  }
 
   // 2. Recording: ask only when the office turned recording on; record only on the decision below.
   let answer: 'yes' | 'no' | 'unclear' | null = null
@@ -277,6 +290,7 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
     // Words that try to instruct the agent, or signal danger, are handled the same way in every state: no tool, a person takes over.
     if (intent === 'injection') { handoff('the caller tried to give the assistant instructions', SAY.needsPerson); break }
     if (intent === 'emergency') { handoff('urgent: the caller described pain or swelling', SAY.emergency); break }
+    if (intent === 'clinical') { handoff('clinical question', SAY.clinical); break }
 
     if (awaiting === 'identity') {
       const a = yesNo(heard)
