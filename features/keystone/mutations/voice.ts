@@ -10,17 +10,19 @@ import { addDays, humanInstant, localDate } from '../lib/time'
 import { parsePayload } from '../lib/aiPure'
 import { ensureCatalogue } from '../lib/ai'
 import { CALL_OUTCOMES } from '../models/phase6'
-import { SimulatedVoice, adapterStatus, fillScenario, manualTelephony, scenarioByKey, simulatedTelephony, SCENARIOS, type InboundCallEvent } from '../lib/voiceAdapters'
-import { FRONT_DESK, VOICE_AGENT_NAME, VOICE_SCOPES, hoursText, parseDob, runCall, type CallResult, type CallTools } from '../lib/voicePure'
+import { PhoneVoice, parseInboundEvent, type InboundCallEvent } from '../lib/voiceAdapters'
+import { VOICE_AGENT_NAME, VOICE_SCOPES, hoursText, parseDob, runCall, type CallResult, type CallTools } from '../lib/voicePure'
+import { readSecret, storeSecret } from '../lib/secretBox'
+import { connectNumber, normalizeNumber } from '../../integrations/voice/twilio'
 import { availability, createAppointment, placeHold, confirmIn } from './scheduling'
 import { assertBookablePatient, assertLocation, assertPatientInScope, optionalText, requireText, staff, type Ctx } from './shared'
 
 /*
  * Phase 7 commands: the voice receptionist, behind telephony adapters.
  *
- * A call happens only inside one of these requests: a staff member runs a simulation, or an inbound event arrives at the webhooks port.
- * Nothing dials, nothing sends, nothing waits on a timer, and no provider is connected. The agent uses the Front Desk's tools through the
- * proposal path; it has no write path of its own.
+ * A call happens only inside one of these requests: Twilio posts a turn of a real phone call to /api/voice/twilio/<office>, signed.
+ * Nothing dials, nothing sends, nothing waits on a timer. The agent uses the Front Desk's tools through the proposal path; it has no
+ * write path of its own. A call is replayed from the words heard so far on every turn and written once, when it ends.
  */
 
 type Tx = any
@@ -225,13 +227,10 @@ async function matchCaller(tx: Tx, locationIds: string[], callerNumber: string) 
   return ids[0]
 }
 
-/** Outbound calls need the patient's AI-voice consent on a live phone contact. Nothing else stands in for it. */
-export async function hasVoiceConsent(tx: Tx, patientId: string) {
-  const grant = await tx.consentGrant.findFirst({ where: { purpose: 'ai_voice_outbound', channel: 'voice', status: 'granted', revokedAt: null, contactPoint: { patientId, isActive: true } }, orderBy: { grantedAt: 'desc' }, select: { id: true } })
-  return !!grant
-}
+/** Thrown to roll a turn back: the caller has more to say, so nothing from this replay is kept. */
+export class CallContinues extends Error { constructor(readonly said: string[]) { super('call continues') } }
 
-type RunInput = { locationId: string; direction: 'inbound' | 'outbound'; lines: readonly string[]; patientId: string | null; callerNumber: string; scenario: string; recordingAnswer: 'agree' | 'decline' | 'silent'; adapter: 'simulated'; actorForAudit: Actor }
+type RunInput = { locationId: string; utterances: readonly string[]; final: boolean; patientId: string | null; callerNumber: string; actorForAudit: Actor }
 
 /** One whole call, inside the caller's transaction. The only place a call is run. */
 async function runCallIn(uow: any, input: RunInput) {
@@ -241,87 +240,146 @@ async function runCallIn(uow: any, input: RunInput) {
   // 1. Off unless the owner turned it on.
   const policy = await voiceEnabled(tx, input.locationId)
   if (!policy.enabled) throw new DomainError(Codes.GUARD_FAILED, VOICE_OFF, { field: 'locationId' })
-  // 2. No outbound call without the patient's agreement to AI voice calls.
-  if (input.direction === 'outbound') {
-    if (!input.patientId) throw new DomainError(Codes.INVALID_INPUT, 'Choose the patient to call.', { field: 'patientId' })
-    if (!(await hasVoiceConsent(tx, input.patientId))) {
-      throw new DomainError(Codes.CONSENT_REQUIRED, 'This patient has not agreed to AI voice calls, so the call was not placed.', { field: 'patientId' })
-    }
-  }
   const patient = input.patientId ? await tx.patient.findUnique({ where: { id: input.patientId }, select: { id: true, firstName: true, preferredName: true, dateOfBirth: true, status: true } }) : null
-  if (input.patientId && !patient) throw new DomainError(Codes.NOT_FOUND, 'Patient not found.')
-  if (patient) assertBookablePatient(patient)
+  if (patient) {
+    try { assertBookablePatient(patient) } catch { /* a caller whose chart cannot be booked is treated as not matched */ }
+  }
+  const matched = patient && patient.status === 'active' ? patient : null
 
   const practice = await tx.practiceSettings.findUnique({ where: { id: 1 }, select: { displayName: true } })
-  const dob = patient?.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().slice(0, 10) : null
+  const dob = matched?.dateOfBirth ? new Date(matched.dateOfBirth).toISOString().slice(0, 10) : null
   const agentRow = await ensureVoiceAgent(tx, uow, { userId: policy.enabledById, trigger: input.actorForAudit.kind === 'user' ? `user:${input.actorForAudit.userId}` : input.actorForAudit.kind === 'system' ? `system:${input.actorForAudit.name}` : 'agent' })
   const agent = await voiceActor(tx, agentRow)
   const unavailable = agentRow.status === 'active' ? undefined : `the Voice Receptionist is ${agentRow.status === 'paused' ? 'paused' : 'turned off'}`
-  const state = { locationId: input.locationId, patientId: patient?.id ?? null, timeZone: location.timeZone, agentRunId: null }
+  const state = { locationId: input.locationId, patientId: matched?.id ?? null, timeZone: location.timeZone, agentRunId: null }
   const bound = bindTools(uow, agent, state)
-  const voice = new SimulatedVoice(input.lines, input.recordingAnswer)
+  const voice = new PhoneVoice(input.utterances, input.final)
 
+  // Call recording is not offered: nothing records audio, so the receptionist never asks about it.
   const result: CallResult = await runCall({
-    direction: input.direction, practiceName: practice?.displayName ?? 'our office', locationName: location.name, phone: location.phone ?? '', address: location.address ?? '', hours: hoursText(location.hours),
-    patient: patient && dob ? { firstName: patient.preferredName || patient.firstName, dobIso: dob } : null,
-    recording: { enabled: policy.recordCalls, mode: recordingModeOf(location.jurisdiction?.rules) }, lines: input.lines, unavailable,
+    direction: 'inbound', practiceName: practice?.displayName ?? 'our office', locationName: location.name, phone: location.phone ?? '', address: location.address ?? '', hours: hoursText(location.hours),
+    patient: matched && dob ? { firstName: matched.preferredName || matched.firstName, dobIso: dob } : null,
+    recording: { enabled: false, mode: recordingModeOf(location.jurisdiction?.rules) }, lines: input.utterances, unavailable,
   }, bound.tools, voice)
 
+  // The caller has more to say: say the agent's latest words, keep nothing.
+  if (result.awaitingCaller) {
+    const lastCaller = result.transcript.map(t => t.who).lastIndexOf('caller')
+    throw new CallContinues(result.transcript.slice(lastCaller + 1).filter(t => t.who === 'agent').map(t => t.text))
+  }
   // The disclosure must have been the first thing said. If it was not, nothing is kept.
   if (!result.disclosedFirst) throw new DomainError(Codes.GUARD_FAILED, 'The call did not open with the AI disclosure, so it was not saved.')
 
   const ref = await nextReference(tx, 'CAL', uow.now)
   // A paused or revoked agent did not run, so no AgentRun is written; the call record holds the hand-off.
-  const run = unavailable ? null : await tx.agentRun.create({ data: { agentId: agentRow.id, model: 'scripted-simulation', status: 'completed', startedAt: uow.now, endedAt: uow.now, promptHash: payloadHash({ scenario: input.scenario }).slice(0, 16), toolCalls: result.toolCalls as never } })
+  const run = unavailable ? null : await tx.agentRun.create({ data: { agentId: agentRow.id, model: 'front-desk-rules', status: 'completed', startedAt: uow.now, endedAt: uow.now, promptHash: payloadHash({ call: ref }).slice(0, 16), toolCalls: result.toolCalls as never } })
   if (run && bound.proposals.length) await tx.proposal.updateMany({ where: { id: { in: bound.proposals } }, data: { agentRunId: run.id } })
-  const recordingRef = result.recording.record ? simulatedTelephony.startRecording(ref) : null
   const call = await tx.callRecord.create({
     data: {
-      ref, locationId: input.locationId, patientId: patient?.id ?? null, direction: input.direction, adapter: input.adapter, outcome: result.outcome, scenario: input.scenario, startedAt: uow.now,
+      ref, locationId: input.locationId, patientId: matched?.id ?? null, direction: 'inbound', adapter: 'twilio', outcome: result.outcome, startedAt: uow.now,
       durationSeconds: result.transcript.length * 6, summary: result.summary, callerNumber: input.callerNumber, transcript: redactTranscript(result.transcript) as never, toolCalls: result.toolCalls as never,
-      disclosedAt: uow.now, recordingConsent: result.recording.record, recordingRef: recordingRef ?? '', recordingBasis: result.recording.basis, agentRunId: run?.id ?? null, handoffReason: result.handoffReason,
-      loggedById: input.actorForAudit.kind === 'user' ? input.actorForAudit.userId : null,
+      disclosedAt: uow.now, recordingConsent: false, recordingRef: '', recordingBasis: result.recording.basis, agentRunId: run?.id ?? null, handoffReason: result.handoffReason,
     },
   })
   uow.audit({
-    eventType: 'call.completed', entityType: 'CallRecord', entityId: call.id, actorUserId: input.actorForAudit.kind === 'user' ? input.actorForAudit.userId : null,
-    after: { adapter: input.adapter, direction: input.direction, outcome: result.outcome, locationId: input.locationId, proposals: bound.proposals.length, recorded: result.recording.record, handedOff: result.outcome === 'handed_off' },
+    eventType: 'call.completed', entityType: 'CallRecord', entityId: call.id, actorUserId: null,
+    after: { adapter: 'twilio', direction: 'inbound', outcome: result.outcome, locationId: input.locationId, proposals: bound.proposals.length, handedOff: result.outcome === 'handed_off' },
   })
-  return { callId: call.id, ref, outcome: result.outcome, handoffReason: result.handoffReason, disclosedFirst: result.disclosedFirst, recorded: result.recording.record, recordingBasis: result.recording.basis, proposalIds: bound.proposals, summary: result.summary }
+  const said = result.transcript.slice(result.transcript.map(t => t.who).lastIndexOf('caller') + 1).filter(t => t.who === 'agent').map(t => t.text)
+  return { callId: call.id, ref, outcome: result.outcome, handoffReason: result.handoffReason, disclosedFirst: result.disclosedFirst, recorded: false, recordingBasis: result.recording.basis, proposalIds: bound.proposals, summary: result.summary, said }
 }
 
-/** Staff press "Run call simulation". The scripted caller is deterministic; the answer to the recording question is chosen by the person running it. */
-export async function runCallSimulation(_root: unknown, args: { locationId: string; scenario: string; patientId?: string | null; recordingAnswer?: string | null; idempotencyKey: string }, context: Ctx) {
-  const { actor, locationIds } = staff(context)
-  requirePermission(actor, 'canManageSchedule')
-  assertLocation(locationIds, args.locationId)
-  const scenario = scenarioByKey(args.scenario)
-  if (!scenario) throw new DomainError(Codes.INVALID_INPUT, 'Choose a call to simulate.', { field: 'scenario' })
-  if (scenario.needsPatient && !args.patientId) throw new DomainError(Codes.INVALID_INPUT, 'Choose the patient this call is about.', { field: 'patientId' })
-  const answer = args.recordingAnswer === 'agree' || args.recordingAnswer === 'decline' ? args.recordingAnswer : 'silent'
-  return run(context, actor, 'voice.simulate', args, async uow => {
-    if (args.patientId) await assertPatientInScope(uow.tx, locationIds, args.patientId)
-    const patient = args.patientId ? await uow.tx.patient.findUnique({ where: { id: args.patientId }, select: { dateOfBirth: true } }) : null
-    const dob = patient?.dateOfBirth ? new Date(patient.dateOfBirth).toISOString().slice(0, 10) : null
-    return runCallIn(uow, { locationId: args.locationId, direction: scenario.direction, lines: fillScenario(scenario, dob), patientId: scenario.needsPatient || scenario.direction === 'outbound' ? args.patientId ?? null : null, callerNumber: 'simulated', scenario: scenario.key, recordingAnswer: answer, adapter: 'simulated', actorForAudit: actor })
-  })
-}
+export type InboundTurn = { done: false; said: string[] } | ({ done: true; replay: boolean; said: string[] } & Record<string, any>)
 
 /**
- * The webhooks port for an inbound call (interface only: no route is mounted and no provider is connected). It takes the raw body a provider would
- * post, turns it into a call event with the adapter, and runs the call inside this one request. The provider's event id is the idempotency key.
+ * One turn of a real phone call (the Twilio route calls this after checking the signature). `utterances` is everything the caller has said so far.
+ * While the caller may say more, nothing is written and the agent's next words come back. When the call ends, it is written once, keyed by
+ * the provider's call id, so a redelivered webhook never runs a call twice.
  */
-export async function receiveInboundCall(db: any, raw: unknown, now = new Date()) {
-  const event: InboundCallEvent | null = simulatedTelephony.parseInbound(raw)
+export async function receiveInboundCall(db: any, raw: unknown, now = new Date()): Promise<InboundTurn> {
+  const event: InboundCallEvent | null = parseInboundEvent(raw)
   if (!event) throw new DomainError(Codes.INVALID_INPUT, 'That is not a call event.')
   const system: Actor = { kind: 'system', name: 'telephony.inbound' }
-  const result = await command(db, { name: 'voice.inbound', actor: system, idempotencyKey: `inbound:${event.eventId}`, params: { eventId: event.eventId }, now }, async uow => {
-    const matched = await matchCaller(uow.tx, [event.locationId], event.callerNumber)
-    return runCallIn(uow, { locationId: event.locationId, direction: 'inbound', lines: event.utterances, patientId: matched, callerNumber: event.callerNumber, scenario: 'inbound_event', recordingAnswer: 'silent', adapter: 'simulated', actorForAudit: system })
+  try {
+    const result = await command(db, { name: 'voice.inbound', actor: system, idempotencyKey: `inbound:${event.eventId}`, params: { eventId: event.eventId }, now }, async uow => {
+      const matched = await matchCaller(uow.tx, [event.locationId], event.callerNumber)
+      return runCallIn(uow, { locationId: event.locationId, utterances: event.utterances, final: event.final !== false, patientId: matched, callerNumber: event.callerNumber, actorForAudit: system })
+    })
+    return { done: true, replay: result.replay, ...(result.value as any) }
+  } catch (error) {
+    if (error instanceof CallContinues) return { done: false, said: error.said }
+    throw error
+  }
+}
+
+// ── Connecting a phone number ────────────────────────────────────────────────────────────────────
+
+const appUrl = () => String(process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '')
+export const voiceWebhookUrl = (locationId: string) => `${appUrl()}/api/voice/twilio/${encodeURIComponent(locationId)}`
+
+/** The Twilio line connected for one office, with its auth token, for the webhook route. Null when none is connected. */
+export async function voiceLine(tx: Tx, locationId: string) {
+  const row = await tx.adapterInstallation.findFirst({ where: { area: 'voice', adapterKey: 'twilio', status: 'live', config: { path: ['locationId'], equals: locationId } }, orderBy: { createdAt: 'desc' } })
+  if (!row?.secretId) return null
+  const config = (row.config ?? {}) as { accountSid?: string; phoneNumber?: string; voiceUrl?: string }
+  return { id: row.id as string, accountSid: String(config.accountSid ?? ''), phoneNumber: String(config.phoneNumber ?? ''), voiceUrl: String(config.voiceUrl ?? ''), authToken: await readSecret(tx, row.secretId) }
+}
+
+/** Settings › Locations: connect a Twilio number to one office. Twilio is asked first; nothing is saved unless it confirms the account and the number. */
+export async function connectPhoneNumber(_root: unknown, args: { locationId: string; accountSid: string; authToken: string; phoneNumber: string; baaSignedOn: string; idempotencyKey: string }, context: Ctx) {
+  const { actor, locationIds } = staff(context)
+  requirePermission(actor, 'canManageAdapters')
+  assertLocation(locationIds, args.locationId)
+  const accountSid = requireText(args.accountSid, 'accountSid').trim()
+  const authToken = requireText(args.authToken, 'authToken').trim()
+  if (!/^AC[0-9a-fA-F]{32}$/.test(accountSid)) throw new DomainError(Codes.INVALID_INPUT, 'The Account SID starts with AC and is 34 characters.', { field: 'accountSid' })
+  const number = normalizeNumber(args.phoneNumber)
+  if (!number) throw new DomainError(Codes.INVALID_INPUT, 'Enter the phone number like +18135550100.', { field: 'phoneNumber' })
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(args.baaSignedOn ?? ''))) throw new DomainError(Codes.INVALID_INPUT, 'Enter the date the agreement with Twilio (the BAA) was signed.', { field: 'baaSignedOn' })
+  if (!appUrl()) throw new DomainError(Codes.GUARD_FAILED, 'The app address is not set, so Twilio cannot be pointed at this app.')
+  const voiceUrl = voiceWebhookUrl(args.locationId)
+  const { idempotencyKey, authToken: _secret, ...params } = args
+  const checked = await connectNumber({ accountSid, authToken, phoneNumber: number, voiceUrl })
+  if (!checked.ok) throw new DomainError(Codes.GUARD_FAILED, checked.message, { field: 'accountSid' })
+  return run(context, actor, 'voice.connect_number', { ...params, idempotencyKey }, async uow => {
+    const location = await uow.tx.location.findUnique({ where: { id: args.locationId }, select: { id: true, name: true } })
+    if (!location) throw new DomainError(Codes.NOT_FOUND, 'Location not found.')
+    await advisoryLock(uow.tx, `voice-line:${args.locationId}`)
+    await uow.tx.adapterInstallation.updateMany({ where: { area: 'voice', adapterKey: 'twilio', status: 'live', config: { path: ['locationId'], equals: args.locationId } }, data: { status: 'suspended' } })
+    const baa = await uow.tx.businessAssociate.create({ data: { name: 'Twilio', service: 'voice', baaSignedOn: new Date(`${args.baaSignedOn}T00:00:00Z`), status: 'active' } })
+    const secret = await storeSecret(uow.tx, 'voice.twilio.authToken', authToken)
+    const row = await uow.tx.adapterInstallation.create({
+      data: { area: 'voice', adapterKey: 'twilio', displayName: `Twilio ${number}`, mode: 'live', status: 'live', secretId: secret.id, handlesPhi: true, baaId: baa.id, lastVerifiedAt: uow.now,
+        config: { locationId: args.locationId, accountSid, phoneNumber: number, numberSid: checked.numberSid, voiceUrl } as never, verificationReceipt: { at: uow.now.toISOString(), account: checked.accountName } as never },
+    })
+    uow.audit({ eventType: 'voice.number_connected', entityType: 'AdapterInstallation', entityId: row.id, actorUserId: uid(actor), after: { locationId: args.locationId, phoneNumber: number, provider: 'twilio' } })
+    return { installationId: row.id, phoneNumber: number }
   })
-  return { replay: result.replay, ...(result.value as any) }
+}
+
+/** Stop answering calls on a connected number. The line stays on the Twilio account; this app stops taking its calls. */
+export async function disconnectPhoneNumber(_root: unknown, args: { locationId: string; reason?: string | null; idempotencyKey: string }, context: Ctx) {
+  const { actor, locationIds } = staff(context)
+  requirePermission(actor, 'canManageAdapters')
+  assertLocation(locationIds, args.locationId)
+  return run(context, actor, 'voice.disconnect_number', args, async uow => {
+    const reason = requireText(args.reason, 'reason')
+    const rows = await uow.tx.adapterInstallation.findMany({ where: { area: 'voice', adapterKey: 'twilio', status: 'live', config: { path: ['locationId'], equals: args.locationId } }, select: { id: true } })
+    for (const row of rows) {
+      await uow.tx.adapterInstallation.update({ where: { id: row.id }, data: { status: 'suspended', version: { increment: 1 } } })
+      uow.audit({ eventType: 'voice.number_disconnected', entityType: 'AdapterInstallation', entityId: row.id, actorUserId: uid(actor), reason, after: { locationId: args.locationId } })
+    }
+    return { disconnected: rows.length }
+  })
 }
 
 // ── Read model for the screens ───────────────────────────────────────────────────────────────────
 
-export const voiceStatus = () => ({ ...adapterStatus(), manual: manualTelephony.label, scenarios: SCENARIOS.map(s => ({ key: s.key, label: s.label, direction: s.direction, needsPatient: s.needsPatient })), ceiling: FRONT_DESK.name })
+/** Which offices have a phone number connected (number only, no credentials). Readable by the people who read calls. */
+export async function voiceConnections(_root: unknown, _args: unknown, context: Ctx) {
+  const { actor, locationIds } = staff(context)
+  requirePermission(actor, 'canManageSchedule', 'canMessagePatients', 'canManageAdapters')
+  const rows = await context.prisma.adapterInstallation.findMany({ where: { area: 'voice', adapterKey: 'twilio', status: 'live' }, select: { config: true } })
+  const lines = rows.map((r: any) => r.config as { locationId?: string; phoneNumber?: string }).filter((c: any) => c?.locationId && (locationIds === null || locationIds.includes(c.locationId))).map((c: any) => ({ locationId: c.locationId, phoneNumber: c.phoneNumber ?? '' }))
+  return { connected: lines.length > 0, lines }
+}

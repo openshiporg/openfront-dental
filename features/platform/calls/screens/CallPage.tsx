@@ -8,7 +8,7 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
   await requirePage('calls');
   const { id } = await params;
   const [tz, d] = await Promise.all([practiceTimeZone(), q<any>(`query($id: ID!) { callRecord(where: { id: $id }) {
-    id ref direction adapter outcome scenario startedAt durationSeconds summary notes handoffReason disclosedAt recordingConsent recordingBasis followedUpAt transcript toolCalls
+    id ref direction adapter outcome startedAt durationSeconds summary notes handoffReason disclosedAt recordingConsent recordingBasis followedUpAt transcript toolCalls
     patient { firstName lastName } location { name } agentRun { id }
   } }`, { id }).catch(() => ({ callRecord: null }))]);
   const c = d.callRecord;
@@ -18,12 +18,12 @@ export default async function CallPage({ params }: { params: Promise<{ id: strin
   return (
     <Page title={`Call ${c.ref}`} status={c.outcome} crumbs={[{ label: 'Calls', href: '/dashboard/platform/calls' }]}>
       <Section title="Summary">
-        <Row><TitleLine status={c.outcome}>{title(c.direction)} · {c.adapter === 'manual' ? 'Logged by hand' : 'Simulation'} · {title(c.outcome)}</TitleLine></Row>
+        <Row><TitleLine status={c.outcome}>{title(c.direction)} · {c.adapter === 'manual' ? 'Logged by hand' : 'Phone'} · {title(c.outcome)}</TitleLine></Row>
         <Meta>{when(c.startedAt, tz)} · {c.location?.name}{c.patient ? ` · ${c.patient.firstName} ${c.patient.lastName}` : ' · caller not matched to a patient'}</Meta>
         {c.summary ? <p className="text-sm">{c.summary}</p> : null}
         {c.notes && c.notes !== c.summary ? <p className="whitespace-pre-wrap text-sm">{c.notes}</p> : null}
         {c.handoffReason ? <Meta>Handed to the front desk because {c.handoffReason}.</Meta> : null}
-        <Meta>{c.disclosedAt ? 'The assistant said it was an AI before anything else.' : 'No assistant spoke on this call.'} {c.adapter === 'manual' ? 'Not recorded.' : c.recordingConsent ? 'Recorded with the caller’s agreement.' : 'Not recorded.'}</Meta>
+        <Meta>{c.disclosedAt ? 'The assistant said it was an AI before anything else.' : 'No assistant spoke on this call.'} Not recorded.</Meta>
       </Section>
       {turns.length ? (
         <Section title="What was said">

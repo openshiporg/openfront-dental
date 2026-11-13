@@ -4,7 +4,8 @@ import { money, title, calendarDate, chartLabel } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Stat, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
-import { isTestMode, paymentsConfigured } from '@/features/integrations/payments/stripe';
+import { paymentsConfigured } from '@/features/integrations/payments/stripe';
+import { CardPayment } from '../components/CardPayment';
 
 const AGING = [['current', '0–30 days'], ['d31', '31–60 days'], ['d61', '61–90 days'], ['d91', 'Over 90 days']] as const;
 const KIND_WORDS: Record<string, string> = { patient_payment: 'Payment', insurance_payment: 'Insurance payment', insurance_writeoff: 'Insurance write-off', patient_adjustment: 'Adjustment', insurance_adjustment: 'Insurance adjustment', transfer_in: 'Transfer in', transfer_out: 'Transfer out' };
@@ -97,15 +98,19 @@ export default async function PatientLedgerPage({ params }: { params: Promise<{ 
       </Section>
       {account ? (
         <Section title="Take a payment">
-          {paymentsConfigured() && isTestMode() ? <Meta>Card payments are in Stripe test mode: no real card is charged.</Meta> : null}
           <details><summary className="cursor-pointer text-sm font-medium">New payment</summary>
             <div className="pt-2"><CommandForm op="takePayment" submitLabel="Take payment" paths={paths} columns={2} fixed={{ patientId: id, locationId: p.homeLocation?.id }} fields={[
               { name: 'amount', label: 'Amount in dollars', kind: 'text', required: true, placeholder: '50.00' },
-              { name: 'tender', label: 'Paid by', kind: 'select', required: true, options: [{ value: 'cash', label: 'Cash' }, { value: 'check', label: 'Check' }, ...(paymentsConfigured() ? [{ value: 'card', label: 'Card' }] : [])] },
+              { name: 'tender', label: 'Paid by', kind: 'select', required: true, options: [{ value: 'cash', label: 'Cash' }, { value: 'check', label: 'Check' }, ...(paymentsConfigured() && (d.paymentMethodTokens as any[]).length ? [{ value: 'card', label: 'Card on file' }] : [])] },
               { name: 'checkNumber', label: 'Check number', kind: 'text', hint: 'For a check.' },
-              ...(paymentsConfigured() ? [{ name: 'methodTokenId', label: 'Card on file', kind: 'select' as const, options: [{ value: '', label: 'None' }, ...(d.paymentMethodTokens as any[]).map((t) => ({ value: t.id, label: `${title(t.brand)} ending ${t.last4}` }))] }, ...(isTestMode() ? [{ name: 'testMethod', label: 'Card', kind: 'select' as const, options: [{ value: '', label: 'Choose a card' }, { value: 'test_visa', label: 'Visa ending 4242' }, { value: 'test_mastercard', label: 'Mastercard ending 4444' }, { value: 'test_declined', label: 'Card that is declined' }] }] : [])] : []),
+              ...(paymentsConfigured() && (d.paymentMethodTokens as any[]).length ? [{ name: 'methodTokenId', label: 'Card on file', kind: 'select' as const, options: [{ value: '', label: 'None' }, ...(d.paymentMethodTokens as any[]).map((t) => ({ value: t.id, label: `${title(t.brand)} ending ${t.last4}` }))] }] : []),
             ]} /></div>
           </details>
+          {paymentsConfigured() ? (
+            <details><summary className="cursor-pointer text-sm font-medium">New card</summary>
+              <div className="pt-2"><CardPayment patientId={id} locationId={p.homeLocation?.id} stripeKey={process.env.NEXT_PUBLIC_STRIPE_KEY ?? ''} paths={paths} /></div>
+            </details>
+          ) : <Meta>Card payments are not set up yet.</Meta>}
           {(d.payments as any[]).length ? (d.payments as any[]).map((pay) => (
             <Row key={pay.id} className="items-start">
               <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine status={pay.status === 'succeeded' ? null : pay.status}>{title(pay.tender)}{pay.methodToken ? ` ending ${pay.methodToken.last4}` : ''} · {pay.ref}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(pay.amountMinor)}</span></span>

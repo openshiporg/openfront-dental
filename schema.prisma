@@ -4051,7 +4051,6 @@ model CallRecord {
   direction        String
   adapter          String    @default("manual")
   outcome          String    @default("logged")
-  scenario         String    @default("")
   startedAt        DateTime?
   durationSeconds  Int?
   summary          String    @default("")

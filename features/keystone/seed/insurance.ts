@@ -54,11 +54,6 @@ export async function seedPhase3(uow: UnitOfWork, actor: Actor) {
   created.insurancePlans = PLANS.length
   auditCreate(uow, actor, 'InsurancePlan', PLANS[0].id, 'insurance_plan.created', { seeded: PLANS.length }, meta)
 
-  // The sandbox clearinghouse: recorded responses, no key, no network.
-  if (!(await tx.adapterInstallation.findFirst({ where: { area: 'clearinghouse', adapterKey: 'stedi' } }))) {
-    await tx.adapterInstallation.create({ data: { area: 'clearinghouse', adapterKey: 'stedi', displayName: 'Stedi eligibility (recorded sandbox)', mode: 'sandbox', status: 'configured', config: { transport: 'recorded' } as never, handlesPhi: false } })
-  }
-
   const patients = await tx.patient.findMany({ where: { id: { startsWith: 'seed_pt_' } }, orderBy: { id: 'asc' }, take: 8 })
   const members = ['SUM-4401-A', 'SUM-4402-B', 'SUM-4403-C', 'SUM-4404-D', 'SUM-4405-E', 'SUM-4406-F', 'SUM-4407-G', 'SUM-4408-H']
   // [plan, verification state]: full, partial (a 271 only), unknown (never checked), full

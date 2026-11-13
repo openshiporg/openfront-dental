@@ -1,13 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import { AGENT_SCOPES } from '../models/agents'
 import { KIND_ROWS } from './aiPure'
-import { SCENARIOS, SimulatedVoice, fillScenario } from './voiceAdapters'
+import type { RealtimeVoiceAdapter } from './voiceAdapters'
 import { FRONT_DESK, FRONT_DESK_SCOPES, FRONT_DESK_TOOLS, SAY, VOICE_PROPOSAL_KINDS, VOICE_SCOPES, VOICE_TOOLS, classifyIntent, parseDob, recordingDecision, runCall, type CallContext, type CallTools } from './voicePure'
 
 const ctx = (over: Partial<CallContext> = {}): CallContext => ({
   direction: 'inbound', practiceName: 'Bayview Family Dental', locationName: 'Tampa', phone: '813-555-0100', address: '1 Bay St', hours: 'Monday 8 am to 5 pm',
   patient: { firstName: 'Ana', dobIso: '1985-03-03' }, recording: { enabled: false, mode: 'all_party' }, lines: [], ...over,
 })
+/** The caller's words, read out in order. Used only to drive the engine in these tests. */
+class SaidVoice implements RealtimeVoiceAdapter {
+  readonly key = 'twilio' as const
+  private i = 0
+  constructor(private readonly said: readonly string[], private readonly consent: 'agree' | 'decline' | 'silent' = 'silent') {}
+  listen(prompt?: 'recording_consent') {
+    if (prompt === 'recording_consent') return this.consent === 'agree' ? 'yes' : this.consent === 'decline' ? 'no' : null
+    return this.i < this.said.length ? this.said[this.i++] : null
+  }
+  speak(text: string) { return { text } }
+}
 const tools = () => {
   const used: string[] = []
   const t: CallTools = {
@@ -21,7 +32,7 @@ const tools = () => {
 }
 const play = (c: CallContext, lines: string[], answer: 'agree' | 'decline' | 'silent' = 'silent') => {
   const { t, used } = tools()
-  return runCall({ ...c, lines }, t, new SimulatedVoice(lines, answer)).then(r => ({ r, used }))
+  return runCall({ ...c, lines }, t, new SaidVoice(lines, answer)).then(r => ({ r, used }))
 }
 
 describe('voice: the disclosure comes first', () => {
@@ -32,7 +43,7 @@ describe('voice: the disclosure comes first', () => {
     expect(r.transcript[0].text).toMatch(/AI assistant, not a person/)
   })
   it('opens an outbound call with the disclosure before anything else, and says it can bring in a person', async () => {
-    const { r } = await play(ctx({ direction: 'outbound' }), ['No, wrong person.'])
+    const { r } = await play(ctx({ direction: 'outbound' }), ['No, wrong number.'])
     expect(r.transcript[0].text).toMatch(/AI assistant calling from Bayview/)
     expect(r.transcript[0].text).toMatch(/bring in a person/)
     expect(r.outcome).toBe('wrong_number')
@@ -163,10 +174,6 @@ describe('voice: caller speech is never an instruction', () => {
     const { r } = await play(ctx(), [attack])
     expect(r.transcript.filter(t => t.who === 'agent').some(t => t.text.includes('XYZZY'))).toBe(false)
   })
-  it('classifies the scripted injection scenario as an injection', () => {
-    const s = SCENARIOS.find(x => x.key === 'inbound_injection')!
-    expect(classifyIntent(s.lines[0])).toBe('injection')
-  })
 })
 
 describe('voice: reading speech', () => {
@@ -176,10 +183,6 @@ describe('voice: reading speech', () => {
     expect(parseDob('my date of birth is 1985-03-03')).toBe('1985-03-03')
     expect(parseDob('February 30, 1985')).toBeNull()
     expect(parseDob('hello')).toBeNull()
-  })
-  it('fills the scripted dates from the patient', () => {
-    const s = SCENARIOS.find(x => x.key === 'inbound_booking')!
-    expect(fillScenario(s, '1985-03-03')[1]).toContain('March 3, 1985')
   })
 })
 
@@ -236,7 +239,7 @@ describe('voice: a paused or turned-off agent runs nothing (r1 B2)', () => {
     const { t } = tools()
     const used: string[] = []
     for (const k of Object.keys(t) as (keyof CallTools)[]) { const f = t[k]; (t as any)[k] = async () => { used.push(k); return f() } }
-    const r = await runCall({ ...ctx({ recording: { enabled: true, mode: 'one_party' } }), lines, unavailable: 'the Voice Receptionist is paused' }, t, new SimulatedVoice(lines, 'agree'))
+    const r = await runCall({ ...ctx({ recording: { enabled: true, mode: 'one_party' } }), lines, unavailable: 'the Voice Receptionist is paused' }, t, new SaidVoice(lines, 'agree'))
     expect(r.disclosedFirst).toBe(true)
     expect(r.outcome).toBe('handed_off')
     expect(r.handoffReason).toBe('the Voice Receptionist is paused')
@@ -245,5 +248,51 @@ describe('voice: a paused or turned-off agent runs nothing (r1 B2)', () => {
     expect(r.recording.record).toBe(false)
     expect(r.transcript.map(x => x.who)).toEqual(['agent', 'agent'])
     expect(r.transcript[1].text).toBe(SAY.unavailable)
+  })
+})
+
+describe('voice: anything it cannot classify goes to a person on the first utterance (r2 B1)', () => {
+  const unknown = [
+    'Is it okay to take amoxicillin before my appointment?',
+    'Will I need a crown or a filling on that back tooth?',
+    'My gums bleed when I brush, is that normal?',
+    'I would like to book a cleaning, and can you tell me if I should take something for my sore tooth first?',
+    'Can I book a cleaning, and is my wisdom tooth going to have to come out?',
+    'Is it safe to whiten my teeth while pregnant?', 'Should I stop my blood thinner before the extraction?', 'Can I eat after my filling?', 'Is my tooth cracked?',
+    'What did the dentist find on my scan?', 'Do I have gum disease?', 'My filling fell out, what do I do?', 'Is the numbness after my visit normal?',
+    'Is it normal for my gums to bleed after flossing?',
+    'My filling fell out last night.',
+    'Can my kid get braces at nine?',
+    'Is the whitening safe while pregnant?',
+    'Do you take my insurance, and will it cover the crown?',
+    'My crown feels loose and the nerve is exposed.',
+    'How long should I wait to eat after my extraction?',
+    'Would flossing more help with my sensitivity?',
+    'Blue elephants dance on Tuesdays.',
+  ]
+  for (const line of unknown) {
+    it(`hands off, no tool, no proposal: ${line}`, async () => {
+      const { r, used } = await play(ctx(), [line, 'March 3, 1985', 'Yes'])
+      expect(r.outcome).toBe('handed_off')
+      expect(r.handoffReason).toMatch(/clinical question|cannot answer/)
+      expect(used).toEqual([])
+      expect(r.toolCalls).toEqual([])
+      expect(r.proposalIds).toEqual([])
+      expect(r.transcript.filter(t => t.who === 'caller')).toHaveLength(1)
+      expect(r.transcript.some(t => /did not catch/i.test(t.text))).toBe(false)
+    })
+  }
+  it('a booking with a question mixed in is handed off before any availability, hold or book', async () => {
+    const { r, used } = await play(ctx(), ['I would like to book a cleaning and also is it ok that my gums bleed?', 'March 3, 1985', 'Yes'])
+    expect(r.outcome).toBe('handed_off')
+    expect(used).toEqual([])
+    expect(r.proposalIds).toEqual([])
+  })
+  it('hours and directions and a plain booking still work', async () => {
+    const { r } = await play(ctx(), ['What are your hours?'])
+    expect(r.outcome).not.toBe('handed_off')
+    const { r: b, used } = await play(ctx(), ['I would like to book a cleaning please.', 'March 3, 1985', 'Yes that works'])
+    expect(b.outcome).toBe('appointment_requested')
+    expect(used).toEqual(['availability', 'hold', 'book'])
   })
 })

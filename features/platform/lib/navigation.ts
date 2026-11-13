@@ -47,7 +47,7 @@ export const platformNavItems: PlatformNavItem[] = [
   { title: 'Recall', href: '/platform/recall', color: 'green', description: 'Who is due for a cleaning or check-up, and the message to send.', icon: CalendarClock, group: 'front-desk' },
   { title: 'Lab cases', href: '/platform/labs', color: 'orange', description: 'Crowns and other work at the lab, and when it is due back.', icon: ClipboardCheck, group: 'clinical' },
   { title: 'Prescriptions', href: '/platform/prescriptions', color: 'sky', description: 'Write, sign and print prescriptions, with the state check for controlled drugs.', icon: FileSignature, group: 'clinical' },
-  { title: 'Calls', href: '/platform/calls', color: 'teal', description: 'Phone calls: the voice receptionist, call simulation and a manual call log.', icon: Phone, group: 'front-desk' },
+  { title: 'Calls', href: '/platform/calls', color: 'teal', description: 'Phone calls: the voice receptionist on a connected phone number, and a manual call log.', icon: Phone, group: 'front-desk' },
   { title: 'Reviews', href: '/platform/reviews', color: 'amber', description: 'Review requests to copy and replies to approve.', icon: BadgeCheck, group: 'front-desk' },
   { title: 'Compliance', href: '/platform/compliance', color: 'rose', description: 'Deadlines, incidents, patient requests, legal holds and retention.', icon: ShieldCheck, group: 'practice' },
   { title: 'Import and export', href: '/platform/data', color: 'slate', description: 'Bring in a patient list, or take records and the ledger out.', icon: Inbox, group: 'practice' },

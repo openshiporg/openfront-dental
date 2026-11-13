@@ -44,11 +44,11 @@ describe.skipIf(!hasTestDatabase)('Phase 3: insurance, benefits and eligibility 
 
   afterAll(async () => { await prisma?.$disconnect() })
 
-  it('seeds payers, plans, verified and unverified coverages, and the recorded sandbox', async () => {
+  it('seeds payers, plans, and verified and unverified coverages, with no clearinghouse pretending to be connected', async () => {
     expect(await prisma.payer.count()).toBe(3)
     expect(await prisma.coverage.count({ where: { verificationLevel: 'unverified' } })).toBeGreaterThan(0)
     expect(await prisma.coverage.count({ where: { verificationLevel: 'verified_full' } })).toBeGreaterThan(0)
-    expect((await prisma.adapterInstallation.findFirstOrThrow({ where: { area: 'clearinghouse' } })).mode).toBe('sandbox')
+    expect(await prisma.adapterInstallation.count({ where: { area: 'clearinghouse' } })).toBe(0)
   })
 
   it('reads a 271 into sourced facts and opens checklist tasks only for what a 271 cannot say', async () => {

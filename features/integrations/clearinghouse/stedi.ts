@@ -5,8 +5,7 @@ import type { AdapterCtx, ClaimRequest, ClaimSubmitOutcome, ClearinghouseAdapter
 
 /*
  * Stedi eligibility (INTEGRATIONS §2.1): POST {base}/2026-06-01/eligibility-check, JSON in, JSON out.
- * Sandbox mode only in this build: the key is a Stedi test key and the base URL is injected (a
- * recorded-fixture fake in tests). A timeout or a dropped connection is `unknown`: the request may
+ * The key comes from the connected installation (or STEDI_API_KEY) and the base URL from its config. A timeout or a dropped connection is `unknown`: the request may
  * have reached the payer, so it is reconciled by a re-query with the same request hash, never
  * treated as rejected and never duplicated. The response is parsed with Zod; unknown fields are
  * kept in `raw`.
@@ -50,7 +49,7 @@ export function buildStediClaimBody(req: ClaimRequest) {
 
 export async function stediSubmitClaim(req: ClaimRequest, ctx: AdapterCtx): Promise<ClaimSubmitOutcome> {
   if (ctx.mode === 'live') return { kind: 'error_retryable', message: 'Live Stedi is not enabled in this build.' }
-  if (!ctx.apiKey) return { kind: 'error_retryable', message: 'The Stedi sandbox key is not configured.' }
+  if (!ctx.apiKey) return { kind: 'error_retryable', message: 'No Stedi clearinghouse key is connected. Verify by phone or the payer portal.' }
   const doFetch = ctx.fetch ?? fetch
   let response: Response
   try {
@@ -127,13 +126,13 @@ export function parseStediResponse(body: unknown): EligibilityOutcome {
 
 export const stediAdapter: ClearinghouseAdapter = {
   key: 'stedi',
-  displayName: 'Stedi (sandbox)',
+  displayName: 'Stedi clearinghouse',
   capabilities: { eligibility: true, claims: true, predeterminations: false, claimStatus: true, era: true, attachments: false, enrollment: false, payerDirectory: false },
   async checkEligibility(req, ctx) {
     const requestHash = eligibilityRequestHash(req, 'stedi')
     const done = (outcome: EligibilityOutcome) => ({ outcome, requestHash, adapterKey: 'stedi', mode: ctx.mode })
     if (ctx.mode === 'live') return done({ kind: 'error_retryable', message: 'Live Stedi is not enabled in this build.' })
-    if (!ctx.apiKey) return done({ kind: 'error_retryable', message: 'The Stedi sandbox key is not configured.' })
+    if (!ctx.apiKey) return done({ kind: 'error_retryable', message: 'No Stedi clearinghouse key is connected. Verify by phone or the payer portal.' })
     const doFetch = ctx.fetch ?? fetch
     const signal = ctx.signal ?? AbortSignal.timeout(ctx.timeoutMs ?? 15_000)
     let response: Response
@@ -156,7 +155,7 @@ export const stediAdapter: ClearinghouseAdapter = {
   },
   submitClaim: stediSubmitClaim,
   async checkClaimStatus(patientControlNumber, payerId, ctx) {
-    if (!ctx.apiKey) return { kind: 'unknown', message: 'The Stedi sandbox key is not configured.' }
+    if (!ctx.apiKey) return { kind: 'unknown', message: 'No Stedi clearinghouse key is connected. Verify by phone or the payer portal.' }
     try {
       const response = await (ctx.fetch ?? fetch)(`${ctx.baseUrl ?? STEDI_BASE}${STEDI_CLAIM_STATUS_PATH}`, {
         method: 'POST', signal: ctx.signal ?? AbortSignal.timeout(ctx.timeoutMs ?? 20_000), headers: { 'content-type': 'application/json', authorization: ctx.apiKey },
@@ -169,7 +168,7 @@ export const stediAdapter: ClearinghouseAdapter = {
     } catch { return { kind: 'unknown', message: 'The status lookup did not complete.' } }
   },
   async listTransactions(since, ctx) {
-    if (!ctx.apiKey) return { ok: false, message: 'The Stedi sandbox key is not configured.' }
+    if (!ctx.apiKey) return { ok: false, message: 'No Stedi clearinghouse key is connected. Verify by phone or the payer portal.' }
     try {
       const items: { transactionId: string; processedAt: string; transactionType: '835' | '277' | 'other' }[] = []
       let token = ''
@@ -191,7 +190,7 @@ export const stediAdapter: ClearinghouseAdapter = {
     } catch { return { ok: false, message: 'The clearinghouse did not list transactions.' } }
   },
   async fetchTransaction(transactionId, type, ctx) {
-    if (!ctx.apiKey) return { ok: false, message: 'The Stedi sandbox key is not configured.' }
+    if (!ctx.apiKey) return { ok: false, message: 'No Stedi clearinghouse key is connected. Verify by phone or the payer portal.' }
     try {
       const response = await (ctx.fetch ?? fetch)(`${ctx.baseUrl ?? STEDI_BASE}${stediReportPath(transactionId, type)}`, { method: 'GET', signal: ctx.signal ?? AbortSignal.timeout(ctx.timeoutMs ?? 20_000), headers: { authorization: ctx.apiKey } })
       if (!response.ok) return { ok: false, message: 'The report could not be fetched.' }

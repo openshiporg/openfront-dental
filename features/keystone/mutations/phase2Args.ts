@@ -82,7 +82,7 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   fileAppeal: { denialId: 'ID!', expectedVersion: 'Int!', letter: 'String!', via: 'String!' },
   recordAppealOutcome: { appealId: 'ID!', expectedVersion: 'Int!', outcome: 'String!' },
   // Phase 4: payments, refunds, statements, plans
-  takePayment: { patientId: 'ID!', locationId: 'ID!', amount: 'String!', tender: 'String!', checkNumber: 'String', testMethod: 'String', methodTokenId: 'ID', statementId: 'ID', allocations: '[JSON!]', saveCard: 'Boolean', consentText: 'String' },
+  takePayment: { patientId: 'ID!', locationId: 'ID!', amount: 'String!', tender: 'String!', checkNumber: 'String', newCard: 'Boolean', methodTokenId: 'ID', statementId: 'ID', allocations: '[JSON!]' },
   requestRefund: { paymentId: 'ID', accountId: 'ID', locationId: 'ID', amount: 'String!', method: 'String', reason: 'String!' },
   recordRefundPaid: { refundId: 'ID!', reference: 'String' },
   correctLedgerNote: { entryId: 'ID!', text: 'String!' },
@@ -115,7 +115,8 @@ export const PHASE2_ARGS: Record<string, Record<string, string>> = {
   setVoicePolicy: { locationId: 'ID!', enabled: 'Boolean!', recordCalls: 'Boolean', reason: 'String' },
   logManualCall: { locationId: 'ID!', patientId: 'ID', direction: 'String!', outcome: 'String!', notes: 'String!', durationSeconds: 'Int', callerNumber: 'String' },
   markCallFollowedUp: { callId: 'ID!' },
-  runCallSimulation: { locationId: 'ID!', scenario: 'String!', patientId: 'ID', recordingAnswer: 'String' },
+  connectPhoneNumber: { locationId: 'ID!', accountSid: 'String!', authToken: 'String!', phoneNumber: 'String!', baaSignedOn: 'String!' },
+  disconnectPhoneNumber: { locationId: 'ID!', reason: 'String' },
   refreshRecall: { locationId: 'ID' },
   setRecallDisabled: { recallId: 'ID!', expectedVersion: 'Int!', disable: 'Boolean!', reason: 'String' },
   exportRecallCsv: {},

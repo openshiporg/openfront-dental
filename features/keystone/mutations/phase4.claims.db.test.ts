@@ -65,7 +65,7 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 2: claims and remittances (data
   let providerId: string
   let codes: { of: any; theirs: any }[] = []
   const fetchOk = (async (url: string, init: RequestInit) => {
-    const { recordedFetch } = await import('../../integrations/clearinghouse/recorded')
+    const { recordedFetch } = await import('../../../tests/fakes/stedi-recorded')
     return recordedFetch(url as never, init)
   }) as unknown as typeof fetch
 

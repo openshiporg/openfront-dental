@@ -50,7 +50,7 @@ export const OnlineBookingPolicy = list({
     horizonDays: integer({ defaultValue: 60, validation: { isRequired: true, min: 1, max: 365 } }),
     holdMinutes: integer({ defaultValue: 10, validation: { isRequired: true, min: 2, max: 30 } }),
     requireCardOnFile: checkbox({ defaultValue: false }),
-    depositMinor: minor({ defaultValue: 0n, description: 'Optional deposit in cents, collected through the payments adapter (Stripe test mode in the sample practice).' }),
+    depositMinor: minor({ defaultValue: 0n, description: 'Optional deposit in cents, collected through the payments adapter.' }),
     requireInsuranceCapture: checkbox({ defaultValue: false }),
     rateLimit: json({ defaultValue: { perClientPerHour: 30, perContactPerDay: 5, globalPerMinute: 120 } }),
     isActive: checkbox({ defaultValue: true }),

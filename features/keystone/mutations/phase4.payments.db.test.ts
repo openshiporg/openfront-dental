@@ -109,7 +109,7 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 3: payments (database)', () => 
   })
 
   it('a card payment is charged once: a timeout leaves it unknown and the retry uses the same key', async () => {
-    const paid: any = await run('takePayment', { patientId, locationId, amount: '30.00', tender: 'card', testMethod: 'test_visa' }, front)
+    const paid: any = await run('takePayment', { patientId, locationId, amount: '30.00', tender: 'card', newCard: true }, front)
     expect(paid.status).toBe('initiated')
     const calls: { path: string; key: string | null }[] = []
     const timeout = await runPaymentCreate(prisma as any, paid.id, fakeStripe({ '/v1/payment_intents': [{ status: 503, body: {} }] }, calls))
@@ -203,7 +203,7 @@ describe.skipIf(!hasTestDatabase)('Phase 4 slice 3: payments (database)', () => 
 
   it('the processor never sees patient details: only the reference, amount and kind', async () => {
     const calls: any[] = []
-    const paid: any = await run('takePayment', { patientId, locationId, amount: '8.00', tender: 'card', testMethod: 'test_visa' }, front)
+    const paid: any = await run('takePayment', { patientId, locationId, amount: '8.00', tender: 'card', newCard: true }, front)
     const spy = { ...fakeStripe({ '/v1/payment_intents': [{ status: 200, body: { id: 'pi_unit_2', status: 'succeeded', latest_charge: 'ch_2' } }] }), fetch: (async (url: string, init: any) => { calls.push(String(init?.body ?? '')); return { status: 200, json: async () => ({ id: 'pi_unit_2', status: 'succeeded', latest_charge: 'ch_2' }), text: async () => '{}' } as any }) as any }
     await runPaymentCreate(prisma as any, paid.id, spy)
     const patient = await prisma.patient.findUniqueOrThrow({ where: { id: patientId } })

@@ -3,6 +3,8 @@ import { q } from '../../lib/server';
 import { money, label, title, calendarDate, zoneLabel } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Status, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
+import { CommandForm } from '../../components/CommandForm';
+import { holdsAny } from '../../lib/server';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -18,6 +20,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
     appointmentTypes(orderBy: { name: asc }) { id code name publicName category defaultPattern defaultDurationUnits defaultProductionMinor onlineBookable newPatientOnly requiresDentistOnSite colour isActive }
     practiceSettings { scheduleUnitMinutes }
   }`);
+  const voice = await q<any>(`{ voiceConnections }`).catch(() => ({ voiceConnections: { lines: [] } }));
   const location = meta.locations.find((l: any) => l.id === sp.loc) ?? meta.locations[0];
   if (!location) return <Page title="Locations & operatories"><Empty>No locations yet.</Empty></Page>;
   const data = await q<any>(`query Loc($loc: ID!) {
@@ -31,6 +34,8 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
   }`, { loc: location.id });
   const unit = meta.practiceSettings?.scheduleUnitMinutes ?? 10;
   const path = ['/dashboard/platform/settings/locations'];
+  const canConnect = await holdsAny(['canManageAdapters']);
+  const line = ((voice.voiceConnections?.lines ?? []) as any[]).find((l) => l.locationId === location.id);
   return (
     <Page title="Locations & operatories" crumbs={[{ label: 'Practice settings' }]}>
       <Tabs active={location.id} items={meta.locations.map((l: any) => ({ key: l.id, label: l.code, href: `/dashboard/platform/settings/locations?loc=${l.id}` }))} />
@@ -100,8 +105,32 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
         <p className="text-xs text-muted-foreground">The public booking API serves these times to the practice&apos;s own booking pages. See <Link className="underline" href="/dashboard/platform/schedule/booking-requests">booking requests</Link>.</p>
       </Section>
       <Section title="Phone and voice">
-        <p className="text-sm">No telephony provider connected</p>
-        <p className="text-xs text-muted-foreground">Calls can be logged by hand or tried out with a scripted simulation. The voice receptionist is off until the owner turns it on, office by office. See <Link className="underline" href="/dashboard/platform/calls">calls</Link>.</p>
+        {line ? (
+          <>
+            <Row><span>Phone number</span><Meta>{line.phoneNumber} · Twilio · calls to this number reach the voice receptionist when voice is on</Meta></Row>
+            {canConnect ? (
+              <details><summary className="cursor-pointer text-sm font-medium">Disconnect this number</summary>
+                <div className="pt-2"><CommandForm op="disconnectPhoneNumber" submitLabel="Disconnect" paths={path} columns={1} fixed={{ locationId: location.id }} fields={[
+                  { name: 'reason', label: 'Why', kind: 'text', required: true },
+                ]} /></div>
+              </details>
+            ) : null}
+          </>
+        ) : <p className="text-sm">No phone number connected. Voice needs one; until then calls can be logged by hand.</p>}
+        {canConnect ? (
+          <details open={!line}><summary className="cursor-pointer text-sm font-medium">{line ? 'Connect a different number' : 'Connect a phone number'}</summary>
+            <div className="space-y-2 pt-2">
+              <p className="text-xs text-muted-foreground">Uses the practice&apos;s own Twilio account. Twilio is asked to confirm the account and the number, and the number is pointed at this app, before anything is saved. The auth token is stored encrypted and is never shown again. Calls carry patient information, so sign Twilio&apos;s business associate agreement (BAA) first.</p>
+              <CommandForm op="connectPhoneNumber" submitLabel="Connect number" paths={path} columns={2} fixed={{ locationId: location.id }} fields={[
+                { name: 'accountSid', label: 'Twilio Account SID', kind: 'text', required: true, placeholder: 'AC…' },
+                { name: 'authToken', label: 'Twilio Auth Token', kind: 'password', required: true },
+                { name: 'phoneNumber', label: 'Twilio phone number', kind: 'tel', required: true, placeholder: '+18135550100' },
+                { name: 'baaSignedOn', label: 'Date the Twilio BAA was signed', kind: 'date', required: true },
+              ]} />
+            </div>
+          </details>
+        ) : <p className="text-xs text-muted-foreground">Only someone who manages integrations can connect a number.</p>}
+        <p className="text-xs text-muted-foreground">The voice receptionist is off until the owner turns it on, office by office. See <Link className="underline" href="/dashboard/platform/calls">calls</Link>.</p>
       </Section>
     </Page>
   );

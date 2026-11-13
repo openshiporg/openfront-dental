@@ -16536,7 +16536,6 @@ type CallRecord {
   direction: String
   adapter: String
   outcome: String
-  scenario: String
   startedAt: DateTime
   durationSeconds: Int
   summary: String
@@ -16573,7 +16572,6 @@ input CallRecordWhereInput {
   direction: StringFilter
   adapter: StringFilter
   outcome: StringFilter
-  scenario: StringFilter
   startedAt: DateTimeNullableFilter
   durationSeconds: IntNullableFilter
   summary: StringFilter
@@ -16599,7 +16597,6 @@ input CallRecordOrderByInput {
   direction: OrderDirection
   adapter: OrderDirection
   outcome: OrderDirection
-  scenario: OrderDirection
   startedAt: OrderDirection
   durationSeconds: OrderDirection
   summary: OrderDirection
@@ -16623,7 +16620,6 @@ input CallRecordUpdateInput {
   direction: String
   adapter: String
   outcome: String
-  scenario: String
   startedAt: DateTime
   durationSeconds: Int
   summary: String
@@ -16657,7 +16653,6 @@ input CallRecordCreateInput {
   direction: String
   adapter: String
   outcome: String
-  scenario: String
   startedAt: DateTime
   durationSeconds: Int
   summary: String
@@ -19362,7 +19357,7 @@ type Mutation {
   resolveDenial(denialId: ID!, expectedVersion: Int!, resolution: String!, note: String!, idempotencyKey: String!): JSON
   fileAppeal(denialId: ID!, expectedVersion: Int!, letter: String!, via: String!, idempotencyKey: String!): JSON
   recordAppealOutcome(appealId: ID!, expectedVersion: Int!, outcome: String!, idempotencyKey: String!): JSON
-  takePayment(patientId: ID!, locationId: ID!, amount: String!, tender: String!, checkNumber: String, testMethod: String, methodTokenId: ID, statementId: ID, allocations: [JSON!], saveCard: Boolean, consentText: String, idempotencyKey: String!): JSON
+  takePayment(patientId: ID!, locationId: ID!, amount: String!, tender: String!, checkNumber: String, newCard: Boolean, methodTokenId: ID, statementId: ID, allocations: [JSON!], idempotencyKey: String!): JSON
   requestRefund(paymentId: ID, accountId: ID, locationId: ID, amount: String!, method: String, reason: String!, idempotencyKey: String!): JSON
   recordRefundPaid(refundId: ID!, reference: String, idempotencyKey: String!): JSON
   correctLedgerNote(entryId: ID!, text: String!, idempotencyKey: String!): JSON
@@ -19392,7 +19387,8 @@ type Mutation {
   setVoicePolicy(locationId: ID!, enabled: Boolean!, recordCalls: Boolean, reason: String, idempotencyKey: String!): JSON
   logManualCall(locationId: ID!, patientId: ID, direction: String!, outcome: String!, notes: String!, durationSeconds: Int, callerNumber: String, idempotencyKey: String!): JSON
   markCallFollowedUp(callId: ID!, idempotencyKey: String!): JSON
-  runCallSimulation(locationId: ID!, scenario: String!, patientId: ID, recordingAnswer: String, idempotencyKey: String!): JSON
+  connectPhoneNumber(locationId: ID!, accountSid: String!, authToken: String!, phoneNumber: String!, baaSignedOn: String!, idempotencyKey: String!): JSON
+  disconnectPhoneNumber(locationId: ID!, reason: String, idempotencyKey: String!): JSON
   refreshRecall(locationId: ID, idempotencyKey: String!): JSON
   setRecallDisabled(recallId: ID!, expectedVersion: Int!, disable: Boolean!, reason: String, idempotencyKey: String!): JSON
   exportRecallCsv(idempotencyKey: String!): JSON
@@ -20036,6 +20032,7 @@ type Query {
   findAvailability(locationId: ID!, typeId: ID!, fromDate: String!, days: Int, providerId: ID, operatoryIds: [ID!], patientId: ID, limit: Int): JSON
   publicSite(slug: String!): JSON
   aiHome: JSON
+  voiceConnections: JSON
   publicChat(slug: String!, messages: JSON!): JSON
   publicAvailability(slug: String!, locationId: ID, typeId: ID!, fromDate: String!, days: Int, providerId: ID): JSON
   portalMe: JSON

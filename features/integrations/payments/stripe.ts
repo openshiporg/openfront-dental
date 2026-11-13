@@ -102,11 +102,11 @@ export async function createIntent(request: IntentRequest, ctx: PaymentCtx = {})
   }
 }
 
-export async function retrieveIntent(intentId: string, ctx: PaymentCtx = {}): Promise<{ status: string; chargeId: string } | null> {
+export async function retrieveIntent(intentId: string, ctx: PaymentCtx = {}): Promise<{ status: string; chargeId: string; clientSecret: string } | null> {
   try {
     const { status, json } = await call(ctx, 'GET', `/v1/payment_intents/${encodeURIComponent(intentId)}`, null)
     if (status >= 400) return null
-    return { status: String(json?.status ?? ''), chargeId: String(json?.latest_charge ?? '') }
+    return { status: String(json?.status ?? ''), chargeId: String(json?.latest_charge ?? ''), clientSecret: String(json?.client_secret ?? '') }
   } catch { return null }
 }
 
@@ -138,7 +138,7 @@ export async function refundIntent(input: { intentId: string; amountMinor: bigin
   }
 }
 
-/** Save a method for later (card on file). `methodId` is a Stripe test or Elements method id; the card number never touches this system. */
+/** Save a method for later (card on file). `methodId` is a Stripe Elements payment-method id; the card number never touches this system. */
 export async function saveMethod(input: { reference: string; methodId: string; idempotencyKey: string }, ctx: PaymentCtx = {}): Promise<CustomerOutcome> {
   try {
     const customer = await call(ctx, 'POST', '/v1/customers', { 'metadata[ref]': input.reference }, `${input.idempotencyKey}:customer`)
@@ -153,9 +153,6 @@ export async function saveMethod(input: { reference: string; methodId: string; i
     return { kind: 'unknown', message: 'The card processor did not answer.' }
   }
 }
-
-/** Stripe's own test payment methods, so the front desk can exercise the real rails without a card number. */
-export const TEST_METHODS = { test_visa: 'pm_card_visa', test_mastercard: 'pm_card_mastercard', test_declined: 'pm_card_chargeDeclined' } as const
 
 // ─── Webhooks ───────────────────────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-import { recordedFetch } from '../../features/integrations/clearinghouse/recorded'
+import { recordedFetch } from './stedi-recorded'
 
 /** A fake Stedi sandbox over the recorded fixtures; counts calls so tests can prove no duplicate. */
 export function fakeStedi() {

@@ -351,7 +351,7 @@ export const ExportJob = list({
 
 // ── Phase 7: the voice receptionist (behind telephony adapters) ─────────────────────────────────
 
-export const CALL_ADAPTERS = ['manual', 'simulated'] as const
+export const CALL_ADAPTERS = ['manual', 'twilio'] as const
 export const CALL_OUTCOMES = [
   'logged', 'answered', 'appointment_requested', 'confirmation_requested', 'message_taken', 'handed_off', 'no_answer', 'voicemail', 'wrong_number', 'declined', 'refused', 'other',
 ] as const
@@ -361,7 +361,7 @@ const callScope = () => scopedBy(ids => ({ location: { id: { in: ids } }, OR: [{
 
 /**
  * Calls are PHI: the transcript, notes, caller number and recording reference are tiered in security/phiFields.ts and
- * office-scoped here. Every row is written by a command (a staff log or a simulation); the generated create/update/delete are closed.
+ * office-scoped here. Every row is written by a command (a staff log or a phone call); the generated create/update/delete are closed.
  */
 /** Who reads calls: the people who run the front desk. A call's words are not a clinical record, so a role that only charts does not read them. */
 export const CALL_READERS = ['canManageSchedule', 'canMessagePatients'] as const
@@ -376,7 +376,6 @@ export const CallRecord = list({
     direction: fixedChoice(['inbound', 'outbound']),
     adapter: fixedChoice(CALL_ADAPTERS, 'manual'),
     outcome: fixedChoice(CALL_OUTCOMES, 'logged'),
-    scenario: systemText(),
     startedAt: timestamp({ ...readOnly }),
     durationSeconds: integer({ ...readOnly }),
     summary: systemText(),

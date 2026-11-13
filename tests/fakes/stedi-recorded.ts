@@ -5,8 +5,8 @@ import aaa75 from './fixtures/eligibility-aaa-75.json'
 import aaa42 from './fixtures/eligibility-aaa-42.json'
 
 /**
- * The recorded Stedi sandbox transport: answers the eligibility call from fixtures keyed by member id,
- * with no network and no key. The sandbox installation of the sample practice uses it (INTEGRATIONS §2.2).
+ * Test double only (never imported by the app): answers the eligibility call from fixtures keyed by member id,
+ * with no network and no key.
  * Member ids ending SUM-4405-E behave like a payer that never answers. Each active member is one payer's answer:
  * SUM-4401-A is Harbor's (Summit PPO Plus), EVG-5501-K is Evergreen's own (different maximum, deductible and percentages),
  * so a secondary never shows the primary's benefits.

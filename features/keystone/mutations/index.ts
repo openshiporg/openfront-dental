@@ -7,6 +7,7 @@ import * as setup from './setup'
 import * as audit from './audit'
 import * as approvals from './approvals'
 import * as ai from './ai'
+import * as voice from './voice'
 import * as chat from './publicChat'
 import * as mfa from './mfa'
 import * as patients from './patients'
@@ -32,6 +33,7 @@ export function extendGraphqlSchema(baseSchema: GraphQLSchema) {
         findAvailability(locationId: ID!, typeId: ID!, fromDate: String!, days: Int, providerId: ID, operatoryIds: [ID!], patientId: ID, limit: Int): JSON
         publicSite(slug: String!): JSON
         aiHome: JSON
+        voiceConnections: JSON
         publicChat(slug: String!, messages: JSON!): JSON
         publicAvailability(slug: String!, locationId: ID, typeId: ID!, fromDate: String!, days: Int, providerId: ID): JSON
         portalMe: JSON
@@ -101,6 +103,7 @@ ${phase2TypeDefs}
         findAvailability: op(scheduling.findAvailability),
         publicSite: op(publicApi.publicSite),
         aiHome: op(ai.aiHome),
+        voiceConnections: op(voice.voiceConnections),
         publicChat: op(chat.publicChat),
         publicAvailability: op(publicApi.publicAvailability),
         portalMe: op(portal.portalMe),

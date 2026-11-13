@@ -148,7 +148,7 @@ export const PHI_FIELDS: Record<string, Record<string, PhiTier>> = {
   ExportJob: { counts: 'dem', sha256: 'dem' },
   // Phase 7: a call's words, numbers and recording are demographic-tier PHI (the front desk reads its own office's calls; clinicians need no more).
   CallRecord: {
-    startedAt: 'dem', durationSeconds: 'dem', summary: 'dem', notes: 'dem', callerNumber: 'dem', transcript: 'dem', toolCalls: 'dem', recordingRef: 'dem', handoffReason: 'dem', scenario: 'dem',
+    startedAt: 'dem', durationSeconds: 'dem', summary: 'dem', notes: 'dem', callerNumber: 'dem', transcript: 'dem', toolCalls: 'dem', recordingRef: 'dem', handoffReason: 'dem',
   },
 }
 

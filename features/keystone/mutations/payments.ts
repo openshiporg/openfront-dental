@@ -15,7 +15,7 @@ import { addDays } from '../lib/time'
 import { accountFor, dayOf, locationToday, oneOf, requireReason } from './clinicalShared'
 import { assertLocation, assertPatientInScope, optionalText, requireText, resolvePatientRef, staff, type Ctx } from './shared'
 import { PAYMENT_TENDERS } from '../models/payments'
-import { TEST_METHODS, paymentsConfigured, isTestMode } from '../../integrations/payments/stripe'
+import { paymentsConfigured } from '../../integrations/payments/stripe'
 
 /*
  * Taking payments, refunds, credit balances, statements and payment plans (STATE-MACHINES §6.2-§6.7).
@@ -36,8 +36,8 @@ async function accountBalance(tx: any, accountId: string) {
 // ─── Take a payment ──────────────────────────────────────────────────────────
 
 type TakePaymentArgs = {
-  patientId: string; locationId: string; amount: string; tender: string; checkNumber?: string | null; testMethod?: string | null; methodTokenId?: string | null
-  statementId?: string | null; allocations?: { entryId: string; amount: string }[] | null; saveCard?: boolean | null; consentText?: string | null; idempotencyKey: string
+  patientId: string; locationId: string; amount: string; tender: string; checkNumber?: string | null; newCard?: boolean | null; methodTokenId?: string | null
+  statementId?: string | null; allocations?: { entryId: string; amount: string }[] | null; idempotencyKey: string
 }
 
 export async function takePayment(_root: unknown, args: TakePaymentArgs, context: Ctx) {
@@ -56,8 +56,7 @@ export async function takePayment(_root: unknown, args: TakePaymentArgs, context
     const account = await accountFor(uow, patientId)
     await advisoryLock(tx, `ledger:${account.id}`)
     if (tender === 'card') {
-      if (!args.methodTokenId && !args.testMethod) throw new DomainError(Codes.INVALID_INPUT, 'Choose a card on file or a test card.', { field: 'testMethod' })
-      if (args.testMethod && !(args.testMethod in TEST_METHODS)) throw new DomainError(Codes.INVALID_INPUT, 'Unknown test card.', { field: 'testMethod' })
+      if (!args.methodTokenId && !args.newCard) throw new DomainError(Codes.INVALID_INPUT, 'Choose a card on file, or take a new card in the card form.', { field: 'methodTokenId' })
     }
     const explicit = (args.allocations ?? []).map(a => ({ entryId: a.entryId, amountMinor: parseMoney(a.amount, 'allocation') }))
     if (explicit.reduce((s, a) => s + a.amountMinor, 0n) > amountMinor) throw new DomainError(Codes.INVALID_INPUT, 'You applied more than the payment.', { field: 'allocations' })
@@ -75,16 +74,11 @@ export async function takePayment(_root: unknown, args: TakePaymentArgs, context
       data: {
         ref, accountId: account.id, patientId, locationId: args.locationId, amountMinor, currencyCode: await currencyOf(tx), tender, status: 'initiated',
         adapterKey: tender === 'card' ? 'stripe' : 'manual', idempotencyKey: `pay:${idempotencyKey}`, methodTokenId: token?.id ?? null,
-        providerMethodId: token ? token.providerMethodId : args.testMethod ? TEST_METHODS[args.testMethod as keyof typeof TEST_METHODS] : '',
+        providerMethodId: token ? token.providerMethodId : '',
         checkNumber: optionalText(args.checkNumber, 40), receivedById: actor.kind === 'user' ? actor.userId : null, source: 'front_desk', statementId: args.statementId ?? null,
       },
     })
     auditCreate(uow, actor, 'Payment', payment.id, 'payment.initiated', { amountMinor: amountMinor.toString(), tender, ref })
-    if (args.saveCard && args.testMethod) {
-      const consent = optionalText(args.consentText, 400)
-      if (!consent) throw new DomainError(Codes.CONSENT_REQUIRED, 'Record what the cardholder agreed to before saving the card.', { field: 'consentText' })
-      { const saveInput = { paymentId: payment.id, accountId: account.id, consentText: consent, consentBy: actor.kind === 'user' ? actor.userId : '' }; uow.after(async () => (await import('../messaging/paymentWorker')).runSaveMethod(uow.db, saveInput)) }
-    }
     if (tender !== 'card') {
       const settled = await settlePaymentWithAllocation(uow, actor, payment.id, explicit)
       return { id: payment.id, ref, status: 'succeeded', allocated: settled.allocated.toString(), unallocated: settled.unallocated.toString() }
@@ -425,4 +419,3 @@ export async function refreshCreditBalances(db: any, now: Date) {
   return { opened, total: rows.length }
 }
 
-void isTestMode

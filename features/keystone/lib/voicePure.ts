@@ -52,11 +52,12 @@ export const SAY = {
   recordingNo: 'No problem. This call will not be recorded.',
   askDob: 'To protect your privacy, please tell me your date of birth.',
   dobRetry: 'I could not match that. Please say your date of birth once more.',
-  dobFail: 'I could not confirm who I am speaking with, so I will bring in someone from the front desk.',
-  needsPerson: 'I will bring in someone from the front desk who can help with that.',
-  emergency: 'If this is a medical emergency, please hang up and call 911 now. I am also passing your call to our team right away.',
-  clinical: 'I cannot answer questions about your teeth, symptoms or treatment. I will bring in someone from our team who can help.',
-  unavailable: 'I am not able to help with calls right now, so I will bring in someone from the front desk.',
+  dobFail: 'I could not confirm who I am speaking with, so I will ask someone from the front desk to call you back.',
+  needsPerson: 'I will ask someone from the front desk to call you back about that.',
+  emergency: 'If this is a medical emergency, please hang up and call 911 now. I am also asking our team to call you right away.',
+  clinical: 'I cannot answer questions about your teeth, symptoms or treatment. I will ask someone from our team to call you back.',
+  cannotAnswer: 'I am not able to answer that myself, so I will ask someone from the front desk to call you back.',
+  unavailable: 'I am not able to help with calls right now, so I will ask someone from the front desk to call you back.',
   noSlot: 'I do not see an open time that I can offer. I will ask the front desk to call you.',
   noVisit: 'I could not find an upcoming visit to confirm. I will ask the front desk to look into it.',
   held: 'I have held that time for you and asked the front desk to book it. Someone from the office will confirm with you.',
@@ -80,7 +81,7 @@ const HUMAN = /\b(real person|human|a person|someone|somebody|representative|ope
 const CHANGE = /\b(cancel|reschedule|move my|change my|postpone)\b/i
 const CONFIRM = /\bconfirm/i
 const BOOKING = /\b(book|schedule|make|set up|need|want|would like|looking for)\b.{0,40}\b(appointment|cleaning|check-?up|exam|visit)\b|\b(cleaning|check-?up)\b/i
-const FAQ = /\b(hours?|open|close[sd]?|address|where|located|location|directions?|phone number|number)\b/i
+const FAQ = /\b(hours?|opening|open (on|at|until|today|tomorrow|late|saturday|sunday)|(are|do) you (open|close)|what time|address|where (are|is) (you|the (office|practice))|located|location|directions?|how do i get|phone number)\b/i
 const GOODBYE = /\b(bye|goodbye|that is all|that'?s all|thanks|thank you|nothing else)\b/i
 
 /** One utterance → one intent from a fixed list. Order matters: anything that looks like an instruction to the agent is handled before anything else. */
@@ -96,6 +97,31 @@ export function classifyIntent(text: string): Intent {
   if (FAQ.test(t)) return 'faq'
   if (GOODBYE.test(t)) return 'goodbye'
   return 'unknown'
+}
+
+
+/**
+ * Fail closed. A clause is understood only if the agent can classify it, or it is nothing but a word or two of courtesy.
+ * Anything else (a second question hiding behind a booking, a clinical worry in other words) is a person's job, so the call is handed over
+ * on the first such utterance, before any tool runs.
+ */
+const PHRASES_THAT_ARE_NOT_REQUESTS = /\b(hi|hello|hey|good (morning|afternoon|evening)|please|thanks?|thank you|um+|uh+|well|so|okay|ok|yes|yeah|yep|sure|no|nope|nah|great|perfect|alright)\b/g
+export function hasUnclassifiedPart(text: string): boolean {
+  const clauses = String(text ?? '').toLowerCase().split(/[,.;?!]+|\b(?:and|but|also|then|plus|because|though|although)\b/)
+  for (const clause of clauses) {
+    const rest = clause.replace(PHRASES_THAT_ARE_NOT_REQUESTS, ' ').replace(/[^a-z0-9' ]/g, ' ').trim()
+    if (!rest) continue
+    if (rest.split(/\s+/).length <= 1) continue
+    if (classifyIntent(clause) === 'unknown') return true
+  }
+  return false
+}
+
+/** True when the whole answer is a plain yes, no or courtesy: anything extra means the caller said something the agent did not plan for. */
+const PLAIN_ANSWER = /\b(that( time)?( works| is fine| is okay| sounds good|'?s fine)?|sounds good|works|fine|correct|speaking|this is|i will( be there)?|i'?ll( be there)?|be there|go ahead|agree|absolutely|definitely|of course|i can( make it)?|i do|it is|not|don'?t|do not|can'?t|cannot|won'?t|wrong number|wrong|decline|me|you|i am|that'?s right)\b/g
+export function isPlainAnswer(text: string): boolean {
+  const rest = String(text ?? '').toLowerCase().replace(PHRASES_THAT_ARE_NOT_REQUESTS, ' ').replace(PLAIN_ANSWER, ' ').replace(/[^a-z0-9]/g, '')
+  return rest.length === 0
 }
 
 export function yesNo(text: string): 'yes' | 'no' | 'unclear' {
@@ -192,17 +218,22 @@ export type CallResult = {
   recording: { record: boolean; basis: RecordingBasis }
   proposalIds: string[]
   summary: string
+  /** True when the caller has not finished: the engine is waiting for their next words (a phone call arrives one turn at a time). */
+  awaitingCaller?: boolean
 }
 
-const MAX_UNCLEAR = 2
+const UNANSWERABLE = 'question the assistant cannot answer'
+const MONTH_WORD = new RegExp(`\\b(${['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].join('|')})`, 'i')
 const MAX_DOB_TRIES = 2
+
+class NeedCaller extends Error {}
 
 export async function runCall(ctx: CallContext, tools: CallTools, voice: RealtimeVoiceAdapter): Promise<CallResult> {
   const transcript: Turn[] = []
   const toolCalls: ToolCall[] = []
   const proposalIds: string[] = []
   const say = (text: string) => { transcript.push({ who: 'agent', text: voice.speak(text).text }) }
-  const hear = (prompt?: 'recording_consent') => { const text = voice.listen(prompt); if (text !== null) transcript.push({ who: 'caller', text }); return text }
+  const hear = (prompt?: 'recording_consent') => { const text = voice.listen(prompt); if (text === null && voice.awaitingMore) throw new NeedCaller(); if (text !== null) transcript.push({ who: 'caller', text }); return text }
 
   /** The only way to use a tool. A name outside the Front Desk registry is refused here, whatever called it. */
   const callTool = async <T>(tool: ToolName, run: () => Promise<T>, proposes: string | null = null): Promise<T> => {
@@ -217,6 +248,7 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
     }
   }
 
+  try {
   // 1. Disclosure: always the first utterance.
   say(disclosure(ctx.practiceName, ctx.direction))
   const disclosedFirst = transcript[0]?.who === 'agent' && transcript.length === 1
@@ -241,7 +273,6 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
   let summary = ''
   let verified = false
   let dobTries = 0
-  let unclear = 0
   let pending: 'booking' | 'confirm' | null = null
   let awaiting: 'identity' | 'dob' | 'slot_ok' | 'visit_ok' | null = null
   let done = false
@@ -294,17 +325,16 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
 
     if (awaiting === 'identity') {
       const a = yesNo(heard)
+      if (!isPlainAnswer(heard) || a === 'unclear') { handoff(UNANSWERABLE, SAY.cannotAnswer); break }
       if (a === 'no') { say(SAY.wrongPerson); outcome = 'wrong_number'; done = true; break }
-      if (a === 'yes') { say(SAY.askDob); awaiting = 'dob'; continue }
-      unclear += 1
-      if (unclear >= MAX_UNCLEAR) { handoff('could not confirm who answered'); break }
-      say(SAY.unclear); continue
+      say(SAY.askDob); awaiting = 'dob'; continue
     }
 
     if (awaiting === 'dob') {
       if (intent === 'human') { handoff('the caller asked for a person'); break }
       const dob = parseDob(heard)
       if (dob && ctx.patient && dob === ctx.patient.dobIso) { verified = true; awaiting = null; await proceed(); if (done) break; continue }
+      if (!/\d/.test(heard) && !MONTH_WORD.test(heard)) { handoff(UNANSWERABLE, SAY.cannotAnswer); break }
       dobTries += 1
       if (dobTries >= MAX_DOB_TRIES) { handoff('could not confirm the caller’s identity', SAY.dobFail); break }
       say(SAY.dobRetry); continue
@@ -312,6 +342,7 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
 
     if (awaiting === 'slot_ok' || awaiting === 'visit_ok') {
       const a = yesNo(heard)
+      if (!isPlainAnswer(heard) || a === 'unclear') { handoff(UNANSWERABLE, SAY.cannotAnswer); break }
       if (a === 'yes' && awaiting === 'slot_ok') {
         await callTool('hold', () => tools.hold())
         const { proposalId } = await callTool('book', () => tools.book(), 'booking')
@@ -322,12 +353,10 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
         proposalIds.push(proposalId); say(SAY.confirmAsked); outcome = 'confirmation_requested'; done = true; break
       }
       if (a === 'no') { say(SAY.declined); outcome = ctx.direction === 'outbound' ? 'handed_off' : 'declined'; if (outcome === 'handed_off') handoffReason = 'the patient could not make the visit'; done = true; break }
-      unclear += 1
-      if (unclear >= MAX_UNCLEAR) { handoff('the answer was not clear'); break }
-      say(SAY.unclear); continue
     }
 
-    // No question waiting: read the request.
+    // No question waiting: read the request. Anything the agent cannot classify, or a request with a second unclassified part, goes to a person.
+    if (intent === 'unknown' || ((intent === 'booking' || intent === 'confirm' || intent === 'faq' || intent === 'goodbye') && hasUnclassifiedPart(heard))) { handoff(UNANSWERABLE, SAY.cannotAnswer); break }
     if (intent === 'human') { handoff('the caller asked for a person'); break }
     if (intent === 'change') { handoff('the caller wants to change or cancel a visit', SAY.needsPerson); break }
     if (intent === 'faq') {
@@ -342,9 +371,6 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
       await proceed(); if (done) break; continue
     }
     if (intent === 'goodbye') { say(SAY.goodbye); done = true; break }
-    unclear += 1
-    if (unclear >= MAX_UNCLEAR) { handoff('the assistant could not understand the request'); break }
-    say(SAY.unclear)
   }
 
   if (!done) {
@@ -353,4 +379,8 @@ export async function runCall(ctx: CallContext, tools: CallTools, voice: Realtim
     else say(SAY.goodbye)
   }
   return finish()
+  } catch (error) {
+    if (!(error instanceof NeedCaller)) throw error
+    return { transcript, toolCalls, outcome: 'answered', handoffReason: '', disclosedFirst: transcript[0]?.who === 'agent', recording: recordingDecision({ enabled: false, mode: ctx.recording.mode, answer: null }), proposalIds, summary: '', awaitingCaller: true }
+  }
 }
