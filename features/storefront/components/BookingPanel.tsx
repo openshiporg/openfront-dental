@@ -134,7 +134,7 @@ export function BookingPanel({ site, compact = false }: { site: Site; compact?: 
         )}
       </div>
 
-      <form ref={form} onSubmit={submit} className="mt-6" hidden={!picked}>
+      <form ref={form} onSubmit={submit} className="mt-6">
         <h2 className="text-xl font-medium text-[#0b4f4b]">{compact ? 'Check my insurance' : '2. Check my insurance'}</h2>
         <p className="mt-1 text-sm">The office checks your benefits before the visit.</p>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -143,7 +143,7 @@ export function BookingPanel({ site, compact = false }: { site: Site; compact?: 
         </div>
         <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" className="size-5" checked={noInsurance} onChange={e => setNoInsurance(e.target.checked)} />I don’t have dental insurance</label>
 
-        <h2 className="mt-4 text-xl font-medium text-[#0b4f4b]">Your details</h2>
+        <h2 className="mt-5 text-xl font-medium text-[#0b4f4b]">Your details</h2>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <div><label className={label} htmlFor="bk-first">First name</label><input id="bk-first" name="firstName" required autoComplete="given-name" className={field} /></div>
           <div><label className={label} htmlFor="bk-last">Last name</label><input id="bk-last" name="lastName" required autoComplete="family-name" className={field} /></div>
@@ -153,7 +153,7 @@ export function BookingPanel({ site, compact = false }: { site: Site; compact?: 
         </div>
         <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" name="sms" className="size-5" />Text me appointment reminders</label>
         {error ? <p role="alert" className="mt-2 text-[#a5321b]">{error}</p> : null}
-        <button disabled={busy} className="mt-3 min-h-12 w-full rounded-[3px] bg-[#dc6244] px-6 text-lg font-medium text-white hover:bg-[#c75537] disabled:opacity-60 sm:w-auto">{busy ? 'One moment' : `Book ${picked ? timeLabel(picked.startsAt, tz) : ''}`}</button>
+        <button disabled={busy || !picked} className="mt-3 min-h-12 w-full rounded-[3px] bg-[#dc6244] px-6 text-lg font-medium text-white hover:bg-[#c75537] disabled:opacity-60 sm:w-auto">{busy ? 'One moment' : picked ? `Book ${timeLabel(picked.startsAt, tz)}` : 'Pick a time above to book'}</button>
       </form>
       {!picked && error ? <p role="alert" className="mt-2 text-[#a5321b]">{error}</p> : null}
     </div>

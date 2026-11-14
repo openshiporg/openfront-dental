@@ -24,8 +24,10 @@ export default async function Home() {
   return (
     <main>
       <section className="relative isolate overflow-hidden border-b border-[#e4dccd]">
-        <Image src="/storefront/hero.jpg" alt="" fill priority sizes="(min-width:1024px) 55vw, 100vw" className="-z-20 hidden object-cover object-[70%_center] lg:block" />
-        <div className="absolute inset-0 -z-10 hidden bg-gradient-to-r from-[#f7f3ec] from-[48%] to-[#f7f3ec]/0 to-[72%] lg:block" aria-hidden />
+        <div className="absolute inset-y-0 right-0 -z-20 hidden w-[62%] lg:block">
+          <Image src="/storefront/hero.jpg" alt="" fill priority sizes="62vw" className="object-cover object-[55%_62%]" />
+        </div>
+        <div className="absolute inset-0 -z-10 hidden bg-gradient-to-r from-[#f7f3ec] from-[42%] to-[#f7f3ec]/0 to-[62%] lg:block" aria-hidden />
         <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-10 lg:py-10">
           <div className="lg:max-w-[56%]">
             <h1 className="hidden text-[3.4rem] font-semibold leading-[1.05] tracking-tight text-[#0b4f4b] lg:block xl:text-[4.2rem]">Cleanings, without the wait.</h1>
