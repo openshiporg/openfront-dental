@@ -14,7 +14,7 @@ const field = 'h-11 w-full rounded-[3px] border border-[#cfc6b4] bg-white/90 px-
 const label = 'mb-1 block text-sm text-[#1b2b2a]'
 const uid = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
 
-export function BookingPanel({ site, compact = false }: { site: Site; compact?: boolean }) {
+export function BookingPanel({ site }: { site: Site }) {
   const bookable = site.locations.filter(l => l.onlineBooking)
   const [patientType, setPatientType] = useState<'new' | 'existing'>('new')
   const [locationId, setLocationId] = useState(bookable[0]?.id ?? '')
@@ -106,7 +106,7 @@ export function BookingPanel({ site, compact = false }: { site: Site; compact?: 
         ))}
       </div>
 
-      <h2 className="mt-5 text-xl font-medium text-[#0b4f4b]">{compact ? 'Book a cleaning' : '1. Book a visit'}</h2>
+      <h2 className="mt-5 text-xl font-medium text-[#0b4f4b]"><span className="sm:hidden">Book a cleaning</span><span className="hidden sm:inline">1. Book a visit</span></h2>
       <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_1.7fr]">
         <div><label className={label} htmlFor="bk-loc">Location</label>
           <select id="bk-loc" className={field} value={locationId} onChange={e => setLocationId(e.target.value)}>{bookable.map(l => <option key={l.id} value={l.id}>{l.name.replace(`${site.practiceName} — `, '')}</option>)}</select></div>
@@ -134,8 +134,8 @@ export function BookingPanel({ site, compact = false }: { site: Site; compact?: 
         )}
       </div>
 
-      <form ref={form} onSubmit={submit} className="mt-6">
-        <h2 className="text-xl font-medium text-[#0b4f4b]">{compact ? 'Check my insurance' : '2. Check my insurance'}</h2>
+      <form ref={form} onSubmit={submit} className="mt-6 bg-[#dcebe6] p-3 sm:bg-transparent sm:p-0">
+        <h2 className="text-xl font-medium text-[#0b4f4b]"><span className="sm:hidden">Check my insurance</span><span className="hidden sm:inline">2. Check my insurance</span></h2>
         <p className="mt-1 text-sm">The office checks your benefits before the visit.</p>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <div><label className={label} htmlFor="bk-carrier">Carrier</label><input id="bk-carrier" name="carrier" disabled={noInsurance} className={field} autoComplete="off" /></div>

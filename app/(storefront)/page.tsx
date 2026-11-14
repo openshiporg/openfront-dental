@@ -19,6 +19,7 @@ export default async function Home() {
   for (const l of site.locations) for (const t of l.onlineBooking?.visitTypes ?? []) if (!visits.has(t.name)) visits.set(t.name, { name: t.name, minutes: t.minutes })
   const dentists = site.providers.filter(p => p.kind === 'dentist')
   const team = site.providers.filter(p => p.kind !== 'dentist')
+  const extras = (Array.isArray((site as unknown as { services?: unknown }).services) ? ((site as unknown as { services: { name?: string }[] }).services) : []).map(s => s?.name).filter((n): n is string => Boolean(n))
   const city = site.locations.map(l => l.address?.city).filter(Boolean).join(' and ')
 
   return (
@@ -56,6 +57,7 @@ export default async function Home() {
             {[...visits.values()].map(v => (
               <li key={v.name} className="flex min-h-12 items-center justify-between gap-4 py-2"><span>{v.name}</span><span className="shrink-0 text-[#4c5a58]">{v.minutes ? `${v.minutes} min` : ''}</span></li>
             ))}
+            {extras.map(n => <li key={n} className="flex min-h-12 items-center justify-between gap-4 py-2"><span>{n}</span><span className="shrink-0 text-[#4c5a58]">Varies</span></li>)}
           </ul>
           <p className="mt-3 text-base"><Link href="/book" className="underline decoration-[#3a9e98] decoration-2 underline-offset-4">See open times and book</Link></p>
         </section>
