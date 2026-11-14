@@ -80,6 +80,21 @@ export async function expireStalePayLinkPayments(db: Db, statementId: string, no
   return { expired }
 }
 
+/**
+ * This statement's OWN unfinished pay-link attempts (the customer reloaded or came back) are released so a new one can start: the
+ * processor's intent is cancelled (never charges), or settled if it was paid meanwhile. One the processor will not release (for
+ * example a card being confirmed right now) stays open and the open-attempt guard still refuses. Other statements are never touched.
+ */
+async function releaseOwnOpenAttempts(db: Db, statementId: string, deps: PaymentCtx) {
+  const open = await (db as any).payment.findMany({ where: { statementId, source: 'pay_link', status: { in: ['initiated', 'requires_action'] } }, select: { id: true, providerIntentId: true }, take: 10 })
+  for (const pay of open as { id: string; providerIntentId: string | null }[]) {
+    if (!pay.providerIntentId) continue
+    const cancelled = await cancelIntent(pay.providerIntentId, deps)
+    if (cancelled.kind === 'succeeded') await runInTransaction(db, uow => settlePayment(uow, actor, pay.id, { providerIntentId: pay.providerIntentId! }))
+    else if (cancelled.kind === 'canceled') await runInTransaction(db, uow => failPayment(uow, actor, pay.id, 'Replaced by a new attempt on the same link.', 'failed'))
+  }
+}
+
 const balanceOf = async (db: Db, accountId: string) => ((await (db as any).ledgerEntry.aggregate({ where: { accountId }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n) as bigint
 
 /** What this link can show and take: the statement's open lines, and what is still owed on the account now (never more than the statement's amount). */
@@ -110,6 +125,7 @@ export async function startPayLinkPayment(db: Db, code: string, amountText: stri
   if (!row) throw NOT_FOUND()
   if (!paymentsConfigured()) throw new DomainError(Codes.GUARD_FAILED, 'Online payment is not available right now. Please call the front desk.')
   await expireStalePayLinkPayments(db, row.id, now, deps)
+  await releaseOwnOpenAttempts(db, row.id, deps)
   const created = await runInTransaction(db, async uow => {
     const { tx } = uow
     await advisoryLock(tx, `ledger:${row.accountId}`)
@@ -156,7 +172,7 @@ export async function confirmPayLinkPayment(db: Db, code: string, ref: string, n
   }
   if (intent.status === 'requires_payment_method') {
     await runInTransaction(db, uow => failPayment(uow, actor, pay.id, 'The card was declined.', 'failed'))
-    return { status: 'failed' as const, message: 'The card was declined. Please try another card.' }
+    return { status: 'failed' as const, message: 'The card has not been confirmed yet. Please enter the card and try again.' }
   }
   return { status: 'pending' as const }
 }

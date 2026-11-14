@@ -164,6 +164,24 @@ describe.skipIf(!hasTestDatabase)('Slice 4 add-on: statement PDF and pay link (d
     expect(await prisma.ledgerEntry.count({ where: { paymentId: pay.id } })).toBe(0)
   })
 
+  it('a reload starts again: this statement own open attempt is cancelled and replaced, never a 422; a card not yet entered is not called declined', async () => {
+    const calls: string[] = []
+    const first = await startPayLinkPayment(prisma as any, stmtA.payLinkCode, '2.00', new Date(), fakeStripe([], calls))
+    const second = await startPayLinkPayment(prisma as any, stmtA.payLinkCode, '2.00', new Date(), fakeStripe([], calls))
+    expect(second.ref).not.toBe(first.ref)
+    const a = await prisma.payment.findFirstOrThrow({ where: { ref: first.ref } })
+    const b = await prisma.payment.findFirstOrThrow({ where: { ref: second.ref } })
+    expect(a.status).toBe('failed')
+    expect(b.status).toBe('requires_action')
+    expect(calls.some(c => c.endsWith(`/v1/payment_intents/${a.providerIntentId}/cancel`))).toBe(true)
+    expect(await prisma.ledgerEntry.count({ where: { paymentId: a.id } })).toBe(0)
+    // the first attempt's page confirms before any card was entered: told so, not "declined"
+    const out: any = await confirmPayLinkPayment(prisma as any, stmtA.payLinkCode, second.ref, new Date(), fakeStripe([{ id: b.providerIntentId!, status: 'requires_payment_method' }]))
+    expect(out.status).toBe('failed')
+    expect(out.message).toMatch(/not been confirmed/)
+    expect(out.message).not.toMatch(/declined/)
+  })
+
   it('r2 m-b: a pay-link payment left unfinished for 30 minutes expires on the next read; the TEST intent is cancelled, a paid one is settled', async () => {
     const calls: string[] = []
     const started = await startPayLinkPayment(prisma as any, stmtA.payLinkCode, '2.00', new Date(), fakeStripe([], calls))
@@ -186,5 +204,21 @@ describe.skipIf(!hasTestDatabase)('Slice 4 add-on: statement PDF and pay link (d
     await openPayLink(prisma as any, stmtA.payLinkCode, new Date(Date.now() + 31 * 60_000), fakeStripe([{ id: pay2.providerIntentId, status: 'succeeded' }]))
     expect((await prisma.payment.findUniqueOrThrow({ where: { id: pay2.id } })).status).toBe('succeeded')
     expect(await prisma.ledgerEntry.count({ where: { paymentId: pay2.id } })).toBe(1)
+  })
+
+  it('a statement settled by the account balance becomes paid, goes back when refunded, and a zero-balance statement is never marked overdue', async () => {
+    const balance = async () => (await prisma.ledgerEntry.aggregate({ where: { accountId: stmtA.accountId }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n
+    const owed = await balance()
+    expect(owed).toBeGreaterThan(0n)
+    const started = await startPayLinkPayment(prisma as any, stmtA.payLinkCode, null, new Date(), fakeStripe([]))
+    const pay = await prisma.payment.findFirstOrThrow({ where: { ref: started.ref } })
+    const out: any = await confirmPayLinkPayment(prisma as any, stmtA.payLinkCode, started.ref, new Date(), fakeStripe([{ id: pay.providerIntentId!, status: 'succeeded' }]))
+    expect(out.status).toBe('paid')
+    expect(await balance()).toBe(0n)
+    expect((await prisma.statement.findUniqueOrThrow({ where: { id: stmtA.id } })).status).toBe('paid')
+    // a year later (past due and past grace), but nothing is owed: stays paid
+    const { markOverdueStatements } = await import('./payments')
+    await markOverdueStatements(prisma, new Date(Date.now() + 400 * 86_400_000))
+    expect((await prisma.statement.findUniqueOrThrow({ where: { id: stmtA.id } })).status).toBe('paid')
   })
 })

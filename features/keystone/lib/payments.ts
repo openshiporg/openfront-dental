@@ -102,13 +102,18 @@ export async function failPayment(uow: UnitOfWork, actor: Actor, paymentId: stri
   return { changed: true as const }
 }
 
-/** After a payment: a statement is `paid` when nothing is owed on the account at its amount, `partially_paid` when something has been paid. */
+/**
+ * After a payment: a statement is `paid` when nothing is owed on the account (the same owed calculation the pay link uses: account balance
+ * at or below zero), or when its own payments reach its amount; `partially_paid` when something has been paid. A refund that puts the
+ * balance back moves it off `paid` again.
+ */
 export async function refreshStatementStatus(tx: Tx, statementId: string) {
-  const statement = await tx.statement.findUnique({ where: { id: statementId }, select: { id: true, amountDueMinor: true, status: true } })
+  const statement = await tx.statement.findUnique({ where: { id: statementId }, select: { id: true, amountDueMinor: true, status: true, accountId: true } })
   if (!statement || ['suppressed', 'collections_hold'].includes(statement.status)) return
+  const balance = ((await tx.ledgerEntry.aggregate({ where: { accountId: statement.accountId }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n) as bigint
   const paid = await tx.payment.aggregate({ where: { statementId, status: { in: ['succeeded', 'partially_refunded', 'refunded'] } }, _sum: { amountMinor: true, refundedMinor: true } })
   const net = (paid._sum.amountMinor ?? 0n) - (paid._sum.refundedMinor ?? 0n)
-  const next = net >= statement.amountDueMinor ? 'paid' : net > 0n ? 'partially_paid' : statement.status
+  const next = net >= statement.amountDueMinor || (net > 0n && balance <= 0n) ? 'paid' : net > 0n ? 'partially_paid' : statement.status === 'paid' ? 'sent' : statement.status
   if (next !== statement.status) await tx.statement.update({ where: { id: statementId }, data: { status: next, version: { increment: 1 } } })
 }
 

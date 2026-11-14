@@ -285,9 +285,12 @@ export async function holdStatements(_root: unknown, args: { patientId: string; 
 /** Overdue statements: a sent statement goes overdue after its due date plus the grace period (and raises the staff notice). */
 export async function markOverdueStatements(db: any, now: Date) {
   const cutoff = dayOf(addDays(now.toISOString().slice(0, 10), -STATEMENT_GRACE_DAYS))
-  const due = await db.statement.findMany({ where: { status: { in: ['sent', 'partially_paid'] }, dueDate: { lt: cutoff } }, select: { id: true }, take: 200 })
+  const due = await db.statement.findMany({ where: { status: { in: ['sent', 'partially_paid'] }, dueDate: { lt: cutoff } }, select: { id: true, accountId: true }, take: 200 })
   let moved = 0
   for (const s of due) {
+    // Nothing owed on the account (paid up by balance, or credit): not overdue.
+    const balance = ((await db.ledgerEntry.aggregate({ where: { accountId: s.accountId }, _sum: { amountMinor: true } }))._sum.amountMinor ?? 0n) as bigint
+    if (balance <= 0n) continue
     await command(db, { name: 'statement.overdue', actor: systemActor('statements'), idempotencyKey: `statement.overdue:${s.id}`, params: { id: s.id }, now }, async uow => {
       await transition<any>(uow, { model: 'Statement', id: s.id, from: ['sent', 'partially_paid'], to: 'overdue', actor: systemActor('statements'), eventType: 'statement.overdue' })
           }).then(() => { moved += 1 }).catch(() => undefined)
