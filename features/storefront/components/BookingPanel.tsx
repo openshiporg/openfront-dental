@@ -143,6 +143,8 @@ export function BookingPanel({ site }: { site: Site }) {
         </div>
         <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" className="size-5" checked={noInsurance} onChange={e => setNoInsurance(e.target.checked)} />I don’t have dental insurance</label>
 
+        {picked ? (
+          <>
         <h2 className="mt-5 text-xl font-medium text-[#0b4f4b]">Your details</h2>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <div><label className={label} htmlFor="bk-first">First name</label><input id="bk-first" name="firstName" required autoComplete="given-name" className={field} /></div>
@@ -154,6 +156,8 @@ export function BookingPanel({ site }: { site: Site }) {
         <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" name="sms" className="size-5" />Text me appointment reminders</label>
         {error ? <p role="alert" className="mt-2 text-[#a5321b]">{error}</p> : null}
         <button disabled={busy || !picked} className="mt-3 min-h-12 w-full rounded-[3px] bg-[#dc6244] px-6 text-lg font-medium text-white hover:bg-[#c75537] disabled:opacity-60 sm:w-auto">{busy ? 'One moment' : picked ? `Book ${timeLabel(picked.startsAt, tz)}` : 'Pick a time above to book'}</button>
+          </>
+        ) : null}
       </form>
       {!picked && error ? <p role="alert" className="mt-2 text-[#a5321b]">{error}</p> : null}
     </div>

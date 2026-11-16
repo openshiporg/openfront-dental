@@ -8,6 +8,9 @@ import { loadSite } from '@/features/storefront/lib/site'
 export const dynamic = 'force-dynamic'
 
 const h2 = 'text-[2rem] font-semibold leading-tight text-[#0b4f4b] sm:text-[2.6rem]'
+const norm = (n: string) => n.toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').split(' ').filter(w => w && w !== 'and').map(w => w.replace(/s$/, '')).join(' ')
+const words = (v: string) => v.replace(/_/g, ' ')
+const mapUrl = (name: string, a: Parameters<typeof addressLine>[0]) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${addressLine(a)}`)}`
 const dollars = (minor: bigint) => `$${minor / 100n}${minor % 100n ? `.${String(minor % 100n).padStart(2, '0')}` : ''}`
 
 export default async function Home() {
@@ -15,11 +18,19 @@ export default async function Home() {
   if (!site) return null
   const plans = await keystoneContext.prisma.membershipPlan.findMany({ where: { status: 'active' }, orderBy: { priceMinor: 'desc' }, select: { id: true, name: true, ageBand: true, priceMinor: true, interval: true, discountPct: true, includedBenefits: true } }).catch(() => [])
   const first = site.locations[0]
-  const visits = new Map<string, { name: string; minutes: number | null }>()
-  for (const l of site.locations) for (const t of l.onlineBooking?.visitTypes ?? []) if (!visits.has(t.name)) visits.set(t.name, { name: t.name, minutes: t.minutes })
+  const typeIds = site.locations.flatMap(l => (l.onlineBooking?.visitTypes ?? []).map(t => t.id))
+  const typeRows = typeIds.length ? await keystoneContext.prisma.appointmentType.findMany({ where: { id: { in: typeIds } }, select: { id: true, name: true, publicName: true, defaultProductionMinor: true } }).catch(() => []) : []
+  const visits = new Map<string, { name: string; minutes: number | null; price: bigint; keys: string[] }>()
+  for (const l of site.locations) for (const t of l.onlineBooking?.visitTypes ?? []) {
+    if (visits.has(t.name)) continue
+    const row = typeRows.find(r => r.id === t.id)
+    visits.set(t.name, { name: t.name, minutes: t.minutes, price: row?.defaultProductionMinor ?? 0n, keys: [t.name, row?.name ?? '', row?.publicName ?? ''].filter(Boolean).map(norm) })
+  }
   const dentists = site.providers.filter(p => p.kind === 'dentist')
   const team = site.providers.filter(p => p.kind !== 'dentist')
+  const taken = new Set([...visits.values()].flatMap(v => v.keys))
   const extras = (Array.isArray((site as unknown as { services?: unknown }).services) ? ((site as unknown as { services: { name?: string }[] }).services) : []).map(s => s?.name).filter((n): n is string => Boolean(n))
+    .filter(n => (taken.has(norm(n)) ? false : (taken.add(norm(n)), true)))
   const city = site.locations.map(l => l.address?.city).filter(Boolean).join(' and ')
 
   return (
@@ -55,7 +66,7 @@ export default async function Home() {
           <h2 id="visits-h" className={h2}>Our visits</h2>
           <ul className="mt-5 divide-y divide-[#cfc6b4] border-y border-[#cfc6b4] text-lg">
             {[...visits.values()].map(v => (
-              <li key={v.name} className="flex min-h-12 items-center justify-between gap-4 py-2"><span>{v.name}</span><span className="shrink-0 text-[#4c5a58]">{v.minutes ? `${v.minutes} min` : ''}</span></li>
+              <li key={v.name} className="flex min-h-12 items-center justify-between gap-4 py-2"><span>{v.name}</span><span className="shrink-0 text-[#4c5a58]">{[v.minutes ? `${v.minutes} min` : '', v.price > 0n ? dollars(v.price) : ''].filter(Boolean).join(' · ')}</span></li>
             ))}
             {extras.map(n => <li key={n} className="flex min-h-12 items-center justify-between gap-4 py-2"><span>{n}</span><span className="shrink-0 text-[#4c5a58]">Varies</span></li>)}
           </ul>
@@ -85,7 +96,11 @@ export default async function Home() {
           <h2 id="club-h" className={h2}>{plans.length ? 'Smile Club' : 'No insurance?'}</h2>
           {plans.length ? (
             <ul className="mt-3 space-y-2 text-lg">
-              {plans.map(p => <li key={p.id}><strong className="font-semibold">{p.name}: {dollars(p.priceMinor)}/{p.interval === 'year' ? 'year' : 'month'}</strong>{Array.isArray(p.includedBenefits) && p.includedBenefits.length ? `. ${(p.includedBenefits as { label?: string; name?: string }[]).map(b => b.label ?? b.name).filter(Boolean).join(', ')}` : ''}{Number(p.discountPct) ? `, ${Number(p.discountPct)}% off other treatment` : ''}</li>)}
+              {plans.map(p => {
+                const benefits = Array.isArray(p.includedBenefits) ? (p.includedBenefits as { codeFamily?: string; countPerPeriod?: number }[]).filter(b => b?.codeFamily && Number.isInteger(b.countPerPeriod)).map(b => `${b.countPerPeriod} ${words(b.codeFamily as string)} visit${b.countPerPeriod === 1 ? '' : 's'} a ${p.interval === 'year' ? 'year' : 'month'}`) : []
+                const detail = [...benefits, Number(p.discountPct) ? `${Number(p.discountPct)}% off other treatment` : ''].filter(Boolean).join(', ')
+                return <li key={p.id}><strong className="block font-semibold">{words(p.ageBand).replace(/^./, c => c.toUpperCase())}: {dollars(p.priceMinor)}/{p.interval === 'year' ? 'year' : 'month'}</strong>{detail ? <span className="block text-base text-[#4c5a58]">{detail}</span> : null}</li>
+              })}
             </ul>
           ) : <p className="mt-3 text-lg">Ask the office about a membership plan for patients without insurance.</p>}
         </section>
@@ -96,8 +111,10 @@ export default async function Home() {
         <ul className="mt-5 grid gap-x-16 divide-y divide-[#cfc6b4] border-y border-[#cfc6b4] md:grid-cols-2 md:divide-y-0">
           {site.locations.map(l => (
             <li key={l.id} className="py-4 text-lg">
-              <p className="font-semibold text-[#0b4f4b]">{l.name.replace(`${site.practiceName} — `, '')}</p>
-              <p>{addressLine(l.address)}</p>
+              <a href={mapUrl(l.name, l.address)} target="_blank" rel="noreferrer" className="block underline decoration-[#3a9e98] decoration-2 underline-offset-4">
+                <span className="block font-semibold text-[#0b4f4b]">{l.name.replace(`${site.practiceName} — `, '')}</span>
+                <span className="block">{addressLine(l.address)}</span>
+              </a>
               <p><a href={`tel:${l.phone.replace(/[^\d+]/g, '')}`} className="underline underline-offset-2">{l.phone}</a></p>
               {hoursLines(l.hours).map(t => <p key={t} className="text-base text-[#4c5a58]">{t} {zoneLabel(l.timeZone)}</p>)}
             </li>
