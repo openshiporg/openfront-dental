@@ -7,7 +7,7 @@ import { advisoryLock } from '../lib/db'
 import { DomainError, Codes } from '../lib/errors'
 import { formatMinor } from '../lib/money'
 import { parseMoney } from '../lib/ledger'
-import { chargesOutstanding, completeRefund, settlePayment, sha256 } from '../lib/payments'
+import { chargesOutstanding, completeRefund, markInstallmentFailed, settlePayment, sha256 } from '../lib/payments'
 import { nextReference, publicCode } from '../lib/sequence'
 import { PAY_LINK_DAYS } from '../lib/payLink'
 import { pdfSha256, renderStatementPdf, statementForPdf } from '../lib/statementPdf'
@@ -384,15 +384,20 @@ export async function cancelPaymentPlan(_root: unknown, args: { planId: string; 
 
 /** Instalments due today or earlier on an autopay plan become card charges through the same worker path as any card payment. */
 export async function chargeDueInstallments(db: any, now: Date) {
-  const today = now.toISOString().slice(0, 10)
-  const due = await db.paymentPlanInstallment.findMany({ where: { status: { in: ['due', 'failed'] }, dueDate: { lte: dayOf(today) }, plan: { status: { in: ['active', 'delinquent'] }, autopayId: { not: null } } }, include: { plan: true }, take: 100 })
+  // Due dates are office dates: "today" is the latest office date (no instalment is charged before its day anywhere), then per office below.
+  const latest = addDays(now.toISOString().slice(0, 10), 1)
+  const due = await db.paymentPlanInstallment.findMany({ where: { status: { in: ['due', 'failed'] }, dueDate: { lte: dayOf(latest) }, plan: { status: { in: ['active', 'delinquent'] }, autopayId: { not: null } } }, include: { plan: true }, take: 100 })
   let queued = 0
   for (const i of due) {
+    const today = await locationToday(db, i.plan.locationId, now)
+    if (i.dueDate.toISOString().slice(0, 10) > today) continue
     if (i.lastAttemptOn && i.lastAttemptOn.toISOString().slice(0, 10) === today) continue
+    // Nothing owed on the account (insurance or a desk payment paid it): no charge today. Checked before the command so a later balance is still charged.
+    if ((await accountBalance(db, i.plan.accountId)) <= 0n) continue
     await command(db, { name: 'plan.charge_installment', actor: systemActor('payment-plans'), idempotencyKey: `plan.charge:${i.id}:${i.attempts}`, params: { id: i.id }, now }, async uow => {
       const { tx } = uow
       const token = await tx.paymentMethodToken.findUnique({ where: { id: i.plan.autopayId } })
-      if (!token || token.status !== 'active') { await tx.paymentPlanInstallment.update({ where: { id: i.id }, data: { status: 'failed', attempts: { increment: 1 }, lastAttemptOn: dayOf(today) } }); return }
+      if (!token || token.status !== 'active') { await markInstallmentFailed(uow, systemActor('payment-plans'), i.id); await tx.paymentPlanInstallment.update({ where: { id: i.id }, data: { lastAttemptOn: dayOf(today) } }); return }
       const ref = await nextReference(tx, 'PAY', uow.now)
       const pay = await tx.payment.create({ data: { ref, accountId: i.plan.accountId, patientId: i.plan.patientId, locationId: i.plan.locationId, amountMinor: i.amountMinor, currencyCode: 'USD', tender: 'card', status: 'initiated', adapterKey: 'stripe', idempotencyKey: `plan:${i.id}:${i.attempts}`, methodTokenId: token.id, providerMethodId: token.providerMethodId, source: 'payment_plan' } })
       await tx.paymentPlanInstallment.update({ where: { id: i.id }, data: { paymentId: pay.id, lastAttemptOn: dayOf(today), version: { increment: 1 } } })
