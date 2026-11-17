@@ -163,6 +163,11 @@ export async function completeProcedure(_root: unknown, args: { chartEntryId: st
       model: 'ChartEntry', id: row.id, from: ['accepted', 'scheduled', 'planned', 'diagnosed'], to: 'posted', expectedVersion: args.expectedVersion, actor, eventType: 'chart.procedure_completed',
       data: { providerId: provider.id, dateOfService: dayOf(date), originalServiceDate: dayOf(date), feeMinor, feeScheduleVersionId: feeVersionId },
     })
+    // A no-charge procedure ($0 fee) is completed with nothing on the ledger: a charge row must be above zero.
+    if (feeMinor === 0n) {
+      auditCreate(uow, actor, 'ChartEntry', row.id, 'ledger.no_charge', { chartEntryId: row.id, businessDate: date })
+      return { chartEntryId: entry.id, ledgerEntryId: null, feeMinor: '0' }
+    }
     const charge = await uow.tx.ledgerEntry.create({
       data: { accountId: account.id, patientId: row.patientId, kind: 'charge', amountMinor: feeMinor, currencyCode: settingsCurrency, businessDate: await openBusinessDate(uow.tx, row.locationId, dayOf(date)), originalBusinessDate: dayOf(date), locationId: row.locationId, providerId: provider.id, chartEntryId: row.id, memo: `${code.code} ${row.tooth}${row.surfaces ? ` ${row.surfaces}` : ''}`.trim(), postedById: actor.kind === 'user' ? actor.userId : null, postedAt: uow.now },
     })
