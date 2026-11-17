@@ -116,8 +116,14 @@ export async function requestRefund(_root: unknown, args: { paymentId?: string |
       if (amountMinor + (pending._sum.amountMinor ?? 0n) > payment.amountMinor - payment.refundedMinor) throw new DomainError(Codes.GUARD_FAILED, `Only ${formatMinor(BigInt(payment.amountMinor) - BigInt(payment.refundedMinor) - BigInt(pending._sum.amountMinor ?? 0n))} of that payment can still be refunded.`, { field: 'amount' })
     } else {
       if (!accountId || !locationId) throw new DomainError(Codes.INVALID_INPUT, 'Choose the payment to refund.', { field: 'paymentId' })
-      const credit = -(await accountBalance(tx, accountId))
+      await advisoryLock(tx, `ledger:${accountId}`)
+      // Credit refunds already asked for and not yet on the ledger count against the credit.
+      const pending: any = await tx.refund.aggregate({ where: { accountId, paymentId: null, status: { in: ['requested', 'approved', 'executing', 'unknown'] } }, _sum: { amountMinor: true } })
+      const credit = -(await accountBalance(tx, accountId)) - BigInt(pending._sum.amountMinor ?? 0n)
       if (amountMinor > credit) throw new DomainError(Codes.GUARD_FAILED, `The account has ${credit > 0n ? formatMinor(credit) : 'no'} credit to refund.`, { field: 'amount' })
+      // The account's own offices, not only the one the caller names.
+      const offices = await tx.ledgerEntry.findMany({ where: { accountId }, distinct: ['locationId'], select: { locationId: true } })
+      for (const o of offices) if (o.locationId) assertLocation(locationIds, o.locationId)
     }
     assertLocation(locationIds, locationId)
     const method = args.method ?? (payment?.tender === 'card' ? 'original_tender' : 'check')

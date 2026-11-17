@@ -165,6 +165,11 @@ export async function completeRefund(uow: UnitOfWork, actor: Actor, refundId: st
   if (refund.status === 'completed') return { completed: false as const, refundId }
   if (!['executing', 'unknown', 'approved'].includes(refund.status)) throw new DomainError(Codes.INVALID_TRANSITION, `A refund that is ${refund.status} cannot be completed.`)
   await advisoryLock(tx, `ledger:${refund.accountId}`)
+  if (!refund.paymentId) {
+    // A credit refund pays out only credit the account still has.
+    const sum = await tx.ledgerEntry.aggregate({ where: { accountId: refund.accountId }, _sum: { amountMinor: true } })
+    if (refund.amountMinor > -((sum._sum.amountMinor ?? 0n) as bigint)) throw new DomainError(Codes.GUARD_FAILED, 'The account no longer has that much credit to refund.')
+  }
   const patient = await tx.paymentPlan.findFirst({ where: { accountId: refund.accountId }, select: { patientId: true } })
   const original = refund.paymentId ? await tx.payment.findUnique({ where: { id: refund.paymentId }, select: { patientId: true, refundedMinor: true, amountMinor: true } }) : null
   const date = await locationToday(tx, refund.locationId, uow.now)
