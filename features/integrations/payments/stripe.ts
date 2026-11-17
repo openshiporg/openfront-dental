@@ -138,6 +138,15 @@ export async function refundIntent(input: { intentId: string; amountMinor: bigin
   }
 }
 
+/** A refund's current status at the processor (a refund can come back `pending` and settle or fail later). */
+export async function retrieveRefund(refundId: string, ctx: PaymentCtx = {}): Promise<{ status: string } | null> {
+  try {
+    const { status, json } = await call(ctx, 'GET', `/v1/refunds/${encodeURIComponent(refundId)}`, null)
+    if (status >= 400) return null
+    return { status: String(json?.status ?? '') }
+  } catch { return null }
+}
+
 /** Save a method for later (card on file). `methodId` is a Stripe Elements payment-method id; the card number never touches this system. */
 export async function saveMethod(input: { reference: string; methodId: string; idempotencyKey: string }, ctx: PaymentCtx = {}): Promise<CustomerOutcome> {
   try {

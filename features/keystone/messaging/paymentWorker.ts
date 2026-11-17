@@ -5,7 +5,7 @@ import { auditCreate } from '../lib/cas'
 import { log } from '../lib/log'
 import { runInTransaction } from '../lib/unitOfWork'
 import { completeRefund, failPayment, settlePayment, sha256 } from '../lib/payments'
-import { createIntent, refundIntent, retrieveIntent, saveMethod, type PaymentCtx } from '../../integrations/payments/stripe'
+import { createIntent, refundIntent, retrieveIntent, retrieveRefund, saveMethod, type PaymentCtx } from '../../integrations/payments/stripe'
 import { chargeDueInstallments, markOverdueStatements, refreshCreditBalances } from '../mutations/payments'
 
 /*
@@ -48,7 +48,12 @@ export async function runRefund(db: Db, refundId: string, deps: PaymentCtx = {})
   if (!refund.payment.providerIntentId) return runInTransaction(db, async uow => { await uow.tx.refund.update({ where: { id: refundId }, data: { status: 'failed', failureNote: 'The original card payment has no processor record.' } }) })
   const outcome = await refundIntent({ intentId: refund.payment.providerIntentId, amountMinor: refund.amountMinor, reference: refund.ref, idempotencyKey: `refund:${refund.id}` }, deps)
   return runInTransaction(db, async uow => {
-    if (outcome.kind === 'completed' || outcome.kind === 'pending') return completeRefund(uow, actor, refundId, { adapterRef: outcome.refundId })
+    if (outcome.kind === 'completed') return completeRefund(uow, actor, refundId, { adapterRef: outcome.refundId })
+    if (outcome.kind === 'pending') {
+      // Not done until the processor says so: kept unconfirmed with its refund id, and the reconciler asks for its status.
+      await uow.tx.refund.updateMany({ where: { id: refundId, status: 'executing' }, data: { status: 'unknown', adapterRef: outcome.refundId, failureNote: 'The card processor is still processing this refund.', version: { increment: 1 } } })
+      return { pending: true }
+    }
     if (outcome.kind === 'failed') {
       await uow.tx.refund.updateMany({ where: { id: refundId, status: 'executing' }, data: { status: 'failed', failureNote: outcome.message.slice(0, 200), version: { increment: 1 } } })
       auditCreate(uow, actor, 'Refund', refundId, 'refund.failed', { message: outcome.message.slice(0, 200) })
@@ -94,6 +99,16 @@ export async function reconcilePayments(db: Db, now: Date, deps: PaymentCtx = {}
   }
   const refunds = await (db as any).refund.findMany({ where: { status: 'unknown', updatedAt: { lt: cutoff } }, take: 20 })
   for (const r of refunds) {
+    if (String(r.adapterRef ?? '').startsWith('re_')) {
+      // The processor has this refund: ask for its status, never send it again.
+      const found = await retrieveRefund(r.adapterRef, deps)
+      if (found?.status === 'succeeded') await runInTransaction(db, uow => completeRefund(uow, actor, r.id, { adapterRef: r.adapterRef })).catch(error => log.error('refund completion failed', { refundId: r.id, error }))
+      else if (found && ['failed', 'canceled'].includes(found.status)) await runInTransaction(db, async uow => {
+        await uow.tx.refund.updateMany({ where: { id: r.id, status: 'unknown' }, data: { status: 'failed', failureNote: 'The refund did not go through.', version: { increment: 1 } } })
+        auditCreate(uow, actor, 'Refund', r.id, 'refund.failed', { message: 'The refund did not go through.' })
+      })
+      continue
+    }
     await (db as any).refund.updateMany({ where: { id: r.id, status: 'unknown' }, data: { status: 'executing' } })
     await runRefund(db, r.id, deps).catch(error => log.error('refund retry failed', { refundId: r.id, error }))
   }
