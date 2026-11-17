@@ -26,10 +26,11 @@ export const decimalOf = (minor: string | bigint) => { const m = BigInt(minor); 
 export function buildStediClaimBody(req: ClaimRequest) {
   const c = req.payload
   return {
-    usageIndicator: 'T',
+    // A connected clearinghouse sends real claims: production, never the test indicator.
+    usageIndicator: 'P',
     tradingPartnerServiceId: c.payer.adapterPayerId,
     tradingPartnerName: c.payer.name,
-    submitter: { organizationName: c.billing.legalName, contactInformation: { name: c.billing.legalName, phoneNumber: '0000000000' } },
+    submitter: { organizationName: c.billing.legalName, contactInformation: { name: c.billing.legalName, phoneNumber: (c.billing.phone ?? '').replace(/\D/g, '') } },
     billing: { providerType: 'BillingProvider', organizationName: c.billing.legalName, npi: c.billing.npi, address: { address1: c.billing.address.line1 ?? '', city: c.billing.address.city ?? '', state: c.billing.address.state ?? '', postalCode: (c.billing.address.postal ?? '').replace(/\D/g, '') } },
     subscriber: { memberId: req.memberId, firstName: c.subscriber.first, lastName: c.subscriber.last, dateOfBirth: yyyymmdd(c.subscriber.dateOfBirth), paymentResponsibilityLevelCode: 'P' },
     ...(c.subscriber.relationship !== 'self' ? { dependent: { firstName: c.patient.first, lastName: c.patient.last, dateOfBirth: yyyymmdd(c.patient.dateOfBirth), gender: c.patient.sex === 'female' ? 'F' : c.patient.sex === 'male' ? 'M' : 'U', relationshipToSubscriberCode: '19' } } : {}),
@@ -49,6 +50,8 @@ export function buildStediClaimBody(req: ClaimRequest) {
 
 export async function stediSubmitClaim(req: ClaimRequest, ctx: AdapterCtx): Promise<ClaimSubmitOutcome> {
   if (!ctx.apiKey) return { kind: 'error_retryable', message: 'No Stedi clearinghouse key is connected. Verify by phone or the payer portal.' }
+  if (!/^\d{10}$/.test(req.payload.billing.npi ?? '')) return { kind: 'error_retryable', message: 'Add the practice NPI to the billing entity before sending claims.' }
+  if ((req.payload.billing.phone ?? '').replace(/\D/g, '').length < 10) return { kind: 'error_retryable', message: 'Add the office phone number before sending claims.' }
   const doFetch = ctx.fetch ?? fetch
   let response: Response
   try {

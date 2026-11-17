@@ -58,7 +58,7 @@ export type ClaimPayload = {
   frequency: 'original' | 'replacement' | 'void'
   kind: string
   payer: { id: string; name: string; adapterPayerId: string }
-  billing: { legalName: string; npi: string; address: Record<string, string> }
+  billing: { legalName: string; npi: string; address: Record<string, string>; phone?: string }
   rendering: { name: { first: string; last: string }; npi: string; taxonomy: string }
   patient: { first: string; last: string; dateOfBirth: string; sex: string }
   subscriber: { first: string; last: string; dateOfBirth: string; relationship: string; memberIdLast4: string }

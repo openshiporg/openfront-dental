@@ -45,7 +45,7 @@ export async function buildPayload(tx: Tx, claimId: string, frequency: 'original
     frequency,
     kind: claim.kind,
     payer: { id: payer.id, name: payer.name, adapterPayerId: String((payer.adapterPayerIds as Record<string, string> | null)?.stedi ?? '') },
-    billing: { legalName: entity?.legalName ?? '', npi: entity?.npiType2 ?? '', address },
+    billing: { legalName: entity?.legalName ?? '', npi: entity?.npiType2 ?? '', address, phone: claim.location?.phone ?? '' },
     rendering: { name: { first: first ?? '', last: rest.join(' ') }, npi: provider?.npiType1 ?? '', taxonomy: provider?.taxonomyCode ?? '' },
     patient: { first: claim.patient!.firstName, last: claim.patient!.lastName, dateOfBirth: isoDay(claim.patient!.dateOfBirth), sex: claim.patient!.sexAssignedAtBirth },
     subscriber: { first: person?.firstName ?? named.first ?? '', last: person?.lastName ?? named.last ?? '', dateOfBirth: isoDay(subscriber.dateOfBirth), relationship: claim.coverage!.relationship, memberIdLast4: subscriber.memberIdLast4 },

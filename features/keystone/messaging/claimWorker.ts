@@ -38,7 +38,10 @@ export async function runClaimSubmit(db: Db, claimId: string, deps: EligibilityD
 
   const claim = await db.claim.findUniqueOrThrow({ where: { id: claimId }, include: { currentVersion: true, coverage: { include: { subscriber: { include: { plan: { include: { payer: true } } } } } } } })
   const version = claim.currentVersion!
-  const payload = version.payload as unknown as ClaimPayload
+  const frozen = version.payload as unknown as ClaimPayload
+  // Versions frozen before the office phone was part of the payload take it from the claim's office at send time.
+  const officePhone = frozen.billing.phone || (claim.locationId ? (await db.location.findUnique({ where: { id: claim.locationId }, select: { phone: true } }))?.phone ?? '' : '')
+  const payload: ClaimPayload = { ...frozen, billing: { ...frozen.billing, phone: officePhone } }
   const subscriber = claim.coverage!.subscriber!
   const memberId = subscriber.memberIdSecretId ? await readSecret(db as never, subscriber.memberIdSecretId) : ''
   const adapterKey = 'stedi'

@@ -54,7 +54,7 @@ export async function runEligibilityCheck(db: Db, checkId: string, deps: Eligibi
   const named = (subscriber.personName ?? {}) as { first?: string; last?: string }
   const day = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : '')
   const request: EligibilityRequest = {
-    payerId: payerId ?? '', providerNpi: entity?.npiType2 || '1234567893', providerName: entity?.legalName || 'Practice',
+    payerId: payerId ?? '', providerNpi: entity?.npiType2 ?? '', providerName: entity?.legalName || 'Practice',
     subscriber: { memberId, firstName: person?.firstName ?? named.first ?? '', lastName: person?.lastName ?? named.last ?? '', dateOfBirth: day(subscriber.dateOfBirth) },
     ...(coverage.relationship !== 'self' && coverage.patient ? { dependent: { firstName: coverage.patient.firstName, lastName: coverage.patient.lastName, dateOfBirth: day(coverage.patient.dateOfBirth) } } : {}),
     serviceTypeCode: '35', controlNumber: sha256(`ctl:${check.id}`).slice(0, 9).replace(/[a-f]/g, c => String(c.charCodeAt(0) % 10)),
@@ -64,7 +64,8 @@ export async function runEligibilityCheck(db: Db, checkId: string, deps: Eligibi
   let outcome: EligibilityOutcome
   try {
     const ctx = await adapterContext(db, deps)
-    outcome = (await clearinghouseFor(check.adapterKey).checkEligibility(request, ctx)).outcome
+    // A real check names the practice's own NPI; with none on file nothing is sent.
+    outcome = /^\d{10}$/.test(request.providerNpi) ? (await clearinghouseFor(check.adapterKey).checkEligibility(request, ctx)).outcome : { kind: 'error_retryable', message: 'Add the practice NPI to the billing entity before checking eligibility.' }
   } catch (error) {
     log.error('eligibility call failed', { checkId, error })
     outcome = { kind: 'unknown', message: 'The check could not be completed. It will be re-checked, not repeated.' }
