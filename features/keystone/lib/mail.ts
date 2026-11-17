@@ -75,3 +75,12 @@ export async function sendPasswordResetEmail(resetToken: string, to: string, bas
     console.warn(`Test mail preview: ${getTestMessageUrl(info as any)}`);
   }
 }
+/** The patient portal sign-in code. Only the code and how long it lasts; nothing about the patient. */
+export async function sendPortalCodeEmail(to: string, code: string, minutes: number): Promise<void> {
+  await transport.sendMail({
+    to,
+    from: process.env.SMTP_FROM,
+    subject: `Your sign-in code: ${code}`,
+    text: `Your sign-in code is ${code}. It works for ${minutes} minutes. If you did not ask for it, you can ignore this email.`,
+  });
+}

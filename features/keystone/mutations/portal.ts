@@ -62,10 +62,13 @@ export async function portalRequestCode(_root: unknown, args: { email: string },
   const issued = await issuePortalCode(context.prisma, email)
   if (issued) {
     await command(context.prisma, { name: 'portal.code_sent', actor: portalActor(issued.accountId), idempotencyKey: `portal-code:${issued.accountId}:${Date.now()}`, params: { accountId: issued.accountId } }, async uow => {
-      // Nothing is sent from here: no texting or email machinery lives in this app. The code is never logged or audited.
+      // The code is never logged or audited.
       uow.audit({ eventType: 'portal.code_sent', entityType: 'PortalAccount', entityId: issued.accountId })
       return null
     })
+    const { sendPortalCodeEmail } = await import('../lib/mail')
+    // The answer stays the same either way; a mail failure is logged without the code.
+    await sendPortalCodeEmail(issued.email, issued.code, Math.round(CODE_TTL_MS / 60_000)).catch(error => console.error('portal code email failed', { accountId: issued.accountId, message: (error as Error)?.message }))
   }
   return { sent: true }
 }
