@@ -313,10 +313,13 @@ export async function revokePortalScope(_root: unknown, args: { portalScopeId: s
 
 /** Suspend an account: bumps authVersion, so every portal token for it stops working now. */
 export async function suspendPortalAccount(_root: unknown, args: { portalAccountId: string; reason: string; idempotencyKey: string }, context: Ctx) {
-  const { actor } = staff(context)
+  const { actor, locationIds } = staff(context)
   requirePermission(actor, 'canManagePatients')
   const { idempotencyKey, ...params } = args
   const result = await command(context.prisma, { name: 'portal.suspend', actor, idempotencyKey, params }, async uow => {
+    // Only an account whose patients are all at one of my offices.
+    const scopes = await uow.tx.portalScope.findMany({ where: { accountId: args.portalAccountId }, select: { patientId: true } })
+    for (const s of scopes) if (s.patientId) await assertPatientInScope(uow.tx, locationIds, s.patientId)
     const updated = await transition<any>(uow, { model: 'PortalAccount', id: args.portalAccountId, from: ['invited', 'active'], to: 'suspended', actor, eventType: 'portal.account_suspended', reason: args.reason, data: { authVersion: { increment: 1 }, codeHash: null, codeExpiresAt: null } })
     return { portalAccountId: updated.id, status: updated.status }
   })

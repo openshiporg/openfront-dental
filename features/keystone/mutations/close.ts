@@ -10,7 +10,7 @@ import { parseMoney, postEntry } from '../lib/ledger'
 import { nextReference } from '../lib/sequence'
 import { addDays } from '../lib/time'
 import { dayOf, locationToday, requireReason } from './clinicalShared'
-import { assertLocation, staff, type Ctx } from './shared'
+import { assertLocation, assertPatientInScope, staff, type Ctx } from './shared'
 
 /*
  * Day close and month close (STATE-MACHINES §6.8, DOMAIN I-L2). Closing a day freezes its sheet (production, collections, adjustments,
@@ -207,8 +207,7 @@ export async function postRestatement(_root: unknown, args: { periodCloseId: str
     if (!restatement) throw new DomainError(Codes.GUARD_FAILED, 'There is no restatement to post under.')
     const type = await tx.adjustmentType.findUnique({ where: { id: args.typeId } })
     if (!type || !type.isActive) throw new DomainError(Codes.NOT_FOUND, 'Adjustment type not found.', { field: 'typeId' })
-    const patient = await tx.patient.findUnique({ where: { id: args.patientId }, select: { id: true } })
-    if (!patient) throw new DomainError(Codes.NOT_FOUND, 'Patient not found.')
+    const patient = await assertPatientInScope(tx, locationIds, args.patientId)
     const { accountFor } = await import('./clinicalShared')
     const account = await accountFor(uow, patient.id)
     await advisoryLock(tx, `ledger:${account.id}`)

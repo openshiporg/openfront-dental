@@ -160,11 +160,12 @@ registerApplier('refund.execute', async (uow, actor, request) => {
 
 /** A refund that was rejected leaves nothing behind. Called from the approvals screen through the standard rejection. */
 export async function recordRefundPaid(_root: unknown, args: { refundId: string; reference?: string | null; idempotencyKey: string }, context: Ctx) {
-  const { actor } = staff(context)
+  const { actor, locationIds } = staff(context)
   requirePermission(actor, 'canIssueRefunds', 'canApproveRefunds')
   const { idempotencyKey, ...params } = args
   const result = await command(context.prisma, { name: 'refund.record_paid', actor, idempotencyKey, params }, async uow => {
     const row = await lockRow<any>(uow.tx, 'Refund', args.refundId)
+    assertLocation(locationIds, row.locationId)
     if (row.status !== 'approved') throw new DomainError(Codes.GUARD_FAILED, 'Only an approved check refund can be marked as sent.')
     if (row.method === 'original_tender') throw new DomainError(Codes.GUARD_FAILED, 'A card refund is sent by the system.')
     await transition<any>(uow, { model: 'Refund', id: row.id, from: ['approved'], to: 'executing', actor, eventType: 'refund.check_written' })
