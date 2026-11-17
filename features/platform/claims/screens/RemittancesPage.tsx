@@ -10,12 +10,16 @@ export default async function RemittancesPage() {
   const [d, tz] = await Promise.all([q<any>(`{
     remittances(orderBy: { createdAt: desc }, take: 40) { id ref status traceNumber paymentDate totalPaidMinor paymentMethod exceptionNote payer { name } createdAt }
     held: remittanceClaims(where: { claim: null }, orderBy: { createdAt: desc }, take: 40) { id patientControlNumber paidMinor chargeMinor remittance { ref payer { name } } }
+    linked: remittanceClaims(where: { NOT: [{ claim: null }], remittance: { OR: [{ status: { equals: "exception" } }, { postedCompleteness: { equals: "partial" } }] } }, orderBy: { createdAt: desc }, take: 40) { id patientControlNumber paidMinor chargeMinor claim { id ref } remittance { ref exceptionNote payer { name } } }
+    linkedPosted: paymentPostings(where: { remittanceClaim: { remittance: { OR: [{ status: { equals: "exception" } }, { postedCompleteness: { equals: "partial" } }] } } }, take: 200) { remittanceClaim { id } }
     denials(where: { status: { in: ["open", "working"] } }, orderBy: { createdAt: asc }, take: 40) { id carc preventableClass status amountMinor claim { id ref patient { firstName lastName } } }
     denialReasonMaps { carc suggestedAction }
     payers(orderBy: { name: asc }, take: 100) { id name }
     claims(where: { status: { in: ["acknowledged", "pending_payer"] } }, orderBy: { createdAt: asc }, take: 60) { id ref patient { firstName lastName } }
   }`), practiceTimeZone()]);
   const paths = ['/dashboard/platform/remittances'];
+  const postedIds = new Set((d.linkedPosted as any[]).map((p) => p.remittanceClaim?.id));
+  const heldLinked = (d.linked as any[]).filter((h) => !postedIds.has(h.id));
   const advice = new Map<string, string>((d.denialReasonMaps as any[]).map((r) => [r.carc, r.suggestedAction]));
   return (
     <Page title="Insurance payments">
@@ -27,7 +31,16 @@ export default async function RemittancesPage() {
               <div className="pt-2"><CommandForm op="matchRemittance" submitLabel="Match and post" paths={paths} columns={1} fixed={{ remittanceClaimId: h.id }} fields={[{ name: 'claimId', label: 'Claim', kind: 'select', required: true, options: (d.claims as any[]).map((c) => ({ value: c.id, label: `${c.patient?.firstName} ${c.patient?.lastName} · ${c.ref}` })) }]} /></div>
             </details>
           </Row>
-        )) : <Empty>Every payment line matched a claim.</Empty>}
+        )) : null}
+        {heldLinked.map((h) => (
+          <Row key={h.id} className="items-start">
+            <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine>Claim {h.claim?.ref ?? h.patientControlNumber}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(h.paidMinor)}</span></span><Meta>{h.remittance?.payer?.name} · held{h.remittance?.exceptionNote ? `: ${h.remittance.exceptionNote}` : ''}</Meta></span>
+            <details><summary className="cursor-pointer text-sm font-medium">Post to the claim</summary>
+              <div className="pt-2"><CommandForm op="matchRemittance" submitLabel="Post" paths={paths} columns={1} fixed={{ remittanceClaimId: h.id, claimId: h.claim?.id }} fields={[]} /></div>
+            </details>
+          </Row>
+        ))}
+        {!(d.held as any[]).length && !heldLinked.length ? <Empty>Every payment line matched a claim.</Empty> : null}
       </Section>
       <Section title="Denied lines to work">
         {(d.denials as any[]).length ? (d.denials as any[]).map((n) => (

@@ -261,7 +261,9 @@ export async function matchRemittanceClaim(uow: UnitOfWork, actor: Actor, remitt
   const { tx } = uow
   const rc = await tx.remittanceClaim.findUnique({ where: { id: remittanceClaimId }, include: { remittance: true, lines: true } })
   if (!rc) throw new DomainError(Codes.NOT_FOUND, 'Remittance claim not found.')
-  if (rc.claimId) throw new DomainError(Codes.GUARD_FAILED, 'This payment is already matched to a claim.')
+  // A row held with its claim already linked (the claim was not ready, or a line did not match) can be posted once the claim is fixed.
+  if (await tx.paymentPosting.findFirst({ where: { remittanceClaimId: rc.id }, select: { id: true } })) throw new DomainError(Codes.GUARD_FAILED, 'This payment is already posted to a claim.')
+  if (rc.claimId && rc.claimId !== claimId) throw new DomainError(Codes.GUARD_FAILED, 'This payment is already matched to a different claim.')
   await lockRow<any>(tx, 'Claim', claimId)
   const claim = await tx.claim.findUniqueOrThrow({ where: { id: claimId }, include: { lines: true } })
   if (!ADJUSTABLE_FROM.includes(claim.status)) throw new DomainError(Codes.GUARD_FAILED, `${claim.ref} is ${claim.status.replaceAll('_', ' ')}, so it cannot take a payment.`)
@@ -278,7 +280,7 @@ export async function matchRemittanceClaim(uow: UnitOfWork, actor: Actor, remitt
   await tx.remittanceClaim.update({ where: { id: rc.id }, data: { claimId } })
   const parsed: EraClaim = { patientControlNumber: claim.patientControlNumber, payerClaimControlNumber: rc.payerClaimControlNumber, statusCode: rc.claimStatusCode, chargeMinor: rc.chargeMinor, paidMinor: rc.paidMinor, patientRespMinor: rc.patientRespMinor, adjustments: [], lines: lineRows.map(l => l.line), crossoverCarrier: {} }
   await postClaimPayment(uow, actor, { remittance: rc.remittance as never, remittanceClaimId: rc.id, claim, parsed, lineRows })
-  const open = await tx.remittanceClaim.count({ where: { remittanceId: rc.remittanceId, claimId: null } })
+  const open = await tx.remittanceClaim.count({ where: { remittanceId: rc.remittanceId, from_PaymentPosting_remittanceClaim: { none: {} } } })
   await tx.remittance.update({ where: { id: rc.remittanceId as string }, data: { status: 'posted', postedCompleteness: open ? 'partial' : 'complete', exceptionNote: open ? rc.remittance?.exceptionNote ?? '' : '', version: { increment: 1 } } })
   return { claimId }
 }
