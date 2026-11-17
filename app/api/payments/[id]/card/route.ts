@@ -39,16 +39,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const pay = await authorised(request, id)
   if (!pay) return json({ error: 'Payment not found.' }, 404)
   if (['succeeded', 'partially_refunded', 'refunded'].includes(pay.status)) return json({ status: 'paid', ref: pay.ref })
-  if (pay.status === 'failed') return json({ status: 'failed', message: 'The card was declined.' })
-  if (!pay.providerIntentId) return json({ status: 'pending' })
+  // A decline recorded earlier (the processor's event) is not the last word: the same form may have confirmed a second card since.
+  if (!pay.providerIntentId) return json(pay.status === 'failed' ? { status: 'failed', message: 'The card was declined.' } : { status: 'pending' })
   const intent = await retrieveIntent(pay.providerIntentId)
-  if (!intent) return json({ status: 'pending' })
+  if (!intent) return json(pay.status === 'failed' ? { status: 'failed', message: 'The card was declined.' } : { status: 'pending' })
   const actor = systemActor('payments')
   if (intent.status === 'succeeded') {
     await runInTransaction(keystoneContext.prisma as never, uow => settlePayment(uow, actor, pay.id, { providerIntentId: pay.providerIntentId }))
     return json({ status: 'paid', ref: pay.ref })
   }
-  if (intent.status === 'requires_payment_method') {
+  if (intent.status === 'requires_payment_method' || (pay.status === 'failed' && intent.status !== 'processing')) {
     await runInTransaction(keystoneContext.prisma as never, uow => failPayment(uow, actor, pay.id, 'The card was declined.', 'failed'))
     return json({ status: 'failed', message: 'The card was declined.' })
   }

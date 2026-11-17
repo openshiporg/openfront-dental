@@ -162,14 +162,16 @@ export async function confirmPayLinkPayment(db: Db, code: string, ref: string, n
   const pay = await (db as any).payment.findFirst({ where: { ref: String(ref ?? ''), statementId: row.id, source: 'pay_link' } })
   if (!pay) throw NOT_FOUND()
   if (['succeeded', 'partially_refunded', 'refunded'].includes(pay.status)) return { status: 'paid' as const, amountMinor: pay.amountMinor.toString() }
-  if (pay.status === 'failed') return { status: 'failed' as const, message: pay.failureNote || 'The card was declined.' }
-  if (!pay.providerIntentId) return { status: 'pending' as const }
+  // A decline recorded earlier is not the last word: the patient may have confirmed a second card on the same form since.
+  const declined = { status: 'failed' as const, message: pay.failureNote || 'The card was declined.' }
+  if (!pay.providerIntentId) return pay.status === 'failed' ? declined : { status: 'pending' as const }
   const intent = await retrieveIntent(pay.providerIntentId, deps)
-  if (!intent) return { status: 'pending' as const }
+  if (!intent) return pay.status === 'failed' ? declined : { status: 'pending' as const }
   if (intent.status === 'succeeded') {
     await runInTransaction(db, uow => settlePayment(uow, actor, pay.id, { providerIntentId: pay.providerIntentId }))
     return { status: 'paid' as const, amountMinor: pay.amountMinor.toString() }
   }
+  if (pay.status === 'failed' && intent.status !== 'processing') return declined
   if (intent.status === 'requires_payment_method') {
     await runInTransaction(db, uow => failPayment(uow, actor, pay.id, 'The card was declined.', 'failed'))
     return { status: 'failed' as const, message: 'The card has not been confirmed yet. Please enter the card and try again.' }

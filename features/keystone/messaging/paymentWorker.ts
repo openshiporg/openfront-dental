@@ -89,7 +89,8 @@ export async function reconcilePayments(db: Db, now: Date, deps: PaymentCtx = {}
     const intent = await retrieveIntent(pay.providerIntentId, deps)
     if (!intent) continue
     if (intent.status === 'succeeded') { await runInTransaction(db, uow => settlePayment(uow, actor, pay.id)); settled += 1 }
-    else if (['canceled', 'requires_payment_method'].includes(intent.status)) { await runInTransaction(db, uow => failPayment(uow, actor, pay.id, 'The card was not charged.', 'failed')); failed += 1 }
+    // A card form left open (requires_payment_method) may still be confirmed: give it the hour, not two minutes.
+    else if (intent.status === 'canceled' || (intent.status === 'requires_payment_method' && now.getTime() - pay.createdAt.getTime() > 3_600_000)) { await runInTransaction(db, uow => failPayment(uow, actor, pay.id, 'The card was not charged.', 'failed')); failed += 1 }
   }
   const refunds = await (db as any).refund.findMany({ where: { status: 'unknown', updatedAt: { lt: cutoff } }, take: 20 })
   for (const r of refunds) {
