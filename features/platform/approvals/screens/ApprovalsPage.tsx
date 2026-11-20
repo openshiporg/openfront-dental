@@ -18,14 +18,16 @@ const FIELDS = 'id action summary targetList targetId payloadHash requiredPermis
  */
 export default async function ApprovalsPage({ searchParams }: { searchParams?: Promise<{ view?: string }> }) {
   const view = (await searchParams)?.view === 'decided' ? 'decided' : 'pending';
-  const where = view === 'pending' ? '{ status: { equals: "pending" } }' : '{ status: { not: { equals: "pending" } } }';
+  // A pending request past its expiry can no longer be decided, so it is listed under Decided, not Waiting.
+  const waiting = '{ status: { equals: "pending" }, OR: [{ expiresAt: { equals: null } }, { expiresAt: { gt: $now } }] }';
+  const ended = `{ NOT: [${waiting}] }`;
   const [data, tz] = await Promise.all([
-    q<{ approvalRequests: Request[]; pending: number; decided: number; authenticatedItem: { id: string } | null }>(`{
-      approvalRequests(where: ${where}, orderBy: { createdAt: desc }, take: 100) { ${FIELDS} }
-      pending: approvalRequestsCount(where: { status: { equals: "pending" } })
-      decided: approvalRequestsCount(where: { status: { not: { equals: "pending" } } })
+    q<{ approvalRequests: Request[]; pending: number; decided: number; authenticatedItem: { id: string } | null }>(`query ($now: DateTime!) {
+      approvalRequests(where: ${view === 'pending' ? waiting : ended}, orderBy: { createdAt: desc }, take: 100) { ${FIELDS} }
+      pending: approvalRequestsCount(where: ${waiting})
+      decided: approvalRequestsCount(where: ${ended})
       authenticatedItem { ... on User { id } }
-    }`),
+    }`, { now: new Date().toISOString() }),
     practiceTimeZone(),
   ]);
   const me = data.authenticatedItem?.id;

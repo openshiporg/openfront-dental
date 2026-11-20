@@ -13,7 +13,7 @@ export function Footer({ site }: { site: Site }) {
           </div>
           {first ? (
             <>
-              <p><a href={`tel:${first.phone.replace(/[^\d+]/g, '')}`} className="min-h-11 underline underline-offset-2">{first.phone}</a></p>
+              <p><a href={`tel:${first.phone.replace(/[^\d+]/g, '')}`} className="inline-flex min-h-11 items-center underline underline-offset-2">{first.phone}</a></p>
               <p><strong className="font-medium">Hours</strong> {hoursLines(first.hours).join(', ')} {zoneLabel(first.timeZone)}</p>
             </>
           ) : null}

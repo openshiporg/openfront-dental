@@ -115,7 +115,7 @@ export default async function Home() {
                 <span className="block font-semibold text-[#0b4f4b]">{l.name.replace(`${site.practiceName} — `, '')}</span>
                 <span className="block">{addressLine(l.address)}</span>
               </a>
-              <p><a href={`tel:${l.phone.replace(/[^\d+]/g, '')}`} className="underline underline-offset-2">{l.phone}</a></p>
+              <p><a href={`tel:${l.phone.replace(/[^\d+]/g, '')}`} className="inline-flex min-h-11 items-center underline underline-offset-2">{l.phone}</a></p>
               {hoursLines(l.hours).map(t => <p key={t} className="text-base text-[#4c5a58]">{t} {zoneLabel(l.timeZone)}</p>)}
             </li>
           ))}

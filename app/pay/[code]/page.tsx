@@ -41,7 +41,7 @@ export default async function PayPage({ params }: { params: Promise<{ code: stri
           </ul>
         </section>
       ) : null}
-      <p className="mt-4 text-sm"><a className="underline underline-offset-2" href={`/api/pay/${encodeURIComponent(code)}/pdf`}>Open the printable statement (PDF)</a></p>
+      <p className="mt-4 text-sm"><a className="inline-flex min-h-11 items-center underline underline-offset-2" href={`/api/pay/${encodeURIComponent(code)}/pdf`}>Open the printable statement (PDF)</a></p>
       {view.canPay ? <PayForm code={code} owedMinor={view.owedMinor} stripeKey={process.env.NEXT_PUBLIC_STRIPE_KEY ?? ''} /> : owed > 0n ? <p className="mt-6 text-sm text-neutral-600">Online payment is not available right now. Please call the office.</p> : null}
       <p className="mt-8 text-xs text-neutral-500">Link good until {day(view.expiresAt.slice(0, 10))}. Your card number goes straight to our payment processor and is never stored by the office.</p>
     </main>
