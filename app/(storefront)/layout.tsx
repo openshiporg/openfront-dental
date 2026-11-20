@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 export async function generateMetadata(): Promise<Metadata> {
   const site = await loadSite()
-  return { title: site ? `${site.practiceName}: family dental care` : 'Family dental care', description: 'Book a visit online. Family dental care.' }
+  return { title: { absolute: site ? `${site.practiceName}: family dental care` : 'Family dental care', template: site ? `%s | ${site.practiceName}` : '%s' }, description: 'Book a visit online. Family dental care.' }
 }
 
 export default async function StorefrontLayout({ children }: { children: React.ReactNode }) {
