@@ -7,7 +7,7 @@ import { parseMoney } from './ledger'
 import { failPayment, settlePayment } from './payments'
 import { nextReference } from './sequence'
 import { runInTransaction } from './unitOfWork'
-import { cancelIntent, createIntent, isTestMode, paymentsConfigured, retrieveIntent, type PaymentCtx } from '../../integrations/payments/stripe'
+import { cancelIntent, createIntent, paymentsConfigured, retrieveIntent, type PaymentCtx } from '../../integrations/payments/stripe'
 
 /*
  * The pay link (STATE-MACHINES §6.3). A statement carries a random code; the code opens that one statement's balance, nothing else,
@@ -55,7 +55,7 @@ export const PAY_LINK_PENDING_MINUTES = 30
 /**
  * Expire this statement's pay-link payments left in `requires_action` (or `initiated`) for more than 30 minutes, when the link is
  * read: no timer, no background work. The processor is asked first; a payment that did go through is settled, never failed. An
- * unfinished TEST-mode intent is cancelled at Stripe; a live-mode one is only asked about (its own expiry applies). Then the
+ * unfinished intent is cancelled at Stripe (so it can never be charged after we mark it expired). Then the
  * payment is marked failed ("expired"), so it no longer blocks a new attempt or day close.
  */
 export async function expireStalePayLinkPayments(db: Db, statementId: string, now = new Date(), deps: PaymentCtx = {}) {
@@ -68,7 +68,7 @@ export async function expireStalePayLinkPayments(db: Db, statementId: string, no
       if (!intent) continue
       if (intent.status === 'succeeded') { await runInTransaction(db, uow => settlePayment(uow, actor, pay.id, { providerIntentId: pay.providerIntentId })); continue }
       if (intent.status === 'processing') continue
-      if (intent.status !== 'canceled' && isTestMode(deps.apiKey)) {
+      if (intent.status !== 'canceled') {
         const cancelled = await cancelIntent(pay.providerIntentId, deps)
         if (cancelled.kind === 'succeeded') { await runInTransaction(db, uow => settlePayment(uow, actor, pay.id, { providerIntentId: pay.providerIntentId })); continue }
         if (cancelled.kind === 'unknown') continue

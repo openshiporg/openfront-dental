@@ -42,8 +42,6 @@ export type CustomerOutcome = { kind: 'ok'; customerId: string; methodId: string
 
 const BASE = 'https://api.stripe.com'
 
-/** Test mode is read from the key's own prefix, so the label can never disagree with what is actually running. */
-export const isTestMode = (apiKey = process.env.STRIPE_SECRET_KEY ?? '') => apiKey.startsWith('sk_test_')
 export const paymentsConfigured = () => Boolean(process.env.STRIPE_SECRET_KEY)
 
 function form(data: Record<string, string | number | boolean | undefined>) {

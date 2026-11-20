@@ -10,7 +10,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const row = await keystoneContext.prisma.practiceSettings.findUnique({ where: { id: 1 }, select: { displayName: true } });
     if (row?.displayName) name = row.displayName;
   } catch {}
-  return { title: `${name} staff`, description: `${name} staff dashboard` };
+  return { title: { absolute: `${name} staff` }, description: `${name} staff dashboard` };
 }
 
 export default function DashboardLayout({
