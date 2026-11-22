@@ -61,7 +61,7 @@ export default async function TodayPage() {
     { n: statements, one: 'statement is not paid yet', many: 'statements are not paid yet', href: '/dashboard/platform/payments' },
     { n: recalls, one: 'patient is due for a cleaning or check-up', many: 'patients are due for a cleaning or check-up', href: '/dashboard/platform/recall' },
     { n: approvals, one: 'request is waiting for a second person', many: 'requests are waiting for a second person', href: '/dashboard/platform/approvals' },
-  ].filter((w) => w.n !== null);
+  ].filter((w) => w.n !== null && w.n > 0);
   const shortcuts = [
     ['Schedule', '/dashboard/platform/schedule'], ['Patients', '/dashboard/platform/patients'], ['Patient payments', '/dashboard/platform/payments'],
     ['Claims', '/dashboard/platform/claims'], ['Recall', '/dashboard/platform/recall'], ['Day and month close', '/dashboard/platform/close'],
@@ -99,7 +99,7 @@ export default async function TodayPage() {
         ) : null}
 
         {day ? (
-          <Section title={`${title} · ${calendarDate(shown, 'day')}`} aside={<Link href={`/dashboard/platform/schedule?date=${shown}`} className="text-sm font-medium underline underline-offset-4">Open the schedule</Link>}>
+          <Section title={`${title} · ${calendarDate(shown, 'day')}`} aside={<Link href={`/dashboard/platform/schedule?date=${shown}`} className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4 md:min-h-0">Open the schedule</Link>}>
             {visits.length ? (
               <div className="space-y-4">
                 {chairs(visits).map(([chair, list]) => (

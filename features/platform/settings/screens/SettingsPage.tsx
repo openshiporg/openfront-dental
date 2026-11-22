@@ -32,7 +32,7 @@ export default async function SettingsPage() {
           <Row><span>Patient marked inactive</span><Meta>After {s.inactiveAfterMonths} months without a visit</Meta></Row>
         </Section>
       ) : null}
-      <Section title="Offices" aside={<Link href="/dashboard/platform/settings/locations" className="text-sm font-medium underline underline-offset-4">Chairs, hours and visit types</Link>}>
+      <Section title="Offices" aside={<Link href="/dashboard/platform/settings/locations" className="inline-flex min-h-11 items-center text-sm font-medium underline underline-offset-4 md:min-h-0">Chairs, hours and visit types</Link>}>
         {locations.length ? locations.map((l) => (
           <Link key={l.id} href={`/dashboard/platform/settings/locations?loc=${l.id}`} className={go}>
             <span className="min-w-0"><span className="block truncate">{officeName(l)}</span><Meta>{[l.phone, zoneLabel(l.timeZone)].filter(Boolean).join(' · ')}</Meta></span>
