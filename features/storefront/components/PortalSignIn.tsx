@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { gql } from '../lib/api'
 
 const field = 'h-11 w-full rounded-[3px] border border-[#cfc6b4] bg-white/90 px-3 text-base focus:border-[#3a9e98] focus:outline-none focus:ring-2 focus:ring-[#3a9e98]/30'
@@ -46,6 +46,13 @@ export function PortalSignIn() {
     for (const p of me.portalMe.people) next[p.patientId] = (await gql<any>('query($p:ID!){ portalAppointments(patientId:$p) }', { p: p.patientId }, auth())).portalAppointments.appointments
     setAppts(next); setStep('in')
   }
+  // Coming back in the same tab: the session from the emailed code is still good, so open the account straight away.
+  useEffect(() => {
+    if (!sessionStorage.getItem(TOKEN)) return
+    setEmail(sessionStorage.getItem(`${TOKEN}-email`) ?? '')
+    load().catch(() => sessionStorage.removeItem(TOKEN))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   async function run(fn: () => Promise<void>) { setBusy(true); setMsg(''); try { await fn() } catch (e) { setMsg((e as Error).message) } finally { setBusy(false) } }
 
   const when = (a: Appt) => new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: a.timeZone, timeZoneName: 'short' }).format(new Date(a.startsAt)).replace(/\b(EST|EDT)\b/, 'ET')
@@ -77,7 +84,7 @@ export function PortalSignIn() {
           </section>
         ))}
         {!people.length ? <Register busy={busy} onDone={() => run(load)} run={run} auth={auth} /> : null}
-        <p className="mt-5"><Link href="/book" className="inline-flex min-h-11 items-center rounded-[3px] bg-[#dc6244] px-5 font-medium text-white hover:bg-[#c75537]">Book another visit</Link></p>
+        {people.length ? <p className="mt-5"><Link href="/book" className="inline-flex min-h-11 items-center rounded-[3px] bg-[#dc6244] px-5 font-medium text-white hover:bg-[#c75537]">Book another visit</Link></p> : null}
         {msg ? <p role="alert" className="mt-3 text-[#a5321b]">{msg}</p> : null}
       </div>
     )
@@ -85,7 +92,7 @@ export function PortalSignIn() {
   return (
     <form className="space-y-3" onSubmit={e => { e.preventDefault(); run(async () => {
       if (step === 'email') { await gql('mutation($e:String!){ portalRequestCode(email:$e) }', { e: email }); setStep('code'); setMsg('We sent a six-digit code to that email. It works for 10 minutes.') }
-      else { const d = await gql<{ portalSession: { token: string } }>('mutation($e:String!,$c:String!){ portalSession(email:$e,code:$c) }', { e: email, c: code }); sessionStorage.setItem(TOKEN, d.portalSession.token); await load() }
+      else { const d = await gql<{ portalSession: { token: string } }>('mutation($e:String!,$c:String!){ portalSession(email:$e,code:$c) }', { e: email, c: code }); sessionStorage.setItem(`${TOKEN}-email`, email); sessionStorage.setItem(TOKEN, d.portalSession.token); await load() }
     }) }}>
       <div><label className="mb-1 block text-sm" htmlFor="ps-email">Email</label><input id="ps-email" type="email" required className={field} value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" disabled={step === 'code'} /></div>
       {step === 'code' ? <div><label className="mb-1 block text-sm" htmlFor="ps-code">Six-digit code</label><input id="ps-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required autoFocus className={`${field} tracking-[0.3em] tabular-nums`} value={code} onChange={e => setCode(e.target.value.replace(/\D/g, ''))} /></div> : null}
@@ -96,7 +103,7 @@ export function PortalSignIn() {
           <button type="button" disabled={busy} className="min-h-11 underline underline-offset-4" onClick={() => run(async () => { await gql('mutation($e:String!){ portalRequestCode(email:$e) }', { e: email }); setCode(''); setMsg('We sent a new code. The older one no longer works.') })}>Send a new code</button>
           <button type="button" disabled={busy} className="min-h-11 underline underline-offset-4" onClick={() => { setStep('email'); setCode(''); setMsg('') }}>Use a different email</button>
         </p>
-      ) : <p className="text-base text-[#4c5a58]">We email you a six-digit code; there is no password. Your account is made when you book online with your email, or the office can add you.</p>}
+      ) : <p className="text-base text-[#4c5a58]">We email you a six-digit code; there is no password. First time here? The same code creates your account.</p>}
     </form>
   )
 }
