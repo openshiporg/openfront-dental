@@ -56,7 +56,9 @@ export async function enforcePublicLimit(prisma: any, input: { scope: string; re
   }
   if (refused !== null) {
     const minutes = Math.max(1, Math.ceil(refused / 60))
-    throw new DomainError(Codes.RATE_LIMITED, `Too many tries from this connection. Please wait ${minutes} minute${minutes === 1 ? '' : 's'} and try again, or call the office.`, { reason: 'rate_limited', retryAfterSeconds: refused })
+    const hours = Math.ceil(minutes / 60)
+    const wait = minutes < 90 ? `${minutes} minute${minutes === 1 ? '' : 's'}` : `about ${hours} hours`
+    throw new DomainError(Codes.RATE_LIMITED, `That’s more tries than we allow in a row. Please try again in ${wait}, or call the office.`, { reason: 'rate_limited', retryAfterSeconds: refused })
   }
 }
 
