@@ -104,7 +104,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
       <Section title="Contact and consent">
         {(p.contactPoints as any[]).length ? (p.contactPoints as any[]).map((c) => (
           <Row key={c.id}>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 basis-64">
               <div className="font-medium">{c.value} <span className="text-xs font-normal text-muted-foreground">{title(c.kind)}{c.isPrimary ? ' · primary' : ''}{c.isActive ? '' : ' · no longer used'}</span></div>
               <Meta>{(c.consentGrants as any[]).length ? (c.consentGrants as any[]).map((g) => `${title(g.purpose)} by ${label(g.channel)}: ${label(g.status)}${g.needsReconfirmation ? ' (ask again)' : ''}`).join(' · ') : 'No consent recorded'}</Meta>
             </div>

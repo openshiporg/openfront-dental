@@ -96,36 +96,34 @@ export default async function PatientLedgerPage({ params }: { params: Promise<{ 
           </div>
         ) : <Empty>No charges or payments yet.</Empty>}
       </Section>
-      {account ? (
-        <Section title="Take a payment">
-          <details><summary className="cursor-pointer text-sm font-medium">New payment</summary>
-            <div className="pt-2"><CommandForm op="takePayment" submitLabel="Take payment" paths={paths} columns={2} fixed={{ patientId: id, locationId: p.homeLocation?.id }} fields={[
-              { name: 'amount', label: 'Amount in dollars', kind: 'text', required: true, placeholder: '50.00' },
-              { name: 'tender', label: 'Paid by', kind: 'select', required: true, options: [{ value: 'cash', label: 'Cash' }, { value: 'check', label: 'Check' }, ...(paymentsConfigured() && (d.paymentMethodTokens as any[]).length ? [{ value: 'card', label: 'Card on file' }] : [])] },
-              { name: 'checkNumber', label: 'Check number', kind: 'text', hint: 'For a check.' },
-              ...(paymentsConfigured() && (d.paymentMethodTokens as any[]).length ? [{ name: 'methodTokenId', label: 'Card on file', kind: 'select' as const, options: [{ value: '', label: 'None' }, ...(d.paymentMethodTokens as any[]).map((t) => ({ value: t.id, label: `${title(t.brand)} ending ${t.last4}` }))] }] : []),
-            ]} /></div>
+      <Section title="Take a payment">
+        <details><summary className="cursor-pointer text-sm font-medium">New payment</summary>
+          <div className="pt-2"><CommandForm op="takePayment" submitLabel="Take payment" paths={paths} columns={2} fixed={{ patientId: id, locationId: p.homeLocation?.id }} fields={[
+            { name: 'amount', label: 'Amount in dollars', kind: 'text', required: true, placeholder: '50.00' },
+            { name: 'tender', label: 'Paid by', kind: 'select', required: true, options: [{ value: 'cash', label: 'Cash' }, { value: 'check', label: 'Check' }, ...(paymentsConfigured() && (d.paymentMethodTokens as any[]).length ? [{ value: 'card', label: 'Card on file' }] : [])] },
+            { name: 'checkNumber', label: 'Check number', kind: 'text', hint: 'For a check.' },
+            ...(paymentsConfigured() && (d.paymentMethodTokens as any[]).length ? [{ name: 'methodTokenId', label: 'Card on file', kind: 'select' as const, options: [{ value: '', label: 'None' }, ...(d.paymentMethodTokens as any[]).map((t) => ({ value: t.id, label: `${title(t.brand)} ending ${t.last4}` }))] }] : []),
+          ]} /></div>
+        </details>
+        {paymentsConfigured() ? (
+          <details><summary className="cursor-pointer text-sm font-medium">New card</summary>
+            <div className="pt-2"><CardPayment patientId={id} locationId={p.homeLocation?.id} stripeKey={process.env.NEXT_PUBLIC_STRIPE_KEY ?? ''} paths={paths} /></div>
           </details>
-          {paymentsConfigured() ? (
-            <details><summary className="cursor-pointer text-sm font-medium">New card</summary>
-              <div className="pt-2"><CardPayment patientId={id} locationId={p.homeLocation?.id} stripeKey={process.env.NEXT_PUBLIC_STRIPE_KEY ?? ''} paths={paths} /></div>
-            </details>
-          ) : <Meta>Card payments are not set up yet.</Meta>}
-          {(d.payments as any[]).length ? (d.payments as any[]).map((pay) => (
-            <Row key={pay.id} className="items-start">
-              <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine status={pay.status === 'succeeded' ? null : pay.status}>{title(pay.tender)}{pay.methodToken ? ` ending ${pay.methodToken.last4}` : ''} · {pay.ref}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(pay.amountMinor)}</span></span>
-                <Meta>{calendarDate(pay.createdAt, 'date')}{BigInt(pay.refundedMinor) > 0n ? ` · ${money(pay.refundedMinor)} refunded` : ''}{pay.failureNote ? ` · ${pay.failureNote}` : ''}</Meta>
-                {['succeeded', 'partially_refunded'].includes(pay.status) && BigInt(pay.amountMinor) > BigInt(pay.refundedMinor) ? <details className="mt-1"><summary className="cursor-pointer text-sm font-medium">Refund</summary>
-                  <div className="pt-2"><CommandForm op="requestRefund" submitLabel="Ask for a refund" paths={paths} columns={1} fixed={{ paymentId: pay.id }} fields={[
-                    { name: 'amount', label: 'Amount in dollars', kind: 'text', required: true, defaultValue: (Number(BigInt(pay.amountMinor) - BigInt(pay.refundedMinor)) / 100).toFixed(2) },
-                    { name: 'method', label: 'Refund by', kind: 'select', options: pay.tender === 'card' ? [{ value: 'original_tender', label: 'Back to the card' }, { value: 'check', label: 'Check' }] : [{ value: 'check', label: 'Check' }] },
-                    { name: 'reason', label: 'Reason', kind: 'textarea', required: true },
-                  ]} /></div></details> : null}
-              </span>
-            </Row>
-          )) : null}
-        </Section>
-      ) : null}
+        ) : <Meta>Card payments are not set up yet.</Meta>}
+        {(d.payments as any[]).length ? (d.payments as any[]).map((pay) => (
+          <Row key={pay.id} className="items-start">
+            <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine status={pay.status === 'succeeded' ? null : pay.status}>{title(pay.tender)}{pay.methodToken ? ` ending ${pay.methodToken.last4}` : ''} · {pay.ref}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(pay.amountMinor)}</span></span>
+              <Meta>{calendarDate(pay.createdAt, 'date')}{BigInt(pay.refundedMinor) > 0n ? ` · ${money(pay.refundedMinor)} refunded` : ''}{pay.failureNote ? ` · ${pay.failureNote}` : ''}</Meta>
+              {['succeeded', 'partially_refunded'].includes(pay.status) && BigInt(pay.amountMinor) > BigInt(pay.refundedMinor) ? <details className="mt-1"><summary className="cursor-pointer text-sm font-medium">Refund</summary>
+                <div className="pt-2"><CommandForm op="requestRefund" submitLabel="Ask for a refund" paths={paths} columns={1} fixed={{ paymentId: pay.id }} fields={[
+                  { name: 'amount', label: 'Amount in dollars', kind: 'text', required: true, defaultValue: (Number(BigInt(pay.amountMinor) - BigInt(pay.refundedMinor)) / 100).toFixed(2) },
+                  { name: 'method', label: 'Refund by', kind: 'select', options: pay.tender === 'card' ? [{ value: 'original_tender', label: 'Back to the card' }, { value: 'check', label: 'Check' }] : [{ value: 'check', label: 'Check' }] },
+                  { name: 'reason', label: 'Reason', kind: 'textarea', required: true },
+                ]} /></div></details> : null}
+            </span>
+          </Row>
+        )) : null}
+      </Section>
       {account ? (
         <Section title="Payment plan">
           {(d.paymentPlans as any[]).length ? (d.paymentPlans as any[]).map((pl) => (

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { chartLabel } from '../../lib/format';
+import { officeName } from '../../lib/format';
 import { q } from '../../lib/server';
 import { money, when, zoneLabel } from '../../lib/format';
 import { Page, Section, Stat, Tabs, Empty, Meta, Row, TitleLine } from '../../components/ui';
@@ -41,13 +42,13 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Pr
   return (
     <Page title="Schedule">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs active={location.id} items={meta.locations.map((l) => ({ key: l.id, label: l.code, href: link({ loc: l.id, appt: undefined }) }))} />
+        <Tabs active={location.id} items={meta.locations.map((l) => ({ key: l.id, label: officeName(l), href: link({ loc: l.id, appt: undefined }) }))} />
         <Tabs active={view} items={[{ key: 'day', label: 'Day', href: link({ view: 'day', appt: undefined }) }, { key: 'week', label: 'Week', href: link({ view: 'week', appt: undefined }) }]} />
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Link className="rounded-md border px-2.5 py-1 hover:bg-muted" href={link({ date: addDays(date, -step), appt: undefined })}>← {view === 'week' ? 'Last week' : 'Previous'}</Link>
-        <Link className="rounded-md border px-2.5 py-1 hover:bg-muted" href={link({ date: today, appt: undefined })}>Today</Link>
-        <Link className="rounded-md border px-2.5 py-1 hover:bg-muted" href={link({ date: addDays(date, step), appt: undefined })}>{view === 'week' ? 'Next week' : 'Next'} →</Link>
+        <Link className="inline-flex min-h-11 items-center rounded-md border px-3 hover:bg-muted md:min-h-9" href={link({ date: addDays(date, -step), appt: undefined })}>← {view === 'week' ? 'Last week' : 'Previous'}</Link>
+        <Link className="inline-flex min-h-11 items-center rounded-md border px-3 hover:bg-muted md:min-h-9" href={link({ date: today, appt: undefined })}>Today</Link>
+        <Link className="inline-flex min-h-11 items-center rounded-md border px-3 hover:bg-muted md:min-h-9" href={link({ date: addDays(date, step), appt: undefined })}>{view === 'week' ? 'Next week' : 'Next'} →</Link>
         <span className="font-medium">{view === 'week' ? `Week of ${shortDay(weekStart(date))}` : dayTitle(date)}</span>
         <span className="text-muted-foreground">· {location.name} · {zoneLabel(tz)}</span>
       </div>

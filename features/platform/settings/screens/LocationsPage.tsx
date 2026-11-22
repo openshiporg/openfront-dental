@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { q } from '../../lib/server';
 import { money, label, title, calendarDate, zoneLabel } from '../../lib/format';
+import { officeName } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Status, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
 import { CommandForm } from '../../components/CommandForm';
@@ -37,8 +38,8 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
   const canConnect = await holdsAny(['canManageAdapters']);
   const line = ((voice.voiceConnections?.lines ?? []) as any[]).find((l) => l.locationId === location.id);
   return (
-    <Page title="Locations & operatories" crumbs={[{ label: 'Practice settings' }]}>
-      <Tabs active={location.id} items={meta.locations.map((l: any) => ({ key: l.id, label: l.code, href: `/dashboard/platform/settings/locations?loc=${l.id}` }))} />
+    <Page title="Locations & operatories" crumbs={[{ label: 'Practice settings', href: '/dashboard/platform/settings' }]}>
+      <Tabs active={location.id} items={meta.locations.map((l: any) => ({ key: l.id, label: officeName(l), href: `/dashboard/platform/settings/locations?loc=${l.id}` }))} />
       <Section title={location.name}>
         <Row><span>Time zone</span><Meta>{zoneLabel(location.timeZone)}</Meta></Row>
         <Row><span>Jurisdiction pack</span><Meta>{location.jurisdiction?.label ?? 'Generic (strict defaults)'}</Meta></Row>
@@ -84,7 +85,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
           const pattern = (Array.isArray(t.defaultPattern) ? t.defaultPattern : []) as { role: string; units: number }[];
           return (
             <Row key={t.id}>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 basis-64">
                 <div className="flex items-center gap-2"><span className="size-2.5 rounded-full" style={{ background: t.colour }} /><span className="font-medium">{t.name}</span></div>
                 <Meta>{pattern.map((u) => `${title(u.role)} ${u.units * unit} min`).join(' → ')} · {t.defaultDurationUnits * unit} min · est. {money(t.defaultProductionMinor)}</Meta>
               </div>
@@ -93,7 +94,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
           );
         })}
       </Section>
-      <Section title="Online booking policy (API)">
+      <Section title="Online booking">
         {data.onlineBookingPolicies.length ? data.onlineBookingPolicies.map((p: any) => (
           <div key={p.id} className="space-y-1 text-sm">
             <Row><span>Status</span><Status value={p.isActive ? 'active' : 'paused'} /></Row>
@@ -102,7 +103,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
             <Row><span>Bookable types</span><Meta>{p.appointmentTypes.map((t: any) => t.name).join(', ')}</Meta></Row>
           </div>
         )) : <Empty>Online booking is off for this location.</Empty>}
-        <p className="text-xs text-muted-foreground">The public booking API serves these times to the practice&apos;s own booking pages. See <Link className="underline" href="/dashboard/platform/schedule/booking-requests">booking requests</Link>.</p>
+        <p className="text-xs text-muted-foreground">These rules decide which times patients see on the booking page. See <Link className="underline" href="/dashboard/platform/schedule/booking-requests">booking requests</Link>.</p>
       </Section>
       <Section title="Phone and voice">
         {line ? (

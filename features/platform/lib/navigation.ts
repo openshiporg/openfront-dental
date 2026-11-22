@@ -34,7 +34,7 @@ export const platformNavItems: PlatformNavItem[] = [
 
   { title: 'Claims', href: '/platform/claims', color: 'teal', description: 'Build, check and send claims; follow them to payment.', icon: Receipt, group: 'billing' },
   { title: 'Patient payments', href: '/platform/payments', color: 'emerald', description: 'Refunds, statements and credits on patient accounts.', icon: Landmark, group: 'billing' },
-  { title: 'Memberships', href: '/platform/memberships', color: 'teal', description: 'In-house plans, members and the licence the state asks for.', icon: BadgeCheck, group: 'billing' },
+  { title: 'Memberships', href: '/platform/memberships', color: 'teal', description: 'In-house plans, members and the license the state asks for.', icon: BadgeCheck, group: 'billing' },
   { title: 'Day and month close', href: '/platform/close', color: 'amber', description: 'Close the day, bank the cash, close and reopen the month.', icon: ClipboardCheck, group: 'billing' },
   { title: 'Insurance payments', href: '/platform/remittances', color: 'emerald', description: 'Payments received, lines to match, denied lines to work.', icon: Landmark, group: 'billing' },
 
@@ -60,7 +60,7 @@ export const platformNavItems: PlatformNavItem[] = [
 
 /** Routes that exist in this build. Others stay out of the menu until their phase ships. */
 export const SHIPPED_ROUTES = new Set<string>([
-  '/platform/approvals', '/platform/audit', '/platform/settings/security',
+  '/platform/approvals', '/platform/audit', '/platform/settings/security', '/platform/settings',
   // Phase 1
   '/platform/schedule', '/platform/patients', '/platform/schedule/asap', '/platform/schedule/confirmations', '/platform/schedule/booking-requests', '/platform/settings/locations',
   // Phase 2

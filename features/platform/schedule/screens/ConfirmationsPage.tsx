@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { chartLabel } from '../../lib/format';
+import { officeName } from '../../lib/format';
 import { q } from '../../lib/server';
 import { when, label, title } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
@@ -33,11 +34,11 @@ export default async function ConfirmationsPage({ searchParams }: { searchParams
   return (
     <Page title="Confirmations" crumbs={[{ label: 'Schedule', href: '/dashboard/platform/schedule' }]}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs active={location.id} items={meta.locations.map((l: any) => ({ key: l.id, label: l.code, href: `${base}?loc=${l.id}&date=${from}` }))} />
+        <Tabs active={location.id} items={meta.locations.map((l: any) => ({ key: l.id, label: officeName(l), href: `${base}?loc=${l.id}&date=${from}` }))} />
         <div className="flex items-center gap-2 text-sm">
-          <Link className="rounded-md border px-2.5 py-1 hover:bg-muted" href={`${base}?loc=${location.id}&date=${addDays(from, -3)}`}>←</Link>
+          <Link className="inline-flex min-h-11 items-center rounded-md border px-3 hover:bg-muted md:min-h-9" href={`${base}?loc=${location.id}&date=${addDays(from, -3)}`}>←</Link>
           <span className="font-medium">{shortDay(from)} – {shortDay(to)}</span>
-          <Link className="rounded-md border px-2.5 py-1 hover:bg-muted" href={`${base}?loc=${location.id}&date=${addDays(from, 3)}`}>→</Link>
+          <Link className="inline-flex min-h-11 items-center rounded-md border px-3 hover:bg-muted md:min-h-9" href={`${base}?loc=${location.id}&date=${addDays(from, 3)}`}>→</Link>
         </div>
       </div>
       <p className="text-sm text-muted-foreground">{unconfirmed.length} of {appts.length} visits not yet confirmed.</p>

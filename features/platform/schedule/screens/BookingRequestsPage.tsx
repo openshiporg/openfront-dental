@@ -41,21 +41,21 @@ export default async function BookingRequestsPage({ searchParams }: { searchPara
           const candidates = (r.matchEvidence?.candidates ?? []) as { chartNumber: string; evidence: string[]; score: number }[];
           return (
             <Row key={r.id}>
-              <div className="min-w-0 flex-1 space-y-1">
+              <div className="min-w-0 flex-1 basis-64 space-y-1">
                 <TitleLine status={r.status}>
                   <span className="font-medium">{c.firstName} {c.lastName}</span>
                   <span className="font-mono text-xs text-muted-foreground">{r.publicRef}</span>
                 </TitleLine>
                 <div className={r.matchStatus === 'possible_duplicate' ? 'text-sm text-amber-800' : 'text-sm text-muted-foreground'}>{r.matchStatus === 'new_patient' ? 'New patient' : r.matchStatus === 'matched' ? 'Matched an existing patient' : 'Possible existing patient'}</div>
-                <Meta>{r.location?.code} · {r.appointment?.type?.name ?? 'Visit'} · {r.appointment ? when(r.appointment.startsAt, tz, 'dayTime') : 'no visit'} · sent {when(r.createdAt, tz)} · captcha {label(r.captchaScore || 'not_configured')}</Meta>
+                <Meta>{r.location?.code} · {r.appointment?.type?.name ?? 'Visit'} · {r.appointment ? when(r.appointment.startsAt, tz, 'dayTime') : 'no visit'} · sent {when(r.createdAt, tz)}</Meta>
                 <div><Meta>{[c.email, c.phone, c.dateOfBirth ? `born ${calendarDate(c.dateOfBirth, 'date')}` : ''].filter(Boolean).join(' · ')}</Meta></div>
                 {r.patientMatch ? <div><Link className="text-sm underline-offset-2 hover:underline" href={`/dashboard/platform/patients/${r.patientMatch.id}`}>Booked on {chartLabel(r.patientMatch.chartNumber)} ({label(r.patientMatch.status)})</Link>{r.appointment ? <> · <Link className="text-sm underline-offset-2 hover:underline" href={`/dashboard/platform/schedule?date=${r.appointment.startsAt.slice(0, 10)}&appt=${r.appointment.id}`}>{r.appointment.ref} ({label(r.appointment.status)})</Link></> : null}</div> : null}
                 {candidates.length ? <div className="text-sm text-amber-800">Possible existing patient: {candidates.map((x) => `${chartLabel(x.chartNumber)} (${x.evidence.map(label).join(', ')})`).join('; ')}</div> : null}
                 {r.reviewedAt ? <Meta>Reviewed by {r.reviewedBy?.name ?? 'staff'} · {when(r.reviewedAt, tz)}{r.reviewNote ? ` · ${r.reviewNote}` : ''}</Meta> : null}
               </div>
-              <div className="flex min-w-0 flex-col items-end gap-2">
+              <div className="flex min-w-0 flex-col gap-2 sm:items-end">
                 {!r.reviewedAt ? (
-                  <div className="flex flex-wrap justify-end gap-2">
+                  <div className="flex flex-wrap gap-2 sm:justify-end">
                     <ActionButton op="reviewBookingRequest" vars={{ requestId: r.id, decision: 'accept', expectedVersion: r.version }} paths={PATHS}>{r.matchStatus === 'possible_duplicate' ? 'Different person: keep' : 'Keep'}</ActionButton>
                     <ActionButton op="reviewBookingRequest" vars={{ requestId: r.id, decision: 'reject_spam', expectedVersion: r.version }} ask="Why is this spam? The visit will be withdrawn." paths={PATHS}>Reject as spam</ActionButton>
                   </div>
@@ -69,7 +69,7 @@ export default async function BookingRequestsPage({ searchParams }: { searchPara
           );
         }) : <Empty>{view === 'open' ? 'No online bookings to review.' : 'Nothing reviewed yet.'}</Empty>}
       </Section>
-      <p className="text-xs text-muted-foreground">Online booking runs through the public API (rate limited, captcha hook, no patient names returned). The practice&apos;s booking pages call it; this inbox is the staff side.</p>
+      <p className="text-xs text-muted-foreground">Every request here already holds its time on the schedule. Keep it, or reject it to free the time.</p>
     </Page>
   );
 }

@@ -56,7 +56,7 @@ export default async function CompliancePage() {
           ]} /></div>
         </details>
       </Section>
-      <Section title="Licences and credentials">
+      <Section title="Licenses and credentials">
         {creds.length ? creds.map((c) => <Row key={c.id}><span className="min-w-0"><TitleLine status={credState(c) === 'current' ? null : 'overdue'}>{c.holder?.displayName ?? 'Staff'} · {title(c.kind)} {c.jurisdiction}{c.numberLast4 ? ` ending ${c.numberLast4}` : ''}</TitleLine><Meta>Expires {calendarDate(c.expiresOn, 'date')} · {credState(c)}</Meta></span></Row>) : <Empty>No credentials with an expiry date.</Empty>}
       </Section>
       <Section title="Patient requests (30 days to answer)">

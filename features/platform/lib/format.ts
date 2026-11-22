@@ -132,13 +132,13 @@ const WORDS: Record<string, string> = {
   replied_confirm: 'replied to confirm', replied_cancel: 'replied to cancel', replied_other: 'replied', queued: 'queued', sent: 'sent', delivered: 'delivered', failed: 'failed', suppressed: 'suppressed',
   granted: 'granted', revoked: 'withdrawn', quiet_hours: 'quiet hours', no_consent: 'no consent', opted_out: 'opted out', synthetic: 'fictional record',
   // staff and licences
-  dental_licence: 'dental licence', hygiene_licence: 'hygiene licence', da_radiography: 'radiography permit', sedation_permit: 'sedation permit', state_controlled_substance: 'state controlled-substance registration',
+  dental_licence: 'dental license', hygiene_licence: 'hygiene license', da_radiography: 'radiography permit', sedation_permit: 'sedation permit', state_controlled_substance: 'state controlled-substance registration',
   full_time: 'full-time', part_time: 'part-time', invited: 'invited', disabled: 'disabled', suspended: 'suspended',
   // approvals, agents and audit
   pending: 'pending', approved: 'approved', rejected: 'rejected', expired: 'expired', executed: 'done', executing: 'running', superseded: 'superseded', reverted: 'undone',
   human_active: 'staff active', agent_active: 'agent active', rules_engine: 'rules engine', reviewed_ok: 'reviewed, fine', reviewed_violation: 'reviewed, policy breach',
   claim_attachment: 'claim attachment', clinical_attachment: 'clinical attachment', insurance_directory: 'insurance directory', report_received: 'report received',
-  break_glass: 'emergency access', code_licence: 'code licence',
+  break_glass: 'emergency access', code_licence: 'code license',
   // insurance: payers, plans, coordination, benefits, sources, checks
   commercial: 'commercial', medicaid: 'Medicaid', chip: 'CHIP', medicare_advantage: 'Medicare Advantage', tricare: 'TRICARE', discount: 'discount plan',
   indemnity: 'indemnity', dhmo: 'DHMO', ma_dental: 'Medicare Advantage dental', in_network: 'in network', out_of_network: 'out of network',
@@ -195,3 +195,6 @@ export function languageName(code: string | null | undefined) {
 
 /** Chart numbers are plain numbers; screens show them as "Chart #1001". */
 export const chartLabel = (n: string | null | undefined) => (n ? `Chart #${n}` : '')
+
+/** An office's short name for tabs and lists: "St. Petersburg", not the code "STP" or the full practice name. */
+export const officeName = (l: { name?: string | null; code?: string | null }) => (l.name ?? '').split(/\s[—–-]\s/).pop()?.trim() || l.code || 'Office'

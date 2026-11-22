@@ -1,3 +1,5 @@
-import { HomePage } from "@/features/dashboard/screens/HomePage";
+import TodayPage from '@/features/platform/home/screens/TodayPage';
 
-export default HomePage;
+export const dynamic = 'force-dynamic';
+
+export default TodayPage;

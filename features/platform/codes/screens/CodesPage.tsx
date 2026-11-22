@@ -41,7 +41,7 @@ export default async function CodesPage({ searchParams }: { searchParams?: Promi
       ) : (
         <>
           <Section title="Import a licensed code set">
-            <p className="text-sm text-muted-foreground">The practice supplies its own licensed file. Paste rows with a header line (code, nomenclature, category, areaRule, effectiveFrom). Rows are checked, the licence is attested, and a second person approves activation. The file text is cleared once the codes are live.</p>
+            <p className="text-sm text-muted-foreground">The practice supplies its own licensed file. Paste rows with a header line (code, nomenclature, category, areaRule, effectiveFrom). Rows are checked, the license is attested, and a second person approves activation. The file text is cleared once the codes are live.</p>
             <CommandForm op="uploadCodeImport" shape="csvRows" submitLabel="Check file" paths={paths} columns={2}
               fields={[
                 { name: 'systemKey', label: 'Code system', kind: 'select', options: (d.codeSystems as any[]).filter((s) => s.isLicensed).map((s) => ({ value: s.key, label: s.name })), required: true },
@@ -59,9 +59,9 @@ export default async function CodesPage({ searchParams }: { searchParams?: Promi
                   <div className="flex flex-wrap items-center justify-between gap-2"><TitleLine status={b.status}><span className="font-medium">{b.label}</span><Meta>{b.codeSystem?.key} · {b.editionYear} · {b.fileName}</Meta></TitleLine><Meta>{when(b.createdAt, undefined, 'dayTime')}</Meta></div>
                   {problems.length ? <ul className="list-disc pl-5 text-xs text-red-700">{problems.slice(0, 5).map((pr) => <li key={pr.row}>Row {pr.row}: {pr.message}</li>)}</ul> : null}
                   {b.status === 'validated' ? (
-                    <details><summary className="cursor-pointer font-medium">Attest the licence</summary>
+                    <details><summary className="cursor-pointer font-medium">Attest the license</summary>
                       <div className="pt-3"><CommandForm op="attestCodeLicence" submitLabel="Attest" paths={paths} columns={3} fixed={{ batchId: b.id, expectedVersion: b.version }}
-                        fields={[{ name: 'licenceType', label: 'Licence type', kind: 'select', options: [{ value: 'practice_end_user', label: 'Practice end-user licence' }, { value: 'vendor_sublicence', label: 'Vendor sublicence' }] }, { name: 'licenceHolder', label: 'Licence holder', kind: 'text', required: true }, { name: 'agreementRef', label: 'Agreement reference', kind: 'text', required: true }]} /></div></details>
+                        fields={[{ name: 'licenceType', label: 'License type', kind: 'select', options: [{ value: 'practice_end_user', label: 'Practice end-user licence' }, { value: 'vendor_sublicence', label: 'Vendor sublicense' }] }, { name: 'licenceHolder', label: 'License holder', kind: 'text', required: true }, { name: 'agreementRef', label: 'Agreement reference', kind: 'text', required: true }]} /></div></details>
                   ) : null}
                   {b.status === 'attested' ? <ActionButton op="requestCodeActivation" vars={{ batchId: b.id, expectedVersion: b.version }} confirm="Ask a second person to approve activation of these codes?" paths={paths}>Request activation</ActionButton> : null}
                   {b.status === 'attested' ? <Meta>Activation needs a second person to approve it in Approvals.</Meta> : null}

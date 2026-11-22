@@ -29,7 +29,7 @@ export function Page({ title, status, crumbs = [], children }: { title: string; 
       breadcrumbs={[{ type: 'link', label: 'Dashboard', href: '/dashboard' }, ...crumbs.map((c) => ({ type: (c.href ? 'link' : 'page') as 'link' | 'page', label: c.label, href: c.href })), { type: 'page', label: title }]}
       header={<div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"><h1 className="min-w-0 break-words text-xl font-semibold tracking-tight">{title}</h1><Status value={status} /></div>}
     >
-      <div className="min-w-0 space-y-6 px-4 pb-10 md:px-6">{children}</div>
+      <div className="min-w-0 space-y-6 px-4 pb-24 md:px-6">{children}</div>
     </PageContainer>
   );
 }
@@ -43,7 +43,7 @@ export function Tabs({ items, active }: { items: { key: string; label: string; h
   return (
     <div className="flex max-w-full flex-wrap gap-1 rounded-lg bg-muted p-1">
       {items.map((i) => (
-        <Link key={i.key} href={i.href} className={cn('whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium', i.key === active ? 'bg-background shadow-sm' : 'text-muted-foreground')}>
+        <Link key={i.key} href={i.href} className={cn('inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-3 text-sm font-medium md:min-h-9', i.key === active ? 'bg-background shadow-sm' : 'text-muted-foreground')}>
           {i.label}{i.count !== undefined ? <span className="ml-1.5 font-mono text-xs text-muted-foreground">{i.count}</span> : null}
         </Link>
       ))}

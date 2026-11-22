@@ -30,9 +30,9 @@ export const OF_CODES: CodeSeed[] = [
   { code: 'OF-R001', name: 'Amalgam, one surface, primary or permanent', friendly: 'Silver filling (1 surface)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 1, fee: 16500 },
   { code: 'OF-R002', name: 'Amalgam, two surfaces, primary or permanent', friendly: 'Silver filling (2 surfaces)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 2, fee: 20500 },
   { code: 'OF-R003', name: 'Amalgam, three surfaces, primary or permanent', friendly: 'Silver filling (3 surfaces)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 3, fee: 25000 },
-  { code: 'OF-R010', name: 'Resin composite, one surface, posterior', friendly: 'Tooth-coloured filling (1 surface)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 1, fee: 21500 },
-  { code: 'OF-R011', name: 'Resin composite, two surfaces, posterior', friendly: 'Tooth-coloured filling (2 surfaces)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 2, fee: 27500 },
-  { code: 'OF-R012', name: 'Resin composite, three surfaces, posterior', friendly: 'Tooth-coloured filling (3 surfaces)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 3, fee: 34000 },
+  { code: 'OF-R010', name: 'Resin composite, one surface, posterior', friendly: 'Tooth-colored filling (1 surface)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 1, fee: 21500 },
+  { code: 'OF-R011', name: 'Resin composite, two surfaces, posterior', friendly: 'Tooth-colored filling (2 surfaces)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 2, fee: 27500 },
+  { code: 'OF-R012', name: 'Resin composite, three surfaces, posterior', friendly: 'Tooth-colored filling (3 surfaces)', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 3, fee: 34000 },
   { code: 'OF-R020', name: 'Resin composite, anterior', friendly: 'Front tooth filling', category: 'restorative', rule: 'tooth_surface', surfaces: true, max: 4, fee: 25500 },
   { code: 'OF-R030', name: 'Crown, full-coverage ceramic', friendly: 'Porcelain crown', category: 'prosth_fixed', rule: 'tooth', fee: 138000 },
   { code: 'OF-R031', name: 'Core build-up', friendly: 'Build-up under a crown', category: 'restorative', rule: 'tooth', fee: 29500 },
@@ -73,7 +73,7 @@ export async function seedPhase2(uow: UnitOfWork, actor: Actor) {
 
   // Code system and practice-authored codes.
   const system = (await tx.codeSystem.findUnique({ where: { key: 'OF' } })) ?? (await tx.codeSystem.create({ data: { key: 'OF', name: 'Practice codes', isLicensed: false } }))
-  if (!(await tx.codeSystem.findUnique({ where: { key: 'CDT' } }))) await tx.codeSystem.create({ data: { key: 'CDT', name: 'CDT (imported under the practice’s own licence)', isLicensed: true } })
+  if (!(await tx.codeSystem.findUnique({ where: { key: 'CDT' } }))) await tx.codeSystem.create({ data: { key: 'CDT', name: 'CDT (imported under the practice’s own license)', isLicensed: true } })
   const codeIds = new Map<string, string>()
   for (const c of OF_CODES) {
     const id = `seed_code_${c.code.toLowerCase().replace('-', '_')}`

@@ -40,8 +40,8 @@ export function PageContainer({ children, title, header, breadcrumbs }: PageCont
           <Separator orientation="vertical" className="mr-2 h-4" />
           
           {breadcrumbs && breadcrumbs.length > 0 && (
-            <Breadcrumb>
-              <BreadcrumbList>
+            <Breadcrumb className="min-w-0">
+              <BreadcrumbList className="flex-nowrap">
                 {breadcrumbs.map((item, index) => (
                   <React.Fragment key={index}>
                     {/* Phones keep the last two crumbs so the trail stays on one line next to the header buttons. */}
@@ -51,7 +51,7 @@ export function PageContainer({ children, title, header, breadcrumbs }: PageCont
                           {item.label}
                         </BreadcrumbLink>
                       ) : (
-                        <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                        <BreadcrumbPage className="block max-w-[46vw] truncate sm:max-w-none">{item.label}</BreadcrumbPage>
                       )}
                     </BreadcrumbItem>
                     {index < breadcrumbs.length - 1 && <BreadcrumbSeparator className={index < breadcrumbs.length - 2 ? 'max-sm:hidden' : undefined} />}

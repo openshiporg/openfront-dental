@@ -10,7 +10,7 @@ export default async function SecuritySettingsPage() {
   const status = data.mfaStatus ?? {};
   const practice = data.practiceSettings ?? {};
   return (
-    <Page title="Sign-in security" crumbs={[{ label: 'Practice settings' }]}>
+    <Page title="Sign-in security" crumbs={[{ label: 'Practice settings', href: '/dashboard/platform/settings' }]}>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat name="Two-step verification" value={status.enrolled ? 'On' : 'Off'} />
         <Stat name="This session" value={status.verified ? 'Verified' : 'Password only'} />

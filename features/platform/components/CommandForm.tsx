@@ -79,7 +79,7 @@ const SHAPES = {
 } satisfies Record<string, (v: Values) => Record<string, unknown>>;
 export type CommandShape = keyof typeof SHAPES;
 
-const inputClass = 'h-11 w-full rounded-md border bg-background px-3 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring';
+const inputClass = 'h-11 w-full rounded-md border bg-background px-3 text-base shadow-xs outline-none md:text-sm focus-visible:ring-2 focus-visible:ring-ring';
 
 /**
  * A small form for one named command. `shape` names how field values become the command variables

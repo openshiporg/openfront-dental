@@ -20,15 +20,15 @@ export default async function MembershipsPage() {
   const hasLicence = (key: string) => (d.regulatoryLicences as any[]).some((l) => l.jurisdiction === key);
   return (
     <Page title="Memberships">
-      <Section title="Licence or registration">
+      <Section title="License or registration">
         {(d.regulatoryLicences as any[]).length ? (d.regulatoryLicences as any[]).map((l) => (
           <Row key={l.id}><span className="min-w-0"><TitleLine>{l.jurisdiction} · {l.number}</TitleLine><Meta>{title(l.kind)} · from {calendarDate(l.effectiveFrom, 'date')}{l.effectiveTo ? ` to ${calendarDate(l.effectiveTo, 'date')}` : ''}</Meta></span></Row>
         )) : <Empty>None on file.</Empty>}
-        {jurisdictions.filter((j) => !hasLicence(j)).map((j) => <Meta key={j}>{j} may require a discount plan licence or registration before anyone is enrolled. Record it below.</Meta>)}
-        <details><summary className="cursor-pointer text-sm font-medium">Record a licence or registration</summary>
+        {jurisdictions.filter((j) => !hasLicence(j)).map((j) => <Meta key={j}>{j} may require a discount plan license or registration before anyone is enrolled. Record it below.</Meta>)}
+        <details><summary className="cursor-pointer text-sm font-medium">Record a license or registration</summary>
           <div className="pt-2"><CommandForm op="recordLicence" submitLabel="Save" paths={paths} columns={2} fixed={{ kind: 'discount_plan_operator' }} fields={[
             { name: 'jurisdiction', label: 'State rules', kind: 'select', required: true, options: jurisdictions.map((j) => ({ value: j, label: j })) },
-            { name: 'number', label: 'Licence or registration number', kind: 'text', required: true },
+            { name: 'number', label: 'License or registration number', kind: 'text', required: true },
             { name: 'effectiveFrom', label: 'Starts', kind: 'date' },
             { name: 'effectiveTo', label: 'Ends', kind: 'date' },
             { name: 'evidence', label: 'Where the paperwork is', kind: 'text' },
@@ -75,8 +75,8 @@ export default async function MembershipsPage() {
             </span>
           </Row>
         )) : <Empty>Nobody is enrolled.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Enrol a patient</summary>
-          <div className="pt-2"><CommandForm op="enrolMembership" submitLabel="Enrol" paths={paths} columns={2} fields={[
+        <details><summary className="cursor-pointer text-sm font-medium">Enroll a patient</summary>
+          <div className="pt-2"><CommandForm op="enrolMembership" submitLabel="Enroll" paths={paths} columns={2} fields={[
             { name: 'patientId', label: 'Patient', kind: 'select', required: true, options: (d.patients as any[]).map((p) => ({ value: p.id, label: `${p.lastName}, ${p.firstName} · #${p.chartNumber}` })) },
             { name: 'planId', label: 'Plan', kind: 'select', required: true, options: (d.membershipPlans as any[]).filter((p) => p.status === 'active').map((p) => ({ value: p.id, label: p.name })) },
             { name: 'locationId', label: 'Office', kind: 'select', required: true, options: (d.locations as any[]).map((l) => ({ value: l.id, label: l.name })) },
