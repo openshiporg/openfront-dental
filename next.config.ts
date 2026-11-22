@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // Import files travel as the command body; 10 MB covers a practice's patient list.
   experimental: { serverActions: { bodySizeLimit: '10mb' } },
   serverExternalPackages: ['graphql'],
+  // Browsers and crawlers that ask for the old icon name get the real one.
+  async redirects() { return [{ source: '/favicon.ico', destination: '/favicon.svg', permanent: true }] },
   // Workaround since we diverged from Keystone reltionship and document views
   // typescript: {
   //   ignoreBuildErrors: true,

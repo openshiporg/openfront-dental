@@ -24,6 +24,6 @@ export const config = {
      * - favicon.svg (favicon file)
      * - oauth, .well-known (MCP OAuth screens and discovery serve themselves)
      */
-    '/((?!api|oauth|\\.well-known|_next/static|_next/image|favicon.svg).*)',
+    '/((?!api|oauth|\\.well-known|_next/static|_next/image|favicon.svg|favicon.ico|robots.txt|sitemap.xml|storefront/).*)',
   ],
 };

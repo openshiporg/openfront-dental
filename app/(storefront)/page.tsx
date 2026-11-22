@@ -40,23 +40,18 @@ export default async function Home() {
           <Image src="/storefront/hero.jpg" alt="" fill priority sizes="62vw" className="object-cover object-[55%_62%]" />
         </div>
         <div className="absolute inset-0 -z-10 hidden bg-gradient-to-r from-[#f7f3ec] from-[42%] to-[#f7f3ec]/0 to-[62%] lg:block" aria-hidden />
+        <Image src="/storefront/hero.jpg" alt="A treatment room with a window onto the bay" width={1200} height={675} priority sizes="100vw" className="aspect-[16/9] max-h-72 w-full object-cover object-[55%_62%] lg:hidden" />
         <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-10 lg:py-10">
           <div className="lg:max-w-[56%]">
-            <h1 className="hidden text-[3.4rem] font-semibold leading-[1.05] tracking-tight text-[#0b4f4b] lg:block xl:text-[4.2rem]">Cleanings, without the wait.</h1>
-            <p className="hidden text-xl lg:mt-2 lg:block">Family dental care in {city || 'your neighborhood'}.</p>
+            <h1 className="text-[2.1rem] font-semibold leading-[1.08] tracking-tight text-[#0b4f4b] sm:text-[2.8rem] lg:text-[3.4rem] lg:leading-[1.05] xl:text-[4.2rem]">Cleanings, without the wait.</h1>
+            <p className="mt-2 text-lg lg:text-xl">Family dental care in {city || 'your neighborhood'}.</p>
             {first ? (
-              <p className="mt-3 hidden flex-wrap gap-x-6 gap-y-1 lg:flex">
-                <a href={`tel:${first.phone.replace(/[^\d+]/g, '')}`} className="underline underline-offset-2">{first.phone}</a>
+              <p className="mt-2 flex flex-wrap items-center gap-x-6 text-base lg:mt-3">
+                <a href={`tel:${first.phone.replace(/[^\d+]/g, '')}`} className="inline-flex min-h-11 items-center underline underline-offset-2">{first.phone}</a>
                 <span><strong className="font-medium">Hours</strong> {hoursLines(first.hours).join(', ')} {zoneLabel(first.timeZone)}</span>
               </p>
             ) : null}
-            <div className="lg:mt-6"><BookingPanel site={site} /></div>
-          </div>
-          <div className="mt-8 grid grid-cols-[1.1fr_1fr] items-end gap-4 lg:hidden">
-            <div><h1 className="text-[1.9rem] font-semibold leading-tight text-[#0b4f4b]">Cleanings, without the wait.</h1>
-              <p className="mt-2 text-lg">Family dental care in {city || 'your neighborhood'}.</p>
-              <Link href="/book" className="mt-3 inline-flex min-h-11 items-center bg-[#dc6244] px-5 font-medium text-white">Book a visit</Link></div>
-            <Image src="/storefront/hero.jpg" alt="A treatment room with a window onto the bay" width={600} height={450} className="h-full max-h-56 w-full object-cover" />
+            <div className="mt-5 lg:mt-6"><BookingPanel site={site} /></div>
           </div>
         </div>
       </section>
@@ -70,7 +65,7 @@ export default async function Home() {
             ))}
             {extras.map(n => <li key={n} className="flex min-h-12 items-center justify-between gap-4 py-2"><span>{n}</span><span className="shrink-0 text-[#4c5a58]">Varies</span></li>)}
           </ul>
-          <p className="mt-3 text-base"><Link href="/book" className="underline decoration-[#3a9e98] decoration-2 underline-offset-4">See open times and book</Link></p>
+          <p className="mt-1 text-base"><Link href="/book" className="inline-flex min-h-11 items-center underline decoration-[#3a9e98] decoration-2 underline-offset-4">See open times and book</Link></p>
         </section>
 
         <section id="dentists" aria-labelledby="dentists-h" className="scroll-mt-20">
@@ -97,10 +92,11 @@ export default async function Home() {
           {plans.length ? (
             <ul className="mt-3 space-y-2 text-lg">
               {plans.map(p => {
-                const benefits = Array.isArray(p.includedBenefits) ? (p.includedBenefits as { codeFamily?: string; countPerPeriod?: number }[]).filter(b => b?.codeFamily && Number.isInteger(b.countPerPeriod)).map(b => `${b.countPerPeriod} ${words(b.codeFamily as string)} visit${b.countPerPeriod === 1 ? '' : 's'} a ${p.interval === 'year' ? 'year' : 'month'}`) : []
+                const benefits = Array.isArray(p.includedBenefits) ? (p.includedBenefits as { codeFamily?: string; countPerPeriod?: number }[]).filter(b => b?.codeFamily && Number.isInteger(b.countPerPeriod)).map(b => `${b.countPerPeriod} ${words(b.codeFamily as string)} visit${b.countPerPeriod === 1 ? '' : 's'} a ${p.interval === 'annual' ? 'year' : 'month'}`) : []
                 const detail = [...benefits, Number(p.discountPct) ? `${Number(p.discountPct)}% off other treatment` : ''].filter(Boolean).join(', ')
-                return <li key={p.id}><strong className="block font-semibold">{words(p.ageBand).replace(/^./, c => c.toUpperCase())}: {dollars(p.priceMinor)}/{p.interval === 'year' ? 'year' : 'month'}</strong>{detail ? <span className="block text-base text-[#4c5a58]">{detail}</span> : null}</li>
+                return <li key={p.id}><strong className="block font-semibold">{words(p.ageBand).replace(/^./, c => c.toUpperCase())}: {dollars(p.priceMinor)}/{p.interval === 'annual' ? 'year' : 'month'}</strong>{detail ? <span className="block text-base text-[#4c5a58]">{detail}</span> : null}</li>
               })}
+              {first ? <li className="text-base">To join, ask at your visit or call <a href={`tel:${first.phone.replace(/[^\d+]/g, '')}`} className="inline-flex min-h-11 items-center underline underline-offset-2">{first.phone}</a>.</li> : null}
             </ul>
           ) : <p className="mt-3 text-lg">Ask the office about a membership plan for patients without insurance.</p>}
         </section>

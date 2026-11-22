@@ -10,7 +10,9 @@ import { parsePattern, patternUnits } from '../scheduling/engine'
 import { availability, createAppointment, placeHold, withdrawIn } from './scheduling'
 import { assertLocation, assertPatientInScope, normalizeContact, optionalText, requireText, resolvePatientRef, staff, type Ctx } from './shared'
 import { requirePermission } from '../lib/actor'
-import { transition } from '../lib/cas'
+import { auditCreate, transition } from '../lib/cas'
+import type { UnitOfWork } from '../lib/unitOfWork'
+import { ageOn } from '../models/patients'
 
 /*
  * Public booking API (INTEGRATIONS §9; SCHEMA §16). No sign-in; every call is rate limited (global,
@@ -181,6 +183,10 @@ export async function publicSubmitBooking(_root: unknown, args: { slug: string; 
       if (p.kind === 'email' && contact.emailReminders !== false) await grantConsentIn(uow, actor, { contactPointId: p.id, channel: 'email', purpose: 'appointment_reminders', source: 'intake_form', evidence })
       if (p.kind === 'mobile' && contact.smsConsent === true) await grantConsentIn(uow, actor, { contactPointId: p.id, channel: 'sms', purpose: 'appointment_reminders', source: 'intake_form', evidence })
     }
+    // A patient account for the person who booked, so the emailed sign-in code works straight away. Only on a record
+    // this booking created, or on an existing record that already has this email on file: knowing someone's name,
+    // birthday and phone number must never open their visits to a different email address.
+    if (email && (matchStatus !== 'matched' || points.some(p => p.kind === 'email'))) await openPortalAccess(uow, { patientId, email: email.normalized, dateOfBirth: String(contact.dateOfBirth ?? ''), isSynthetic: policy.location.isSynthetic })
     const publicRef = publicCode('BK')
     await uow.tx.publicBookingRequest.create({
       data: {
@@ -193,6 +199,21 @@ export async function publicSubmitBooking(_root: unknown, args: { slug: string; 
     return { publicRef, status: 'booked', startsAt: appointment.startsAt.toISOString(), endsAt: appointment.endsAt.toISOString(), locationName: policy.location.name }
   })
   return { replay: result.replay, ...result.value }
+}
+
+/** Portal sign-in for the patient a booking is on. An account the office suspended or revoked is left alone. */
+async function openPortalAccess(uow: UnitOfWork, input: { patientId: string; email: string; dateOfBirth: string; isSynthetic: boolean }) {
+  let account = await uow.tx.portalAccount.findUnique({ where: { email: input.email } })
+  if (account && !['invited', 'active'].includes(account.status)) return
+  if (!account) {
+    account = await uow.tx.portalAccount.create({ data: { email: input.email, status: 'invited', isSynthetic: input.isSynthetic } })
+    auditCreate(uow, actor, 'PortalAccount', account.id, 'portal.account_invited', { source: 'online_booking' })
+  }
+  if (await uow.tx.portalScope.findFirst({ where: { accountId: account.id, patientId: input.patientId, status: 'active' } })) return
+  // A child's visit is booked by a parent: that access ends when the child comes of age.
+  const minor = /^\d{4}-\d{2}-\d{2}$/.test(input.dateOfBirth) && ageOn(input.dateOfBirth, uow.now.toISOString().slice(0, 10)) < 18
+  const scope = await uow.tx.portalScope.create({ data: { accountId: account.id, patientId: input.patientId, relationship: minor ? 'guardian' : 'self', capabilities: ['appointments', 'preferences'] as never, status: 'active', validUntilMajority: minor } })
+  auditCreate(uow, actor, 'PortalScope', scope.id, 'portal.scope_granted', { patientId: input.patientId, relationship: minor ? 'guardian' : 'self', source: 'online_booking' })
 }
 
 function safeEqual(a: string, b: string) {

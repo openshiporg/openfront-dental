@@ -41,7 +41,7 @@ export function PayForm({ code, owedMinor, stripeKey }: { code: string; owedMino
       const started = await post('start', { amount })
       payRefNow.current = started.ref; setPayRef(started.ref)
       stripe.current = window.Stripe!(stripeKey)
-      elements.current = stripe.current.elements({ clientSecret: started.clientSecret })
+      elements.current = stripe.current.elements({ clientSecret: started.clientSecret, appearance: { theme: 'stripe', variables: { colorPrimary: '#0f6b66', colorText: '#1b2b2a', colorBackground: '#ffffff', borderRadius: '3px', fontSizeBase: '16px' } } })
       setStep('card')
     } catch (e) { setMessage((e as Error).message); setStep('amount') }
   }
@@ -65,22 +65,22 @@ export function PayForm({ code, owedMinor, stripeKey }: { code: string; owedMino
     } catch (e) { setMessage((e as Error).message); setStep('failed') }
   }
 
-  if (step === 'paid') return <section className="mt-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4" role="status"><p className="font-medium">Thank you. Your payment of ${dollars(paidMinor)} went through.</p><p className="mt-1 text-sm text-neutral-700">Reference {payRef}. You can close this page.</p></section>
+  if (step === 'paid') return <section className="mt-6 border-l-4 border-[#3a9e98] bg-[#dcebe6] p-4" role="status"><p className="text-lg font-medium text-[#0b4f4b]">Thank you. Your payment of ${dollars(paidMinor)} went through.</p><p className="mt-1 text-base">Reference {payRef}. You can close this page.</p></section>
   return (
     <section className="mt-6">
       {step === 'amount' || (step === 'working' && !payRef) ? (
         <div className="space-y-3">
-          <label className="block text-sm font-medium" htmlFor="pay-amount">Amount to pay</label>
-          <div className="flex items-center gap-2"><span aria-hidden>$</span><input id="pay-amount" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className="h-11 w-full rounded-lg border border-neutral-300 px-3 text-base tabular-nums" /></div>
-          <button type="button" disabled={step === 'working'} onClick={begin} className="h-11 w-full rounded-lg bg-neutral-900 px-4 text-base font-medium text-white disabled:opacity-60">{step === 'working' ? 'One moment' : 'Continue to card'}</button>
+          <label className="block text-lg font-medium text-[#0b4f4b]" htmlFor="pay-amount">Amount to pay</label>
+          <div className="flex items-center gap-2"><span aria-hidden>$</span><input id="pay-amount" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} className="h-12 w-full rounded-[3px] border border-[#cfc6b4] bg-white/90 px-3 text-lg tabular-nums focus:border-[#3a9e98] focus:outline-none focus:ring-2 focus:ring-[#3a9e98]/30" /></div>
+          <button type="button" disabled={step === 'working'} onClick={begin} className="min-h-12 w-full rounded-[3px] bg-[#dc6244] px-4 text-lg font-medium text-white hover:bg-[#c75537] disabled:opacity-60">{step === 'working' ? 'One moment' : 'Continue to card'}</button>
         </div>
       ) : (
         <div className="space-y-3">
           <div ref={mount} />
-          <button type="button" disabled={step === 'working'} onClick={pay} className="h-11 w-full rounded-lg bg-neutral-900 px-4 text-base font-medium text-white disabled:opacity-60">{step === 'working' ? 'Paying' : `Pay $${amount}`}</button>
+          <button type="button" disabled={step === 'working'} onClick={pay} className="min-h-12 w-full rounded-[3px] bg-[#dc6244] px-4 text-lg font-medium text-white hover:bg-[#c75537] disabled:opacity-60">{step === 'working' ? 'Paying' : `Pay $${amount}`}</button>
         </div>
       )}
-      {message ? <p role="alert" className="mt-3 break-words text-sm text-red-700">{message}</p> : null}
+      {message ? <p role="alert" className="mt-3 break-words text-base text-[#a5321b]">{message}</p> : null}
     </section>
   )
 }

@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { dayLabel, gql, timeLabel, type Site } from '../lib/api'
+import Link from 'next/link'
+import { addressLine, dayLabel, gql, timeLabel, type Site } from '../lib/api'
 
 type Slot = { startsAt: string; operatoryId: string; providerId: string | null; localDate: string }
-type Done = { publicRef: string; startsAt: string; locationName: string; timeZone: string }
+type Done = { publicRef: string; startsAt: string; locationName: string; timeZone: string; visit: string; address: string; phone: string; email: string }
 
 const AVAIL = `query($slug:String!,$locationId:ID,$typeId:ID!,$fromDate:String!){ publicAvailability(slug:$slug,locationId:$locationId,typeId:$typeId,fromDate:$fromDate,days:14) }`
 const HOLD = `mutation($slug:String!,$locationId:ID,$typeId:ID!,$operatoryId:ID!,$startsAt:String!,$providerId:ID,$k:String!){ publicHoldSlot(slug:$slug,locationId:$locationId,typeId:$typeId,operatoryId:$operatoryId,startsAt:$startsAt,providerId:$providerId,idempotencyKey:$k) }`
@@ -64,7 +65,7 @@ export function BookingPanel({ site }: { site: Site }) {
       if (!d.publicHoldSlot.holdToken) throw new Error('Please pick the time again.')
       hold.current = { holdId: d.publicHoldSlot.holdId, holdToken: d.publicHoldSlot.holdToken, key }
       setPicked(slot)
-      setTimeout(() => form.current?.querySelector<HTMLInputElement>('input')?.focus(), 50)
+      setTimeout(() => form.current?.querySelector<HTMLInputElement>('#bk-first')?.focus(), 50)
     } catch (e) { setError((e as Error).message); setPicked(null) } finally { setBusy(false) }
   }
 
@@ -82,7 +83,7 @@ export function BookingPanel({ site }: { site: Site }) {
         contact: { firstName: v('firstName'), lastName: v('lastName'), dateOfBirth: v('dateOfBirth'), email: v('email') || null, phone: v('phone') || null, smsConsent: f.get('sms') === 'on', emailReminders: true },
         intake: { patientType, visitType: kind?.name ?? '' }, ins,
       })
-      setDone({ ...d.publicSubmitBooking, timeZone: tz })
+      setDone({ ...d.publicSubmitBooking, timeZone: tz, visit: kind?.name ?? '', address: addressLine(location?.address ?? null), phone: location?.phone ?? '', email: v('email') })
     } catch (err) { setError((err as Error).message) } finally { setBusy(false) }
   }
 
@@ -91,8 +92,15 @@ export function BookingPanel({ site }: { site: Site }) {
     return (
       <div role="status" className="border-l-4 border-[#3a9e98] bg-white/80 p-5">
         <h2 className="text-2xl font-semibold text-[#0b4f4b]">You are booked.</h2>
-        <p className="mt-2 text-lg">{done.locationName.replace(`${site.practiceName} — `, '')}, {new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: done.timeZone }).format(new Date(done.startsAt))} {timeLabel(done.startsAt, done.timeZone).split(' ').pop()}</p>
-        <p className="mt-1">Your reference is <strong>{done.publicRef}</strong>. The office will confirm with you before your visit.</p>
+        <p className="mt-2 text-lg font-medium">{new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: done.timeZone }).format(new Date(done.startsAt))} {timeLabel(done.startsAt, done.timeZone).split(' ').pop()}</p>
+        <p className="text-lg">{[done.visit, done.locationName.replace(`${site.practiceName} — `, '')].filter(Boolean).join(' · ')}</p>
+        {done.address ? <p className="text-base text-[#4c5a58]">{done.address}</p> : null}
+        <p className="mt-3">Your reference is <strong>{done.publicRef}</strong>. Keep it: the office will ask for it if you call.</p>
+        <p className="mt-1">{done.email ? 'To confirm or cancel online, sign in with the email you booked with.' : `To change this visit, call ${done.phone}.`}</p>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1">
+          {done.email ? <Link href="/account/sign-in" className="inline-flex min-h-11 items-center rounded-[3px] bg-[#dc6244] px-5 font-medium text-white hover:bg-[#c75537]">Patient sign in</Link> : null}
+          {done.phone ? <a href={`tel:${done.phone.replace(/[^\d+]/g, '')}`} className="inline-flex min-h-11 items-center underline underline-offset-4">Call {done.phone}</a> : null}
+        </div>
       </div>
     )
   }
@@ -106,7 +114,7 @@ export function BookingPanel({ site }: { site: Site }) {
         ))}
       </div>
 
-      <h2 className="mt-5 text-xl font-medium text-[#0b4f4b]"><span className="sm:hidden">Book a cleaning</span><span className="hidden sm:inline">1. Book a visit</span></h2>
+      <h2 className="mt-5 text-xl font-medium text-[#0b4f4b]">1. Pick a visit and a time</h2>
       <div className="mt-2 grid gap-3 sm:grid-cols-[1fr_1.7fr]">
         <div><label className={label} htmlFor="bk-loc">Location</label>
           <select id="bk-loc" className={field} value={locationId} onChange={e => setLocationId(e.target.value)}>{bookable.map(l => <option key={l.id} value={l.id}>{l.name.replace(`${site.practiceName} — `, '')}</option>)}</select></div>
@@ -120,12 +128,12 @@ export function BookingPanel({ site }: { site: Site }) {
             <p className="flex flex-wrap items-center gap-x-3"><span>Open times:</span>
               {days.length > 1 ? <select aria-label="Day" className="h-11 rounded-[3px] border border-[#cfc6b4] bg-white/90 px-2" value={day} onChange={e => { setDay(e.target.value); setPicked(null) }}>{days.slice(0, 14).map(d => <option key={d} value={d}>{dayName(d)}</option>)}</select> : <span>{dayName(day)}</span>}
               <span>({location?.name.replace(`${site.practiceName} — `, '')})</span></p>
-            <ul className="mt-1 grid gap-0 sm:flex sm:flex-wrap sm:gap-x-6">
+            <ul className="mt-2 grid grid-cols-2 gap-2 min-[30rem]:grid-cols-4">
               {daySlots.map(s => (
-                <li key={s.startsAt} className="border-b border-[#cfc6b4] sm:border-0">
+                <li key={s.startsAt}>
                   <button type="button" disabled={busy} onClick={() => choose(s)} aria-pressed={picked?.startsAt === s.startsAt}
-                    className={`flex min-h-11 w-full items-center justify-between px-3 text-lg underline decoration-[#3a9e98] decoration-2 underline-offset-4 sm:w-auto sm:px-1 ${picked?.startsAt === s.startsAt ? 'bg-[#dcebe6] font-semibold' : ''}`}>
-                    {timeLabel(s.startsAt, tz)}<span aria-hidden className="text-[#0f6b66] sm:hidden">›</span>
+                    className={`flex min-h-12 w-full items-center justify-center rounded-[3px] border px-2 text-base tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#3a9e98] disabled:opacity-60 ${picked?.startsAt === s.startsAt ? 'border-[#0f6b66] bg-[#0f6b66] font-semibold text-white' : 'border-[#9cc7c1] bg-white/90 text-[#0b4f4b] hover:border-[#0f6b66]'}`}>
+                    {timeLabel(s.startsAt, tz)}
                   </button>
                 </li>
               ))}
@@ -135,25 +143,25 @@ export function BookingPanel({ site }: { site: Site }) {
       </div>
 
       <form ref={form} onSubmit={submit} className="mt-6 bg-[#dcebe6] p-3 sm:bg-transparent sm:p-0">
-        <h2 className="text-xl font-medium text-[#0b4f4b]"><span className="sm:hidden">Check my insurance</span><span className="hidden sm:inline">2. Check my insurance</span></h2>
+        <h2 className="text-xl font-medium text-[#0b4f4b]">2. Check my insurance</h2>
         <p className="mt-1 text-sm">The office checks your benefits before the visit.</p>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <div><label className={label} htmlFor="bk-carrier">Carrier</label><input id="bk-carrier" name="carrier" disabled={noInsurance} className={field} autoComplete="off" /></div>
           <div><label className={label} htmlFor="bk-member">Member ID</label><input id="bk-member" name="memberId" disabled={noInsurance} className={field} autoComplete="off" /></div>
         </div>
-        <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" className="size-5" checked={noInsurance} onChange={e => setNoInsurance(e.target.checked)} />I don’t have dental insurance</label>
+        <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-3"><input type="checkbox" className="size-6 shrink-0 accent-[#0f6b66]" checked={noInsurance} onChange={e => setNoInsurance(e.target.checked)} />I don’t have dental insurance</label>
 
         {picked ? (
           <>
-        <h2 className="mt-5 text-xl font-medium text-[#0b4f4b]">Your details</h2>
+        <h2 className="mt-5 text-xl font-medium text-[#0b4f4b]">3. Your details</h2>
         <div className="mt-2 grid gap-3 sm:grid-cols-2">
           <div><label className={label} htmlFor="bk-first">First name</label><input id="bk-first" name="firstName" required autoComplete="given-name" className={field} /></div>
           <div><label className={label} htmlFor="bk-last">Last name</label><input id="bk-last" name="lastName" required autoComplete="family-name" className={field} /></div>
           <div><label className={label} htmlFor="bk-dob">Date of birth</label><input id="bk-dob" name="dateOfBirth" type="date" required autoComplete="bday" className={field} /></div>
           <div><label className={label} htmlFor="bk-phone">Mobile phone</label><input id="bk-phone" name="phone" type="tel" autoComplete="tel" className={field} /></div>
-          <div className="sm:col-span-2"><label className={label} htmlFor="bk-email">Email</label><input id="bk-email" name="email" type="email" autoComplete="email" className={field} /></div>
+          <div className="sm:col-span-2"><label className={label} htmlFor="bk-email">Email</label><input id="bk-email" name="email" type="email" autoComplete="email" className={field} aria-describedby="bk-email-hint" /><p id="bk-email-hint" className="mt-1 text-sm text-[#4c5a58]">Add your email to confirm or cancel this visit online.</p></div>
         </div>
-        <label className="mt-2 flex min-h-11 items-center gap-2"><input type="checkbox" name="sms" className="size-5" />Text me appointment reminders</label>
+        <label className="mt-2 flex min-h-11 cursor-pointer items-center gap-3"><input type="checkbox" name="sms" className="size-6 shrink-0 accent-[#0f6b66]" />Text me appointment reminders</label>
         {error ? <p role="alert" className="mt-2 text-[#a5321b]">{error}</p> : null}
         <button disabled={busy || !picked} className="mt-3 min-h-12 w-full rounded-[3px] bg-[#dc6244] px-6 text-lg font-medium text-white hover:bg-[#c75537] disabled:opacity-60 sm:w-auto">{busy ? 'One moment' : picked ? `Book ${timeLabel(picked.startsAt, tz)}` : 'Pick a time above to book'}</button>
           </>
