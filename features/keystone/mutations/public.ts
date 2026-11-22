@@ -40,7 +40,15 @@ function assertTypeAllowed(policy: any, typeId: string) {
 /** Practice-facing information for a storefront: no patient data, nothing tiered. */
 export async function publicSite(_root: unknown, args: { slug: string }, context: Ctx) {
   await enforcePublicLimit(context.prisma, { scope: 'site', req: context.req })
-  const site = await context.prisma.storefrontSite.findUnique({ where: { slug: String(args.slug ?? '') }, include: { providersShown: { where: { isActive: true }, select: { id: true, displayName: true, providerType: true, specialty: true } } } })
+  return readSite(context, args.slug)
+}
+
+/**
+ * The same practice information for the practice's own pages, which render on this server. A page view is
+ * not an API call: it is not counted, so a busy household or waiting room can never blank the site.
+ */
+export async function readSite(context: Pick<Ctx, 'prisma'>, slug: string) {
+  const site = await context.prisma.storefrontSite.findUnique({ where: { slug: String(slug ?? '') }, include: { providersShown: { where: { isActive: true }, select: { id: true, displayName: true, providerType: true, specialty: true } } } })
   if (!site || !site.isPublished) throw new DomainError(Codes.NOT_FOUND, 'Practice not found.')
   const practice = await context.prisma.practiceSettings.findUnique({ where: { id: 1 }, select: { displayName: true, isSynthetic: true } })
   const locations = await context.prisma.location.findMany({
