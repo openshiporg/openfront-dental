@@ -13,7 +13,7 @@ import { clientKey, hit } from './rateLimit'
  */
 
 export type PublicLimits = { perClientPerHour: number; perContactPerDay: number; globalPerMinute: number }
-export const DEFAULT_PUBLIC_LIMITS: PublicLimits = { perClientPerHour: 30, perContactPerDay: 5, globalPerMinute: 120 }
+export const DEFAULT_PUBLIC_LIMITS: PublicLimits = { perClientPerHour: 60, perContactPerDay: 10, globalPerMinute: 120 }
 
 const keyHash = (value: string) => createHash('sha256').update(value).digest('hex').slice(0, 40)
 const secret = () => process.env.SESSION_SECRET || 'local-development-session-secret-change-me-now'
@@ -33,14 +33,15 @@ export function limitsFrom(json: unknown): PublicLimits {
 }
 
 /**
- * Count one public request and refuse with RATE_LIMITED when any tier is over. A limiter that can't
- * reach the database refuses too: the public surface fails closed.
+ * Count one public write (hold, booking, sign-in code) and refuse with RATE_LIMITED when one address or one contact is over.
+ * Page views and open-time reads are never counted, and there is no site-wide tier: one busy client can never take the patient
+ * site dark for everyone. A limiter that can't reach its counters lets the request through (the write itself still has its checks).
+ * `globalPerMinute` stays in the policy shape for old rows and is not used.
  */
 export async function enforcePublicLimit(prisma: any, input: { scope: string; req?: unknown; contacts?: string[]; limits?: PublicLimits; now?: Date }) {
   const limits = input.limits ?? DEFAULT_PUBLIC_LIMITS
   const now = input.now ?? new Date()
   const checks: [string, { max: number; windowMs: number }][] = [
-    [`public:global:${input.scope}`, { max: limits.globalPerMinute, windowMs: 60_000 }],
     [`public:client:${input.scope}:${keyHash(clientKey(input.req, secret()))}`, { max: limits.perClientPerHour, windowMs: 3_600_000 }],
     ...(input.contacts ?? []).filter(Boolean).map(c => [`public:contact:${input.scope}:${keyHash(c.toLowerCase())}`, { max: limits.perContactPerDay, windowMs: 86_400_000 }] as [string, { max: number; windowMs: number }]),
   ]
@@ -51,9 +52,12 @@ export async function enforcePublicLimit(prisma: any, input: { scope: string; re
       if (!result.allowed) refused = Math.max(refused ?? 0, result.retryAfterSeconds)
     }
   } catch {
-    refused = 60
+    refused = null
   }
-  if (refused !== null) throw new DomainError(Codes.RATE_LIMITED, `Too many requests. Try again in ${Math.max(1, Math.ceil(refused / 60))} minutes.`, { reason: 'rate_limited' })
+  if (refused !== null) {
+    const minutes = Math.max(1, Math.ceil(refused / 60))
+    throw new DomainError(Codes.RATE_LIMITED, `Too many tries from this connection. Please wait ${minutes} minute${minutes === 1 ? '' : 's'} and try again, or call the office.`, { reason: 'rate_limited', retryAfterSeconds: refused })
+  }
 }
 
 /**

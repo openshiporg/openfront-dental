@@ -39,9 +39,8 @@ function assertTypeAllowed(policy: any, typeId: string) {
   if (!policy.appointmentTypes.some((t: { id: string }) => t.id === typeId)) throw new DomainError(Codes.INVALID_INPUT, 'That visit type can’t be booked online.', { field: 'typeId' })
 }
 
-/** Practice-facing information for a storefront: no patient data, nothing tiered. */
+/** Practice-facing information for a storefront: no patient data, nothing tiered. A read, so never limited. */
 export async function publicSite(_root: unknown, args: { slug: string }, context: Ctx) {
-  await enforcePublicLimit(context.prisma, { scope: 'site', req: context.req })
   return readSite(context, args.slug)
 }
 
@@ -83,8 +82,8 @@ export async function readSite(context: Pick<Ctx, 'prisma'>, slug: string) {
 
 /** Open times only (never who is booked). Lead time, horizon and online-bookable blocks apply. */
 export async function publicAvailability(_root: unknown, args: { slug: string; locationId?: string | null; typeId: string; fromDate: string; days?: number | null; providerId?: string | null }, context: Ctx) {
-  const { policy, limits } = await siteAndPolicy(context.prisma, args.slug, args.locationId)
-  await enforcePublicLimit(context.prisma, { scope: 'availability', req: context.req, limits })
+  // Open times are a read the booking page makes on every change of visit, office or day: never limited.
+  const { policy } = await siteAndPolicy(context.prisma, args.slug, args.locationId)
   assertTypeAllowed(policy, args.typeId)
   const today = localDate(policy.location.timeZone, new Date())
   const from = /^\d{4}-\d{2}-\d{2}$/.test(String(args.fromDate)) && args.fromDate > today ? args.fromDate : today

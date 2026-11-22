@@ -38,7 +38,7 @@ const DUMP = {
     { ProcNum: '9015', PatNum: '1002', ProcDate: '2024-03-01', ProcStatus: '5', ProcFee: '0', ProcCode: 'OF-P001' },
     { ProcNum: '9016', PatNum: '1001', ProcDate: '2024-02-12', ProcStatus: '6', ProcFee: '45.00', ProcCode: 'OF-P001' },
     { ProcNum: '9017', PatNum: '1003', ProcDate: '2024-01-05', ProcStatus: '7', ProcFee: '0', ProcCode: 'caries', ToothNum: '30', Surf: 'mo' },
-    { ProcNum: '9018', PatNum: '1003', ProcDate: '2024-01-05', ProcStatus: '7', ProcFee: '0', ProcCode: 'D9999' },
+    { ProcNum: '9018', PatNum: '1003', ProcDate: '2024-01-05', ProcStatus: '7', ProcFee: '0', ProcCode: 'XX999' },
   ],
 }
 

@@ -59,6 +59,12 @@ export async function issuePortalCode(db: any, email: string, now = new Date()) 
 export async function portalRequestCode(_root: unknown, args: { email: string }, context: Ctx) {
   const email = normalizeContact('email', args.email).normalized
   await enforcePublicLimit(context.prisma, { scope: 'portal-code', req: context.req, contacts: [email] })
+  // Sign-up and sign-in are the same step: a new address gets an account here, and only the code sent to it signs in.
+  const known = await context.prisma.portalAccount.findUnique({ where: { email }, select: { id: true } })
+  if (!known) {
+    const site = await context.prisma.storefrontSite.findFirst({ where: { isPublished: true }, orderBy: { createdAt: 'asc' }, select: { location: { select: { isSynthetic: true } } } })
+    await context.prisma.portalAccount.create({ data: { email, status: 'invited', isSynthetic: Boolean(site?.location?.isSynthetic) } }).catch(() => null)
+  }
   const issued = await issuePortalCode(context.prisma, email)
   if (issued) {
     await command(context.prisma, { name: 'portal.code_sent', actor: portalActor(issued.accountId), idempotencyKey: `portal-code:${issued.accountId}:${Date.now()}`, params: { accountId: issued.accountId } }, async uow => {
@@ -71,6 +77,52 @@ export async function portalRequestCode(_root: unknown, args: { email: string },
     await sendPortalCodeEmail(issued.email, issued.code, Math.round(CODE_TTL_MS / 60_000)).catch(error => console.error('portal code email failed', { accountId: issued.accountId, message: (error as Error)?.message }))
   }
   return { sent: true }
+}
+
+/**
+ * A signed-in person with no patient linked says who they are. The record is linked only when exactly one record has this
+ * account's email on file AND the same birthday AND the same or a close name: a name and a birthday alone never open someone's
+ * visits. Otherwise a new patient record is made (status prospect, like an online booking), with this email on it.
+ */
+export async function portalRegister(_root: unknown, args: { firstName: string; lastName: string; dateOfBirth: string; phone?: string | null; locationId?: string | null }, context: Ctx) {
+  const principal = await portalPrincipal(context)
+  const own = principal.scopes.find(s => s.relationship === 'self')
+  if (own) return { patientId: own.patientId, linked: 'existing' }
+  const account = await context.prisma.portalAccount.findUniqueOrThrow({ where: { id: principal.accountId }, select: { id: true, email: true, isSynthetic: true } })
+  const firstName = String(args.firstName ?? '').trim().slice(0, 100)
+  const lastName = String(args.lastName ?? '').trim().slice(0, 100)
+  const dateOfBirth = String(args.dateOfBirth ?? '').trim()
+  if (!firstName || !lastName) throw new DomainError(Codes.INVALID_INPUT, 'Enter your first and last name.', { field: 'name' })
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) throw new DomainError(Codes.INVALID_INPUT, 'Enter your date of birth.', { field: 'dateOfBirth' })
+  const phone = args.phone ? normalizeContact('mobile', args.phone) : null
+  const { findDuplicates, createPatientIn } = await import('./patients')
+  const result = await command(context.prisma, { name: 'portal.register', actor: portalActor(account.id), idempotencyKey: `portal-register:${account.id}`, params: { accountId: account.id } }, async uow => {
+    const candidates = await findDuplicates(uow.tx, { firstName, lastName, dateOfBirth, contacts: [account.email] })
+    const strong = candidates.filter(c => c.evidence.includes('shared_contact') && (c.evidence.includes('similar_name') || c.evidence.includes('same_last_name')))
+    let patientId: string
+    let linked: 'matched' | 'created'
+    const usable = strong.length === 1 ? await uow.tx.patient.findUnique({ where: { id: strong[0].patientId }, select: { id: true, status: true } }) : null
+    if (usable && ['prospect', 'active', 'inactive'].includes(usable.status)) {
+      patientId = usable.id
+      linked = 'matched'
+    } else {
+      const site = await uow.tx.storefrontSite.findFirst({ where: { isPublished: true }, orderBy: { createdAt: 'asc' }, select: { locationId: true } })
+      const location = args.locationId ?? site?.locationId ?? (await uow.tx.location.findFirst({ where: { isActive: true }, orderBy: { code: 'asc' }, select: { id: true } }))?.id
+      if (!location) throw new DomainError(Codes.GUARD_FAILED, 'We couldn’t finish this online. Please call the office.')
+      const created = await createPatientIn(uow, portalActor(account.id), {
+        firstName, lastName, dateOfBirth, homeLocationId: location,
+        contacts: [{ kind: 'email', value: account.email, isPrimary: true }, ...(phone ? [{ kind: 'mobile', value: phone.value, isPrimary: true }] : [])],
+        isSynthetic: account.isSynthetic,
+      })
+      patientId = created.id
+      linked = 'created'
+    }
+    const minor = ageOn(new Date(`${dateOfBirth}T12:00:00Z`), uow.now) < 18
+    const scope = await uow.tx.portalScope.create({ data: { accountId: account.id, patientId, relationship: minor ? 'guardian' : 'self', capabilities: ['appointments', 'preferences'] as never, status: 'active', validUntilMajority: minor } })
+    auditCreate(uow, portalActor(account.id), 'PortalScope', scope.id, 'portal.scope_granted', { patientId, relationship: minor ? 'guardian' : 'self', source: 'self_registration', linked })
+    return { patientId, linked }
+  })
+  return result.value
 }
 
 /** Exchange a code for a portal token. Five wrong codes void the code; a new one must be requested. */

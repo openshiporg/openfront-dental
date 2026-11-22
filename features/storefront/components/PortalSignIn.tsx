@@ -10,6 +10,25 @@ type Appt = { id: string; startsAt: string; status: string; version: number; vis
 const STATUS: Record<string, string> = { scheduled: 'Booked, not yet confirmed', confirmed: 'Confirmed', arrived: 'Checked in', seated: 'In progress', ready_for_checkout: 'In progress', completed: 'Completed', cancelled: 'Cancelled', broken: 'Missed', no_show: 'Missed' }
 type Person = { patientId: string; name: string; relationship: string }
 
+/** First sign-in with no patient linked: name and birthday find the record that already has this email, or start a new one. */
+function Register({ busy, run, auth, onDone }: { busy: boolean; run: (fn: () => Promise<void>) => Promise<void>; auth: () => Record<string, string>; onDone: () => void }) {
+  const [f, setF] = useState({ firstName: '', lastName: '', dateOfBirth: '', phone: '' })
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value })
+  return (
+    <form className="mt-5 space-y-3" onSubmit={e => { e.preventDefault(); run(async () => { await gql('mutation($a:String!,$b:String!,$d:String!,$p:String){ portalRegister(firstName:$a,lastName:$b,dateOfBirth:$d,phone:$p) }', { a: f.firstName, b: f.lastName, d: f.dateOfBirth, p: f.phone || null }, auth()); onDone() }) }}>
+      <h2 className="text-xl font-semibold text-[#0b4f4b]">Tell us who you are</h2>
+      <p className="text-base text-[#4c5a58]">If you have been to the office with this email, we find your record. If not, this starts one.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div><label className="mb-1 block text-sm" htmlFor="rg-first">First name</label><input id="rg-first" required autoComplete="given-name" className={field} value={f.firstName} onChange={set('firstName')} /></div>
+        <div><label className="mb-1 block text-sm" htmlFor="rg-last">Last name</label><input id="rg-last" required autoComplete="family-name" className={field} value={f.lastName} onChange={set('lastName')} /></div>
+        <div><label className="mb-1 block text-sm" htmlFor="rg-dob">Date of birth</label><input id="rg-dob" type="date" required autoComplete="bday" className={field} value={f.dateOfBirth} onChange={set('dateOfBirth')} /></div>
+        <div><label className="mb-1 block text-sm" htmlFor="rg-phone">Mobile phone (optional)</label><input id="rg-phone" type="tel" autoComplete="tel" className={field} value={f.phone} onChange={set('phone')} /></div>
+      </div>
+      <button disabled={busy} className="min-h-12 w-full rounded-[3px] bg-[#dc6244] px-6 text-lg font-medium text-white hover:bg-[#c75537] disabled:opacity-60 sm:w-auto">{busy ? 'One moment' : 'Continue'}</button>
+    </form>
+  )
+}
+
 export function PortalSignIn() {
   const [step, setStep] = useState<'email' | 'code' | 'in'>('email')
   const [email, setEmail] = useState('')
@@ -57,7 +76,7 @@ export function PortalSignIn() {
             ) : <p className="mt-2">No visits in the last year.</p>}
           </section>
         ))}
-        {!people.length ? <p className="mt-4">No one is linked to this account yet. Please call the office.</p> : null}
+        {!people.length ? <Register busy={busy} onDone={() => run(load)} run={run} auth={auth} /> : null}
         <p className="mt-5"><Link href="/book" className="inline-flex min-h-11 items-center rounded-[3px] bg-[#dc6244] px-5 font-medium text-white hover:bg-[#c75537]">Book another visit</Link></p>
         {msg ? <p role="alert" className="mt-3 text-[#a5321b]">{msg}</p> : null}
       </div>
@@ -65,7 +84,7 @@ export function PortalSignIn() {
   }
   return (
     <form className="space-y-3" onSubmit={e => { e.preventDefault(); run(async () => {
-      if (step === 'email') { await gql('mutation($e:String!){ portalRequestCode(email:$e) }', { e: email }); setStep('code'); setMsg('If that email has a patient account, a code is on its way.') }
+      if (step === 'email') { await gql('mutation($e:String!){ portalRequestCode(email:$e) }', { e: email }); setStep('code'); setMsg('We sent a six-digit code to that email. It works for 10 minutes.') }
       else { const d = await gql<{ portalSession: { token: string } }>('mutation($e:String!,$c:String!){ portalSession(email:$e,code:$c) }', { e: email, c: code }); sessionStorage.setItem(TOKEN, d.portalSession.token); await load() }
     }) }}>
       <div><label className="mb-1 block text-sm" htmlFor="ps-email">Email</label><input id="ps-email" type="email" required className={field} value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" disabled={step === 'code'} /></div>

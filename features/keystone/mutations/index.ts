@@ -89,6 +89,7 @@ ${phase2TypeDefs}
         reviewBookingRequest(requestId: ID!, decision: String!, expectedVersion: Int!, existingPatientId: ID, note: String, idempotencyKey: String!): JSON
         portalRequestCode(email: String!): JSON
         portalSession(email: String!, code: String!): JSON
+        portalRegister(firstName: String!, lastName: String!, dateOfBirth: String!, phone: String, locationId: ID): JSON
         portalConfirm(appointmentId: ID!, expectedVersion: Int, idempotencyKey: String!): JSON
         portalCancel(appointmentId: ID!, expectedVersion: Int, reason: String, idempotencyKey: String!): JSON
         portalReschedule(appointmentId: ID!, expectedVersion: Int, operatoryId: ID!, startsAt: String!, providerId: ID, idempotencyKey: String!): JSON
@@ -151,6 +152,7 @@ ${phase2TypeDefs}
         suspendPortalAccount: op(portal.suspendPortalAccount as any),
         portalRequestCode: op(portal.portalRequestCode as any),
         portalSession: op(portal.portalSession as any),
+        portalRegister: op(portal.portalRegister as any),
         portalConfirm: op(portal.portalConfirm as any),
         portalCancel: op(portal.portalCancel as any),
         portalReschedule: op(portal.portalReschedule as any),

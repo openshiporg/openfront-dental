@@ -399,14 +399,16 @@ describe.skipIf(!hasTestDatabase)('Phase 1: patients, scheduling, public and por
     expect((await prisma.mergeCase.findUniqueOrThrow({ where: { id: String(linked.mergeCaseId) } })).status).toBe('proposed')
   }, 120_000)
 
-  it('the public API is rate limited per client', async () => {
+  it('open times are never rate limited; holds are limited per client', async () => {
     const req = reqFrom(freshIp())
     const policy = await prisma.onlineBookingPolicy.findFirstOrThrow({ where: { locationId: TPA } })
-    await prisma.onlineBookingPolicy.update({ where: { id: policy.id }, data: { rateLimit: { perClientPerHour: 3, perContactPerDay: 5, globalPerMinute: 1000 } as never } })
+    await prisma.onlineBookingPolicy.update({ where: { id: policy.id }, data: { rateLimit: { perClientPerHour: 3, perContactPerDay: 5, globalPerMinute: 1 } as never } })
     try {
       const ask = () => publicAvailability(null, { slug: 'bayview', locationId: TPA, typeId: 'seed_apt_consult', fromDate: next(1, 22), days: 1 }, { prisma, session: null, req })
-      await ask(); await ask(); await ask()
-      await expect(ask()).rejects.toMatchObject({ code: 'RATE_LIMITED' })
+      for (let i = 0; i < 6; i++) await ask()
+      const hold = () => publicHoldSlot(null, { slug: 'bayview', locationId: TPA, typeId: 'seed_apt_consult', operatoryId: 'nope', startsAt: new Date().toISOString(), idempotencyKey: `rl-${Math.random()}` }, { prisma, session: null, req }).catch((e: any) => e)
+      await hold(); await hold(); await hold()
+      expect(await hold()).toMatchObject({ code: 'RATE_LIMITED' })
     } finally {
       await prisma.onlineBookingPolicy.update({ where: { id: policy.id }, data: { rateLimit: policy.rateLimit as never } })
     }
