@@ -39,7 +39,7 @@ export default async function MembershipsPage() {
         {(d.membershipPlans as any[]).length ? (d.membershipPlans as any[]).map((p) => (
           <Row key={p.id} className="items-start">
             <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine status={p.status === 'active' ? null : p.status}>{p.name}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(p.priceMinor)} {p.interval === 'annual' ? 'a year' : 'a month'}</span></span>
-              <Meta>{title(p.ageBand)} · {Number(p.discountPct)}% off other work{(p.includedBenefits as any[])?.length ? ` · ${(p.includedBenefits as any[]).map((b) => `${b.countPerPeriod} ${b.codeFamily} visits`).join(', ')}` : ''}</Meta>
+              <Meta>{title(p.ageBand)} · {Number(p.discountPct)}% off other work{(p.includedBenefits as any[])?.length ? ` · ${(p.includedBenefits as any[]).map((b) => `${b.countPerPeriod} ${b.codeFamily} visits a year`).join(', ')}` : ''}</Meta>
               {p.status === 'active' ? <span className="mt-1 block"><ActionButton op="retireMembershipPlan" vars={{ planId: p.id, expectedVersion: p.version }} confirm="Stop offering this plan? Current members keep it." paths={paths}>Stop offering</ActionButton></span> : null}
             </span>
           </Row>
@@ -51,7 +51,7 @@ export default async function MembershipsPage() {
             { name: 'price', label: 'Price', kind: 'text', required: true, placeholder: '29.00' },
             { name: 'interval', label: 'Charged', kind: 'select', required: true, options: [{ value: 'monthly', label: 'Monthly' }, { value: 'annual', label: 'Yearly' }] },
             { name: 'discountPct', label: 'Percent off other work', kind: 'text', required: true, defaultValue: '15' },
-            { name: 'coveredVisits', label: 'Cleanings and exams included each period', kind: 'number', defaultValue: '2' },
+            { name: 'coveredVisits', label: 'Cleanings and exams included each year', kind: 'number', defaultValue: '2' },
             { name: 'locationId', label: 'Office', kind: 'select', required: true, options: (d.locations as any[]).map((l) => ({ value: l.id, label: l.name })) },
             { name: 'termsText', label: 'Terms the member agrees to', kind: 'textarea', required: true },
           ]} /></div>

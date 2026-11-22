@@ -92,7 +92,7 @@ export default async function Home() {
           {plans.length ? (
             <ul className="mt-3 space-y-2 text-lg">
               {plans.map(p => {
-                const benefits = Array.isArray(p.includedBenefits) ? (p.includedBenefits as { codeFamily?: string; countPerPeriod?: number }[]).filter(b => b?.codeFamily && Number.isInteger(b.countPerPeriod)).map(b => `${b.countPerPeriod} ${words(b.codeFamily as string)} visit${b.countPerPeriod === 1 ? '' : 's'} a ${p.interval === 'annual' ? 'year' : 'month'}`) : []
+                const benefits = Array.isArray(p.includedBenefits) ? (p.includedBenefits as { codeFamily?: string; countPerPeriod?: number }[]).filter(b => b?.codeFamily && Number.isInteger(b.countPerPeriod)).map(b => `${b.countPerPeriod} ${words(b.codeFamily as string)} visit${b.countPerPeriod === 1 ? '' : 's'} a year included`) : []
                 const detail = [...benefits, Number(p.discountPct) ? `${Number(p.discountPct)}% off other treatment` : ''].filter(Boolean).join(', ')
                 return <li key={p.id}><strong className="block font-semibold">{words(p.ageBand).replace(/^./, c => c.toUpperCase())}: {dollars(p.priceMinor)}/{p.interval === 'annual' ? 'year' : 'month'}</strong>{detail ? <span className="block text-base text-[#4c5a58]">{detail}</span> : null}</li>
               })}

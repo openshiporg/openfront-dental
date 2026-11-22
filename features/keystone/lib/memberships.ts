@@ -44,6 +44,16 @@ export async function membershipGate(tx: Tx, locationId: string, today: string) 
 }
 
 /** The covered-visit counter for one period: issued minus reversed uses of a code family. */
+/** The start of the membership year that contains `day`: the latest anniversary of the join date on or before it. */
+export function benefitYearStart(joined: Date, day: Date) {
+  const j = joined.toISOString().slice(0, 10)
+  let year = day.getUTCFullYear()
+  const at = (y: number) => { const [, m, d] = j.split('-').map(Number); const last = new Date(Date.UTC(y, m, 0)).getUTCDate(); return new Date(Date.UTC(y, m - 1, Math.min(d, last))) }
+  if (at(year).getTime() > day.getTime()) year -= 1
+  const start = at(year)
+  return start.getTime() < joined.getTime() ? joined : start
+}
+
 export async function benefitsUsed(tx: Tx, membershipId: string, codeFamily: string, periodStart: Date) {
   const rows = await tx.membershipLedgerEntry.findMany({ where: { membershipId, codeFamily, kind: { in: ['benefit_use', 'benefit_reverse'] }, at: { gte: periodStart } }, select: { kind: true, quantity: true } })
   return rows.reduce((n, r) => n + (r.kind === 'benefit_use' ? 1 : -1) * (r.quantity ?? 1), 0)
@@ -67,7 +77,8 @@ export async function applyMembershipToCharge(uow: UnitOfWork, input: { patientI
   const plan = membership.plan
   const benefits = parseBenefits(plan.includedBenefits)
   const benefit = benefits.find(b => b.codeFamily === input.category)
-  const covered = benefit ? (await benefitsUsed(tx, membership.id, input.category, membership.currentPeriodStart!)) < benefit.countPerPeriod : false
+  // Included visits are counted per membership year (the way dental plans are sold: "2 cleanings a year"), even when the fee is billed monthly.
+  const covered = benefit ? (await benefitsUsed(tx, membership.id, input.category, benefitYearStart(new Date(`${membership.createdAt.toISOString().slice(0, 10)}T00:00:00Z`), day))) < benefit.countPerPeriod : false
   const creditMinor = covered ? input.feeMinor : percentOf(input.feeMinor, plan.discountPct)
   if (creditMinor <= 0n) return null
   const entry = await postEntry(tx, {
