@@ -49,10 +49,10 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
     <Page title={name} status={p.status} crumbs={[{ label: 'Patients', href: '/dashboard/platform/patients' }]}>
       <div className="flex flex-wrap items-center gap-3">
         <span className="font-mono text-sm text-muted-foreground">{chartLabel(p.chartNumber)}</span>
-        <Link className="text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/chart`}>Open clinical record</Link>
-        <Link className="text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/insurance`}>Insurance and estimates</Link>
-        <Link className="text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/ledger`}>Account and balance</Link>
-        <Link className="text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/imaging`}>Images</Link>
+        <Link className="inline-flex min-h-11 items-center md:min-h-0 text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/chart`}>Open clinical record</Link>
+        <Link className="inline-flex min-h-11 items-center md:min-h-0 text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/insurance`}>Insurance and estimates</Link>
+        <Link className="inline-flex min-h-11 items-center md:min-h-0 text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/ledger`}>Account and balance</Link>
+        <Link className="inline-flex min-h-11 items-center md:min-h-0 text-sm font-medium underline" href={`/dashboard/platform/patients/${p.id}/imaging`}>Images</Link>
         {p.mergedInto ? <Link className="text-sm underline" href={`/dashboard/platform/patients/${p.mergedInto.id}`}>Merged into {chartLabel(p.mergedInto.chartNumber)}</Link> : null}
       </div>
       {activeAlerts.length ? (
@@ -121,7 +121,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           </Row>
         )) : <Empty>No phone or email on file.</Empty>}
         <details className="pt-2">
-          <summary className="cursor-pointer text-sm font-medium">Add a phone or email</summary>
+          <summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Add a phone or email</summary>
           <div className="pt-3">
             <CommandForm op="addContactPoint" submitLabel="Add contact" columns={3} paths={path} fixed={{ patientId: p.id }}
               fields={[

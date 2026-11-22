@@ -28,7 +28,7 @@ export default async function PaymentsPage() {
             </span>
           </Row>
         )) : <Empty>No refunds waiting.</Empty>}
-        <Meta><Link className="underline" href="/dashboard/platform/approvals">Approvals</Link></Meta>
+        <Meta><Link className="inline-flex min-h-11 items-center md:min-h-0 underline" href="/dashboard/platform/approvals">Approvals</Link></Meta>
       </Section>
       <Section title="Payments that need a look">
         {(d.payments as any[]).length ? (d.payments as any[]).map((p) => (
@@ -40,12 +40,12 @@ export default async function PaymentsPage() {
           <Row key={s.id} className="items-start">
             <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine status={s.status}>{s.ref} · Account {s.account?.ref}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(s.amountDueMinor)}</span></span>
               <Meta>Cycle {calendarDate(s.cycleDate, 'date')} · due {calendarDate(s.dueDate, 'date')}</Meta>
-              <span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm"><a className="underline underline-offset-2" href={`/api/statements/${s.id}/pdf`} target="_blank" rel="noreferrer">Open PDF</a>{s.payLinkCode ? <a className="underline underline-offset-2" href={`/pay/${s.payLinkCode}`} target="_blank" rel="noreferrer">Patient pay page</a> : null}</span>
+              <span className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm"><a className="inline-flex min-h-11 items-center md:min-h-0 underline underline-offset-2" href={`/api/statements/${s.id}/pdf`} target="_blank" rel="noreferrer">Open PDF</a>{s.payLinkCode ? <a className="inline-flex min-h-11 items-center md:min-h-0 underline underline-offset-2" href={`/pay/${s.payLinkCode}`} target="_blank" rel="noreferrer">Patient pay page</a> : null}</span>
               {s.status === 'generated' ? <span className="mt-1 block"><ActionButton op="sendStatement" vars={{ statementId: s.id, channel: 'mail' }} paths={paths}>Mark as mailed</ActionButton></span> : null}
             </span>
           </Row>
         )) : <Empty>No statements yet.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Build this month’s statements</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Build this month’s statements</summary>
           <div className="pt-2"><CommandForm op="generateStatements" submitLabel="Build statements" paths={paths} columns={2} fields={[
             { name: 'locationId', label: 'Office', kind: 'select', required: true, options: (d.locations as any[]).map((l) => ({ value: l.id, label: l.name })) },
             { name: 'cycleDate', label: 'Statement date', kind: 'date', hint: 'Leave empty for today.' },

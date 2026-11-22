@@ -53,7 +53,7 @@ export default async function AuditPage({ searchParams }: { searchParams?: Promi
           </Row>
         )) : <Empty>No audit events yet.</Empty>}
       </Section>
-      {last && last.seq > 1 && data.auditEvents.length === PAGE ? <Link href={`/dashboard/platform/audit?before=${last.seq}${entity ? `&entity=${encodeURIComponent(entity)}` : ''}`} className="text-sm underline">Older events</Link> : null}
+      {last && last.seq > 1 && data.auditEvents.length === PAGE ? <Link href={`/dashboard/platform/audit?before=${last.seq}${entity ? `&entity=${encodeURIComponent(entity)}` : ''}`} className="inline-flex min-h-11 items-center md:min-h-0 text-sm underline">Older events</Link> : null}
     </Page>
   );
 }

@@ -44,7 +44,7 @@ export default async function ChartPage({ params, searchParams }: { params: Prom
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="font-mono text-muted-foreground">{chartLabel(p.chartNumber)}</span>
         <span className="text-muted-foreground">Born {calendarDate(p.dateOfBirth, 'date')}</span>
-        <Link className="hover:underline" href={`/dashboard/platform/patients/${id}`}>Back to overview</Link>
+        <Link className="inline-flex min-h-11 items-center md:min-h-0 hover:underline" href={`/dashboard/platform/patients/${id}`}>Back to overview</Link>
       </div>
       {(p.alerts as any[]).length ? (
         <div className="space-y-1 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
