@@ -37,6 +37,7 @@ export function PortalSignIn() {
   const [busy, setBusy] = useState(false)
   const [people, setPeople] = useState<Person[]>([])
   const [appts, setAppts] = useState<Record<string, Appt[]>>({})
+  const [cancelling, setCancelling] = useState<string | null>(null)
 
   const auth = () => ({ 'x-portal-token': sessionStorage.getItem(TOKEN) ?? '' })
   async function load() {
@@ -76,7 +77,13 @@ export function PortalSignIn() {
                     {a.canConfirm || a.canChange ? (
                     <div className="mt-3 flex flex-wrap gap-3">
                       {a.canConfirm ? <button disabled={busy} className="min-h-11 rounded-[3px] bg-[#0f6b66] px-5 font-medium text-white disabled:opacity-60" onClick={() => act(a, 'Confirm')}>Confirm visit</button> : null}
-                      {a.canChange ? <button disabled={busy} className="min-h-11 rounded-[3px] border border-[#9cc7c1] bg-white/90 px-5 disabled:opacity-60" onClick={() => { if (window.confirm('Cancel this visit?')) act(a, 'Cancel') }}>Cancel visit</button> : null}
+                      {a.canChange && cancelling !== a.id ? <button disabled={busy} className="min-h-11 rounded-[3px] border border-[#9cc7c1] bg-white/90 px-5 disabled:opacity-60" onClick={() => setCancelling(a.id)}>Cancel visit</button> : null}
+                      {cancelling === a.id ? (
+                        <div role="group" aria-label="Cancel this visit?" className="flex w-full flex-wrap items-center gap-3 rounded-[3px] bg-[#ece5d6] p-3">
+                          <p className="w-full text-base font-medium">Cancel this visit? The time goes back to other patients.</p>
+                          <button disabled={busy} className="min-h-11 rounded-[3px] bg-[#a5321b] px-5 font-medium text-white disabled:opacity-60" onClick={() => { setCancelling(null); act(a, 'Cancel') }}>Yes, cancel it</button>
+                          <button autoFocus className="min-h-11 rounded-[3px] border border-[#9cc7c1] bg-white/90 px-5" onClick={() => setCancelling(null)}>Keep my visit</button>
+                        </div>) : null}
                     </div>) : null}</li>
                 ))}
               </ul>

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { changeMfa, type MfaChange } from './mfaActions';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 
 type Step = { kind: 'idle' } | { kind: 'enrolling'; secret: string; uri: string } | { kind: 'codes'; codes: string[] };
 
@@ -17,6 +18,7 @@ export function MfaPanel({ enrolled }: { enrolled: boolean }) {
   const [step, setStep] = React.useState<Step>({ kind: 'idle' });
   const [error, setError] = React.useState('');
   const [pending, start] = React.useTransition();
+  const [asking, setAsking] = React.useState(false);
 
   const run = (action: Parameters<typeof changeMfa>[0], after: (r: Extract<MfaChange, { ok: true }>) => void) => {
     setError('');
@@ -79,11 +81,12 @@ export function MfaPanel({ enrolled }: { enrolled: boolean }) {
         {enrolled ? (
           <>
             <Button variant="outline" disabled={pending || !password || !code} onClick={() => run('rotate_recovery', r => setStep({ kind: 'codes', codes: r.recoveryCodes || [] }))}>New recovery codes</Button>
-            <Button variant="destructive" disabled={pending || !password || !code} onClick={() => { if (window.confirm('Turn off two-step verification? Your other sessions will be signed out.')) run('disable', () => setStep({ kind: 'idle' })); }}>Turn off</Button>
+            <Button variant="destructive" disabled={pending || !password || !code} onClick={() => setAsking(true)}>Turn off</Button>
           </>
         ) : null}
       </div>
       {error ? <p role="alert" className="text-sm text-red-600">{error}</p> : null}
+      <ConfirmDialog danger question={asking ? 'Turn off two-step verification?' : null} detail="Your other sessions will be signed out." yes="Turn it off" onYes={() => run('disable', () => setStep({ kind: 'idle' }))} onClose={() => setAsking(false)} />
     </div>
   );
 }

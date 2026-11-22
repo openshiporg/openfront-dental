@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { runCommand } from '../../actions/commands';
 import { title } from '../../lib/format';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 
 export type GridOperatory = { id: string; code: string; name: string; kind: string };
 export type GridBlock = { id: string; operatoryId: string; startMin: number; endMin: number; label: string; provider: string; providerId: string | null; onlineBookable: boolean };
@@ -39,6 +40,7 @@ export function ScheduleGrid({ date, locationId, operatories, blocks, appointmen
   const router = useRouter();
   const [message, setMessage] = React.useState<{ kind: 'error' | 'ok'; text: string } | null>(null);
   const [pending, start] = React.useTransition();
+  const [ask, setAsk] = React.useState<{ question: string; go: () => void } | null>(null);
   const height = (endMin - startMin) * PX_PER_MIN;
   const hours: number[] = [];
   for (let m = Math.ceil(startMin / 60) * 60; m < endMin; m += 60) hours.push(m);
@@ -56,20 +58,21 @@ export function ScheduleGrid({ date, locationId, operatories, blocks, appointmen
     const operatory = operatories.find((o) => o.id === operatoryId);
     const block = blocks.find((b) => b.operatoryId === operatoryId && b.startMin <= minute && minute < b.endMin);
     const providerId = block?.providerId ?? appointment.providerId;
-    if (!window.confirm(`Move ${appointment.ref} (${appointment.patient}) to ${operatory?.code ?? 'chair'} at ${clock(minute)}?`)) return;
     const startsAt = new Date(Date.parse(`${date}T00:00:00Z`) + (minute - offsetMinutes) * 60_000).toISOString();
-    setMessage(null);
+    const go = () => { setMessage(null);
     start(async () => {
       const r = await runCommand('rescheduleAppointment', {
         appointmentId: appointment.id, expectedVersion: appointment.version, locationId, operatoryId, typeId: appointment.typeId, startsAt, providerId, reason: 'Moved on the schedule',
       }, `rescheduleAppointment:${crypto.randomUUID()}`, ['/dashboard/platform/schedule']);
       if (!r.ok) setMessage({ kind: 'error', text: r.error });
       else { setMessage({ kind: 'ok', text: `Moved to ${operatory?.code} at ${clock(minute)}.` }); router.refresh(); }
-    });
+    }); };
+    setAsk({ question: `Move ${appointment.ref} (${appointment.patient}) to chair ${operatory?.code ?? ''} at ${clock(minute)}?`, go });
   };
 
   return (
     <div className="space-y-2">
+      <ConfirmDialog question={ask?.question ?? null} yes="Move it" onYes={() => ask?.go()} onClose={() => setAsk(null)} />
       {message ? <p role={message.kind === 'error' ? 'alert' : 'status'} className={cn('text-sm', message.kind === 'error' ? 'text-red-600' : 'text-emerald-700')}>{message.text}</p> : null}
       {pending ? <p className="text-sm text-muted-foreground">Moving…</p> : null}
       <div className="max-w-full overflow-x-auto rounded-lg border">
@@ -134,7 +137,7 @@ export function ScheduleGrid({ date, locationId, operatories, blocks, appointmen
           ))}
         </div>
       </div>
-      <p className="text-xs text-muted-foreground">Drag a scheduled or confirmed visit to move it. Left stripe: provider (type colour), assistant (grey), dentist exam (amber). Ring colour is the status.</p>
+      <p className="text-xs text-muted-foreground">Drag a scheduled or confirmed visit to move it. Left stripe: provider (type color), assistant (grey), dentist exam (amber). Ring colour is the status.</p>
     </div>
   );
 }
