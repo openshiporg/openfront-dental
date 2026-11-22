@@ -59,7 +59,7 @@ export default async function CodesPage({ searchParams }: { searchParams?: Promi
                   <div className="flex flex-wrap items-center justify-between gap-2"><TitleLine status={b.status}><span className="font-medium">{b.label}</span><Meta>{b.codeSystem?.key} · {b.editionYear} · {b.fileName}</Meta></TitleLine><Meta>{when(b.createdAt, undefined, 'dayTime')}</Meta></div>
                   {problems.length ? <ul className="list-disc pl-5 text-xs text-red-700">{problems.slice(0, 5).map((pr) => <li key={pr.row}>Row {pr.row}: {pr.message}</li>)}</ul> : null}
                   {b.status === 'validated' ? (
-                    <details><summary className="cursor-pointer font-medium">Attest the license</summary>
+                    <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer font-medium">Attest the license</summary>
                       <div className="pt-3"><CommandForm op="attestCodeLicence" submitLabel="Attest" paths={paths} columns={3} fixed={{ batchId: b.id, expectedVersion: b.version }}
                         fields={[{ name: 'licenceType', label: 'License type', kind: 'select', options: [{ value: 'practice_end_user', label: 'Practice end-user licence' }, { value: 'vendor_sublicence', label: 'Vendor sublicense' }] }, { name: 'licenceHolder', label: 'License holder', kind: 'text', required: true }, { name: 'agreementRef', label: 'Agreement reference', kind: 'text', required: true }]} /></div></details>
                   ) : null}

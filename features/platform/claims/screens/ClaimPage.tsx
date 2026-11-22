@@ -87,7 +87,7 @@ export default async function ClaimPage({ params }: { params: Promise<{ id: stri
             </Row>
           ))}
           {(d.denials as any[]).filter((n) => ['open', 'working'].includes(n.status)).slice(0, 1).map((n) => (
-            <details key={n.id}><summary className="cursor-pointer text-sm font-medium">File an appeal</summary>
+            <details key={n.id}><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">File an appeal</summary>
               <div className="pt-2"><CommandForm op="fileAppeal" submitLabel="File appeal" paths={paths} fixed={{ denialId: n.id, expectedVersion: n.version }} fields={[
                 { name: 'via', label: 'Sent by', kind: 'select', required: true, options: [{ value: 'portal', label: 'Payer portal' }, { value: 'fax', label: 'Fax' }, { value: 'mail', label: 'Mail' }, { value: 'phone', label: 'Phone' }] },
                 { name: 'letter', label: 'Appeal letter', kind: 'textarea', required: true },

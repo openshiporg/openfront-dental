@@ -27,11 +27,11 @@ export default async function FeesPage({ searchParams }: { searchParams?: Promis
               <div className="text-sm font-medium">{s.name}{s.isDefault ? <Meta> · default</Meta> : null}</div>
               <Meta>{title(s.kind)}</Meta>
               {(s.versions as any[]).map((v) => <Row key={v.id} href={`/dashboard/platform/fees?version=${v.id}`}><TitleLine status={v.status}><span className={v.id === selected?.id ? 'font-semibold' : ''}>{v.label}</span></TitleLine><Meta>from {calendarDate(v.effectiveFrom, 'date')}</Meta></Row>)}
-              <details className="pt-1"><summary className="cursor-pointer text-xs font-medium">New version</summary>
+              <details className="pt-1"><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-xs font-medium">New version</summary>
                 <div className="pt-2"><CommandForm op="createFeeVersion" submitLabel="Create draft" paths={paths} columns={1} fixed={{ scheduleId: s.id }} fields={[{ name: 'label', label: 'Label', kind: 'text', required: true }, { name: 'effectiveFrom', label: 'Effective from', kind: 'date', required: true }]} /></div></details>
             </div>
           ))}
-          <details><summary className="cursor-pointer text-sm font-medium">New schedule</summary>
+          <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">New schedule</summary>
             <div className="pt-2"><CommandForm op="openFeeSchedule" submitLabel="Create" paths={paths} columns={1} fields={[{ name: 'name', label: 'Name', kind: 'text', required: true }, { name: 'kind', label: 'Kind', kind: 'select', options: [{ value: 'office_ucr', label: 'Office (UCR)' }, { value: 'ppo', label: 'In-network plan' }, { value: 'membership', label: 'Membership' }, { value: 'other', label: 'Other' }] }]} /></div></details>
         </Section>
         <Section title={selected ? `${selected.schedule.name} · ${selected.label}` : 'Fees'} aside={selected ? <TitleLine status={selected.status}>{null}</TitleLine> : null}>

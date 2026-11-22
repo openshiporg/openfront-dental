@@ -24,7 +24,7 @@ export default async function ClosePage() {
             </span>
           </Row>
         )) : <Empty>No day has been closed yet.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Close a day</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Close a day</summary>
           <div className="pt-2"><CommandForm op="closeDay" submitLabel="Close the day" paths={paths} columns={2} fields={[
             { name: 'locationId', label: 'Office', kind: 'select', required: true, options: offices },
             { name: 'businessDate', label: 'Day', kind: 'date', required: true },
@@ -53,7 +53,7 @@ export default async function ClosePage() {
             </span>
           </Row>
         )) : <Empty>No month has been closed yet.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Close a month</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Close a month</summary>
           <div className="pt-2"><CommandForm op="closePeriod" submitLabel="Close the month" paths={paths} columns={2} fields={[
             { name: 'locationId', label: 'Office', kind: 'select', required: true, options: offices },
             { name: 'period', label: 'Month', kind: 'text', required: true, placeholder: '2026-10', hint: 'Year and month. Every day with entries must be closed first.' },

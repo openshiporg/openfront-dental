@@ -27,7 +27,7 @@ export default async function InsurancePage() {
               <Meta>{plural(plans.filter((x) => x.payer?.id === p.id).length, 'plan', 'plans')}</Meta>
             </Row>
           )) : <Empty>No payers yet.</Empty>}
-          <details><summary className="cursor-pointer text-sm font-medium">Add a payer</summary>
+          <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Add a payer</summary>
             <div className="pt-2"><CommandForm op="savePayer" submitLabel="Save payer" paths={paths} columns={2} fields={[
               { name: 'name', label: 'Name', kind: 'text', required: true },
               { name: 'kind', label: 'Kind', kind: 'select', options: options([...PAYER_KINDS]), required: true },
@@ -43,7 +43,7 @@ export default async function InsurancePage() {
               <span className="shrink-0 text-right"><Meta>{p.annualMaxMinor ? `Max ${money(p.annualMaxMinor)}` : 'Max not set'}<br />{p.feeSchedule?.name ?? 'Practice fees'}</Meta></span>
             </Row>
           )) : <Empty>No plans yet.</Empty>}
-          <details><summary className="cursor-pointer text-sm font-medium">Add a plan</summary>
+          <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Add a plan</summary>
             <div className="pt-2"><CommandForm op="saveInsurancePlan" submitLabel="Save plan" paths={paths} columns={2} fields={[
               { name: 'payerId', label: 'Payer', kind: 'select', options: payers.map((p) => ({ value: p.id, label: p.name })), required: true },
               { name: 'groupName', label: 'Employer or group', kind: 'text', required: true },

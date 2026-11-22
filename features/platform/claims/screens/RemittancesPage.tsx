@@ -27,7 +27,7 @@ export default async function RemittancesPage() {
         {(d.held as any[]).length ? (d.held as any[]).map((h) => (
           <Row key={h.id} className="items-start">
             <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine>Claim {h.patientControlNumber}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(h.paidMinor)}</span></span><Meta>{h.remittance?.payer?.name} · no claim of ours matches</Meta></span>
-            <details><summary className="cursor-pointer text-sm font-medium">Match to a claim</summary>
+            <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Match to a claim</summary>
               <div className="pt-2"><CommandForm op="matchRemittance" submitLabel="Match and post" paths={paths} columns={1} fixed={{ remittanceClaimId: h.id }} fields={[{ name: 'claimId', label: 'Claim', kind: 'select', required: true, options: (d.claims as any[]).map((c) => ({ value: c.id, label: `${c.patient?.firstName} ${c.patient?.lastName} · ${c.ref}` })) }]} /></div>
             </details>
           </Row>
@@ -35,7 +35,7 @@ export default async function RemittancesPage() {
         {heldLinked.map((h) => (
           <Row key={h.id} className="items-start">
             <span className="min-w-0 flex-1"><span className="flex items-baseline justify-between gap-3"><TitleLine>Claim {h.claim?.ref ?? h.patientControlNumber}</TitleLine><span className="shrink-0 font-medium tabular-nums">{money(h.paidMinor)}</span></span><Meta>{h.remittance?.payer?.name} · held{h.remittance?.exceptionNote ? `: ${h.remittance.exceptionNote}` : ''}</Meta></span>
-            <details><summary className="cursor-pointer text-sm font-medium">Post to the claim</summary>
+            <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Post to the claim</summary>
               <div className="pt-2"><CommandForm op="matchRemittance" submitLabel="Post" paths={paths} columns={1} fixed={{ remittanceClaimId: h.id, claimId: h.claim?.id }} fields={[]} /></div>
             </details>
           </Row>
@@ -57,7 +57,7 @@ export default async function RemittancesPage() {
         )) : <Empty>No insurance payments received yet.</Empty>}
       </Section>
       <Section title="Enter a paper explanation of benefits">
-        <details><summary className="cursor-pointer text-sm font-medium">New entry</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">New entry</summary>
           <div className="pt-2"><CommandForm op="enterManualEob" shape="manualEob" submitLabel="Post payment" paths={paths} columns={2} fields={[
             { name: 'payerId', label: 'Payer', kind: 'select', required: true, options: (d.payers as any[]).map((p) => ({ value: p.id, label: p.name })) },
             { name: 'traceNumber', label: 'Check or payment number', kind: 'text', required: true },

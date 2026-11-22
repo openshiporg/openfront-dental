@@ -133,7 +133,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
         </details>
         <p className="text-xs text-muted-foreground">Purposes: {PURPOSES.map(label).join(', ')}. Texts and calls also follow the practice quiet hours.</p>
       </Section>
-      <Section title="Upcoming visits" aside={<Link className="text-sm hover:underline" href={`/dashboard/platform/schedule?loc=${p.homeLocation?.id ?? ''}`}>Book</Link>}>
+      <Section title="Upcoming visits" aside={<Link className="inline-flex min-h-11 items-center text-sm underline underline-offset-2 md:min-h-0" href={`/dashboard/platform/schedule?loc=${p.homeLocation?.id ?? ''}`}>Book</Link>}>
         {upcoming.length ? upcoming.map((a) => (
           <Row key={a.id} href={`/dashboard/platform/schedule?date=${a.startsAt.slice(0, 10)}&appt=${a.id}`}>
             <TitleLine status={a.status}><span>{when(a.startsAt, tz, 'dayTime')} · {a.type?.name}</span></TitleLine>
@@ -176,7 +176,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           ))}
           {!(data.portalScopes as any[]).length && !(data.mergeCases as any[]).length ? <Empty>No portal access or merges.</Empty> : null}
           <details className="pt-2">
-            <summary className="cursor-pointer text-sm font-medium">Same person as another chart?</summary>
+            <summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Same person as another chart?</summary>
             <div className="pt-3">
               <CommandForm op="proposeMerge" submitLabel="Propose merge" columns={2} paths={path} fixed={{ survivorId: p.id }}
                 fields={[{ name: 'mergedId', label: 'Chart to merge into this one', kind: 'text', required: true, placeholder: '1001' }, { name: 'reason', label: 'Why they are the same person', kind: 'textarea', required: true }]}
@@ -185,7 +185,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
             </div>
           </details>
           <details className="pt-2">
-            <summary className="cursor-pointer text-sm font-medium">Give portal access</summary>
+            <summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Give portal access</summary>
             <div className="pt-3">
               <CommandForm op="grantPortalAccess" submitLabel="Grant access" columns={2} paths={path} fixed={{ patientId: p.id }}
                 fields={[

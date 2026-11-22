@@ -78,7 +78,7 @@ export async function PerioTab({ id, p, providers, examId, href, paths }: { id: 
             <Meta>{e.examiner?.displayName}</Meta>
           </Row>
         ))}
-        <details><summary className="cursor-pointer text-sm font-medium">Start a new exam</summary><div className="pt-3"><StartForm id={id} p={p} hygienists={hygienists} paths={paths} /></div></details>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Start a new exam</summary><div className="pt-3"><StartForm id={id} p={p} hygienists={hygienists} paths={paths} /></div></details>
       </Section>
       <div className="grid grid-cols-2 gap-4 rounded-lg border p-4 sm:grid-cols-5">
         <Stat name="Sites recorded" value={summary.sites} />
@@ -93,7 +93,7 @@ export async function PerioTab({ id, p, providers, examId, href, paths }: { id: 
         <Row16 teeth={LOWER} label="Lower, patient’s right to left" />
         {editable ? (
           <details open className="pt-2">
-            <summary className="cursor-pointer text-sm font-medium">Enter measurements</summary>
+            <summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Enter measurements</summary>
             <div className="pt-3">
               <CommandForm op="recordPerioMeasurements" submitLabel="Save sites" paths={paths} columns={3} fixed={{ examId: exam.id, expectedVersion: exam.version }} shape="perioRow"
                 fields={[

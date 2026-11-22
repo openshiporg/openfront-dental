@@ -110,7 +110,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
           <>
             <Row><span>Phone number</span><Meta>{line.phoneNumber} · Twilio · calls to this number reach the voice receptionist when voice is on</Meta></Row>
             {canConnect ? (
-              <details><summary className="cursor-pointer text-sm font-medium">Disconnect this number</summary>
+              <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Disconnect this number</summary>
                 <div className="pt-2"><CommandForm op="disconnectPhoneNumber" submitLabel="Disconnect" paths={path} columns={1} fixed={{ locationId: location.id }} fields={[
                   { name: 'reason', label: 'Why', kind: 'text', required: true },
                 ]} /></div>
@@ -119,7 +119,7 @@ export default async function LocationsPage({ searchParams }: { searchParams?: P
           </>
         ) : <p className="text-sm">No phone number connected. Voice needs one; until then calls can be logged by hand.</p>}
         {canConnect ? (
-          <details open={!line}><summary className="cursor-pointer text-sm font-medium">{line ? 'Connect a different number' : 'Connect a phone number'}</summary>
+          <details open={!line}><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">{line ? 'Connect a different number' : 'Connect a phone number'}</summary>
             <div className="space-y-2 pt-2">
               <p className="text-xs text-muted-foreground">Uses the practice&apos;s own Twilio account. Twilio is asked to confirm the account and the number, and the number is pointed at this app, before anything is saved. The auth token is stored encrypted and is never shown again. Calls carry patient information, so sign Twilio&apos;s business associate agreement (BAA) first.</p>
               <CommandForm op="connectPhoneNumber" submitLabel="Connect number" paths={path} columns={2} fixed={{ locationId: location.id }} fields={[

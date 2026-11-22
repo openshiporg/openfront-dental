@@ -40,7 +40,7 @@ export default async function FormsPage({ searchParams }: { searchParams?: Promi
             {(d.formRequests as any[]).length ? (d.formRequests as any[]).map((r) => (
               <div key={r.id} className="space-y-2 border-b py-3 text-sm last:border-b-0">
                 <div className="flex flex-wrap items-center justify-between gap-2"><TitleLine status={r.status}><span className="font-medium">{r.template?.template?.title}</span><Meta>{who(r.patient)} · {chartLabel(r.patient.chartNumber)}</Meta></TitleLine><Meta>{when(r.createdAt, undefined, 'dayTime')}</Meta></div>
-                <details><summary className="cursor-pointer font-medium">Record signature</summary>
+                <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer font-medium">Record signature</summary>
                   <div className="pt-3"><CommandForm op="submitForm" shape="signForm" submitLabel="Record signed form" paths={paths} columns={2} fixed={{ requestId: r.id, expectedVersion: r.version }}
                     fields={[
                       { name: 'signerName', label: 'Signer’s name', kind: 'text', required: true },
@@ -76,7 +76,7 @@ export default async function FormsPage({ searchParams }: { searchParams?: Promi
                   <p className="break-words text-muted-foreground">{v.body}</p>
                 </div>
               ))}
-              <details><summary className="cursor-pointer text-sm font-medium">Publish a new version</summary>
+              <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Publish a new version</summary>
                 <div className="pt-3"><CommandForm op="publishFormVersion" submitLabel="Publish version" paths={paths} columns={1} fixed={{ templateKey: t.key }}
                   fields={[{ name: 'body', label: 'Text', kind: 'textarea', defaultValue: (t.versions as any[])[0]?.body, required: true }, { name: 'requiresWitness', label: 'Needs a staff witness', kind: 'checkbox', defaultValue: (t.versions as any[])[0]?.requiresWitness }]} /></div></details>
             </Section>

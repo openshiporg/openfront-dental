@@ -25,7 +25,7 @@ export default async function MembershipsPage() {
           <Row key={l.id}><span className="min-w-0"><TitleLine>{l.jurisdiction} · {l.number}</TitleLine><Meta>{title(l.kind)} · from {calendarDate(l.effectiveFrom, 'date')}{l.effectiveTo ? ` to ${calendarDate(l.effectiveTo, 'date')}` : ''}</Meta></span></Row>
         )) : <Empty>None on file.</Empty>}
         {jurisdictions.filter((j) => !hasLicence(j)).map((j) => <Meta key={j}>{j} may require a discount plan license or registration before anyone is enrolled. Record it below.</Meta>)}
-        <details><summary className="cursor-pointer text-sm font-medium">Record a license or registration</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Record a license or registration</summary>
           <div className="pt-2"><CommandForm op="recordLicence" submitLabel="Save" paths={paths} columns={2} fixed={{ kind: 'discount_plan_operator' }} fields={[
             { name: 'jurisdiction', label: 'State rules', kind: 'select', required: true, options: jurisdictions.map((j) => ({ value: j, label: j })) },
             { name: 'number', label: 'License or registration number', kind: 'text', required: true },
@@ -44,7 +44,7 @@ export default async function MembershipsPage() {
             </span>
           </Row>
         )) : <Empty>No plans yet.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Add a plan</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Add a plan</summary>
           <div className="pt-2"><CommandForm op="defineMembershipPlan" shape="membershipPlan" submitLabel="Add plan" paths={paths} columns={2} fields={[
             { name: 'name', label: 'Plan name', kind: 'text', required: true },
             { name: 'ageBand', label: 'Who it is for', kind: 'select', required: true, options: [{ value: 'adult', label: 'Adults' }, { value: 'child', label: 'Children' }, { value: 'perio', label: 'Gum care' }] },
@@ -63,7 +63,7 @@ export default async function MembershipsPage() {
             <span className="min-w-0 flex-1"><TitleLine status={m.status}>{m.patient?.firstName} {m.patient?.lastName}</TitleLine>
               <Meta>{m.plan?.name} · {m.ref}{WORDS[m.status] ? ` · ${WORDS[m.status]}` : ''}{m.currentPeriodEnd ? ` · paid through ${calendarDate(m.currentPeriodEnd, 'date')}` : ''}</Meta>
               <span className="mt-1 flex flex-wrap gap-2">
-                {m.status === 'pending_agreement' ? <details><summary className="cursor-pointer text-sm font-medium">Sign the agreement</summary><div className="pt-2"><CommandForm op="signMembershipAgreement" shape="signAgreement" submitLabel="Start the plan" paths={paths} columns={1} fixed={{ membershipId: m.id, expectedVersion: m.version }} fields={[
+                {m.status === 'pending_agreement' ? <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Sign the agreement</summary><div className="pt-2"><CommandForm op="signMembershipAgreement" shape="signAgreement" submitLabel="Start the plan" paths={paths} columns={1} fixed={{ membershipId: m.id, expectedVersion: m.version }} fields={[
                   { name: 'signerName', label: 'Name of the person signing', kind: 'text', required: true },
                   { name: 'startsOn', label: 'Starts on', kind: 'date', hint: 'Leave empty to start today.' },
                   { name: 'consent', label: 'They have read the terms and agree to the plan and its price.', kind: 'checkbox' },
@@ -75,7 +75,7 @@ export default async function MembershipsPage() {
             </span>
           </Row>
         )) : <Empty>Nobody is enrolled.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Enroll a patient</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Enroll a patient</summary>
           <div className="pt-2"><CommandForm op="enrolMembership" submitLabel="Enroll" paths={paths} columns={2} fields={[
             { name: 'patientId', label: 'Patient', kind: 'select', required: true, options: (d.patients as any[]).map((p) => ({ value: p.id, label: `${p.lastName}, ${p.firstName} · #${p.chartNumber}` })) },
             { name: 'planId', label: 'Plan', kind: 'select', required: true, options: (d.membershipPlans as any[]).filter((p) => p.status === 'active').map((p) => ({ value: p.id, label: p.name })) },

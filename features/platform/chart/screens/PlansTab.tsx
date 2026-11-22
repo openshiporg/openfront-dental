@@ -45,7 +45,7 @@ export async function PlansTab({ id, paths }: { id: string; paths: string[] }) {
             </PillTrack>
             {['presented', 'partially_accepted'].includes(plan.status) && frozen ? (
               <details>
-                <summary className="cursor-pointer text-sm font-medium">Record acceptance</summary>
+                <summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Record acceptance</summary>
                 <div className="pt-3">
                   <CommandForm op="acceptTreatmentPlan" shape="acceptItems" submitLabel="Sign acceptance" paths={paths} columns={2} fixed={{ planId: plan.id, expectedVersion: plan.version, versionHash: v.contentHash }}
                     fields={[

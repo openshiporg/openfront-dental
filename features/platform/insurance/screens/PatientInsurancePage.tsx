@@ -126,7 +126,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
               <ActionButton op="terminateCoverage" vars={{ coverageId: c.id, expectedVersion: c.version, endedOn: new Date().toISOString().slice(0, 10) }} ask="Why did this coverage end?" confirm="End this coverage today?" paths={paths}>End coverage</ActionButton>
             </div>
             {v && v.status === 'in_progress' ? (
-              <details><summary className="cursor-pointer text-sm font-medium">Record what the payer said</summary>
+              <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Record what the payer said</summary>
                 <div className="pt-2"><CommandForm op="recordBenefitFact" submitLabel="Save" paths={paths} columns={3} fixed={{ verificationId: v.id }} fields={[
                   { name: 'field', label: 'Item', kind: 'select', options: options(FIELDS), required: true },
                   { name: 'category', label: 'Category', kind: 'select', options: [{ value: '', label: '—' }, ...options(CATEGORIES)] },
@@ -162,7 +162,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
       </Section>
       <Section title="Treatment done elsewhere">
         {(d.outsideHistories as any[]).length ? (d.outsideHistories as any[]).map((h) => <Row key={h.id}><span>{h.codeText}</span><Meta>{calendarDate(h.dateOfService, 'day')} · {title(h.source)}</Meta></Row>) : <Empty>None recorded. Frequency limits only count treatment done here.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Add outside treatment</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Add outside treatment</summary>
           <div className="pt-2"><CommandForm op="addOutsideHistory" submitLabel="Save" paths={paths} columns={2} fixed={{ patientId: id }} fields={[
             { name: 'codeText', label: 'Treatment', kind: 'text', required: true },
             { name: 'dateOfService', label: 'Date', kind: 'date', required: true },
@@ -179,7 +179,7 @@ export default async function PatientInsurancePage({ params }: { params: Promise
 async function AddCoverage({ patientId, paths }: { patientId: string; paths: string[] }) {
   const d = await q<any>(`{ insurancePlans(orderBy: { groupName: asc }) { id groupName payer { name } } }`);
   return (
-    <details><summary className="cursor-pointer text-sm font-medium">Add a plan for this patient</summary>
+    <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Add a plan for this patient</summary>
       <div className="pt-2"><CommandForm op="addCoverage" submitLabel="Add coverage" paths={paths} columns={2} fixed={{ patientId }} fields={[
         { name: 'planId', label: 'Plan', kind: 'select', required: true, options: (d.insurancePlans as any[]).map((x) => ({ value: x.id, label: `${x.payer?.name} · ${x.groupName}` })) },
         { name: 'memberId', label: 'Member ID', kind: 'text', required: true },

@@ -33,7 +33,7 @@ export async function NotesTab({ id, paths }: { id: string; paths: string[] }) {
             {n.errorReason ? <Meta>Entered in error: {n.errorReason}</Meta> : null}
             {n.status === 'draft' ? (
               <details>
-                <summary className="cursor-pointer font-medium">Edit and sign</summary>
+                <summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer font-medium">Edit and sign</summary>
                 <div className="space-y-4 pt-3">
                   <CommandForm op="updateNoteDraft" submitLabel="Save draft" paths={paths} columns={1} fixed={{ noteId: n.id, expectedVersion: n.version }} fields={[{ name: 'body', label: 'Note', kind: 'textarea', defaultValue: n.body, required: true }]} />
                   <CommandForm op="signClinicalNote" submitLabel="Sign note" paths={paths} columns={2} fixed={{ noteId: n.id, expectedVersion: n.version }} fields={[{ name: 'password', label: 'Your password', kind: 'password', required: true, hint: 'A signed note cannot be changed. Corrections are added as an amendment.' }]} />
@@ -43,7 +43,7 @@ export async function NotesTab({ id, paths }: { id: string; paths: string[] }) {
             {n.status === 'signed' ? (
               <div className="flex flex-wrap gap-2">
                 <details>
-                  <summary className="cursor-pointer font-medium">Add an amendment</summary>
+                  <summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer font-medium">Add an amendment</summary>
                   <div className="pt-3"><CommandForm op="draftClinicalNote" submitLabel="Start amendment" paths={paths} columns={1} fixed={{ patientId: id, amendsNoteId: n.id }} fields={[{ name: 'title', label: 'Title', kind: 'text', defaultValue: `Amendment: ${n.title}`, required: true }, { name: 'body', label: 'What is being added or corrected', kind: 'textarea', required: true }]} /></div>
                 </details>
                 <ActionButton op="markNoteEnteredInError" vars={{ noteId: n.id, expectedVersion: n.version }} ask="Why was this note entered in error? The text stays on file." paths={paths}>Entered in error</ActionButton>

@@ -57,7 +57,7 @@ export function MfaPanel({ enrolled }: { enrolled: boolean }) {
         <div className="space-y-2 rounded-md border p-3 text-sm">
           <p>Add this key to your authenticator app, then enter the code it shows. The key expires in 10 minutes.</p>
           <code className="block break-all rounded bg-muted px-2 py-1 font-mono text-xs">{step.secret}</code>
-          <details><summary className="cursor-pointer text-xs text-muted-foreground">Setup link (otpauth)</summary><code className="block break-all font-mono text-xs">{step.uri}</code></details>
+          <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-xs text-muted-foreground">Setup link (otpauth)</summary><code className="block break-all font-mono text-xs">{step.uri}</code></details>
         </div>
       ) : null}
 

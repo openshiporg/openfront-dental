@@ -96,8 +96,8 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
       </div>
       <Section title="Tooth chart" aside={
         <div className="flex flex-wrap items-center gap-2">
-          <PillTrack>{(['universal', 'fdi', 'palmer'] as const).map((n) => <Link key={n} href={href({ n })} className={`inline-flex h-8 items-center rounded-md px-3 text-sm font-medium ${n === numbering ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>{n === 'fdi' ? 'FDI' : title(n)}</Link>)}</PillTrack>
-          <PillTrack>{(['permanent', 'primary'] as const).map((n) => <Link key={n} href={href({ d: n })} className={`inline-flex h-8 items-center rounded-md px-3 text-sm font-medium ${n === dentition ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>{title(n)}</Link>)}</PillTrack>
+          <PillTrack>{(['universal', 'fdi', 'palmer'] as const).map((n) => <Link key={n} href={href({ n })} className={`inline-flex h-11 md:h-8 items-center rounded-md px-3 text-sm font-medium ${n === numbering ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>{n === 'fdi' ? 'FDI' : title(n)}</Link>)}</PillTrack>
+          <PillTrack>{(['permanent', 'primary'] as const).map((n) => <Link key={n} href={href({ d: n })} className={`inline-flex h-11 md:h-8 items-center rounded-md px-3 text-sm font-medium ${n === dentition ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>{title(n)}</Link>)}</PillTrack>
         </div>
       }>
         <Odontogram marks={marks} numbering={numbering} dentition={dentition} selected={selected} hrefFor={(t) => href({ tooth: t })} />
@@ -161,7 +161,7 @@ async function ChartTab({ id, p, providers, numbering, dentition, tooth, href, p
         </Section>
       </div>
       <details>
-        <summary className="cursor-pointer text-sm font-medium">Chart whole-mouth, quadrant or arch work</summary>
+        <summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Chart whole-mouth, quadrant or arch work</summary>
         <div className="pt-3">
           <CommandForm op="addChartProcedure" shape="chartMouth" submitLabel="Add procedure" paths={paths} fixed={{ patientId: id, locationId: p.homeLocation?.id }}
             fields={[
@@ -186,7 +186,7 @@ async function VitalsAndMeds({ id, paths }: { id: string; paths: string[] }) {
     <div className="grid min-w-0 gap-6 lg:grid-cols-2">
       <Section title="Vitals">
         {(d.vitalsReadings as any[]).length ? (d.vitalsReadings as any[]).map((v) => <Row key={v.id}><span>{v.systolic ?? '—'}/{v.diastolic ?? '—'} mmHg · pulse {v.pulse ?? '—'}{v.asaClass ? ` · ASA ${v.asaClass}` : ''}</span><Meta>{when(v.at, undefined, 'date')}</Meta></Row>) : <Empty>No readings.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Record a reading</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Record a reading</summary>
           <div className="pt-3"><CommandForm op="recordVitals" shape="vitals" submitLabel="Save reading" paths={paths} fixed={{ patientId: id }} columns={2}
             fields={[{ name: 'systolic', label: 'Systolic', kind: 'number' }, { name: 'diastolic', label: 'Diastolic', kind: 'number' }, { name: 'pulse', label: 'Pulse', kind: 'number' }, { name: 'asaClass', label: 'ASA class', kind: 'select', options: [{ value: '', label: 'Not set' }, ...['I', 'II', 'III', 'IV'].map((v) => ({ value: v, label: v }))] }]} /></div>
         </details>
@@ -195,7 +195,7 @@ async function VitalsAndMeds({ id, paths }: { id: string; paths: string[] }) {
         {(d.medicationEntries as any[]).length ? (d.medicationEntries as any[]).map((m) => (
           <Row key={m.id}><span className="min-w-0"><span className="font-medium">{m.name}</span><Meta> {[m.dose, m.frequency].filter(Boolean).join(' · ')}</Meta></span><ActionButton op="endMedication" vars={{ medicationId: m.id }} paths={paths}>Stopped</ActionButton></Row>
         )) : <Empty>None recorded.</Empty>}
-        <details><summary className="cursor-pointer text-sm font-medium">Add a medication</summary>
+        <details><summary className="inline-flex min-h-11 items-center md:min-h-0 cursor-pointer text-sm font-medium">Add a medication</summary>
           <div className="pt-3"><CommandForm op="addMedication" submitLabel="Add" paths={paths} fixed={{ patientId: id }} columns={3}
             fields={[{ name: 'name', label: 'Medication', kind: 'text', required: true }, { name: 'dose', label: 'Dose', kind: 'text' }, { name: 'frequency', label: 'How often', kind: 'text' }]} /></div>
         </details>
