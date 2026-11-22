@@ -6,7 +6,9 @@ import { Page, Row, Empty, Meta, Section, Stat } from '../../components/ui';
 type Event = { id: string; seq: number; at: string; eventType: string; entityType: string; entityId: string; reason: string; hash: string; prevHash: string; actorUser: { name: string } | null; actorAgent: { name: string } | null; approver: { name: string } | null };
 type Verify = { ok: boolean; count: number; lastSeq: number; lastHash: string; brokenAtSeq: number | null; problem: string | null };
 
-const PAGE = 50;
+const PAGE = 25;
+/** "PortalAccount" reads as "Portal account"; the full id stays in the link target and the tooltip. */
+const kind = (t: string) => t.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/^./, (c) => c.toUpperCase()).replace(/ ([A-Z])(?=[a-z])/g, (_m, c: string) => ` ${c.toLowerCase()}`);
 
 /** Hash-chained audit log. Each event's hash covers the previous hash, so editing or removing one breaks every later link. */
 export default async function AuditPage({ searchParams }: { searchParams?: Promise<{ before?: string; entity?: string }> }) {
@@ -40,7 +42,7 @@ export default async function AuditPage({ searchParams }: { searchParams?: Promi
             <div className="min-w-0 flex-1 space-y-1">
               <div className="flex flex-wrap items-baseline gap-x-2"><span className="font-mono text-xs text-muted-foreground">#{e.seq}</span><span className="font-medium">{eventText(e.eventType)}</span></div>
               <Meta>
-                <Link className="underline underline-offset-2" href={`/dashboard/platform/audit?entity=${encodeURIComponent(e.entityId)}`}>{e.entityType} {e.entityId}</Link>
+                <Link className="inline-flex min-h-11 items-center underline underline-offset-2 md:min-h-0" href={`/dashboard/platform/audit?entity=${encodeURIComponent(e.entityId)}`} title={e.entityId}>{kind(e.entityType)} …{e.entityId.slice(-6)}</Link>
                 {' · '}{e.actorUser?.name ?? (e.actorAgent ? `agent ${e.actorAgent.name}` : 'system')}{e.approver ? ` · approved by ${e.approver.name}` : ''}{e.reason ? ` · ${e.reason}` : ''}
               </Meta>
             </div>

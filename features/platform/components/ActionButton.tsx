@@ -10,6 +10,8 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 export const summaryClass = 'flex min-h-11 cursor-pointer items-center text-sm font-medium';
 
 export function PillTrack({ children, className }: { children: React.ReactNode; className?: string }) {
+  // An empty track is a stray grey dot: render nothing when no action applies.
+  if (!React.Children.toArray(children).some(Boolean)) return null;
   return <div className={cn('inline-flex max-w-full flex-wrap gap-1 rounded-lg bg-muted p-1', className)}>{children}</div>;
 }
 

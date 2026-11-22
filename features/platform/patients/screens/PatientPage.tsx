@@ -76,7 +76,7 @@ export default async function PatientPage({ params }: { params: Promise<{ id: st
           <Row><span>Legal name</span><Meta>{[p.firstName, p.middleName, p.lastName, p.suffix].filter(Boolean).join(' ')}</Meta></Row>
           <Row><span>Sex at birth · pronouns</span><Meta>{title(p.sexAssignedAtBirth) || 'Not recorded'}{p.pronouns ? ` · ${p.pronouns}` : ''}</Meta></Row>
           <Row><span>Language</span><Meta>{languageName(p.preferredLanguage)}</Meta></Row>
-          <Row><span>Address</span><Meta>{p.address ? [p.address.line1, p.address.city, p.address.state, p.address.postal].filter(Boolean).join(', ') : '—'}</Meta></Row>
+          <Row><span>Address</span><Meta>{[p.address?.line1, p.address?.city, p.address?.state, p.address?.postal].filter(Boolean).join(', ') || 'Not recorded'}</Meta></Row>
           <Row><span>Providers</span><Meta>{p.primaryProvider?.displayName ?? '—'}{p.primaryHygienist ? ` · ${p.primaryHygienist.displayName}` : ''}</Meta></Row>
           <Row><span>First visit</span><Meta>{calendarDate(p.firstVisitOn, 'date') || '—'}</Meta></Row>
           {p.dateOfDeath ? <Row><span>Date of death</span><Meta>{calendarDate(p.dateOfDeath, 'date')}</Meta></Row> : null}

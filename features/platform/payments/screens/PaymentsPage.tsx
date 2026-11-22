@@ -7,13 +7,15 @@ import { CommandForm } from '../../components/CommandForm';
 
 /** Money from patients: refunds waiting on a person, statements, credits that need a decision, and payments that need a look. */
 export default async function PaymentsPage() {
-  const d = await q<any>(`{
+  // A failed card payment is final (nothing was charged); it stays here a week so the desk can call, then leaves.
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const d = await q<any>(`query ($weekAgo: DateTime!) {
     refunds(where: { status: { in: ["requested", "approved", "executing", "unknown", "failed"] } }, orderBy: { createdAt: asc }, take: 40) { id ref amountMinor method status reason failureNote payment { ref patient { firstName lastName } } account { ref } }
     statements(orderBy: { createdAt: desc }, take: 30) { id ref status cycleDate dueDate amountDueMinor payLinkCode payLinkExpiresAt account { ref } }
     creditBalances(where: { status: { in: ["open", "refund_requested", "escheat_pending"] } }, orderBy: { dormancyDueOn: asc }, take: 40) { id amountMinor arisenOn dormancyDueOn status account { ref } }
-    payments(where: { status: { in: ["unknown", "failed", "requires_action"] } }, orderBy: { createdAt: desc }, take: 20) { id ref amountMinor status failureNote patient { firstName lastName } }
+    payments(where: { OR: [{ status: { in: ["unknown", "requires_action"] } }, { status: { equals: "failed" }, createdAt: { gte: $weekAgo } }] }, orderBy: { createdAt: desc }, take: 20) { id ref amountMinor status failureNote patient { firstName lastName } }
     locations(orderBy: { name: asc }, take: 20) { id name }
-  }`);
+  }`, { weekAgo });
   const paths = ['/dashboard/platform/payments'];
   return (
     <Page title="Patient payments">
@@ -31,7 +33,7 @@ export default async function PaymentsPage() {
       <Section title="Payments that need a look">
         {(d.payments as any[]).length ? (d.payments as any[]).map((p) => (
           <Row key={p.id}><span className="min-w-0"><TitleLine status={p.status}>{p.patient?.firstName} {p.patient?.lastName} · {p.ref}</TitleLine><Meta>{p.failureNote || 'Waiting for the card processor'}</Meta></span><span className="font-medium tabular-nums">{money(p.amountMinor)}</span></Row>
-        )) : <Empty>Every payment went through.</Empty>}
+        )) : <Empty>No payments are waiting, and none failed this week.</Empty>}
       </Section>
       <Section title="Statements">
         {(d.statements as any[]).length ? (d.statements as any[]).map((s) => (

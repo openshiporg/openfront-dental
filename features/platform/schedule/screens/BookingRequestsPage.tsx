@@ -38,7 +38,8 @@ export default async function BookingRequestsPage({ searchParams }: { searchPara
       <Section title={view === 'open' ? 'Booked online, waiting for review' : 'Reviewed'}>
         {data.publicBookingRequests.length ? data.publicBookingRequests.map((r: any) => {
           const c = r.contact ?? {};
-          const candidates = (r.matchEvidence?.candidates ?? []) as { chartNumber: string; evidence: string[]; score: number }[];
+          // The chart the booking already landed on is not a "possible" other patient; offering to merge it with itself is noise.
+          const candidates = ((r.matchEvidence?.candidates ?? []) as { chartNumber: string; evidence: string[]; score: number }[]).filter((x) => x.chartNumber !== r.patientMatch?.chartNumber);
           return (
             <Row key={r.id}>
               <div className="min-w-0 flex-1 basis-64 space-y-1">
