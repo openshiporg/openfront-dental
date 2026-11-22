@@ -15,6 +15,8 @@ export const PLATFORM_PAGE_PERMISSIONS = {
   compliance: ['canManageCompliance', 'canReviewPrivacy', 'canApproveRetention'],
   data: ['canImportData', 'canExportData', 'canApproveImports'],
   privacy: ['canReviewPrivacy', 'canReadPhiAudit'],
+  // The raw record lists under /dashboard/<list> are an admin's tool, not a front desk's: only roles that manage roles see them.
+  records: ['canManageRoles'],
 } as const satisfies Record<string, readonly Permission[]>
 
 export type GatedPage = keyof typeof PLATFORM_PAGE_PERMISSIONS

@@ -55,11 +55,31 @@ export async function enforcePublicLimit(prisma: any, input: { scope: string; re
     refused = null
   }
   if (refused !== null) {
-    const minutes = Math.max(1, Math.ceil(refused / 60))
-    const hours = Math.ceil(minutes / 60)
-    const wait = minutes < 90 ? `${minutes} minute${minutes === 1 ? '' : 's'}` : `about ${hours} hours`
-    throw new DomainError(Codes.RATE_LIMITED, `That’s more tries than we allow in a row. Please try again in ${wait}, or call the office.`, { reason: 'rate_limited', retryAfterSeconds: refused })
+    const zone = await practiceZone(prisma)
+    throw new DomainError(Codes.RATE_LIMITED, `That’s more tries than we allow in a row. ${retryWhen(now, refused, zone)}, or call the office.`, { reason: 'rate_limited', retryAfterSeconds: refused })
   }
+}
+
+async function practiceZone(prisma: any) {
+  try {
+    const row = await prisma.practiceSettings?.findFirst?.({ select: { defaultTimeZone: true } })
+    return row?.defaultTimeZone || 'America/New_York'
+  } catch {
+    return 'America/New_York'
+  }
+}
+
+/**
+ * The real moment the blocking window resets, in the practice's time: "Please try again after 4:00 PM ET" (and "tomorrow" when
+ * the reset falls on the next local day). A reset within 15 minutes reads "in N minutes", which is clearer than a clock time.
+ */
+export function retryWhen(now: Date, retryAfterSeconds: number, timeZone: string) {
+  const minutes = Math.max(1, Math.ceil(retryAfterSeconds / 60))
+  if (minutes <= 15) return `Please try again in ${minutes} minute${minutes === 1 ? '' : 's'}`
+  const at = new Date(now.getTime() + retryAfterSeconds * 1000)
+  const clock = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone, timeZoneName: 'short' }).format(at).replace(/\b([A-Z])[SD]T\b/, '$1T')
+  const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone }).format(d)
+  return `Please try again after ${clock}${day(at) === day(now) ? '' : ' tomorrow'}`
 }
 
 /**

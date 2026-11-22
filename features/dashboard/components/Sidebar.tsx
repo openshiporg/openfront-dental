@@ -102,7 +102,7 @@ export function Sidebar({ adminMeta, user, onOpenDialog }: SidebarProps) {
   const listsArray = Object.values(lists)
 
   // Convert lists to sidebar links format
-  const modelLinks = visibleSidebarLists(listsArray as any[], user).map((list: any) => ({
+  const modelLinks = (user?.role?.canManageRoles === true ? visibleSidebarLists(listsArray as any[], user) : []).map((list: any) => ({
     title: list.label,
     href: `/dashboard/${list.path}`
   }))
@@ -283,8 +283,8 @@ export function Sidebar({ adminMeta, user, onOpenDialog }: SidebarProps) {
           </SidebarMenu>
         </SidebarGroup>
 
-        {/* Models */}
-        <SidebarGroup>
+        {/* Records (raw lists): admin roles only */}
+        {modelLinks.length ? <SidebarGroup>
           <SidebarGroupLabel>Records</SidebarGroupLabel>
           <SidebarMenu className="group-has-[[data-collapsible=icon]]/sidebar-wrapper:hidden">
             <Collapsible
@@ -357,7 +357,7 @@ export function Sidebar({ adminMeta, user, onOpenDialog }: SidebarProps) {
               </SidebarMenuItem>
             </DropdownMenu>
           </SidebarMenu>
-        </SidebarGroup>
+        </SidebarGroup> : null}
       </SidebarContent>
       
       <SidebarFooter>
