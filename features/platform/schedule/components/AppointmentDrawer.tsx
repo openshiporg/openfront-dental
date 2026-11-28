@@ -67,7 +67,7 @@ export async function AppointmentDrawer({ id, timeZone, closeHref }: { id: strin
           {['scheduled', 'confirmed'].includes(a.status) ? <ActionButton op="markArrived" vars={v} paths={PATHS}>Arrived</ActionButton> : null}
           {a.status === 'arrived' ? <ActionButton op="seatPatient" vars={{ ...v, acknowledgeAlerts: critical || undefined }} confirm={critical ? 'This patient has medical alerts. Have you reviewed them?' : undefined} paths={PATHS}>Seat</ActionButton> : null}
           {a.status === 'seated' ? <ActionButton op="markReadyForCheckout" vars={v} paths={PATHS}>Ready for checkout</ActionButton> : null}
-          {['seated', 'ready_for_checkout'].includes(a.status) ? <ActionButton op="completeAppointment" vars={v} paths={PATHS}>Complete</ActionButton> : null}
+          {a.status === 'ready_for_checkout' ? <ActionButton op="completeAppointment" vars={v} paths={PATHS}>Complete</ActionButton> : null}
           {['scheduled', 'confirmed'].includes(a.status) ? <ActionButton op="cancelAppointment" vars={v} ask="Why is this visit cancelled? (Inside the late-cancel window it is recorded as a late cancellation.)" paths={PATHS}>Cancel</ActionButton> : null}
           {['scheduled', 'confirmed', 'arrived'].includes(a.status) ? <ActionButton op="markBroken" vars={{ ...v, kind: 'no_show' }} ask="Note for the no-show (optional)" paths={PATHS}>No-show</ActionButton> : null}
         </PillTrack>

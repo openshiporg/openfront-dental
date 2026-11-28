@@ -1,3 +1,5 @@
+import { Codes } from '@/features/keystone/lib/errors';
+
 /** Never serialize an Error: ClientError.message itself includes request variables. */
 export const PUBLIC_REQUEST_ERROR = 'Unable to complete the request. Please try again.';
 
@@ -22,6 +24,8 @@ export function safeErrorSummary(error: unknown): { message: string; codes: stri
 // Keystone codes whose messages are written for the person filling the form.
 const USER_FACING_CODES = new Set([
   'KS_VALIDATION_FAILURE', 'KS_USER_INPUT_ERROR', 'KS_ACCESS_DENIED', 'KS_EXTENSION_ERROR',
+  // The practice's own rules (a taken slot, a visit changed by someone else, a missing approval): written for staff.
+  ...Object.values(Codes),
 ]);
 // Anything that looks like database, driver or stack output stays server-side.
 const UNSAFE_DETAIL = /prisma|invocation|\bat\s+\S+\s*\(|\bat\s+\/|node_modules|postgres(ql)?:\/\/|\bSQL\b|ECONN|query engine|\.ts:\d+|\.js:\d+/i;
