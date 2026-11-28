@@ -1,4 +1,3 @@
-import { ScrollX } from '../components/ui';
 import Link from 'next/link';
 import { PERMANENT, PRIMARY, toFdi, toPalmer } from '@/features/keystone/lib/teeth';
 
@@ -52,6 +51,8 @@ function Tooth({ tooth, x, y, marks, numbering, href, selected, labelAbove }: { 
   return (
     <Link href={href} aria-label={`Tooth ${toothLabel(tooth, numbering)}${marks.length ? `, ${marks.map((m) => m.label).join(', ')}` : ''}`}>
       <g transform={`translate(${x},${y})`} opacity={missing ? 0.45 : 1}>
+        {/* The whole cell, number included, is the tap area. */}
+        <rect x="0" y={labelAbove ? -18 : 0} width={W} height={S + 18} fill="transparent" />
         <text x={W / 2} y={labelAbove ? -6 : S + 15} textAnchor="middle" fontSize="11" fontFamily="ui-monospace, monospace" fill={selected ? '#0f172a' : '#64748b'} fontWeight={selected ? 700 : 400}>{toothLabel(tooth, numbering)}</text>
         <g transform={`translate(${(W - S) / 2},0)`}>
           {shapes(tooth).map((sh) => {
@@ -78,18 +79,35 @@ export function Odontogram({ marks, numbering, dentition, selected, hrefFor }: {
   const lower = dentition === 'permanent' ? PERMANENT.slice(16).reverse() : PRIMARY.slice(10).reverse();
   const cols = upper.length;
   const width = cols * W + 8;
-  const offset = ((16 - cols) * W) / 2;
+  const half = cols / 2;
+  const arches = (up: string[], low: string[]) => (
+    <>
+      <Arch teeth={up} y={22} marks={byTooth} numbering={numbering} hrefFor={hrefFor} selected={selected} upper />
+      <Arch teeth={low} y={100} marks={byTooth} numbering={numbering} hrefFor={hrefFor} selected={selected} upper={false} />
+    </>
+  );
   return (
-    <ScrollX hint="Swipe sideways to see all teeth">
-      <svg role="img" aria-label="Tooth chart" viewBox={`0 0 ${width} 170`} width={width} height={170} className="mx-auto block min-w-[640px]">
-        <Arch teeth={upper} y={22} marks={byTooth} numbering={numbering} hrefFor={hrefFor} selected={selected} upper />
-        <line x1={width / 2} x2={width / 2} y1="14" y2="156" stroke="#cbd5e1" strokeDasharray="3 3" />
-        <Arch teeth={lower} y={100} marks={byTooth} numbering={numbering} hrefFor={hrefFor} selected={selected} upper={false} />
-        <text x="2" y="165" fontSize="10" fill="#94a3b8">Patient’s right</text>
-        <text x={width - 2} y="165" textAnchor="end" fontSize="10" fill="#94a3b8">Patient’s left</text>
-      </svg>
-      {offset ? null : null}
-    </ScrollX>
+    <>
+      {/* Phone: the mouth in two halves, each the full width, so every tooth is a full-size tap and nothing scrolls sideways. */}
+      <div className="space-y-3 md:hidden">
+        {([['Patient’s right', 0], ['Patient’s left', half]] as const).map(([side, from]) => (
+          <figure key={side}>
+            <figcaption className="text-xs text-muted-foreground">{side}</figcaption>
+            <svg role="img" aria-label={`Tooth chart, ${side.toLowerCase()}`} viewBox={`0 0 ${half * W + 8} 150`} className="mx-auto block h-auto w-full max-w-[26rem]">
+              {arches(upper.slice(from, from + half), lower.slice(from, from + half))}
+            </svg>
+          </figure>
+        ))}
+      </div>
+      <div className="hidden md:block">
+        <svg role="img" aria-label="Tooth chart" viewBox={`0 0 ${width} 170`} width={width} height={170} className="mx-auto block h-auto max-w-full">
+          {arches(upper, lower)}
+          <line x1={width / 2} x2={width / 2} y1="14" y2="156" stroke="#cbd5e1" strokeDasharray="3 3" />
+          <text x="2" y="165" fontSize="10" fill="#94a3b8">Patient’s right</text>
+          <text x={width - 2} y="165" textAnchor="end" fontSize="10" fill="#94a3b8">Patient’s left</text>
+        </svg>
+      </div>
+    </>
   );
 }
 
