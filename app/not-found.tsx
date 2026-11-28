@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { connection } from 'next/server'
 import { Header } from '@/features/storefront/components/Header'
 import { Footer } from '@/features/storefront/components/Footer'
 import { shell } from '@/features/storefront/lib/fonts'
@@ -7,6 +8,8 @@ import { loadSite } from '@/features/storefront/lib/site'
 export const metadata = { title: 'Page not found' }
 
 export default async function NotFound() {
+  // Rendered per request: at build time there is no database, so a prebuilt copy has no practice name, header or footer.
+  await connection()
   const site = await loadSite()
   const phone = site?.locations[0]?.phone
   return (
