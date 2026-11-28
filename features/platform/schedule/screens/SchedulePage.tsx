@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { chartLabel } from '../../lib/format';
 import { officeName } from '../../lib/format';
-import { q } from '../../lib/server';
+import { myOffices, q } from '../../lib/server';
 import { money, when, zoneLabel } from '../../lib/format';
 import { Page, Section, Stat, Tabs, Empty, Meta, Row, TitleLine } from '../../components/ui';
 import { ScheduleGrid, type GridAppointment, type GridBlock } from '../components/ScheduleGrid';
@@ -24,9 +24,10 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Pr
     locations(where: { isActive: { equals: true } }, orderBy: { code: asc }) { id code name timeZone }
     practiceSettings { scheduleUnitMinutes }
   }`);
-  const location = meta.locations.find((l) => l.id === sp.loc) ?? meta.locations[0];
+  const offices = await myOffices(meta.locations);
+  const location = offices.find((l) => l.id === sp.loc) ?? offices[0];
   if (!location) {
-    return <Page title="Schedule"><Empty>No locations yet. Add a location in practice settings.</Empty></Page>;
+    return <Page title="Schedule"><Empty>{meta.locations.length ? 'You are not assigned to an office yet. Ask the practice owner to add you to one.' : 'No locations yet. Add a location in practice settings.'}</Empty></Page>;
   }
   const tz = location.timeZone;
   const today = localToday(tz);
@@ -42,7 +43,7 @@ export default async function SchedulePage({ searchParams }: { searchParams?: Pr
   return (
     <Page title="Schedule">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs active={location.id} items={meta.locations.map((l) => ({ key: l.id, label: officeName(l), href: link({ loc: l.id, appt: undefined }) }))} />
+        <Tabs active={location.id} items={offices.map((l) => ({ key: l.id, label: officeName(l), href: link({ loc: l.id, appt: undefined }) }))} />
         <Tabs active={view} items={[{ key: 'day', label: 'Day', href: link({ view: 'day', appt: undefined }) }, { key: 'week', label: 'Week', href: link({ view: 'week', appt: undefined }) }]} />
       </div>
       <div className="flex flex-wrap items-center gap-2 text-sm">

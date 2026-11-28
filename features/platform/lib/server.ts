@@ -35,3 +35,20 @@ export async function practiceTimeZone(): Promise<string> {
     return 'America/New_York'
   }
 }
+
+/**
+ * The offices this person works in today, in the order given. Someone assigned to one office opens the schedule
+ * on their own office, never on one whose visits they are not allowed to see. Roles with every office get them all.
+ */
+export async function myOffices<T extends { id: string }>(locations: T[]): Promise<T[]> {
+  try {
+    const d: any = await q(`{ authenticatedItem { ... on User { role { canAccessAllLocations } assignments { startsOn endsOn location { id } } } } }`)
+    const me = d.authenticatedItem
+    if (!me || me.role?.canAccessAllLocations) return locations
+    const day = new Date().toISOString().slice(0, 10)
+    const ids = new Set((me.assignments ?? []).filter((a: any) => a.location?.id && (!a.startsOn || String(a.startsOn).slice(0, 10) <= day) && (!a.endsOn || String(a.endsOn).slice(0, 10) >= day)).map((a: any) => a.location.id))
+    return locations.filter((l) => ids.has(l.id))
+  } catch {
+    return locations
+  }
+}

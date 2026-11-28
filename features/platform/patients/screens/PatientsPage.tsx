@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { q } from '../../lib/server';
-import { calendarDate, label, title, languageName, chartLabel} from '../../lib/format';
+import { myOffices, q } from '../../lib/server';
+import { calendarDate, label, title, languageName, chartLabel, officeName } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { NewPatientForm } from '../components/NewPatientForm';
 
@@ -42,7 +42,7 @@ export default async function PatientsPage({ searchParams }: { searchParams?: Pr
       }
       count: patientsCount(where: $where)
       ${STATUSES.map((s) => `${s}: patientsCount(where: { status: { equals: "${s}" } })`).join('\n')}
-      locations(where: { isActive: { equals: true } }, orderBy: { code: asc }) { id code }
+      locations(where: { isActive: { equals: true } }, orderBy: { code: asc }) { id code name }
     }`, { where, skip: page * PAGE, take: PAGE }),
   ]);
   const href = (patch: Record<string, string | number | undefined>) => {
@@ -59,7 +59,7 @@ export default async function PatientsPage({ searchParams }: { searchParams?: Pr
       </form>
       <Tabs active={status} items={STATUSES.map((s) => ({ key: s, label: title(s), href: href({ status: s }), count: data[s] }))} />
       <Section title={term ? `${data.count} found` : `${data.count} ${label(status)}`} aside={<Link href={href({ new: '1' })} className="text-sm font-medium hover:underline">New patient</Link>}>
-        {sp.new ? <div className="mb-4 rounded-lg border p-4"><NewPatientForm locations={data.locations} /></div> : null}
+        {sp.new ? <div className="mb-4 rounded-lg border p-4"><NewPatientForm locations={(await myOffices(data.locations as { id: string; code: string; name: string }[])).map((l) => ({ id: l.id, code: officeName(l) || l.code }))} /></div> : null}
         {data.patients.length ? data.patients.map((p: any) => (
           <Row key={p.id} href={`/dashboard/platform/patients/${p.id}`}>
             <div className="min-w-0">

@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { chartLabel } from '../../lib/format';
-import { q, practiceTimeZone } from '../../lib/server';
+import { chartLabel, officeName } from '../../lib/format';
+import { myOffices, q, practiceTimeZone } from '../../lib/server';
 import { when, calendarDate } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
@@ -24,11 +24,12 @@ export default async function AsapPage({ searchParams }: { searchParams?: Promis
       }
       active: asapEntriesCount(where: { status: { in: ["active", "offered"] } })
       closed: asapEntriesCount(where: { status: { notIn: ["active", "offered"] } })
-      locations(where: { isActive: { equals: true } }, orderBy: { code: asc }) { id code }
+      locations(where: { isActive: { equals: true } }, orderBy: { code: asc }) { id code name }
       appointmentTypes(where: { isActive: { equals: true } }, orderBy: { name: asc }) { id name }
     }`),
     practiceTimeZone(),
   ]);
+  const offices = await myOffices(data.locations as any[]);
   return (
     <Page title="ASAP list" crumbs={[{ label: 'Schedule', href: '/dashboard/platform/schedule' }]}>
       <Tabs active={view} items={[
@@ -64,7 +65,7 @@ export default async function AsapPage({ searchParams }: { searchParams?: Promis
           paths={['/dashboard/platform/schedule/asap']}
           fields={[
             { name: 'chart', label: 'Patient chart number', kind: 'text', required: true, placeholder: '1001', hint: 'Find the chart number on the patient page.' },
-            { name: 'locationId', label: 'Location', kind: 'select', required: true, options: data.locations.map((l: any) => ({ value: l.id, label: l.code })) },
+            { name: 'locationId', label: 'Location', kind: 'select', required: true, options: offices.map((l: any) => ({ value: l.id, label: officeName(l) })) },
             { name: 'appointmentTypeId', label: 'Visit type', kind: 'select', options: [{ value: '', label: 'Any' }, ...data.appointmentTypes.map((t: any) => ({ value: t.id, label: t.name }))] },
             { name: 'weekday', label: 'Preferred day', kind: 'select', options: [{ value: '', label: 'Any day' }, ...[1, 2, 3, 4, 5].map((d) => ({ value: String(d), label: DAYS[d] }))] },
             { name: 'from', label: 'From', kind: 'text', placeholder: '08:00' },

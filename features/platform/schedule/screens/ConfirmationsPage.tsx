@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { chartLabel } from '../../lib/format';
 import { officeName } from '../../lib/format';
-import { q } from '../../lib/server';
+import { myOffices, q } from '../../lib/server';
 import { when, label, title } from '../../lib/format';
 import { Page, Section, Row, Empty, Meta, Tabs, TitleLine } from '../../components/ui';
 import { ActionButton } from '../../components/ActionButton';
@@ -15,7 +15,8 @@ import { addDays, isDate, localToday, shortDay } from '../lib/day';
 export default async function ConfirmationsPage({ searchParams }: { searchParams?: Promise<{ date?: string; loc?: string }> }) {
   const sp = (await searchParams) ?? {};
   const meta = await q<any>(`{ locations(where: { isActive: { equals: true } }, orderBy: { code: asc }) { id code name timeZone } }`);
-  const location = meta.locations.find((l: any) => l.id === sp.loc) ?? meta.locations[0];
+  const offices = await myOffices(meta.locations as any[]);
+  const location = offices.find((l: any) => l.id === sp.loc) ?? offices[0];
   if (!location) return <Page title="Confirmations"><Empty>No locations yet.</Empty></Page>;
   const tz = location.timeZone;
   const today = localToday(tz);
@@ -34,7 +35,7 @@ export default async function ConfirmationsPage({ searchParams }: { searchParams
   return (
     <Page title="Confirmations" crumbs={[{ label: 'Schedule', href: '/dashboard/platform/schedule' }]}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs active={location.id} items={meta.locations.map((l: any) => ({ key: l.id, label: officeName(l), href: `${base}?loc=${l.id}&date=${from}` }))} />
+        <Tabs active={location.id} items={offices.map((l: any) => ({ key: l.id, label: officeName(l), href: `${base}?loc=${l.id}&date=${from}` }))} />
         <div className="flex items-center gap-2 text-sm">
           <Link className="inline-flex min-h-11 items-center rounded-md border px-3 hover:bg-muted md:min-h-9" href={`${base}?loc=${location.id}&date=${addDays(from, -3)}`}>←</Link>
           <span className="font-medium">{shortDay(from)} – {shortDay(to)}</span>
