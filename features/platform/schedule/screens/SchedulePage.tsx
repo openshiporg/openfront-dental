@@ -123,7 +123,7 @@ async function DayView({ location, date, unitMinutes, selected, link }: { locati
         <Stat name="Scheduled production" value={money(production)} />
         <Stat name="Goal" value={<span>{money(goal)} <span className="text-sm font-normal text-muted-foreground">{percentOf(production, goal)}%</span></span>} />
         <Stat name="Visits" value={counts.booked} />
-        <Stat name="Unconfirmed" value={<Link className="underline-offset-2 hover:underline" href="/dashboard/platform/schedule/confirmations">{counts.unconfirmed}</Link>} />
+        <Stat name="Unconfirmed" value={<Link aria-label={`${counts.unconfirmed} unconfirmed: open confirmations`} className="-my-2 inline-flex min-h-11 min-w-11 items-center underline decoration-muted-foreground/50 underline-offset-4 md:min-h-0 md:min-w-0" href="/dashboard/platform/schedule/confirmations">{counts.unconfirmed}</Link>} />
       </div>
       {closures.length ? closures.map((c) => <p key={c.id} className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">{c.isHalfDay ? `Closed ${c.startLocal}–${c.endLocal}` : 'Closed all day'}: {c.reason}</p>) : null}
       {!template ? <Empty>No active schedule template for this location on this date.</Empty> : null}
