@@ -6,7 +6,7 @@ export async function gql<T = any>(query: string, variables: Record<string, unkn
   return json.data as T
 }
 
-export type VisitType = { id: string; name: string; category: string; minutes: number | null; newPatientOnly: boolean }
+export type VisitType = { id: string; name: string; category: string; minutes: number | null; newPatientOnly: boolean; priceMinor?: string }
 export type SiteLocation = {
   id: string; name: string; phone: string; timeZone: string
   address: { line1?: string; line2?: string; city?: string; state?: string; postal?: string } | null

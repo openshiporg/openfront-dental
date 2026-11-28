@@ -59,7 +59,7 @@ export async function readSite(context: Pick<Ctx, 'prisma'>, slug: string) {
   })
   const policies = await context.prisma.onlineBookingPolicy.findMany({
     where: { isActive: true, locationId: { in: locations.map((l: any) => l.id) } },
-    include: { appointmentTypes: { where: { isActive: true, onlineBookable: true }, select: { id: true, name: true, publicName: true, category: true, defaultPattern: true, newPatientOnly: true } } },
+    include: { appointmentTypes: { where: { isActive: true, onlineBookable: true }, select: { id: true, name: true, publicName: true, category: true, defaultPattern: true, newPatientOnly: true, defaultProductionMinor: true } } },
   })
   const unit = (await context.prisma.practiceSettings.findUnique({ where: { id: 1 }, select: { scheduleUnitMinutes: true } }))?.scheduleUnitMinutes ?? 10
   return {
@@ -73,7 +73,7 @@ export async function readSite(context: Pick<Ctx, 'prisma'>, slug: string) {
         onlineBooking: policy ? {
           newPatientAllowed: policy.newPatientAllowed, leadTimeHours: policy.leadTimeHours, horizonDays: policy.horizonDays, holdMinutes: policy.holdMinutes,
           depositMinor: String(policy.depositMinor ?? 0n), requireInsuranceCapture: policy.requireInsuranceCapture,
-          visitTypes: policy.appointmentTypes.map((t: any) => ({ id: t.id, name: t.publicName || t.name, category: t.category, minutes: minutesOf(t.defaultPattern, unit), newPatientOnly: t.newPatientOnly })),
+          visitTypes: policy.appointmentTypes.map((t: any) => ({ id: t.id, name: t.publicName || t.name, category: t.category, minutes: minutesOf(t.defaultPattern, unit), newPatientOnly: t.newPatientOnly, priceMinor: String(t.defaultProductionMinor ?? 0n) })),
         } : null,
       }
     }),

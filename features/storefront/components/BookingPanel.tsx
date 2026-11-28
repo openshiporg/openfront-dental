@@ -56,6 +56,7 @@ export function BookingPanel({ site }: { site: Site }) {
   const tomorrow = useMemo(() => new Date(Date.now() + 86_400_000).toLocaleDateString('en-CA', { timeZone: tz }), [tz])
   const dayName = (d: string) => (d === tomorrow ? `Tomorrow, ${dayLabel(d)}` : dayLabel(d))
   const kind = types.find(t => t.id === typeId)
+  const price = (() => { const n = BigInt(kind?.priceMinor ?? '0'); return n > 0n ? `$${n / 100n}${n % 100n ? `.${String(n % 100n).padStart(2, '0')}` : ''}` : '' })()
 
   async function choose(slot: Slot) {
     setError(''); setBusy(true)
@@ -121,6 +122,7 @@ export function BookingPanel({ site }: { site: Site }) {
         <div><label className={label} htmlFor="bk-type">Visit type</label>
           <select id="bk-type" className={field} value={typeId} onChange={e => setTypeId(e.target.value)}>{types.map(t => <option key={t.id} value={t.id}>{t.name}{t.minutes ? ` (${t.minutes} min)` : ''}</option>)}</select></div>
       </div>
+      {price ? <p className="mt-2 text-base text-[#4c5a58]">{kind?.name}: {price} before insurance. You pay at the office, not when you book.</p> : null}
 
       <div className="mt-4" aria-live="polite">
         {slots === null ? <p>Looking for open times…</p> : !daySlots.length ? <p>No open times online for this visit right now. Please call {location?.phone}.</p> : (
